@@ -1,0 +1,22 @@
+# Секреты и локальные переопределения
+.env
+.env.*
+!.env.example
+
+# Зависимости (восстановление: composer install / npm ci в laravel-course-files)
+**/vendor/
+**/node_modules/
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.venv/
+**/venv/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db

@@ -1,0 +1,9 @@
+{{-- Подсказки после первой неполной автопроверки практики модуля 3 --}}
+<div class="card" style="margin:0 0 1rem;padding:0.75rem 1rem;border-left:4px solid #2d6a9f;background:#f3f8fc">
+    <p style="margin:0 0 0.5rem;font-size:0.95rem"><strong>Подсказки (модуль 3).</strong> Кратко по заданиям:</p>
+    <ul style="margin:0;padding-left:1.2rem;line-height:1.55;font-size:0.92rem">
+        <li><strong>Задание 1.</strong> Маски: <code>systemctl status ahttpd alteratord</code>; при <code>masked</code> — <code>sudo systemctl unmask ahttpd alteratord</code> и <code>enable --now</code>. Если службы <code>active</code>, а порта 8080 нет — <code>sudo journalctl -u ahttpd -n 30 --no-pager</code>; при ошибках guile/locale установите <code>sudo apt-get install -y glibc-locales</code> и перезапустите <code>alteratord</code> и <code>ahttpd</code>. Проверка: <code>curl -k https://127.0.0.1:8080/</code>.</li>
+        <li><strong>Задание 2.</strong> Установите модуль: <code>sudo apt-get install -y alterator-users</code>. Перезапуск служб в контейнере лучше без ожидания: <code>sudo systemctl --no-block restart alteratord ahttpd</code>, затем через несколько секунд — <code>systemctl is-active alteratord ahttpd</code> (команда <code>systemctl restart …</code> без <code>--no-block</code> здесь часто долго не возвращает приглашение shell).</li>
+        <li><strong>Задание 3.</strong> Имя узла: на «железе» обычно <code>sudo hostnamectl set-hostname alt-student.local</code>; в контейнере <code>hostnamectl</code> часто отвечает «Device or resource busy» — тогда: <code>echo alt-student.local | sudo tee /etc/hostname</code> и <code>sudo hostname alt-student.local</code> (для проверки важно содержимое <code>/etc/hostname</code>). DNS: строка <code>nameserver 77.88.8.8</code> в <code>/etc/resolv.conf</code>.</li>
+    </ul>
+</div>

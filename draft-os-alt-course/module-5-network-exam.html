@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Модуль 5 — Экзамен: сеть</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a222c;
+      --surface2: #232d3a;
+      --border: #2d3a4a;
+      --text: #e8eef4;
+      --muted: #8b9bab;
+      --accent: #5eb3f6;
+      --accent-dim: #3d7aa8;
+      --ok: #6bcf8e;
+      --err: #f08080;
+      --radius: 10px;
+      --font: "Segoe UI", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 15px;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+    header {
+      margin-bottom: 2rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .meta span { white-space: nowrap; }
+    .q {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.15rem;
+      margin-bottom: 1rem;
+    }
+    .q-num {
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.85rem;
+      margin-bottom: 0.35rem;
+    }
+    .q p { margin: 0 0 0.85rem; }
+    .opts label {
+      display: block;
+      padding: 0.35rem 0 0.35rem 0.15rem;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+    .opts label:hover { background: var(--surface2); }
+    .opts input { margin-right: 0.5rem; vertical-align: middle; }
+
+    .match-block {
+      margin-top: 0.75rem;
+    }
+    .match-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .match-row {
+      display: grid;
+      grid-template-columns: 1fr minmax(140px, 1fr);
+      gap: 0.65rem;
+      align-items: stretch;
+    }
+    @media (max-width: 520px) {
+      .match-row { grid-template-columns: 1fr; }
+    }
+    .match-left {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 0.65rem 0.75rem;
+      font-size: 0.92rem;
+      border: 1px solid var(--border);
+    }
+    .drop-zone {
+      min-height: 44px;
+      border: 2px dashed var(--accent-dim);
+      border-radius: 8px;
+      padding: 0.35rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(94, 179, 246, 0.06);
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(94, 179, 246, 0.12);
+    }
+    .drop-zone .hint {
+      color: var(--muted);
+      font-size: 0.8rem;
+      pointer-events: none;
+    }
+    .token-bank {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .token-bank-title {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+    .token-pool {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      min-height: 44px;
+    }
+    .drag-token {
+      padding: 0.45rem 0.75rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: grab;
+      font-size: 0.88rem;
+      user-select: none;
+      touch-action: none;
+    }
+    .drag-token:active { cursor: grabbing; }
+    .drag-token.in-slot {
+      cursor: grab;
+      width: 100%;
+      text-align: center;
+    }
+
+    .actions {
+      margin-top: 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    button {
+      font-family: inherit;
+      font-size: 1rem;
+      padding: 0.65rem 1.4rem;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      background: var(--accent);
+      color: #0a0e12;
+      font-weight: 600;
+    }
+    button:hover { filter: brightness(1.08); }
+    button.secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    #result {
+      margin-top: 1.25rem;
+      padding: 1rem 1.15rem;
+      border-radius: var(--radius);
+      display: none;
+      border: 1px solid var(--border);
+    }
+    #result.show { display: block; }
+    #result.pass { border-color: var(--ok); background: rgba(107, 207, 142, 0.08); }
+    #result.fail { border-color: var(--err); background: rgba(240, 128, 128, 0.08); }
+    .explain {
+      margin-top: 1.5rem;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+    .explain summary { cursor: pointer; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Экзамен: Модуль 5 — Сеть: три менеджера и контексты</h1>
+      <div class="meta">
+        <span>20 вопросов</span>
+        <span>100 баллов</span>
+        <span>порог сдачи: <strong style="color:var(--text)">70</strong></span>
+        <span>одиночный выбор · 4 × 7 = 28</span>
+        <span>несколько верных · 5 × 6 = 30</span>
+        <span>сопоставление · 4 × 3 = 12</span>
+        <span>сценарии · 7,5 × 4 = 30</span>
+      </div>
+      <p style="margin:0.75rem 0 0;color:var(--muted);font-size:0.9rem;">
+        В вопросах <strong style="color:var(--text)">14–16</strong> перетащите вариант из нижнего ряда в пустую ячейку напротив строки. Каждый вариант — один раз на вопрос.
+      </p>
+    </header>
+
+    <form id="exam">
+      <!-- 1 -->
+      <div class="q" data-q="1" data-type="single" data-points="4">
+        <div class="q-num">1</div>
+        <p>Администратор создал файл <code>/etc/net/ifaces/eth0/ipv4address</code> с содержимым <code>10.0.0.5/24</code>, но после <code>ifup eth0</code> адрес не появился. В чём причина?</p>
+        <div class="opts">
+          <label><input type="radio" name="q1" value="A" /> А) Файл должен называться ipv4addr, а не ipv4address</label>
+          <label><input type="radio" name="q1" value="B" /> Б) В файле options не указан CONFIG_IPV4=yes и BOOTPROTO=static</label>
+          <label><input type="radio" name="q1" value="C" /> В) Нужно сначала выполнить systemctl restart NetworkManager</label>
+          <label><input type="radio" name="q1" value="D" /> Г) Файл ipv4address работает только с IPv6-интерфейсами</label>
+        </div>
+      </div>
+      <!-- 2 -->
+      <div class="q" data-q="2" data-type="single" data-points="4">
+        <div class="q-num">2</div>
+        <p>Администратор настроил DNS через файл <code>/etc/net/ifaces/eth0/resolv.conf</code>, но после перезагрузки <code>/etc/resolv.conf</code> снова пустой. Что произошло?</p>
+        <div class="opts">
+          <label><input type="radio" name="q2" value="A" /> А) Файл /etc/resolv.conf защищён и не обновляется автоматически</label>
+          <label><input type="radio" name="q2" value="B" /> Б) Интерфейс eth0 не поднялся при загрузке — в options отсутствует ONBOOT=yes</label>
+          <label><input type="radio" name="q2" value="C" /> В) resolvconf не установлен в системе</label>
+          <label><input type="radio" name="q2" value="D" /> Г) DNS нужно прописывать напрямую в /etc/resolv.conf</label>
+        </div>
+      </div>
+      <!-- 3 -->
+      <div class="q" data-q="3" data-type="single" data-points="4">
+        <div class="q-num">3</div>
+        <p>Какой режим сетевого интерфейса позволяет обычному пользователю включать и выключать соединение через GUI, но не позволяет менять IP-адрес без прав root?</p>
+        <div class="opts">
+          <label><input type="radio" name="q3" value="A" /> А) Etcnet</label>
+          <label><input type="radio" name="q3" value="B" /> Б) systemd-networkd</label>
+          <label><input type="radio" name="q3" value="C" /> В) NetworkManager(native)</label>
+          <label><input type="radio" name="q3" value="D" /> Г) NetworkManager(etcnet)</label>
+        </div>
+      </div>
+      <!-- 4 -->
+      <div class="q" data-q="4" data-type="single" data-points="4">
+        <div class="q-num">4</div>
+        <p>Администратор выполнил <code>nmcli con modify "System eth0" ipv4.method manual</code>. Что это означает?</p>
+        <div class="opts">
+          <label><input type="radio" name="q4" value="A" /> А) Интерфейс переводится в режим etcnet</label>
+          <label><input type="radio" name="q4" value="B" /> Б) Интерфейс будет получать адрес по DHCP</label>
+          <label><input type="radio" name="q4" value="C" /> В) Интерфейс переходит на статическую адресацию</label>
+          <label><input type="radio" name="q4" value="D" /> Г) Соединение удаляется из NetworkManager</label>
+        </div>
+      </div>
+      <!-- 5 -->
+      <div class="q" data-q="5" data-type="single" data-points="4">
+        <div class="q-num">5</div>
+        <p>В файле <code>/etc/nsswitch.conf</code> строка hosts изменена на <code>hosts: dns files</code>. Что изменится в поведении системы?</p>
+        <div class="opts">
+          <label><input type="radio" name="q5" value="A" /> А) Система перестанет использовать /etc/hosts</label>
+          <label><input type="radio" name="q5" value="B" /> Б) DNS будет опрашиваться раньше чем /etc/hosts</label>
+          <label><input type="radio" name="q5" value="C" /> В) /etc/hosts станет единственным источником разрешения имён</label>
+          <label><input type="radio" name="q5" value="D" /> Г) Изменений не будет — порядок не имеет значения</label>
+        </div>
+      </div>
+      <!-- 6 -->
+      <div class="q" data-q="6" data-type="single" data-points="4">
+        <div class="q-num">6</div>
+        <p>Администратор хочет временно назначить IP-адрес на интерфейс для диагностики, не затрагивая конфигурационные файлы. Какая команда подходит?</p>
+        <div class="opts">
+          <label><input type="radio" name="q6" value="A" /> А) ifup eth0 192.168.1.10/24</label>
+          <label><input type="radio" name="q6" value="B" /> Б) ip a add 192.168.1.10/24 dev eth0</label>
+          <label><input type="radio" name="q6" value="C" /> В) nmcli con modify eth0 +ipv4.addresses 192.168.1.10/24</label>
+          <label><input type="radio" name="q6" value="D" /> Г) echo "192.168.1.10/24" &gt; /etc/net/ifaces/eth0/ipv4address</label>
+        </div>
+      </div>
+      <!-- 7 -->
+      <div class="q" data-q="7" data-type="single" data-points="4">
+        <div class="q-num">7</div>
+        <p>Что означает каталог <code>unknown</code> в <code>/etc/net/ifaces/</code>?</p>
+        <div class="opts">
+          <label><input type="radio" name="q7" value="A" /> А) Интерфейс с неизвестным типом — будет проигнорирован системой</label>
+          <label><input type="radio" name="q7" value="B" /> Б) Резервный каталог для интерфейсов без собственной конфигурации при hotplug</label>
+          <label><input type="radio" name="q7" value="C" /> В) Каталог для хранения устаревших настроек</label>
+          <label><input type="radio" name="q7" value="D" /> Г) Интерфейс в режиме NetworkManager(native)</label>
+        </div>
+      </div>
+
+      <!-- 8 multi -->
+      <div class="q" data-q="8" data-type="multi" data-points="5" data-correct="A,B,C,E">
+        <div class="q-num">8</div>
+        <p>Какие утверждения про файл <code>options</code> в etcnet верны?</p>
+        <div class="opts">
+          <label><input type="checkbox" name="q8" value="A" /> А) DISABLED=yes означает что etcnet не будет управлять этим интерфейсом</label>
+          <label><input type="checkbox" name="q8" value="B" /> Б) NM_CONTROLLED=yes и DISABLED=yes одновременно — это режим NetworkManager(native)</label>
+          <label><input type="checkbox" name="q8" value="C" /> В) BOOTPROTO=dhcp требует установленного пакета dhcpcd для работы</label>
+          <label><input type="checkbox" name="q8" value="D" /> Г) ONBOOT=no означает что интерфейс вообще не может быть поднят вручную</label>
+          <label><input type="checkbox" name="q8" value="E" /> Д) Параметр MODULE указывается когда udev не подгружает драйвер автоматически</label>
+        </div>
+      </div>
+      <!-- 9 -->
+      <div class="q" data-q="9" data-type="multi" data-points="5" data-correct="A,B,C,E">
+        <div class="q-num">9</div>
+        <p>Какие команды <code>nmcli</code> корректны для настройки статического IP?</p>
+        <div class="opts">
+          <label><input type="checkbox" name="q9" value="A" /> А) nmcli con modify "eth0" ipv4.addresses 10.0.0.5/24</label>
+          <label><input type="checkbox" name="q9" value="B" /> Б) nmcli con modify "eth0" ipv4.method manual</label>
+          <label><input type="checkbox" name="q9" value="C" /> В) nmcli con modify "eth0" ipv4.gateway 10.0.0.1</label>
+          <label><input type="checkbox" name="q9" value="D" /> Г) nmcli con static "eth0" ip 10.0.0.5</label>
+          <label><input type="checkbox" name="q9" value="E" /> Д) nmcli con up "eth0"</label>
+        </div>
+      </div>
+      <!-- 10 -->
+      <div class="q" data-q="10" data-type="multi" data-points="5" data-correct="A,B,C,D">
+        <div class="q-num">10</div>
+        <p>Какие файлы могут присутствовать в каталоге <code>/etc/net/ifaces/eth0/</code> при статической настройке?</p>
+        <div class="opts">
+          <label><input type="checkbox" name="q10" value="A" /> А) options</label>
+          <label><input type="checkbox" name="q10" value="B" /> Б) ipv4address</label>
+          <label><input type="checkbox" name="q10" value="C" /> В) ipv4route</label>
+          <label><input type="checkbox" name="q10" value="D" /> Г) resolv.conf</label>
+          <label><input type="checkbox" name="q10" value="E" /> Д) nameserver.conf</label>
+        </div>
+      </div>
+      <!-- 11 -->
+      <div class="q" data-q="11" data-type="multi" data-points="5" data-correct="A,B,C,E">
+        <div class="q-num">11</div>
+        <p>Какие утверждения про resolvconf верны?</p>
+        <div class="opts">
+          <label><input type="checkbox" name="q11" value="A" /> А) Формирует /etc/resolv.conf автоматически при активации интерфейса</label>
+          <label><input type="checkbox" name="q11" value="B" /> Б) Вызывается командой ifup при поднятии интерфейса</label>
+          <label><input type="checkbox" name="q11" value="C" /> В) Позволяет объединить DNS-настройки от нескольких интерфейсов</label>
+          <label><input type="checkbox" name="q11" value="D" /> Г) Заменяет dig и nslookup для проверки DNS</label>
+          <label><input type="checkbox" name="q11" value="E" /> Д) Ручное редактирование /etc/resolv.conf будет перезаписано при следующем ifup</label>
+        </div>
+      </div>
+      <!-- 12 -->
+      <div class="q" data-q="12" data-type="multi" data-points="5" data-correct="A,B,C,E">
+        <div class="q-num">12</div>
+        <p>Какие утверждения про <code>ss</code> верны?</p>
+        <div class="opts">
+          <label><input type="checkbox" name="q12" value="A" /> А) Является современной заменой устаревшего netstat</label>
+          <label><input type="checkbox" name="q12" value="B" /> Б) Флаг -l показывает только слушающие сокеты</label>
+          <label><input type="checkbox" name="q12" value="C" /> В) Флаг -p требует прав root для отображения процессов</label>
+          <label><input type="checkbox" name="q12" value="D" /> Г) ss -atnp показывает все активные UDP-соединения</label>
+          <label><input type="checkbox" name="q12" value="E" /> Д) ss -s выводит статистику по сокетам</label>
+        </div>
+      </div>
+      <!-- 13 -->
+      <div class="q" data-q="13" data-type="multi" data-points="5" data-correct="A,B,C,D">
+        <div class="q-num">13</div>
+        <p>Администратор переходит с NetworkManager на чистый etcnet. Какие шаги обязательны?</p>
+        <div class="opts">
+          <label><input type="checkbox" name="q13" value="A" /> А) systemctl stop NetworkManager</label>
+          <label><input type="checkbox" name="q13" value="B" /> Б) systemctl disable NetworkManager</label>
+          <label><input type="checkbox" name="q13" value="C" /> В) systemctl mask NetworkManager</label>
+          <label><input type="checkbox" name="q13" value="D" /> Г) Изменить NM_CONTROLLED=no в файле options каждого интерфейса</label>
+          <label><input type="checkbox" name="q13" value="E" /> Д) Удалить пакет NetworkManager из системы</label>
+        </div>
+      </div>
+
+      <!-- 14 match -->
+      <div class="q" data-q="14" data-type="match" data-points="4"
+           data-rows='[["ifup","ifup eth0"],["nmcli","nmcli con up \"System eth0\""],["networkctl","networkctl up eth0"]]'
+           data-correct='{"ifup":"etcnet","nmcli":"nm","networkctl":"sd"}'
+           data-labels='[["etcnet","Etcnet"],["nm","NetworkManager"],["sd","systemd-networkd"]]'>
+        <div class="q-num">14 — сопоставление (перетащите ответ в ячейку справа)</div>
+        <p>Сопоставьте команду с менеджером сети, которому она принадлежит.</p>
+        <div class="match-block" id="match14"></div>
+      </div>
+
+      <div class="q" data-q="15" data-type="match" data-points="4"
+           data-rows='[["route","/etc/net/ifaces/eth0/ipv4route"],["resolv","/etc/net/ifaces/eth0/resolv.conf"],["def","/etc/net/ifaces/default/"],["sdnet","/etc/systemd/network/"]]'
+           data-correct='{"route":"r1","resolv":"r2","def":"r3","sdnet":"r4"}'
+           data-labels='[["r1","Настройки маршрутов через интерфейс"],["r2","DNS для конкретного интерфейса"],["r3","Настройки по умолчанию для всех интерфейсов etcnet"],["r4","Конфигурационные файлы systemd-networkd"]]'>
+        <div class="q-num">15 — сопоставление</div>
+        <p>Сопоставьте путь с назначением.</p>
+        <div class="match-block" id="match15"></div>
+      </div>
+
+      <div class="q" data-q="16" data-type="match" data-points="4"
+           data-rows='[["fixed","Сервер с фиксированным IP, максимальный контроль"],["wifi","Рабочая станция — пользователь сам подключается к Wi-Fi"],["corp","Корпоративная станция — параметры задаёт admin, пользователь только включает/выключает"],["office","Офисный сервер (профиль установки Альт)"]]'
+           data-correct='{"fixed":"m1","wifi":"m2","corp":"m3","office":"m4"}'
+           data-labels='[["m1","Etcnet"],["m2","NetworkManager(native)"],["m3","NetworkManager(etcnet)"],["m4","systemd-networkd"]]'>
+        <div class="q-num">16 — сопоставление</div>
+        <p>Сопоставьте сценарий с рекомендуемым режимом управления сетью.</p>
+        <div class="match-block" id="match16"></div>
+      </div>
+
+      <!-- 17-20 -->
+      <div class="q" data-q="17" data-type="single" data-points="7.5">
+        <div class="q-num">17</div>
+        <p>Администратор настроил два интерфейса: eth0 в режиме etcnet, eth1 в режиме NetworkManager(etcnet). После перезагрузки eth1 не поднялся. Коллега говорит что нужно запустить <code>ifup eth1</code>. Он прав?</p>
+        <div class="opts">
+          <label><input type="radio" name="q17" value="A" /> А) Да — ifup работает для любого режима</label>
+          <label><input type="radio" name="q17" value="B" /> Б) Нет — ifup поднимает только интерфейсы под управлением etcnet, eth1 под управлением NetworkManager нужно активировать через nmcli con up</label>
+          <label><input type="radio" name="q17" value="C" /> В) Нет — нужно перезапустить systemctl restart network</label>
+          <label><input type="radio" name="q17" value="D" /> Г) Да — в режиме NetworkManager(etcnet) ifup и nmcli взаимозаменяемы</label>
+        </div>
+      </div>
+      <div class="q" data-q="18" data-type="single" data-points="7.5">
+        <div class="q-num">18</div>
+        <p>На сервере два интерфейса. eth0 смотрит в интернет, eth1 во внутреннюю сеть. После настройки eth1 DNS перестал работать — запросы уходят не на тот сервер. Что скорее всего произошло?</p>
+        <div class="opts">
+          <label><input type="radio" name="q18" value="A" /> А) DNS-сервер в /etc/net/ifaces/eth1/resolv.conf перезаписал настройки eth0 через resolvconf</label>
+          <label><input type="radio" name="q18" value="B" /> Б) Нужно перезапустить NetworkManager</label>
+          <label><input type="radio" name="q18" value="C" /> В) /etc/resolv.conf не поддерживает несколько nameserver-записей</label>
+          <label><input type="radio" name="q18" value="D" /> Г) Проблема в /etc/nsswitch.conf — порядок разрешения имён изменился</label>
+        </div>
+      </div>
+      <div class="q" data-q="19" data-type="single" data-points="7.5">
+        <div class="q-num">19</div>
+        <p>Администратор выполнил команды: <code>systemctl stop NetworkManager</code>, <code>systemctl disable NetworkManager</code>, <code>systemctl restart network</code>. При этом в файле options интерфейса стоит <code>NM_CONTROLLED=yes</code> и <code>DISABLED=yes</code>. Что произошло и как исправить?</p>
+        <div class="opts">
+          <label><input type="radio" name="q19" value="A" /> А) Нужно запустить NetworkManager обратно — без него сеть в этом режиме не работает</label>
+          <label><input type="radio" name="q19" value="B" /> Б) Интерфейс настроен в режиме NetworkManager(native) — etcnet его не поднимет. Нужно изменить options: выставить DISABLED=no и NM_CONTROLLED=no, прописать IP-параметры в файлы /etc/net и перезапустить network</label>
+          <label><input type="radio" name="q19" value="C" /> В) Нужно выполнить ifup eth0 — это активирует интерфейс независимо от настроек</label>
+          <label><input type="radio" name="q19" value="D" /> Г) Нужно добавить BOOTPROTO=dhcp в options и перезапустить network</label>
+        </div>
+      </div>
+      <div class="q" data-q="20" data-type="single" data-points="7.5">
+        <div class="q-num">20</div>
+        <p>Администратор жалуется: «Я прописал DNS в /etc/resolv.conf напрямую, всё работало, но после <code>ifdown eth0 && ifup eth0</code> DNS снова пропал». Какое правильное объяснение и решение?</p>
+        <div class="opts">
+          <label><input type="radio" name="q20" value="A" /> А) Файл /etc/resolv.conf сбрасывается при перезагрузке — нужно добавить запись в /etc/rc.local</label>
+          <label><input type="radio" name="q20" value="B" /> Б) /etc/resolv.conf формируется утилитой resolvconf при активации интерфейса и перезаписывает ручные изменения. Правильный путь — прописать DNS в /etc/net/ifaces/eth0/resolv.conf</label>
+          <label><input type="radio" name="q20" value="C" /> В) Нужно установить атрибут неизменяемости: chattr +i /etc/resolv.conf</label>
+          <label><input type="radio" name="q20" value="D" /> Г) Проблема в том что используется etcnet — перейти на NetworkManager(native) и DNS сохранится</label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit">Проверить ответы</button>
+        <button type="button" class="secondary" id="resetBtn">Сбросить всё</button>
+      </div>
+    </form>
+
+    <div id="result"></div>
+
+    <details class="explain">
+      <summary>Пояснения к сложным вопросам</summary>
+      <p><strong>3.</strong> В режиме native пользователь управляет всем; в режиме etcnet через NM — только вкл/выкл, без смены IP без root.</p>
+      <p><strong>8.</strong> ONBOOT=no не запрещает ручной ifup, только автоподъём при загрузке.</p>
+      <p><strong>13.</strong> Удаление пакета NetworkManager не обязательно; достаточно mask.</p>
+      <p><strong>19.</strong> При DISABLED=yes etcnet игнорирует интерфейс; остановка NM без смены options оставляет интерфейс без «хозяина».</p>
+    </details>
+  </div>
+
+  <script>
+(function () {
+  const singleCorrect = {
+    q1: "B", q2: "B", q3: "D", q4: "C", q5: "B", q6: "B", q7: "B",
+    q17: "B", q18: "A", q19: "B", q20: "B"
+  };
+
+  function setsEqual(a, b) {
+    if (a.size !== b.size) return false;
+    for (const x of a) if (!b.has(x)) return false;
+    return true;
+  }
+
+  function getMultiSet(name) {
+    const els = document.querySelectorAll('input[name="' + name + '"]:checked');
+    return new Set(Array.from(els).map((e) => e.value));
+  }
+
+  function parseCorrectMulti(str) {
+    return new Set(str.split(","));
+  }
+
+  function buildMatchUI(container, qEl) {
+    const rows = JSON.parse(qEl.dataset.rows);
+    const labels = JSON.parse(qEl.dataset.labels);
+    const correct = JSON.parse(qEl.dataset.correct);
+
+    const rowsEl = document.createElement("div");
+    rowsEl.className = "match-rows";
+
+    const pool = document.createElement("div");
+    pool.className = "token-pool";
+    pool.dataset.role = "pool";
+
+    rows.forEach(([rowId, text]) => {
+      const row = document.createElement("div");
+      row.className = "match-row";
+      const left = document.createElement("div");
+      left.className = "match-left";
+      left.textContent = text;
+      const zone = document.createElement("div");
+      zone.className = "drop-zone";
+      zone.dataset.rowId = rowId;
+      const hint = document.createElement("span");
+      hint.className = "hint";
+      hint.textContent = "перетащите сюда";
+      zone.appendChild(hint);
+      row.appendChild(left);
+      row.appendChild(zone);
+      rowsEl.appendChild(row);
+    });
+
+    labels.forEach(([id, text]) => {
+      const t = document.createElement("div");
+      t.className = "drag-token";
+      t.draggable = true;
+      t.dataset.tokenId = id;
+      t.textContent = text;
+      pool.appendChild(t);
+    });
+
+    const bank = document.createElement("div");
+    bank.className = "token-bank";
+    const bt = document.createElement("div");
+    bt.className = "token-bank-title";
+    bt.textContent = "Варианты ответов (перетащите в ячейку справа от строки)";
+    bank.appendChild(bt);
+    bank.appendChild(pool);
+
+    container.appendChild(rowsEl);
+    container.appendChild(bank);
+
+    let dragged = null;
+
+    function clearHint(zone) {
+      const h = zone.querySelector(".hint");
+      if (h) h.remove();
+    }
+
+    function ensureHint(z) {
+      if (!z.querySelector(".drag-token") && !z.querySelector(".hint")) {
+        const hint = document.createElement("span");
+        hint.className = "hint";
+        hint.textContent = "перетащите сюда";
+        z.appendChild(hint);
+      }
+    }
+
+    function returnTokenToPool(token, restoreHint) {
+      if (!token || !token.parentElement) return;
+      const parent = token.parentElement;
+      const p = container.querySelector('.token-pool[data-role="pool"]');
+      token.classList.remove("in-slot");
+      p.appendChild(token);
+      if (restoreHint !== false && parent.classList.contains("drop-zone")) ensureHint(parent);
+    }
+
+    function onDragStart(e) {
+      if (!e.target.classList.contains("drag-token")) return;
+      dragged = e.target;
+      e.dataTransfer.setData("text/plain", e.target.dataset.tokenId);
+      e.dataTransfer.effectAllowed = "move";
+      setTimeout(() => { e.target.style.opacity = "0.5"; }, 0);
+    }
+
+    function onDragEnd(e) {
+      if (e.target.classList.contains("drag-token")) {
+        e.target.style.opacity = "";
+      }
+      dragged = null;
+      container.querySelectorAll(".drop-zone").forEach((z) => z.classList.remove("drag-over"));
+    }
+
+    function onDragOverZone(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      e.currentTarget.classList.add("drag-over");
+    }
+
+    function onDragLeaveZone(e) {
+      e.currentTarget.classList.remove("drag-over");
+    }
+
+    function onDropZone(e) {
+      e.preventDefault();
+      const zone = e.currentTarget;
+      zone.classList.remove("drag-over");
+      const token = dragged || container.querySelector('.drag-token[data-token-id="' + e.dataTransfer.getData("text/plain") + '"]');
+      if (!token) return;
+      const oldParent = token.parentElement;
+      clearHint(zone);
+      const existing = zone.querySelector(".drag-token");
+      if (existing && existing !== token) {
+        returnTokenToPool(existing, false);
+      }
+      token.classList.add("in-slot");
+      zone.appendChild(token);
+      if (oldParent && oldParent.classList.contains("drop-zone") && oldParent !== zone) {
+        ensureHint(oldParent);
+      }
+    }
+
+    function onDragOverPool(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    }
+
+    function onDropPool(e) {
+      e.preventDefault();
+      const token = dragged || container.querySelector('.drag-token[data-token-id="' + e.dataTransfer.getData("text/plain") + '"]');
+      if (token) returnTokenToPool(token);
+    }
+
+    container.querySelectorAll(".drop-zone").forEach((z) => {
+      z.addEventListener("dragover", onDragOverZone);
+      z.addEventListener("dragleave", onDragLeaveZone);
+      z.addEventListener("drop", onDropZone);
+    });
+    pool.addEventListener("dragover", onDragOverPool);
+    pool.addEventListener("drop", onDropPool);
+
+    container.querySelectorAll(".drag-token").forEach((t) => {
+      t.addEventListener("dragstart", onDragStart);
+      t.addEventListener("dragend", onDragEnd);
+    });
+
+    qEl._matchGetState = function () {
+      const out = {};
+      container.querySelectorAll(".drop-zone").forEach((z) => {
+        const tok = z.querySelector(".drag-token");
+        out[z.dataset.rowId] = tok ? tok.dataset.tokenId : "";
+      });
+      return { correct, state: out };
+    };
+
+    qEl._matchReset = function () {
+      container.querySelectorAll(".drop-zone").forEach((z) => {
+        const tok = z.querySelector(".drag-token");
+        if (tok) returnTokenToPool(tok);
+        if (!z.querySelector(".hint")) {
+          const hint = document.createElement("span");
+          hint.className = "hint";
+          hint.textContent = "перетащите сюда";
+          z.appendChild(hint);
+        }
+      });
+    };
+  }
+
+  document.querySelectorAll('.q[data-type="match"]').forEach((qEl) => {
+    buildMatchUI(qEl.querySelector(".match-block"), qEl);
+  });
+
+  document.getElementById("exam").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    let total = 0;
+
+    for (const [name, ok] of Object.entries(singleCorrect)) {
+      const sel = document.querySelector('input[name="' + name + '"]:checked');
+      if (sel && sel.value === ok) total += parseFloat(document.querySelector('.q[data-q="' + name.slice(1) + '"]').dataset.points || 4);
+    }
+
+    document.querySelectorAll('.q[data-type="multi"]').forEach((q) => {
+      const n = "q" + q.dataset.q;
+      const want = parseCorrectMulti(q.dataset.correct);
+      const got = getMultiSet(n);
+      if (setsEqual(want, got)) total += parseFloat(q.dataset.points);
+    });
+
+    document.querySelectorAll('.q[data-type="match"]').forEach((q) => {
+      const { correct, state } = q._matchGetState();
+      let ok = true;
+      for (const k of Object.keys(correct)) {
+        if (state[k] !== correct[k]) { ok = false; break; }
+      }
+      if (ok) total += parseFloat(q.dataset.points);
+    });
+
+    const pass = total >= 70;
+    const res = document.getElementById("result");
+    res.className = "show " + (pass ? "pass" : "fail");
+    res.innerHTML =
+      "<strong>Набрано баллов: " +
+      total +
+      " из 100</strong> — " +
+      (pass ? "зачёт (≥ 70)." : "ниже порога 70.") +
+      "<br><span style=\"color:var(--muted);font-size:0.9rem;\">Вопросы с несколькими ответами засчитываются только при полном совпадении набора. Сопоставление — при всех верных парах.</span>";
+    res.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    document.getElementById("exam").reset();
+    document.querySelectorAll('.q[data-type="match"]').forEach((q) => q._matchReset());
+    const res = document.getElementById("result");
+    res.className = "";
+    res.innerHTML = "";
+  });
+})();
+  </script>
+</body>
+</html>

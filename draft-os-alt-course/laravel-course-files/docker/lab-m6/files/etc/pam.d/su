@@ -1,0 +1,12 @@
+#%PAM-1.0
+# Учебный su: faillock до include system-auth — иначе при «поломке» симлинка (зад. 4)
+# цепочка уходит в system-auth-common (pam_permit) и блокировка не проверяется.
+# Счётчики: dir=... (не /run — при старте контейнера tmpfs затирает /var/run/faillock из слоя образа).
+auth     required   pam_faillock.so preauth silent deny=3 unlock_time=300 dir=/var/lib/os-alt-lab-m6/faillock
+auth     sufficient pam_rootok.so
+auth     include      system-auth
+auth     required     pam_faillock.so authsucc silent deny=3 unlock_time=300 dir=/var/lib/os-alt-lab-m6/faillock
+account  sufficient pam_rootok.so
+account  include      system-auth
+password include      system-auth
+session  include      system-auth

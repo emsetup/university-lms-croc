@@ -1,0 +1,27 @@
+# Логин-оболочка студента (лабораторная M8).
+export LANG=C.UTF-8 LC_ALL=C.UTF-8 LC_CTYPE=C.UTF-8
+if [ -f /etc/profile.d/00-lab-utf8.sh ]; then
+  . /etc/profile.d/00-lab-utf8.sh
+fi
+if [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi
+
+_os_alt_lab_print_welcome() {
+  local R='\033[0m' B='\033[1m' D='\033[2m' N='\033[38;5;109m' T='\033[38;5;152m' M='\033[38;5;180m' S='\033[38;5;245m'
+  local _rule='────────────────────────────────────────────────────────────────────'
+  echo ""
+  echo -e "${N}  \u256D${_rule}\u256E${R}"
+  echo -e "${N}  \u2502${R}   ${B}${T}Лабораторная работа${R}  ${D}\u00b7${R}  ${B}${T}модуль 8${R}  ${S}(конфиги audit)${R}      ${N}\u2502${R}"
+  echo -e "${N}  \u2570${_rule}\u256F${R}"
+  echo ""
+  echo -e " ${S}Одно задание — на странице курса. Контейнер с${R} ${B}--privileged${R}${S}.${R}"
+  echo -e "  ${S}Проверка:${R} ${B}sudo /opt/lab-check/check.sh${R}"
+  echo ""
+}
+
+if [ -t 1 ] && [ -z "${OS_ALT_LAB_LOGIN_HINT:-}" ]; then
+  export OS_ALT_LAB_LOGIN_HINT=1
+  _os_alt_lab_print_welcome
+  unset -f _os_alt_lab_print_welcome
+fi

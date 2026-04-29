@@ -1,0 +1,9 @@
+# «Ядро» локальной аутентификации (учебный образ). Faillock + tcb + passwdqc.
+# dir= не в /run: при старте контейнера /run обычно tmpfs и счётчики из слоя образа пропадают.
+auth     required  pam_faillock.so preauth silent deny=3 unlock_time=300 dir=/var/lib/os-alt-lab-m6/faillock
+auth     required  pam_tcb.so shadow fork nullok
+auth     [default=die] pam_faillock.so authfail deny=3 unlock_time=300 dir=/var/lib/os-alt-lab-m6/faillock
+account  required  pam_tcb.so shadow fork
+password required  pam_passwdqc.so config=/etc/passwdqc.conf
+password required  pam_tcb.so use_authtok shadow fork nullok write_to=tcb
+session  required  pam_tcb.so

@@ -1,0 +1,15 @@
+[Unit]
+Description=OS Alt Lab M7 — первичная «поломка» среды (oneshot)
+DefaultDependencies=no
+After=local-fs.target network-online.target
+Wants=network-online.target
+ConditionPathExists=!/var/lib/os-alt-lab-m7/.setup-done
+
+[Service]
+Type=oneshot
+ExecStart=/opt/lab/lab-m7-setup.sh
+ExecStartPost=/bin/touch /var/lib/os-alt-lab-m7/.setup-done
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

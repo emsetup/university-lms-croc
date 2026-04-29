@@ -1,0 +1,17 @@
+---
+description: После правок курса/лаб os-alt — деплой на учебный стенд (без напоминания пользователя)
+alwaysApply: true
+---
+
+# Стенд курса OS Alt (лабы, Laravel, Docker)
+
+- **SSH стенда по умолчанию:** `emednikov@172.26.76.216`
+- После изменений в **`draft-os-alt-course/laravel-course-files`** (образы лаб, **`check.sh`**, **`lab-daemon`**, сниппеты, фикстуры курса), если задача про публикацию или про стенд — **сам выполни деплой**, не жди фразы «залей на стенд».
+- Образ модуля 7: из корня репо курса  
+  `cd draft-os-alt-course && STAND_SSH=emednikov@172.26.76.216 bash scripts/deploy-lab-m7-stand.sh`
+- Образ модуля 8 (systemd + auditd):  
+  `cd draft-os-alt-course && STAND_SSH=emednikov@172.26.76.216 bash scripts/deploy-lab-m8-stand.sh`  
+  затем при ошибке cURL **8090**:  
+  `STAND_SSH=emednikov@172.26.76.216 bash scripts/start-lab-daemon-stand.sh`  
+  (см. **`draft-os-alt-course/STAND.md`**).
+- При обновлении текста модуля 7 в **`course.php`** на стенде — патч по границам блока модуля 7 и **`php artisan config:clear && cache:clear`** (см. **`STAND.md`** в **`draft-os-alt-course`**).

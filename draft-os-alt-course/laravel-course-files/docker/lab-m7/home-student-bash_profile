@@ -1,0 +1,35 @@
+# Логин-оболочка студента (лабораторная М7).
+export LANG=C.UTF-8 LC_ALL=C.UTF-8 LC_CTYPE=C.UTF-8
+if [ -f /etc/profile.d/00-lab-utf8.sh ]; then
+  . /etc/profile.d/00-lab-utf8.sh
+fi
+if [ -f /etc/profile.d/m7-lab-path.sh ]; then
+  . /etc/profile.d/m7-lab-path.sh
+fi
+if [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi
+
+_os_alt_lab_print_welcome() {
+  local R='\033[0m' B='\033[1m' D='\033[2m' N='\033[38;5;109m' T='\033[38;5;152m' M='\033[38;5;180m' S='\033[38;5;245m'
+  local _rule='────────────────────────────────────────────────────────────────────'
+  echo ""
+  echo -e "${N}  \u256D${_rule}\u256E${R}"
+  echo -e "${N}  \u2502${R}   ${B}${T}Лабораторная работа${R}  ${D}\u00b7${R}  ${B}${T}модуль 7${R}  ${S}(целостность: rpm -V, Osec)${R}      ${N}\u2502${R}"
+  echo -e "${N}  \u2570${_rule}\u256F${R}"
+  echo ""
+  echo -e " ${S}Среда подготовлена скриптом при сборке образа. Три задания — на странице курса.${R}"
+  echo -e "  ${S}Работайте как${R} ${B}root${R} ${S}(или${R} ${B}sudo -i${R}${S} без пароля с учётной записи${R} ${B}student${R}${S}).${R}"
+  echo -e "  ${M}Важно:${R} выполняйте команды из эталона ${B}по одной строке${R} и смотрите вывод; если после${R} ${B}rpm --restore${R} ${S}сразу запустить${R} ${B}check.sh${R}${S}, восстановление будет неполным.${R}"
+  echo -e "  ${M}Задание 1 (RPM):${R} без ${B}sudo rpm --restore coreutils shadow-change${R} ${S}файл${R} ${B}/usr/bin/chsh${R} ${S}останется${R} ${B}777${R}${S}; порядок с заданиями 2–3 может быть любым, но${R} ${B}rpm --restore${R} ${S}обязателен хотя бы один раз до проверки.${R}"
+  echo ""
+  echo -e "    ${M}\u2460${R}  ${B}Проверить результат${R} на странице курса."
+  echo -e "    ${M}\u2461${R}  При успехе — ${B}Принять результат${R}."
+  echo ""
+}
+
+if [ -t 1 ] && [ -z "${OS_ALT_LAB_LOGIN_HINT:-}" ]; then
+  export OS_ALT_LAB_LOGIN_HINT=1
+  _os_alt_lab_print_welcome
+  unset -f _os_alt_lab_print_welcome
+fi

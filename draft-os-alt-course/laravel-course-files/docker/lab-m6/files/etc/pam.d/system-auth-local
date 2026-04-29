@@ -1,0 +1,4 @@
+auth     include  system-auth-local-only
+account  include  system-auth-local-only
+password include  system-auth-local-only
+session  include  system-auth-local-only

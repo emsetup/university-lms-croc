@@ -1,0 +1,23 @@
+# Практика модуля 3 — ЦУС / Alterator.
+export EDITOR=nano VISUAL=nano
+if [ -f /etc/profile.d/00-lab-utf8.sh ]; then
+  . /etc/profile.d/00-lab-utf8.sh
+fi
+if [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi
+
+_os_alt_lab_m3_welcome() {
+  echo ""
+  echo "  Практика — модуль 3: ЦУС, Alterator, сетевая установка (контейнер с systemd)."
+  echo "  Пользователь: student, sudo без пароля. Проверка: sudo /opt/lab-check/check.sh"
+  echo "  После apt install alterator-users: systemctl --no-block restart alteratord ahttpd (иначе restart может «висеть»)."
+  echo "  Имя узла (зад. 3): если hostnamectl «busy» — echo alt-student.local | sudo tee /etc/hostname && sudo hostname alt-student.local"
+  echo ""
+}
+
+if [ -t 1 ] && [ -z "${OS_ALT_LAB_M3_HINT:-}" ]; then
+  export OS_ALT_LAB_M3_HINT=1
+  _os_alt_lab_m3_welcome
+  unset -f _os_alt_lab_m3_welcome
+fi

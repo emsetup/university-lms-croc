@@ -1,0 +1,6 @@
+# «Сломанный» общий фрагмент при неверном симлинке system-auth -> system-auth-common:
+# цепочка auth/password не должна реально проверять пароль (учебный сценарий М6, задание 4).
+auth     sufficient pam_permit.so
+account  sufficient pam_permit.so
+password sufficient pam_permit.so
+session  optional pam_limits.so

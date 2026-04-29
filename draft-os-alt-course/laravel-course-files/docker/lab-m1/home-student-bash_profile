@@ -1,0 +1,35 @@
+# Выдаётся в образ lab-m1; логин-оболочка студента.
+export LANG=C.UTF-8 LC_ALL=C.UTF-8 LC_CTYPE=C.UTF-8
+if [ -f /etc/profile.d/00-lab-utf8.sh ]; then
+  . /etc/profile.d/00-lab-utf8.sh
+fi
+if [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi
+
+_os_alt_lab_print_welcome() {
+  local R='\033[0m'
+  local B='\033[1m'
+  local D='\033[2m'
+  local N='\033[38;5;109m'
+  local T='\033[38;5;152m'
+  local S='\033[38;5;245m'
+  local _rule='────────────────────────────────────────────────────────────────────'
+
+  echo ""
+  echo -e "${N}  \u256D${_rule}\u256E${R}"
+  echo -e "${N}  \u2502${R}   ${B}${T}Практика${R}  ${D}\u00b7${R}  ${B}${T}модуль 1${R} — дистрибутив изнутри контейнера              ${N}\u2502${R}"
+  echo -e "${N}  \u2570${_rule}\u256F${R}"
+  echo ""
+  echo -e " ${S}Результаты заносите в файл ${B}\$HOME/lab-m1-report.txt${R} (см. условия на странице курса).${R}"
+  echo -e " ${S}Пароль пользователя ${B}student${R} (если понадобится вне контейнера курса): ${B}labstudy${R}"
+  echo ""
+  echo -e "  ${S}Сдача:${R} на странице курса ${B}\u00abПроверить результат\u00bb${R}, затем ${B}\u00abПринять результат\u00bb${R}."
+  echo ""
+}
+
+if [ -t 1 ] && [ -z "${OS_ALT_LAB_LOGIN_HINT:-}" ]; then
+  export OS_ALT_LAB_LOGIN_HINT=1
+  _os_alt_lab_print_welcome
+  unset -f _os_alt_lab_print_welcome
+fi

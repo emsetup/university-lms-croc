@@ -1,0 +1,35 @@
+# Выдаётся в образ lab-m2; логин-оболочка студента.
+export LANG=C LC_ALL=C LC_CTYPE=C
+if [ -f /etc/profile.d/00-lab-utf8.sh ]; then
+  . /etc/profile.d/00-lab-utf8.sh
+fi
+if [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi
+
+_os_alt_lab_print_welcome() {
+  local R='\033[0m'
+  local B='\033[1m'
+  local D='\033[2m'
+  local N='\033[38;5;109m'
+  local T='\033[38;5;152m'
+  local S='\033[38;5;245m'
+  local _rule='--------------------------------------------------------------------'
+
+  echo ""
+  echo -e "${N}  +${_rule}+${R}"
+  echo -e "${N}  |${R}   ${B}${T}Практика${R}  ${D}-${R}  ${B}${T}модуль 2${R}: репозитории и пакеты                    ${N}|${R}"
+  echo -e "${N}  +${_rule}+${R}"
+  echo ""
+  echo -e " ${S}Файлы отчёта: ${B}\$HOME/lab-m2-task1.txt${R} и ${B}\$HOME/lab-m2-task5.txt${R}.${R}"
+  echo -e " ${S}Пароль пользователя ${B}student${R} (если понадобится вне контейнера курса): ${B}labstudy${R}"
+  echo ""
+  echo -e "  ${S}Сдача:${R} на странице курса ${B}\"Проверить результат\"${R}, затем ${B}\"Принять результат\"${R}."
+  echo ""
+}
+
+if [ -t 1 ] && [ -z "${OS_ALT_LAB_LOGIN_HINT:-}" ]; then
+  export OS_ALT_LAB_LOGIN_HINT=1
+  _os_alt_lab_print_welcome
+  unset -f _os_alt_lab_print_welcome
+fi

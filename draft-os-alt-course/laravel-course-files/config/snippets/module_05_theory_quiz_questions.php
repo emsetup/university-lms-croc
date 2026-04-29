@@ -1,0 +1,161 @@
+<?php
+
+/**
+ * Тест по теории модуля 5 — сеть: четыре режима, etcnet, NetworkManager (etcnet/native), systemd-networkd, DNS, resolvconf, диагностика.
+ * Подключение в config/course.php (module_quizzes[5]):
+ *   'theory_quiz' => require __DIR__.'/snippets/module_05_theory_quiz_questions.php',
+ *
+ * Формат: ['q' => string, 'a' => string[], 'c' => int] — индекс верного варианта (0 = А, 1 = Б, 2 = В, 3 = Г).
+ */
+return [
+    [
+        'q' => 'Где хранятся настройки сетевых интерфейсов в режиме Etcnet?',
+        'a' => [
+            '/etc/network/interfaces',
+            '/etc/net/ifaces',
+            '/etc/sysconfig/network-scripts',
+            '/etc/NetworkManager',
+        ],
+        'c' => 1,
+    ],
+    [
+        'q' => 'Какой параметр в файле options определяет, что NetworkManager не должен управлять интерфейсом?',
+        'a' => [
+            'NM_CONTROLLED=yes',
+            'DISABLED=yes',
+            'NM_CONTROLLED=no',
+            'BOOTPROTO=static',
+        ],
+        'c' => 2,
+    ],
+    [
+        'q' => 'Какой файл в каталоге интерфейса задаёт IP-адрес в режиме etcnet?',
+        'a' => [
+            'ipv4config',
+            'address',
+            'ipv4address',
+            'network',
+        ],
+        'c' => 2,
+    ],
+    [
+        'q' => 'Какой командой применить изменения сетевой конфигурации в режиме etcnet без перезагрузки системы?',
+        'a' => [
+            'systemctl restart NetworkManager',
+            'systemctl restart network',
+            'networkctl reload',
+            'ifconfig reload',
+        ],
+        'c' => 1,
+    ],
+    [
+        'q' => 'В чём принципиальная разница между режимами NetworkManager(etcnet) и NetworkManager(native)?',
+        'a' => [
+            'В native настройки хранятся в /etc/net, в etcnet — в /etc/NetworkManager',
+            'В etcnet настройки хранятся в /etc/net, в native — NetworkManager хранит их сам',
+            'Разницы нет — это одно и то же',
+            'native работает только на серверах, etcnet — только на рабочих станциях',
+        ],
+        'c' => 1,
+    ],
+    [
+        'q' => 'Какой командой посмотреть список сетевых соединений в NetworkManager?',
+        'a' => [
+            'nmcli dev',
+            'nmcli con',
+            'nmcli show',
+            'networkctl list',
+        ],
+        'c' => 1,
+    ],
+    [
+        'q' => 'Администратор хочет полностью отстранить NetworkManager от управления сетью и перейти на чистый etcnet. Какой набор команд правильный?',
+        'a' => [
+            'systemctl stop NetworkManager && systemctl restart network',
+            'systemctl stop NetworkManager && systemctl disable NetworkManager && systemctl mask NetworkManager && systemctl restart network',
+            'systemctl disable NetworkManager && ifup eth0',
+            'nmcli con delete all && systemctl restart network',
+        ],
+        'c' => 1,
+    ],
+    [
+        'q' => 'Где хранятся настройки интерфейсов при использовании systemd-networkd?',
+        'a' => [
+            '/etc/net/ifaces',
+            '/etc/NetworkManager/system-connections',
+            '/etc/systemd/network',
+            '/etc/sysconfig/network',
+        ],
+        'c' => 2,
+    ],
+    [
+        'q' => 'Какой командой поднять интерфейс eth0 в режиме systemd-networkd?',
+        'a' => [
+            'ifup eth0',
+            'nmcli con up eth0',
+            'networkctl up eth0',
+            'ip link set eth0 up',
+        ],
+        'c' => 2,
+    ],
+    [
+        'q' => 'Почему не рекомендуется редактировать /etc/resolv.conf вручную?',
+        'a' => [
+            'Файл защищён от записи',
+            'Утилита resolvconf перезапишет его при следующей активации интерфейса',
+            'Файл читается только при загрузке системы',
+            'DNS-настройки игнорируются, если файл изменён вручную',
+        ],
+        'c' => 1,
+    ],
+    [
+        'q' => 'Файл /etc/nsswitch.conf содержит строку hosts: files dns. Что это означает?',
+        'a' => [
+            'DNS-запросы отправляются до проверки /etc/hosts',
+            'Сначала проверяется /etc/hosts, затем DNS',
+            'Используется только /etc/hosts, DNS игнорируется',
+            'Используется только DNS, /etc/hosts игнорируется',
+        ],
+        'c' => 1,
+    ],
+    [
+        'q' => 'Какая утилита заменяет устаревший netstat в современных системах Альт Линукс?',
+        'a' => [
+            'nmap',
+            'ip',
+            'ss',
+            'ifstat',
+        ],
+        'c' => 2,
+    ],
+    [
+        'q' => 'Администратор выполнил ss -tlnp. Что он хочет увидеть?',
+        'a' => [
+            'Все активные TCP-соединения с процессами',
+            'Слушающие TCP-порты с номерами портов и процессами',
+            'Статистику по всем сетевым интерфейсам',
+            'Список UDP-соединений',
+        ],
+        'c' => 1,
+    ],
+    [
+        'q' => 'Какой пакет нужно установить для использования утилит dig, host, nslookup?',
+        'a' => [
+            'dns-utils',
+            'bind-utils',
+            'net-tools',
+            'dnsmasq',
+        ],
+        'c' => 1,
+    ],
+    [
+        'q' => 'Администратор видит в файле options интерфейса: DISABLED=yes и NM_CONTROLLED=yes. Какой режим настроен?',
+        'a' => [
+            'Чистый Etcnet',
+            'NetworkManager(etcnet)',
+            'NetworkManager(native)',
+            'systemd-networkd',
+        ],
+        'c' => 2,
+    ],
+];

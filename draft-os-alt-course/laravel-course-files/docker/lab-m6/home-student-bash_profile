@@ -1,0 +1,34 @@
+# Логин-оболочка студента (лабораторная М6).
+export LANG=C.UTF-8 LC_ALL=C.UTF-8 LC_CTYPE=C.UTF-8
+if [ -f /etc/profile.d/00-lab-utf8.sh ]; then
+  . /etc/profile.d/00-lab-utf8.sh
+fi
+if [ -f /etc/profile.d/m6-lab-path.sh ]; then
+  . /etc/profile.d/m6-lab-path.sh
+fi
+if [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi
+
+_os_alt_lab_print_welcome() {
+  local R='\033[0m' B='\033[1m' D='\033[2m' N='\033[38;5;109m' T='\033[38;5;152m' M='\033[38;5;180m' S='\033[38;5;245m'
+  local _rule='────────────────────────────────────────────────────────────────────'
+  echo ""
+  echo -e "${N}  \u256D${_rule}\u256E${R}"
+  echo -e "${N}  \u2502${R}   ${B}${T}Лабораторная работа${R}  ${D}\u00b7${R}  ${B}${T}модуль 6${R}  ${S}(PAM, passwdqc, faillock)${R}          ${N}\u2502${R}"
+  echo -e "${N}  \u2570${_rule}\u256F${R}"
+  echo ""
+  echo -e " ${S}Среда уже «сломана» скриптом при сборке образа. Почините 5 сценариев по инструкции на странице курса.${R}"
+  echo -e "  ${S}Работайте как${R} ${B}root${R} ${S}(или${R} ${B}sudo -i${R}${S} без пароля с этой учётной записи). В образе есть${R} ${B}passwd${R}${S},${R} ${B}sudo${R}${S},${R} ${B}journalctl${R}${S}.${R}"
+  echo -e "  ${S}Учётки:${R} ${B}testuser${R} ${S}(зад. 1–4) и${R} ${B}lockuser${R} ${S}(только зад. 5, faillock) — пароли на странице курса.${R}"
+  echo ""
+  echo -e "    ${M}\u2460${R}  ${B}Проверить результат${R} на странице курса."
+  echo -e "    ${M}\u2461${R}  При успехе — ${B}Принять результат${R}."
+  echo ""
+}
+
+if [ -t 1 ] && [ -z "${OS_ALT_LAB_LOGIN_HINT:-}" ]; then
+  export OS_ALT_LAB_LOGIN_HINT=1
+  _os_alt_lab_print_welcome
+  unset -f _os_alt_lab_print_welcome
+fi

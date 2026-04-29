@@ -1,0 +1,21 @@
+# Практика модуля 5 — сеть, etcnet.
+export EDITOR=nano VISUAL=nano
+if [ -f /etc/profile.d/00-lab-utf8.sh ]; then
+  . /etc/profile.d/00-lab-utf8.sh
+fi
+if [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi
+
+_os_alt_lab_m5_welcome() {
+  echo ""
+  echo "  Практика — модуль 5: etcnet, маршруты, DNS, nsswitch."
+  echo "  Пользователь: student, sudo без пароля. Проверка: sudo /opt/lab-check/check.sh"
+  echo ""
+}
+
+if [ -t 1 ] && [ -z "${OS_ALT_LAB_M5_HINT:-}" ]; then
+  export OS_ALT_LAB_M5_HINT=1
+  _os_alt_lab_m5_welcome
+  unset -f _os_alt_lab_m5_welcome
+fi
