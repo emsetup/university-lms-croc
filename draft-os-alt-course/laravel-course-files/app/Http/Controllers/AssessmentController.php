@@ -21,8 +21,7 @@ class AssessmentController extends Controller
         }
 
         return view('assessment', [
-            'report' => $this->scoring->moduleReport($learner),
-            'totalModulePoints' => $this->scoring->totalModulePoints($learner),
+            'assessmentSnapshot' => $this->scoring->learnerAssessmentSnapshot($learner),
         ]);
     }
 }

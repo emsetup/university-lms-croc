@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\CourseScoringService;
 use App\Support\AdminCourseContentInspector;
+use App\Support\CourseModuleMeta;
 use App\Support\CourseTheoryPaths;
 use App\Support\PracticeHintMarkdown;
 use Illuminate\Http\RedirectResponse;
@@ -51,6 +52,30 @@ class AdminTheoryController extends Controller
         return view('admin.theory-index', [
             'adminKey' => $key,
             'rows' => $rows,
+            'isReadOnly' => $this->isReadOnlyAccess($request),
+        ]);
+    }
+
+    /**
+     * Предпросмотр теории как у студента (Markdown + Mermaid), для iframe в модалке админки.
+     */
+    public function previewTheory(Request $request, int $module): View|RedirectResponse
+    {
+        abort_unless($module >= 1 && $module <= 9, 404);
+        $key = (string) $request->query('key', '');
+        $meta = CourseModuleMeta::resolved($module);
+        $theoryRaw = (string) ($meta['theory'] ?? '');
+        if (trim($theoryRaw) === '') {
+            return redirect()
+                ->route('admin.theory.index', ['key' => $key])
+                ->with('err', 'Модуль '.$module.': нет текста теории для предпросмотра.');
+        }
+
+        return view('admin.theory-preview', [
+            'adminKey' => $key,
+            'module' => $module,
+            'meta' => $meta,
+            'isReadOnly' => $this->isReadOnlyAccess($request),
         ]);
     }
 
@@ -187,6 +212,11 @@ class AdminTheoryController extends Controller
         return (is_numeric($v) && (int) $v > 0)
             ? (int) $v
             : CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+    }
+
+    private function isReadOnlyAccess(Request $request): bool
+    {
+        return (bool) $request->attributes->get('course_admin_readonly', false);
     }
 
     public function downloadZip(Request $request): Response|RedirectResponse

@@ -7,7 +7,9 @@
 @section('title', 'Админ: практика — модуль '.$module)
 
 @section('content')
-    <div class="card" style="max-width: 920px; margin: 0 auto">
+    <div style="max-width: 920px; margin: 0 auto">
+        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'theory'])
+        <div class="card">
         <p class="muted"><a href="{{ route('admin.theory.index', ['key' => $adminKey]) }}">← К сводке курса</a></p>
         <h1 style="margin-top: 0">Модуль {{ $module }}: {{ config('course.step_titles.practice') }}</h1>
         <p class="muted small" style="margin-top:0">{{ $mTitle }}</p>
@@ -15,5 +17,6 @@
         <article class="theory-article prose-course">
             {!! \Illuminate\Support\Str::markdown($practiceMarkdown) !!}
         </article>
+        </div>
     </div>
 @endsection

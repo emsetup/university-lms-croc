@@ -18,6 +18,9 @@
 @section('title', 'Модуль '.$mid.' — '.$panel['title'])
 
 @section('content')
+    <div style="max-width: 1100px; margin: 0 auto">
+        @include('partials.admin-instructor-nav', ['navKey' => request('key'), 'active' => 'learners'])
+    </div>
     <nav class="ta-breadcrumb" aria-label="Навигация">
         <a href="{{ route('teacher.course-report').$keyQ }}">Все обучающиеся</a>
         <span class="ta-bc-sep">/</span>

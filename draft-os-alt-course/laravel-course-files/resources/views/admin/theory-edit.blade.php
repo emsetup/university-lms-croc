@@ -7,7 +7,9 @@
 @section('title', 'Админ: теория модуля '.$module)
 
 @section('content')
-    <div class="card" style="max-width: 1100px; margin: 0 auto">
+    <div style="max-width: 1100px; margin: 0 auto">
+        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'theory'])
+        <div class="card">
         <p class="muted"><a href="{{ route('admin.theory.index', ['key' => $adminKey]) }}">← К списку модулей</a></p>
         <h1 style="margin-top: 0">Модуль {{ $module }}: {{ $mTitle }}</h1>
         <p class="muted small">Файл: <code>config/snippets/{{ $filename }}</code>. Панель вносит разметку Markdown (**жирный**, *курсив*, списки, код). Предпросмотр — вкладка справа в редакторе.</p>
@@ -21,6 +23,7 @@
                 <a class="btn btn-ghost" href="{{ route('admin.theory.index', ['key' => $adminKey]) }}">Отмена</a>
             </div>
         </form>
+        </div>
     </div>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.css">

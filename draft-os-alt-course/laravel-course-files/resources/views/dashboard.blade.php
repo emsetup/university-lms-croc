@@ -29,6 +29,7 @@
     </div>
 
     @include('partials.course-audience-modal')
+    @include('partials.dashboard-assessment-modal')
 
     <section class="learner-track-summary card" aria-label="Общий прогресс по курсу">
         <h2 class="learner-track-summary__title">Ваш прогресс по модулям</h2>
@@ -119,7 +120,7 @@
             <li><strong>Финальная лабораторная</strong> - общий кейс по всем темам, затем страница итогов.</li>
         </ul>
         <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.75rem">
-            <a class="btn btn-ghost" href="{{ route('assessment') }}">Перейти к оценке</a>
+            <button type="button" class="btn btn-ghost" id="dash-assessment-open" aria-haspopup="dialog" aria-controls="dash-assessment-modal-dialog">Перейти к оценке</button>
             <a class="btn btn-ghost" href="{{ route('final-lab') }}">Финальная лаба</a>
             <a class="btn btn-ghost" href="{{ route('certificate') }}">Итоговая страница</a>
         </div>
@@ -129,6 +130,49 @@
         (function () {
             var modal = document.getElementById('course-audience-modal-root');
             var openBtn = document.getElementById('course-audience-open');
+            if (!modal || !openBtn) return;
+
+            var lastFocus = null;
+
+            function closeEls() {
+                return modal.querySelectorAll('[data-modal-close]');
+            }
+
+            function openModal() {
+                lastFocus = document.activeElement;
+                modal.classList.add('is-open');
+                modal.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('course-modal-open');
+                var closeBtn = modal.querySelector('.course-modal__close');
+                if (closeBtn) closeBtn.focus();
+            }
+
+            function closeModal() {
+                modal.classList.remove('is-open');
+                modal.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('course-modal-open');
+                if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+            }
+
+            openBtn.addEventListener('click', openModal);
+            closeEls().forEach(function (el) {
+                el.addEventListener('click', function (e) {
+                    if (el.classList.contains('course-modal__backdrop')) {
+                        e.preventDefault();
+                    }
+                    closeModal();
+                });
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && modal.classList.contains('is-open')) {
+                    closeModal();
+                }
+            });
+        })();
+
+        (function () {
+            var modal = document.getElementById('dash-assessment-modal-root');
+            var openBtn = document.getElementById('dash-assessment-open');
             if (!modal || !openBtn) return;
 
             var lastFocus = null;

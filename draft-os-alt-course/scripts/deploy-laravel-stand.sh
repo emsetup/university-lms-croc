@@ -46,12 +46,15 @@ if [[ -f "${LCF}/routes/web.php" ]]; then
 fi
 
 for f in \
+  app/Http/Controllers/AdminPanelController.php \
   app/Http/Controllers/AdminTheoryController.php \
+  app/Http/Controllers/AssessmentController.php \
   app/Http/Controllers/CertificateController.php \
   app/Http/Controllers/DashboardController.php \
   app/Http/Controllers/ModuleController.php \
   app/Http/Controllers/TeacherCourseReportController.php \
   app/Http/Middleware/EnsureCourseAdminToken.php \
+  app/Http/Middleware/ValidateTeacherReportToken.php \
   app/Services/CourseScoringService.php \
   app/Services/TeacherCourseAnalyticsService.php \
   app/Services/ModuleAccessGate.php \
@@ -84,6 +87,11 @@ if [[ -d "${LCF}/resources/views/partials" ]]; then
   rsync -az "${LCF}/resources/views/partials/" "${STAND_SSH}:${REMOTE}/resources/views/partials/"
 fi
 
+if [[ -d "${LCF}/resources/views/auth" ]]; then
+  echo "[deploy-laravel] resources/views/auth/"
+  rsync -az "${LCF}/resources/views/auth/" "${STAND_SSH}:${REMOTE}/resources/views/auth/"
+fi
+
 for v in hub.blade.php theory.blade.php practice.blade.php; do
   if [[ -f "${LCF}/resources/views/modules/${v}" ]]; then
     echo "[deploy-laravel] resources/views/modules/${v}"
@@ -92,7 +100,7 @@ for v in hub.blade.php theory.blade.php practice.blade.php; do
   fi
 done
 
-for tv in certificate.blade.php dashboard.blade.php teacher-course-report.blade.php teacher-learner-profile.blade.php teacher-learner-module.blade.php; do
+for tv in assessment.blade.php certificate.blade.php dashboard.blade.php teacher-course-report.blade.php teacher-learner-profile.blade.php teacher-learner-module.blade.php; do
   if [[ -f "${LCF}/resources/views/${tv}" ]]; then
     echo "[deploy-laravel] resources/views/${tv}"
     rsync -az "${LCF}/resources/views/${tv}" "${STAND_SSH}:${REMOTE}/resources/views/${tv}"

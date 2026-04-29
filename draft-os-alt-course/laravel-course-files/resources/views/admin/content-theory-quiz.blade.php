@@ -7,7 +7,9 @@
 @section('title', 'Админ: тест по теории — модуль '.$module)
 
 @section('content')
-    <div class="card" style="max-width: 920px; margin: 0 auto">
+    <div style="max-width: 920px; margin: 0 auto">
+        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'theory'])
+        <div class="card">
         <p class="muted"><a href="{{ route('admin.theory.index', ['key' => $adminKey]) }}">← К сводке курса</a></p>
         <h1 style="margin-top: 0">Модуль {{ $module }}: {{ config('course.step_titles.theory_quiz') }}</h1>
         <p class="muted small" style="margin-top:0">
@@ -18,6 +20,7 @@
         <p class="muted small" style="margin:0 0 1rem">Ниже отмечены верные варианты так, как они заданы в <code>config/course.php</code> / сниппетах.</p>
         <div class="admin-readonly-quiz">
             @include('admin.partials.quiz-questions-readonly', ['questions' => $questions])
+        </div>
         </div>
     </div>
 @endsection

@@ -72,6 +72,7 @@ class DashboardController extends Controller
             'modulePointsMax' => $this->scoring->maxTotalModulePoints(),
             'allDone' => $this->scoring->allModulesComplete($learner),
             'finalDone' => (bool) optional($learner->finalLabResult)->passed,
+            'assessmentSnapshot' => $this->scoring->learnerAssessmentSnapshot($learner),
         ]);
     }
 }

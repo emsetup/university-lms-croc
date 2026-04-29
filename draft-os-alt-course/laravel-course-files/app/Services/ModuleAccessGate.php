@@ -17,15 +17,29 @@ final class ModuleAccessGate
             return true;
         }
         $prev = $learner->progressExisting($moduleId - 1);
+        if ($prev === null) {
+            return false;
+        }
 
-        return $prev !== null && (bool) $prev->module_exam_passed;
+        if ((bool) $prev->module_exam_passed) {
+            return true;
+        }
+
+        // Разрешаем переход дальше после любой завершённой попытки итогового теста:
+        // даже если порог не взят, обучающийся может продолжать курс и вернуться на пересдачу.
+        if ((int) ($prev->module_exam_attempts ?? 0) >= 1) {
+            return true;
+        }
+        $last = $prev->module_exam_last_result ?? null;
+
+        return is_array($last) && $last !== [];
     }
 
     public function redirectIfModuleLocked(Learner $learner, int $moduleId): ?RedirectResponse
     {
         if (! $this->isModuleUnlocked($learner, $moduleId)) {
             return redirect()->route('dashboard')
-                ->with('err', 'Модуль ещё недоступен: зачтите итоговый тест предыдущего модуля.');
+                ->with('err', 'Модуль ещё недоступен: завершите хотя бы одну попытку итогового теста предыдущего модуля.');
         }
 
         return null;

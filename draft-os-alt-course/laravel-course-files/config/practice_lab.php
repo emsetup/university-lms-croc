@@ -12,7 +12,7 @@
  * @see docker/lab-m1/README.md docker/lab-m3/README.md docker/lab-m5/README.md docker/lab-m6/README.md docker/lab-m7/README.md docker/lab-m8/README.md docker/lab-m9/README.md docker/lab-m8-systemd/README.md
  *
  * Редактор теории (Markdown) в веб-интерфейсе: задайте COURSE_ADMIN_TOKEN в .env, скопируйте config/course_admin.php,
- * затем откройте /adm/kurs-teoriya?key=ВАШ_ТОКЕН (см. scripts/deploy-laravel-stand.sh).
+ * затем откройте /adm?key=ВАШ_ТОКЕН или /adm/kurs-teoriya?key=… (см. scripts/deploy-laravel-stand.sh).
  */
 return [
     'enabled' => (bool) env('PRACTICE_LAB_ENABLED', false),

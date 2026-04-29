@@ -55,24 +55,20 @@ final class CourseScoringService
     {
         $mid = (int) $p->module_id;
         $skipPractice = ! empty(CourseModuleMeta::resolved($mid)['skip_practice']);
-        $parts = 0;
+        // Всегда считаем по обязательным этапам модуля, а не по уже "появившимся":
+        // иначе можно получить 100% до сдачи экзамена.
+        $parts = $skipPractice ? 3 : 4;
         $done = 0;
         if ($p->theory_read_at) {
-            $parts++;
             $done++;
         }
         if ($p->theory_quiz_passed) {
-            $parts++;
             $done++;
         }
-        if (! $skipPractice) {
-            $parts++;
-            if ($p->practice_done_at) {
-                $done++;
-            }
+        if (! $skipPractice && $p->practice_done_at) {
+            $done++;
         }
         if ($p->module_exam_passed) {
-            $parts++;
             $done++;
         }
         if ($parts === 0) {
@@ -200,5 +196,99 @@ final class CourseScoringService
         }
 
         return (int) min(self::MAX_FINAL_LAB_POINTS, max(0, (int) $final->best_score));
+    }
+
+    /**
+     * Данные для модального окна и страницы «оценка по модулям»: проценты по этапам, баллы, слабое место в модуле.
+     *
+     * @return array{
+     *   rows: list<array<string, mixed>>,
+     *   averages: array{tq: int, pr: int|null, ex: int},
+     *   total_points: int,
+     *   max_points: int,
+     *   pass_threshold: int,
+     *   weight_tq_pct: int,
+     *   weight_pr_pct: int,
+     *   weight_ex_pct: int
+     * }
+     */
+    public function learnerAssessmentSnapshot(Learner $learner): array
+    {
+        $ids = $this->moduleIdRange();
+        $n = max(1, count($ids));
+        $rows = [];
+        $sumTq = 0;
+        $sumEx = 0;
+        $sumPr = 0;
+        $prN = 0;
+
+        foreach ($ids as $id) {
+            $meta = CourseModuleMeta::resolved($id);
+            $p = $learner->progressExisting($id);
+            $skipPractice = ! empty($meta['skip_practice']);
+            $tq = $p ? (int) $p->theory_quiz_best_score : 0;
+            $pr = $skipPractice ? null : ($p ? (int) ($p->practice_lab_percent ?? 0) : 0);
+            $ex = $p ? (int) $p->module_exam_best_score : 0;
+            $sumTq += $tq;
+            $sumEx += $ex;
+            if ($pr !== null) {
+                $sumPr += $pr;
+                $prN++;
+            }
+
+            $parts = [['key' => 'tq', 'label' => 'Тест по теории', 'pct' => $tq]];
+            if ($pr !== null) {
+                $parts[] = ['key' => 'pr', 'label' => 'Практика', 'pct' => $pr];
+            }
+            $parts[] = ['key' => 'ex', 'label' => 'Итоговый тест', 'pct' => $ex];
+
+            $weakKey = 'tq';
+            $minPct = 101;
+            foreach ($parts as $part) {
+                if ($part['pct'] < $minPct) {
+                    $minPct = $part['pct'];
+                    $weakKey = $part['key'];
+                }
+            }
+            $anyBelowPass = false;
+            foreach ($parts as $part) {
+                if ($part['pct'] < self::PASS_THRESHOLD) {
+                    $anyBelowPass = true;
+                    break;
+                }
+            }
+
+            $rows[] = [
+                'module_id' => $id,
+                'title' => (string) ($meta['title'] ?? ('Модуль '.$id)),
+                'letter' => (string) ($meta['letter'] ?? (string) $id),
+                'skip_practice' => $skipPractice,
+                'theory_quiz_pct' => $tq,
+                'practice_pct' => $pr,
+                'exam_pct' => $ex,
+                'points' => $this->modulePointsRow($id, $p),
+                'weak_key' => $weakKey,
+                'any_below_pass' => $anyBelowPass,
+                'tq_attempts' => $p ? (int) $p->theory_quiz_attempts : 0,
+                'ex_attempts' => $p ? (int) $p->module_exam_attempts : 0,
+                'difficulties' => $p ? (array) ($p->difficulty_flags ?? []) : [],
+                'parts' => $parts,
+            ];
+        }
+
+        return [
+            'rows' => $rows,
+            'averages' => [
+                'tq' => (int) round($sumTq / $n),
+                'pr' => $prN > 0 ? (int) round($sumPr / $prN) : null,
+                'ex' => (int) round($sumEx / $n),
+            ],
+            'total_points' => $this->totalModulePoints($learner),
+            'max_points' => $this->maxTotalModulePoints(),
+            'pass_threshold' => self::PASS_THRESHOLD,
+            'weight_tq_pct' => (int) round(self::MODULE_SCORE_WEIGHT_THEORY_QUIZ * 100),
+            'weight_pr_pct' => (int) round(self::MODULE_SCORE_WEIGHT_PRACTICE * 100),
+            'weight_ex_pct' => (int) round(self::MODULE_SCORE_WEIGHT_EXAM * 100),
+        ];
     }
 }

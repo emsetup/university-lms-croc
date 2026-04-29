@@ -6,4 +6,5 @@
  */
 return [
     'token' => env('COURSE_ADMIN_TOKEN', ''),
+    'content_moderator_token' => env('COURSE_CONTENT_MODERATOR_TOKEN', ''),
 ];

@@ -7,20 +7,28 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Доступ к отчёту преподавателя только с ?key=... совпадающим с TEACHER_REPORT_TOKEN.
- * При неверном или пустом токене — 404 (без признаков существования страницы).
+ * Доступ к отчёту преподавателя с ?key=... — как у редактора теории:
+ * TEACHER_REPORT_TOKEN или COURSE_ADMIN_TOKEN (единая навигация /adm).
  */
 class ValidateTeacherReportToken
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $expected = trim((string) config('course.teacher_report_token', ''));
-        if ($expected === '') {
+        $provided = trim((string) $request->query('key', ''));
+        if ($provided === '') {
             abort(404);
         }
 
-        $provided = trim((string) $request->query('key', ''));
-        if ($provided === '' || ! hash_equals($expected, $provided)) {
+        $admin = trim((string) config('course_admin.token', ''));
+        $teacher = trim((string) config('course.teacher_report_token', ''));
+
+        if ($admin === '' && $teacher === '') {
+            abort(404);
+        }
+
+        $okAdmin = $admin !== '' && hash_equals($admin, $provided);
+        $okTeacher = $teacher !== '' && hash_equals($teacher, $provided);
+        if (! $okAdmin && ! $okTeacher) {
             abort(404);
         }
 

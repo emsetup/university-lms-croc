@@ -20,16 +20,31 @@ class EnsureCourseAdminToken
         }
 
         $admin = trim((string) config('course_admin.token', ''));
+        $moderator = trim((string) config('course_admin.content_moderator_token', ''));
         $teacher = trim((string) config('course.teacher_report_token', ''));
 
-        if ($admin === '' && $teacher === '') {
+        if ($admin === '' && $teacher === '' && $moderator === '') {
             abort(404);
         }
 
         $okAdmin = $admin !== '' && hash_equals($admin, $provided);
+        $okModerator = $moderator !== '' && hash_equals($moderator, $provided);
         $okTeacher = $teacher !== '' && hash_equals($teacher, $provided);
-        if (! $okAdmin && ! $okTeacher) {
+        if (! $okAdmin && ! $okTeacher && ! $okModerator) {
             abort(404);
+        }
+
+        if ($okModerator && ! $okAdmin && ! $okTeacher) {
+            if (! $request->routeIs(
+                'admin.theory.index',
+                'admin.theory.preview-theory',
+                'admin.theory.preview-theory-quiz',
+                'admin.theory.preview-practice',
+                'admin.theory.preview-module-exam'
+            )) {
+                abort(404);
+            }
+            $request->attributes->set('course_admin_readonly', true);
         }
 
         return $next($request);

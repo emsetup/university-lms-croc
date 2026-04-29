@@ -21,7 +21,7 @@
             @csrf
             <div class="field">
                 <label for="email">Электронная почта</label>
-                <input id="email" name="email" type="email" value="{{ old('email', 'example@'.$domain) }}" required autocomplete="username">
+                <input id="email" name="email" type="email" value="{{ old('email') }}" placeholder="example@croc.ru" required autocomplete="username">
             </div>
             <button type="submit" class="btn btn-primary">Продолжить</button>
         </form>

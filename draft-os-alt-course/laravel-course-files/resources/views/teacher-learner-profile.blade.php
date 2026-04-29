@@ -17,6 +17,9 @@
 @section('title', 'Обучающийся: '.$learner->email)
 
 @section('content')
+    <div style="max-width: 1100px; margin: 0 auto">
+        @include('partials.admin-instructor-nav', ['navKey' => request('key'), 'active' => 'learners'])
+    </div>
     <nav class="tl-breadcrumb" aria-label="Навигация">
         <a href="{{ route('teacher.course-report').$keyQ }}">Все обучающиеся</a>
         <span class="tl-bc-sep">/</span>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminPanelController;
 use App\Http\Controllers\AdminTheoryController;
 use App\Http\Controllers\AssessmentController;
 use App\Http\Controllers\CertificateController;
@@ -56,8 +57,12 @@ Route::middleware('learner')->group(function () {
 });
 
 Route::middleware([\App\Http\Middleware\EnsureCourseAdminToken::class])->group(function () {
+    Route::get('/adm', [AdminPanelController::class, 'show'])->name('admin.panel');
     Route::get('/adm/kurs-teoriya', [AdminTheoryController::class, 'index'])->name('admin.theory.index');
     Route::get('/adm/kurs-teoriya/vse-md.zip', [AdminTheoryController::class, 'downloadZip'])->name('admin.theory.zip');
+    Route::get('/adm/kurs-teoriya/modul/{module}/teoriya', [AdminTheoryController::class, 'previewTheory'])
+        ->whereNumber('module')
+        ->name('admin.theory.preview-theory');
     Route::get('/adm/kurs-teoriya/modul/{module}/test-teorii', [AdminTheoryController::class, 'previewTheoryQuiz'])
         ->whereNumber('module')
         ->name('admin.theory.preview-theory-quiz');

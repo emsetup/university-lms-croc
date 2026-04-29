@@ -17,6 +17,10 @@
         .tr-go{font-size:0.82rem;font-weight:600;color:var(--accent,#0a7);white-space:nowrap}
     </style>
 
+    <div style="max-width: 1100px; margin: 0 auto">
+        @include('partials.admin-instructor-nav', ['navKey' => request('key'), 'active' => 'learners'])
+    </div>
+
     <div class="tr-hero">
         <h1>Сводка прохождения курса</h1>
         <p class="muted" style="margin:0">
@@ -25,12 +29,6 @@
         <p class="muted small" style="margin:0.5rem 0 0">
             <strong>Баллы за модуль:</strong> взвешенное среднее процентов теста по теории, практики и итогового теста (веса {{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_THEORY_QUIZ * 100) }}/{{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_PRACTICE * 100) }}/{{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_EXAM * 100) }}), максимум {{ \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE }} за модуль; сумма по курсу — до {{ \App\Services\CourseScoringService::moduleCount() * \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE }}; финальная лаба — до {{ \App\Services\CourseScoringService::MAX_FINAL_LAB_POINTS }}. «Итого курс» — модули + финал (макс. {{ \App\Services\CourseScoringService::moduleCount() * \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE + \App\Services\CourseScoringService::MAX_FINAL_LAB_POINTS }}).
         </p>
-        @if (request()->filled('key'))
-            <p style="margin:1rem 0 0;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
-                <a class="btn btn-primary" href="{{ route('admin.theory.index', ['key' => request('key')]) }}">Редактировать теорию модулей (Markdown)</a>
-                <span class="muted small">Тот же параметр <code>key</code>, что в адресной строке.</span>
-            </p>
-        @endif
     </div>
 
     <div class="card teacher-report-summary" style="margin-top:0">
