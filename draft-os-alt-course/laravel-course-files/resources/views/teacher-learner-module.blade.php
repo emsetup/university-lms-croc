@@ -12,7 +12,7 @@
     $secPr = $p ? (int) ($p->seconds_practice ?? 0) : 0;
     $secEx = $p ? (int) ($p->seconds_module_exam ?? 0) : 0;
     $secMod = $secTheory + $secTq + $secPr + $secEx;
-    $skipPractice = ! empty(config('course.modules.'.$mid.'.skip_practice'));
+    $skipPractice = \App\Support\CourseModuleMeta::shouldSkipPractice($mid);
 @endphp
 
 @section('title', 'Модуль '.$mid.' — '.$panel['title'])

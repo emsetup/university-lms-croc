@@ -65,10 +65,18 @@ def _image_runs_systemd_pid1(image: str) -> bool:
 
 
 def _lab_runs_systemd_style(body: CreateLabBody) -> bool:
-    """PID1 = systemd: тег *-systemd в имени образа или модули 8 (auditd), 9 (polkit)."""
+    """PID1 = systemd: тег *-systemd в имени образа или модули 8/9/10."""
     if _image_runs_systemd_pid1(body.image):
         return True
-    return body.module_id in (8, 9)
+    return body.module_id in (8, 9, 10)
+
+
+def _lab_needs_privileged(body: CreateLabBody) -> bool:
+    """Финальная лаба (10) работает без --privileged; остальным systemd-лабам оставляем как было."""
+    img = (body.image or "").lower()
+    if body.module_id == 10 or "final-lab" in img:
+        return False
+    return _lab_runs_systemd_style(body)
 
 
 def _lab_systemd_needs_cgroup_tmpfs(body: CreateLabBody) -> bool:
@@ -77,9 +85,9 @@ def _lab_systemd_needs_cgroup_tmpfs(body: CreateLabBody) -> bool:
 
 
 def _lab_m8_audit_caps(body: CreateLabBody) -> bool:
-    """Только модуль 8 / образ m8-systemd — capabilities для auditd в контейнере."""
+    """Модули с auditd-лабораторками: caps для запуска auditd в контейнере."""
     img = (body.image or "").lower()
-    return body.module_id == 8 or "lab-m8-systemd" in img
+    return body.module_id in (8, 10) or "lab-m8-systemd" in img or "final-lab" in img
 
 
 def _stop_tty(lab_id: str) -> None:
@@ -99,7 +107,7 @@ def _stop_tty(lab_id: str) -> None:
 
 class CreateLabBody(BaseModel):
     learner_id: int = Field(..., ge=1)
-    module_id: int = Field(..., ge=1, le=9)
+    module_id: int = Field(..., ge=1, le=10)
     image: str = Field(..., min_length=1)
 
 
@@ -197,7 +205,8 @@ def create_lab(body: CreateLabBody, _: None = Depends(_require_auth)) -> dict:
     ]
     img = (body.image or "").lower()
     if _lab_runs_systemd_style(body):
-        cmd.insert(2, "--privileged")
+        if _lab_needs_privileged(body):
+            cmd.insert(2, "--privileged")
         if _lab_systemd_needs_cgroup_tmpfs(body):
             extras_sysd = (
                 "--cgroupns=host",
@@ -211,11 +220,7 @@ def create_lab(body: CreateLabBody, _: None = Depends(_require_auth)) -> dict:
                 "/run/lock",
             )
             for item in reversed(extras_sysd):
-                cmd.insert(3, item)
-        # Только auditd-лаба: caps (cgroup/tmpfs выше — для любого systemd-контейнера).
-        if _lab_m8_audit_caps(body):
-            for cap in reversed(["AUDIT_CONTROL", "AUDIT_WRITE"]):
-                cmd.insert(3, f"--cap-add={cap}")
+                cmd.insert(2, item)
         # Модуль 5 (etcnet): NET_ADMIN + tmpfs на /etc/resolv.conf — иначе Docker даёт
         # bind-mount на resolv.conf и скрипты etcnet при ifup падают с «rm: … Device or resource busy».
         if body.module_id == 5 or "lab-m5" in img:
@@ -226,7 +231,7 @@ def create_lab(body: CreateLabBody, _: None = Depends(_require_auth)) -> dict:
                     "--tmpfs",
                 ]
             ):
-                cmd.insert(3, item)
+                cmd.insert(2, item)
         cmd.append(body.image)
     else:
         extra: list[str] = []

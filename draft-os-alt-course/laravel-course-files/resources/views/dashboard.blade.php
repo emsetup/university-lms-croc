@@ -115,14 +115,48 @@
 
     <div class="card" style="margin-top:1.25rem">
         <h2 style="margin-top:0">Дальше по курсу</h2>
-        <ul class="muted">
-            <li><strong>Оценка по модулям</strong> - доступна после сдачи всех модулей, учитывает попытки тестов.</li>
-            <li><strong>Финальная лабораторная</strong> - общий кейс по всем темам, затем страница итогов.</li>
-        </ul>
-        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.75rem">
-            <button type="button" class="btn btn-ghost" id="dash-assessment-open" aria-haspopup="dialog" aria-controls="dash-assessment-modal-dialog">Перейти к оценке</button>
-            <a class="btn btn-ghost" href="{{ route('final-lab') }}">Финальная лаба</a>
-            <a class="btn btn-ghost" href="{{ route('certificate') }}">Итоговая страница</a>
+        <div class="module-grid">
+            <div class="module-card">
+                <div class="tag">Оценка</div>
+                <div style="font-weight:700">Оценка по модулям</div>
+                <div class="muted" style="font-size:0.9rem">Сводная аналитика по всем модулям: проценты, баллы и слабые места. Полезно перед финальной лабораторной.</div>
+                <div class="range-wrap">
+                    <label>Готовность трека</label>
+                    <input type="range" min="0" max="100" value="{{ min(100, max(0, (int) $trackAvgPercent)) }}" class="course-range-readonly" tabindex="-1" aria-label="Средний прогресс трека {{ (int) $trackAvgPercent }}%" disabled>
+                </div>
+                <button type="button" class="btn btn-primary" id="dash-assessment-open" aria-haspopup="dialog" aria-controls="dash-assessment-modal-dialog">Перейти к оценке</button>
+            </div>
+
+            <div class="module-card {{ ! $allDone ? 'module-card--locked' : '' }}">
+                <div class="tag">Финальная лаба</div>
+                <div style="font-weight:700">Практический экзамен</div>
+                <div class="muted" style="font-size:0.9rem">Итоговый кейс по всем темам курса: реальная настройка системы по ТЗ. Можно возвращаться и улучшать результат.</div>
+                <div class="range-wrap">
+                    <label for="rng-final-lab">Прогресс</label>
+                    <input id="rng-final-lab" type="range" min="0" max="100" value="{{ min(100, max(0, (int) ($finalLabBestScore ?? 0))) }}" class="course-range-readonly" tabindex="-1" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) ($finalLabBestScore ?? 0) }}" aria-label="Прогресс финальной лабы: {{ (int) ($finalLabBestScore ?? 0) }}%" @if(! $allDone) disabled @endif>
+                </div>
+                @if (($finalLabAttempts ?? 0) > 0)
+                    <p class="module-card-lock-note muted small" style="margin:0">Попыток: {{ (int) $finalLabAttempts }} · лучший результат: {{ (int) ($finalLabBestScore ?? 0) }}%.</p>
+                @endif
+                @if ($allDone)
+                    <a class="btn btn-primary" href="{{ route('final-lab') }}">Открыть финальную лабу</a>
+                @else
+                    <p class="module-card-lock-note muted small" style="margin:0">Станет доступна после завершения всех модулей.</p>
+                    <span class="btn btn-primary" style="opacity:0.5;pointer-events:none;cursor:not-allowed" aria-disabled="true">Недоступно</span>
+                @endif
+            </div>
+
+            <div class="module-card {{ ! $finalDone ? 'module-card--locked' : '' }}">
+                <div class="tag">Итог</div>
+                <div style="font-weight:700">Итоговая страница и сертификат</div>
+                <div class="muted" style="font-size:0.9rem">Финальная страница завершения обучения. После полного прохождения курса здесь доступен сертификат.</div>
+                @if ($finalDone)
+                    <a class="btn btn-primary" href="{{ route('certificate') }}">Открыть итоговую страницу</a>
+                @else
+                    <p class="module-card-lock-note muted small" style="margin:0">Откроется после успешной сдачи финальной лабораторной.</p>
+                    <span class="btn btn-primary" style="opacity:0.5;pointer-events:none;cursor:not-allowed" aria-disabled="true">Недоступно</span>
+                @endif
+            </div>
         </div>
     </div>
 

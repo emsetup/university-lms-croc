@@ -75,7 +75,7 @@ final class ModuleAccessGate
         if ($r = $this->redirectIfTheoryQuizNotPassed($learner, $moduleId)) {
             return $r;
         }
-        if (! empty(CourseModuleMeta::resolved($moduleId)['skip_practice'])) {
+        if (CourseModuleMeta::shouldSkipPractice($moduleId)) {
             return null;
         }
         $p = $learner->progressFor($moduleId);

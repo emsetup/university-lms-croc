@@ -104,7 +104,7 @@
                                 </button>
                             </p>
                         @else
-                            <p class="muted">Веб-терминал не выдан (на стенде: <code>LAB_ENABLE_TTY=1</code>, <code>LAB_PUBLIC_HOST</code> — IP или DNS стенда <strong>для браузера студента</strong>, не <code>127.0.0.1</code>; в <code>.env</code> Laravel — <code>PRACTICE_LAB_PUBLIC_HOST</code>; скрипт <code>start-lab-daemon-stand.sh</code> подставляет хост из <code>STAND_SSH</code>). Или SSH / <code>docker exec</code>.</p>
+                            <p class="muted">Веб-терминал не выдан (на стенде: <code>LAB_ENABLE_TTY=1</code>, <code>LAB_PUBLIC_HOST</code> — IP или DNS стенда <strong>для браузера обучающегося</strong>, не <code>127.0.0.1</code>; в <code>.env</code> Laravel — <code>PRACTICE_LAB_PUBLIC_HOST</code>; скрипт <code>start-lab-daemon-stand.sh</code> подставляет хост из <code>STAND_SSH</code>). Или SSH / <code>docker exec</code>.</p>
                         @endif
                         <p class="muted small">Стенд активен до {{ $ps->expires_at->timezone(config('app.timezone'))->format('d.m.Y H:i') }}</p>
                         <form method="post" action="{{ route('modules.practice.lab.check', $module) }}" class="inline-form">
@@ -317,6 +317,11 @@
 
                         var open = false;
 
+                        function unloadTerminalFrame() {
+                            // Внутри ttyd может быть beforeunload; убираем src перед уходом со страницы.
+                            iframe.removeAttribute('src');
+                        }
+
                         function setDockTransform(visible) {
                             dock.style.setProperty('transform', visible ? 'translateX(0)' : 'translateX(100%)', 'important');
                         }
@@ -351,6 +356,8 @@
                             }
                             if (v && !iframe.getAttribute('src')) {
                                 iframe.setAttribute('src', url);
+                            } else if (!v) {
+                                unloadTerminalFrame();
                             }
                         }
 
@@ -375,6 +382,15 @@
                             if (e.key === 'Escape' && open) {
                                 setOpen(false);
                             }
+                        });
+                        document.querySelectorAll('form[action*="/practice/lab/"]').forEach(function (form) {
+                            form.addEventListener('submit', function () {
+                                setOpen(false);
+                                unloadTerminalFrame();
+                            });
+                        });
+                        window.addEventListener('pagehide', function () {
+                            unloadTerminalFrame();
                         });
                         window.addEventListener('resize', function () {
                             if (!dock.parentNode) {

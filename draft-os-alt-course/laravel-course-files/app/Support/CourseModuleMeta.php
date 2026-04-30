@@ -7,6 +7,19 @@ namespace App\Support;
  */
 final class CourseModuleMeta
 {
+    public static function shouldSkipPractice(int $module): bool
+    {
+        $meta = self::resolved($module);
+        if ($module === 4) {
+            return true;
+        }
+        if (! empty($meta['skip_practice'])) {
+            return true;
+        }
+
+        return trim((string) ($meta['practice'] ?? '')) === '';
+    }
+
     /**
      * @return array<string, mixed>
      */

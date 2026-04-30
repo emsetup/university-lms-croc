@@ -14,7 +14,9 @@
                    class="ai-nav__a @if ($active === 'theory') ai-nav__a--active @endif">Содержимое курса</a>
                 <a href="{{ route('teacher.course-report', ['key' => $navKey]) }}"
                    class="ai-nav__a @if ($active === 'learners') ai-nav__a--active @endif">Обучающиеся</a>
-                <a href="{{ route('login') }}" class="ai-nav__a ai-nav__a--external" target="_blank" rel="noopener noreferrer">Вход студента ↗</a>
+                <a href="{{ route('admin.certificates', ['key' => $navKey]) }}"
+                   class="ai-nav__a @if ($active === 'certificates') ai-nav__a--active @endif">Сертификаты</a>
+                <a href="{{ route('login') }}" class="ai-nav__a ai-nav__a--external" target="_blank" rel="noopener noreferrer">Вход обучающегося ↗</a>
             </div>
         </div>
     </nav>

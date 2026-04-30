@@ -119,7 +119,26 @@
                             </td>
                             <td style="vertical-align:top;font-size:0.82rem;max-width:14rem">
                                 @if ($r['practice_lab_docker_image'])
+                                    @php($ls = $adminLabStates[$r['module']] ?? null)
                                     <code style="word-break:break-all;font-size:0.8rem">{{ $r['practice_lab_docker_image'] }}</code>
+                                    @if (! $isReadOnly)
+                                        <div class="atc-actions" style="margin-top:0.5rem">
+                                            @if ($ls && ! empty($ls['lab_id']))
+                                                @if (! empty($ls['terminal_url']))
+                                                    <a class="btn btn-ghost" href="{{ $ls['terminal_url'] }}" target="_blank" rel="noopener" style="padding:0.25rem 0.55rem;font-size:0.82rem">Открыть</a>
+                                                @endif
+                                                <form method="post" action="{{ route('admin.theory.container.finish', ['module' => $r['module'], 'key' => $adminKey]) }}" style="margin:0">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.82rem">Завершить</button>
+                                                </form>
+                                            @else
+                                                <form method="post" action="{{ route('admin.theory.container.start', ['module' => $r['module'], 'key' => $adminKey]) }}" style="margin:0">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.82rem">Запустить</button>
+                                                </form>
+                                            @endif
+                                        </div>
+                                    @endif
                                 @else
                                     <span class="muted">Для этого модуля не задан Docker-образ в <code>config/practice_lab.php</code>.</span>
                                 @endif
@@ -128,6 +147,36 @@
                     @endforeach
                 </tbody>
             </table>
+        </div>
+        <div style="margin-top:1rem;padding:0.75rem 0.9rem;border:1px solid var(--line,#e5e7eb);border-radius:10px;background:#fff">
+            <div style="display:flex;flex-wrap:wrap;gap:0.55rem;align-items:center;justify-content:space-between">
+                <div>
+                    <div style="font-weight:700">Финальная лабораторная</div>
+                    <div class="muted small">Практический экзамен по всему курсу (контейнер, чек-лист, итог 100 баллов).</div>
+                </div>
+                <div class="atc-actions" style="margin:0">
+                    <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр финальной лабораторной" data-preview-url="{{ route('admin.theory.preview-final-lab', ['key' => $adminKey]) }}">Просмотр</button>
+                    @if (! $isReadOnly && ! empty($finalLabDockerImage))
+                        @if ($finalLabState && ! empty($finalLabState['lab_id']))
+                            @if (! empty($finalLabState['terminal_url']))
+                                <a class="btn btn-ghost" href="{{ $finalLabState['terminal_url'] }}" target="_blank" rel="noopener" style="padding:0.25rem 0.55rem;font-size:0.82rem">Открыть</a>
+                            @endif
+                            <form method="post" action="{{ route('admin.theory.container.finish', ['module' => 10, 'key' => $adminKey]) }}" style="margin:0">
+                                @csrf
+                                <button type="submit" class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.82rem">Завершить</button>
+                            </form>
+                        @else
+                            <form method="post" action="{{ route('admin.theory.container.start', ['module' => 10, 'key' => $adminKey]) }}" style="margin:0">
+                                @csrf
+                                <button type="submit" class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.82rem">Запустить</button>
+                            </form>
+                        @endif
+                    @endif
+                </div>
+            </div>
+            @if (! empty($finalLabDockerImage))
+                <div class="muted small" style="margin-top:0.45rem">Образ: <code>{{ $finalLabDockerImage }}</code></div>
+            @endif
         </div>
         <p class="muted small" style="margin-top: 1rem">Прямой адрес списка: <code>/adm/kurs-teoriya?key=…</code> (историческое имя пути сохранено). Общая панель: <code>/adm?key=…</code>.</p>
         </div>

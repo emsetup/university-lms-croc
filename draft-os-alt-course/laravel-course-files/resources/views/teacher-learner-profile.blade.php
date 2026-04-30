@@ -205,6 +205,34 @@
         @endforeach
     </div>
 
+    <h2 class="tl-section-h" style="margin-top:1.2rem">Финальная лабораторная</h2>
+    @php($final = $learner->finalLabResult)
+    <article class="tl-mod-row" style="grid-template-columns:1fr;">
+        @if ($final)
+            <div style="display:flex;flex-wrap:wrap;gap:0.6rem 1rem;align-items:center;justify-content:space-between">
+                <h3 class="tl-mod-title" style="margin:0">Практический экзамен</h3>
+                <span class="tl-time-chip">Попыток: {{ (int) $final->attempts }}</span>
+            </div>
+            <div class="tl-chips" style="margin-top:0.6rem">
+                <span class="tl-chip"><span class="tl-chip__k">Лучший балл</span><span class="tl-chip__v">{{ (int) $final->best_score }}%</span></span>
+                <span class="tl-chip"><span class="tl-chip__k">Статус</span><span class="tl-chip__v">{{ $final->passed ? 'Сдана' : 'Не сдана' }}</span></span>
+                <span class="tl-chip"><span class="tl-chip__k">Завершена</span><span class="tl-chip__v">{{ optional($final->completed_at)->format('d.m.Y H:i') ?: '—' }}</span></span>
+            </div>
+            @if ($final->certificate_serial || $final->certificate_full_name)
+                <div style="margin-top:0.75rem;padding:0.7rem 0.8rem;border:1px solid #dfe8e4;border-radius:10px;background:#f8faf9">
+                    <div class="muted" style="font-size:0.82rem;margin-bottom:0.3rem">Сертификат</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:0.65rem 1.2rem;align-items:center">
+                        <span><strong>№:</strong> {{ $final->certificate_serial ?: '—' }}</span>
+                        <span><strong>ФИО:</strong> {{ $final->certificate_full_name ?: '—' }}</span>
+                        <span><strong>Выдан:</strong> {{ optional($final->certificate_issued_at)->format('d.m.Y H:i') ?: '—' }}</span>
+                    </div>
+                </div>
+            @endif
+        @else
+            <p class="muted" style="margin:0">Финальная лабораторная пока не начиналась.</p>
+        @endif
+    </article>
+
     <p class="muted" style="margin-top:1.25rem">
         <a href="{{ route('teacher.course-report').$keyQ }}">← К сводке по всем обучающимся</a>
         ·

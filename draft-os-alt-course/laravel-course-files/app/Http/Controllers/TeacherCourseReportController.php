@@ -85,7 +85,7 @@ class TeacherCourseReportController extends Controller
             }
         }
         if ($step === InstructorProgressResetService::STEP_PRACTICE) {
-            if (! empty(CourseModuleMeta::resolved($module)['skip_practice'])) {
+            if (CourseModuleMeta::shouldSkipPractice($module)) {
                 return $this->redirectModuleWithKey($request, $learner, $module)
                     ->with('err', 'В этом модуле практика не предусмотрена.');
             }

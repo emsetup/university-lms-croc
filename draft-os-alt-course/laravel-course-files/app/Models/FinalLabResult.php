@@ -13,6 +13,9 @@ class FinalLabResult extends Model
         'passed',
         'best_score',
         'completed_at',
+        'certificate_full_name',
+        'certificate_serial',
+        'certificate_issued_at',
     ];
 
     protected function casts(): array
@@ -20,6 +23,7 @@ class FinalLabResult extends Model
         return [
             'passed' => 'boolean',
             'completed_at' => 'datetime',
+            'certificate_issued_at' => 'datetime',
         ];
     }
 

@@ -30,5 +30,6 @@ return [
         '7' => env('PRACTICE_LAB_IMAGE_7', 'os-alt-lab-m7:latest'),
         '8' => env('PRACTICE_LAB_IMAGE_M8', 'os-alt-lab-m8:latest'),
         '9' => env('PRACTICE_LAB_IMAGE_9', 'os-alt-lab-m9:latest'),
+        '10' => env('PRACTICE_LAB_IMAGE_FINAL', 'os-alt-final-lab:latest'),
     ],
 ];

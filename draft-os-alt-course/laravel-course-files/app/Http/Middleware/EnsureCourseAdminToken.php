@@ -40,7 +40,8 @@ class EnsureCourseAdminToken
                 'admin.theory.preview-theory',
                 'admin.theory.preview-theory-quiz',
                 'admin.theory.preview-practice',
-                'admin.theory.preview-module-exam'
+                'admin.theory.preview-module-exam',
+                'admin.theory.preview-final-lab'
             )) {
                 abort(404);
             }

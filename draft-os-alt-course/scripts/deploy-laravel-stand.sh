@@ -51,6 +51,7 @@ for f in \
   app/Http/Controllers/AssessmentController.php \
   app/Http/Controllers/CertificateController.php \
   app/Http/Controllers/DashboardController.php \
+  app/Http/Controllers/FinalLabController.php \
   app/Http/Controllers/ModuleController.php \
   app/Http/Controllers/TeacherCourseReportController.php \
   app/Http/Middleware/EnsureCourseAdminToken.php \
@@ -77,6 +78,12 @@ if [[ -f "${LCF}/database/migrations/2026_04_15_000001_add_practice_m1_quest_to_
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_04_15_000001_add_practice_m1_quest_to_module_progress_table.php"
 fi
 
+if [[ -f "${LCF}/database/migrations/2026_04_30_000001_add_certificate_fields_to_final_lab_results_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…certificate_fields_final_lab_results…"
+  rsync -az "${LCF}/database/migrations/2026_04_30_000001_add_certificate_fields_to_final_lab_results_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_04_30_000001_add_certificate_fields_to_final_lab_results_table.php"
+fi
+
 if [[ -d "${LCF}/resources/views/admin" ]]; then
   echo "[deploy-laravel] resources/views/admin/"
   rsync -az "${LCF}/resources/views/admin/" "${STAND_SSH}:${REMOTE}/resources/views/admin/"
@@ -100,7 +107,7 @@ for v in hub.blade.php theory.blade.php practice.blade.php; do
   fi
 done
 
-for tv in assessment.blade.php certificate.blade.php dashboard.blade.php teacher-course-report.blade.php teacher-learner-profile.blade.php teacher-learner-module.blade.php; do
+for tv in assessment.blade.php certificate.blade.php dashboard.blade.php final-lab.blade.php teacher-course-report.blade.php teacher-learner-profile.blade.php teacher-learner-module.blade.php; do
   if [[ -f "${LCF}/resources/views/${tv}" ]]; then
     echo "[deploy-laravel] resources/views/${tv}"
     rsync -az "${LCF}/resources/views/${tv}" "${STAND_SSH}:${REMOTE}/resources/views/${tv}"

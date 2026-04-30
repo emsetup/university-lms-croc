@@ -548,7 +548,7 @@ class ModuleController extends Controller
             return $r;
         }
         $meta = CourseModuleMeta::resolved($module);
-        if (! empty($meta['skip_practice'])) {
+        if (CourseModuleMeta::shouldSkipPractice($module)) {
             return redirect()->route('modules.hub', $module)->with(
                 'ok',
                 'В этом модуле нет практического занятия — перейдите к итоговому тесту (шаг «Экзамен» на странице модуля).'
@@ -586,7 +586,7 @@ class ModuleController extends Controller
         if ($r = $this->accessGate->redirectIfTheoryQuizNotPassed($learner, $module)) {
             return $r;
         }
-        if (! empty(CourseModuleMeta::resolved($module)['skip_practice'])) {
+        if (CourseModuleMeta::shouldSkipPractice($module)) {
             return redirect()->route('modules.hub', $module)->with(
                 'ok',
                 'В этом модуле нет практического занятия — перейдите к итоговому тесту.'

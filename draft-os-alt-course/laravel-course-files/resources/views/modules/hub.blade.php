@@ -6,7 +6,7 @@
     $tTq = $st['theory_quiz'] ?? 'Тест по теории';
     $tPr = $st['practice'] ?? 'Практика';
     $tEx = $st['module_exam'] ?? 'Итоговый тест';
-    $skipPractice = ! empty($meta['skip_practice']);
+    $skipPractice = \App\Support\CourseModuleMeta::shouldSkipPractice((int) $module);
     $p = $progress;
     $tqLast = is_array($p->theory_quiz_last_result ?? null) ? $p->theory_quiz_last_result : [];
     $exLast = is_array($p->module_exam_last_result ?? null) ? $p->module_exam_last_result : [];

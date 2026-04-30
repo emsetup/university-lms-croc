@@ -62,6 +62,9 @@ class DashboardController extends Controller
         }
 
         $trackAvgPercent = (int) round($sumPercent / $moduleCount);
+        $finalResult = $learner->finalLabResult;
+        $finalBest = (int) ($finalResult->best_score ?? 0);
+        $finalAttempts = (int) ($finalResult->attempts ?? 0);
 
         return view('dashboard', [
             'modules' => $modules,
@@ -72,6 +75,8 @@ class DashboardController extends Controller
             'modulePointsMax' => $this->scoring->maxTotalModulePoints(),
             'allDone' => $this->scoring->allModulesComplete($learner),
             'finalDone' => (bool) optional($learner->finalLabResult)->passed,
+            'finalLabBestScore' => $finalBest,
+            'finalLabAttempts' => $finalAttempts,
             'assessmentSnapshot' => $this->scoring->learnerAssessmentSnapshot($learner),
         ]);
     }

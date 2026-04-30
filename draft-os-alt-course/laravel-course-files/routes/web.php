@@ -25,8 +25,12 @@ Route::middleware('learner')->group(function () {
 
     Route::get('/assessment', AssessmentController::class)->name('assessment');
     Route::get('/final-lab', [FinalLabController::class, 'show'])->name('final-lab');
-    Route::post('/final-lab', [FinalLabController::class, 'submit'])->name('final-lab.submit');
+    Route::post('/final-lab/start', [FinalLabController::class, 'startLab'])->name('final-lab.start');
+    Route::post('/final-lab/check', [FinalLabController::class, 'checkLab'])->name('final-lab.check');
+    Route::post('/final-lab/accept', [FinalLabController::class, 'acceptLab'])->name('final-lab.accept');
+    Route::post('/final-lab/finish', [FinalLabController::class, 'finishLab'])->name('final-lab.finish');
     Route::get('/certificate', CertificateController::class)->name('certificate');
+    Route::post('/certificate/recipient', [CertificateController::class, 'saveRecipient'])->name('certificate.recipient');
 
     Route::prefix('module/{module}')->whereNumber('module')->group(function () {
         Route::get('/', [ModuleController::class, 'hub'])->name('modules.hub');
@@ -58,8 +62,16 @@ Route::middleware('learner')->group(function () {
 
 Route::middleware([\App\Http\Middleware\EnsureCourseAdminToken::class])->group(function () {
     Route::get('/adm', [AdminPanelController::class, 'show'])->name('admin.panel');
+    Route::get('/adm/sertifikaty', [AdminPanelController::class, 'certificates'])->name('admin.certificates');
+    Route::get('/adm/sertifikaty/{result}', [AdminPanelController::class, 'certificateShow'])->name('admin.certificates.show');
     Route::get('/adm/kurs-teoriya', [AdminTheoryController::class, 'index'])->name('admin.theory.index');
     Route::get('/adm/kurs-teoriya/vse-md.zip', [AdminTheoryController::class, 'downloadZip'])->name('admin.theory.zip');
+    Route::post('/adm/kurs-teoriya/modul/{module}/container/start', [AdminTheoryController::class, 'startPracticeLabProbe'])
+        ->whereNumber('module')
+        ->name('admin.theory.container.start');
+    Route::post('/adm/kurs-teoriya/modul/{module}/container/finish', [AdminTheoryController::class, 'finishPracticeLabProbe'])
+        ->whereNumber('module')
+        ->name('admin.theory.container.finish');
     Route::get('/adm/kurs-teoriya/modul/{module}/teoriya', [AdminTheoryController::class, 'previewTheory'])
         ->whereNumber('module')
         ->name('admin.theory.preview-theory');
@@ -72,6 +84,8 @@ Route::middleware([\App\Http\Middleware\EnsureCourseAdminToken::class])->group(f
     Route::get('/adm/kurs-teoriya/modul/{module}/ekzamen', [AdminTheoryController::class, 'previewModuleExam'])
         ->whereNumber('module')
         ->name('admin.theory.preview-module-exam');
+    Route::get('/adm/kurs-teoriya/final-lab', [AdminTheoryController::class, 'previewFinalLab'])
+        ->name('admin.theory.preview-final-lab');
     Route::get('/adm/kurs-teoriya/modul/{module}', [AdminTheoryController::class, 'edit'])
         ->whereNumber('module')
         ->name('admin.theory.edit');

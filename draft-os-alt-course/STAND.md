@@ -53,6 +53,23 @@ STAND_SSH=emednikov@172.26.76.216 bash scripts/start-lab-daemon-stand.sh
 
 Подробнее: **`laravel-course-files/docker/lab-m9/README.md`**.
 
+## Финальная лабораторная (практический экзамен)
+
+Подготовлены артефакты:
+
+- образ: **`laravel-course-files/docker/final-lab/Dockerfile`**
+- проверка: **`laravel-course-files/examples/practice-checks/final_lab/check.sh`**
+- деплой: **`scripts/deploy-final-lab-stand.sh`**
+
+Сборка на стенде:
+
+```bash
+export STAND_SSH=emednikov@172.26.76.216
+bash scripts/deploy-final-lab-stand.sh
+```
+
+По умолчанию тег: **`os-alt-final-lab:latest`** (или задайте `FINAL_LAB_IMAGE=...`).
+
 ### lab-daemon (порт 8090)
 
 Если в браузере ошибка **cURL 7 / 127.0.0.1:8090** — демон не запущен. На стенде в `.env` Laravel должны быть **`PRACTICE_LAB_DAEMON_URL=http://127.0.0.1:8090`** и **`PRACTICE_LAB_DAEMON_SECRET=...`** (тот же секрет передаётся в контейнер как **`LAB_DAEMON_SECRET`**).

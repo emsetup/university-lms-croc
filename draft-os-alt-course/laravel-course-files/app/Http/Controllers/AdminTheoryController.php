@@ -3,24 +3,29 @@
 namespace App\Http\Controllers;
 
 use App\Services\CourseScoringService;
+use App\Services\PracticeLabDaemonClient;
 use App\Support\AdminCourseContentInspector;
 use App\Support\CourseModuleMeta;
 use App\Support\CourseTheoryPaths;
 use App\Support\PracticeHintMarkdown;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
+use Throwable;
 use ZipArchive;
 
 class AdminTheoryController extends Controller
 {
     private const MAX_BYTES = 2_500_000;
+    private const ADMIN_LAB_TTL_MINUTES = 120;
 
     public function index(Request $request): View
     {
         $key = (string) $request->query('key', '');
         $rows = [];
+        $labStateMap = [];
         for ($m = 1; $m <= 9; $m++) {
             $meta = config('course.modules.'.$m);
             $title = is_array($meta) ? (string) ($meta['title'] ?? 'Модуль '.$m) : '—';
@@ -47,13 +52,74 @@ class AdminTheoryController extends Controller
                 'has_practice' => $practiceMd !== '',
                 'practice_lab_docker_image' => $dockerImage,
             ];
+            $labStateMap[$m] = $this->adminLabState($key, $m);
         }
 
         return view('admin.theory-index', [
             'adminKey' => $key,
             'rows' => $rows,
+            'adminLabStates' => $labStateMap,
+            'finalLabState' => $this->adminLabState($key, 10),
+            'finalLabDockerImage' => AdminCourseContentInspector::practiceLabDockerImageForModule(10),
             'isReadOnly' => $this->isReadOnlyAccess($request),
         ]);
+    }
+
+    public function startPracticeLabProbe(Request $request, int $module): RedirectResponse
+    {
+        abort_unless($module >= 1 && $module <= 10, 404);
+        if ($this->isReadOnlyAccess($request)) {
+            return $this->redirectToTheoryIndex($request)->with('err', 'Режим модератора: запуск контейнера недоступен.');
+        }
+        $key = (string) $request->query('key', '');
+        $image = AdminCourseContentInspector::practiceLabDockerImageForModule($module);
+        if (! $image) {
+            return $this->redirectToTheoryIndex($request)->with('err', 'Для модуля '.$module.' не задан Docker-образ.');
+        }
+        $state = $this->adminLabState($key, $module);
+        if (is_array($state) && ! empty($state['lab_id'])) {
+            return $this->redirectToTheoryIndex($request)->with('ok', 'Проверочный стенд уже запущен для модуля '.$module.'.');
+        }
+        $client = PracticeLabDaemonClient::fromConfig();
+        if (! $client) {
+            return $this->redirectToTheoryIndex($request)->with('err', 'Lab-daemon не настроен (PRACTICE_LAB_DAEMON_URL / SECRET).');
+        }
+        try {
+            $resp = $client->createLab($this->adminPseudoLearnerId($key), $module, $image);
+        } catch (Throwable $e) {
+            return $this->redirectToTheoryIndex($request)->with('err', 'Не удалось запустить стенд: '.$e->getMessage());
+        }
+
+        $payload = [
+            'lab_id' => (string) ($resp['lab_id'] ?? ''),
+            'terminal_url' => (string) ($resp['terminal_url'] ?? ''),
+            'image' => $image,
+            'started_at' => now()->toIso8601String(),
+        ];
+        Cache::put($this->adminLabStateCacheKey($key, $module), $payload, now()->addMinutes(self::ADMIN_LAB_TTL_MINUTES));
+
+        return $this->redirectToTheoryIndex($request)->with('ok', 'Проверочный стенд модуля '.$module.' запущен.');
+    }
+
+    public function finishPracticeLabProbe(Request $request, int $module): RedirectResponse
+    {
+        abort_unless($module >= 1 && $module <= 10, 404);
+        if ($this->isReadOnlyAccess($request)) {
+            return $this->redirectToTheoryIndex($request)->with('err', 'Режим модератора: завершение контейнера недоступно.');
+        }
+        $key = (string) $request->query('key', '');
+        $state = $this->adminLabState($key, $module);
+        $client = PracticeLabDaemonClient::fromConfig();
+        if ($client && is_array($state) && ! empty($state['lab_id'])) {
+            try {
+                $client->destroyLab((string) $state['lab_id']);
+            } catch (Throwable) {
+                // best effort
+            }
+        }
+        Cache::forget($this->adminLabStateCacheKey($key, $module));
+
+        return $this->redirectToTheoryIndex($request)->with('ok', 'Проверочный стенд модуля '.$module.' завершён.');
     }
 
     /**
@@ -205,6 +271,16 @@ class AdminTheoryController extends Controller
         ]);
     }
 
+    public function previewFinalLab(Request $request): View
+    {
+        $key = (string) $request->query('key', '');
+
+        return view('admin.content-final-lab', [
+            'adminKey' => $key,
+            'isReadOnly' => $this->isReadOnlyAccess($request),
+        ]);
+    }
+
     private function moduleExamTimeLimitMinutes(int $module): int
     {
         $v = config('course.modules.'.$module.'.module_exam_time_limit_minutes');
@@ -217,6 +293,30 @@ class AdminTheoryController extends Controller
     private function isReadOnlyAccess(Request $request): bool
     {
         return (bool) $request->attributes->get('course_admin_readonly', false);
+    }
+
+    private function adminLabState(string $key, int $module): ?array
+    {
+        $state = Cache::get($this->adminLabStateCacheKey($key, $module));
+
+        return is_array($state) ? $state : null;
+    }
+
+    private function adminLabStateCacheKey(string $key, int $module): string
+    {
+        return 'admin_lab_probe:'.sha1($key).':'.$module;
+    }
+
+    private function adminPseudoLearnerId(string $key): int
+    {
+        $v = abs((int) crc32('admin:'.$key));
+
+        return 900000 + ($v % 99999);
+    }
+
+    private function redirectToTheoryIndex(Request $request): RedirectResponse
+    {
+        return redirect()->route('admin.theory.index', ['key' => (string) $request->query('key', '')]);
     }
 
     public function downloadZip(Request $request): Response|RedirectResponse

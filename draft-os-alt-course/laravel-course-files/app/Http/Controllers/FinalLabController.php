@@ -2,36 +2,24 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\FinalLabResult;
 use App\Models\Learner;
+use App\Models\PracticeSession;
 use App\Services\CourseScoringService;
+use App\Services\PracticeLabService;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
+use Throwable;
 
 class FinalLabController extends Controller
 {
+    private const FINAL_LAB_MODULE_ID = 10;
+    private const FINAL_LAB_TIME_LIMIT_MINUTES = 90;
+
     public function __construct(
         private CourseScoringService $scoring
     ) {}
-
-    /**
-     * @param  array<int, array{q:string,a:array,c:int}>  $questions
-     */
-    protected function scorePercent(array $questions, Request $request, string $prefix): int
-    {
-        if (count($questions) === 0) {
-            return 0;
-        }
-        $correct = 0;
-        foreach (array_keys($questions) as $i) {
-            $v = (int) $request->input($prefix.$i);
-            if (isset($questions[$i]['c']) && $v === (int) $questions[$i]['c']) {
-                $correct++;
-            }
-        }
-
-        return (int) round(100 * $correct / count($questions));
-    }
 
     public function show(): View|RedirectResponse
     {
@@ -39,30 +27,103 @@ class FinalLabController extends Controller
         if (! $this->scoring->allModulesComplete($learner)) {
             return redirect()->route('dashboard')->with('err', 'Финальная лабораторная доступна после прохождения всех модулей.');
         }
-
-        $qs = config('course.final_lab_questions');
+        if (! Schema::hasTable('practice_sessions')) {
+            return view('final-lab', [
+                'result' => $learner->finalLabResult,
+                'practiceSession' => null,
+                'attemptsLeft' => 2,
+                'labConfigured' => false,
+                'labImage' => null,
+                'labEnabled' => false,
+                'warningOnly' => true,
+            ]);
+        }
+        $lab = PracticeLabService::make();
+        $result = $this->resultModel($learner);
+        $practiceSession = PracticeSession::query()
+            ->where('learner_id', $learner->id)
+            ->where('module_id', self::FINAL_LAB_MODULE_ID)
+            ->first();
 
         return view('final-lab', [
-            'questions' => $qs,
-            'result' => $learner->finalLabResult,
+            'result' => $result,
+            'practiceSession' => $practiceSession,
+            'attemptsLeft' => max(0, 2 - (int) $result->attempts),
+            'labConfigured' => $lab->isConfigured(),
+            'labImage' => $lab->imageForModule(self::FINAL_LAB_MODULE_ID),
+            'labEnabled' => (bool) config('practice_lab.enabled'),
+            'warningOnly' => false,
         ]);
     }
 
-    public function submit(Request $request): RedirectResponse
+    public function startLab(): RedirectResponse
     {
         $learner = Learner::findOrFail(session('learner_id'));
-        if (! $this->scoring->allModulesComplete($learner)) {
-            abort(403);
+        if ($r = $this->guardLearnerAccess($learner)) {
+            return $r;
+        }
+        $result = $this->resultModel($learner);
+        if ((int) $result->attempts >= 2) {
+            return redirect()->route('final-lab')->with('err', 'Попытки финальной лабораторной исчерпаны (2/2).');
+        }
+        $lab = PracticeLabService::make();
+        try {
+            $out = $lab->startLab($learner, self::FINAL_LAB_MODULE_ID);
+        } catch (Throwable $e) {
+            return redirect()->route('final-lab')->with('err', $e->getMessage());
+        }
+        if (! empty($out['message'])) {
+            return redirect()->route('final-lab')->with('err', (string) $out['message']);
+        }
+        $session = $out['session'] ?? null;
+        if ($session instanceof PracticeSession) {
+            $session->expires_at = now()->addMinutes(self::FINAL_LAB_TIME_LIMIT_MINUTES);
+            $session->save();
         }
 
-        $qs = config('course.final_lab_questions');
-        $result = $learner->finalLabResult()->firstOrCreate(
-            ['learner_id' => $learner->id],
-            ['attempts' => 0, 'passed' => false, 'best_score' => 0]
-        );
+        return redirect()->route('final-lab')->with('ok', 'Контейнер финальной лабораторной запущен. Лимит времени — 90 минут.');
+    }
 
-        $result->attempts = (int) $result->attempts + 1;
-        $score = $this->scorePercent($qs, $request, 'f');
+    public function checkLab(): RedirectResponse
+    {
+        $learner = Learner::findOrFail(session('learner_id'));
+        if ($r = $this->guardLearnerAccess($learner)) {
+            return $r;
+        }
+        try {
+            $out = PracticeLabService::make()->runCheck($learner, self::FINAL_LAB_MODULE_ID);
+        } catch (Throwable $e) {
+            return redirect()->route('final-lab')->with('err', $e->getMessage());
+        }
+        if (! empty($out['message'])) {
+            return redirect()->route('final-lab')->with('err', (string) $out['message']);
+        }
+
+        return redirect()->route('final-lab')->with('ok', 'Проверка завершена. Изучите лог и зафиксируйте результат.');
+    }
+
+    public function acceptLab(): RedirectResponse
+    {
+        $learner = Learner::findOrFail(session('learner_id'));
+        if ($r = $this->guardLearnerAccess($learner)) {
+            return $r;
+        }
+        $result = $this->resultModel($learner);
+        $attempt = (int) $result->attempts + 1;
+        if ($attempt > 2) {
+            return redirect()->route('final-lab')->with('err', 'Попытки финальной лабораторной исчерпаны.');
+        }
+        $session = PracticeSession::query()
+            ->where('learner_id', $learner->id)
+            ->where('module_id', self::FINAL_LAB_MODULE_ID)
+            ->first();
+        if (! $session || $session->last_check_score === null) {
+            return redirect()->route('final-lab')->with('err', 'Сначала выполните проверку результата.');
+        }
+        $raw = (int) $session->last_check_score;
+        $score = $attempt >= 2 ? max(0, $raw - 10) : $raw;
+
+        $result->attempts = $attempt;
         $result->best_score = max((int) $result->best_score, $score);
         if ($score >= CourseScoringService::PASS_THRESHOLD) {
             $result->passed = true;
@@ -70,11 +131,40 @@ class FinalLabController extends Controller
         }
         $result->save();
 
-        return redirect()->route('final-lab')->with(
-            $score >= CourseScoringService::PASS_THRESHOLD ? 'ok' : 'err',
-            $score >= CourseScoringService::PASS_THRESHOLD
-                ? 'Финальная лабораторная принята ('.$score.'%).'
-                : 'Нужно набрать не менее '.CourseScoringService::PASS_THRESHOLD.'%. Сейчас: '.$score.'%.'
+        $suffix = $attempt >= 2 ? ' (вторая попытка: штраф −10 п.п.)' : '';
+        $msg = 'Результат финальной лабораторной зафиксирован: '.$score.'%'.$suffix.'.';
+
+        return redirect()->route('final-lab')->with($score >= CourseScoringService::PASS_THRESHOLD ? 'ok' : 'err', $msg);
+    }
+
+    public function finishLab(): RedirectResponse
+    {
+        $learner = Learner::findOrFail(session('learner_id'));
+        if ($r = $this->guardLearnerAccess($learner)) {
+            return $r;
+        }
+        PracticeLabService::make()->destroyLab($learner, self::FINAL_LAB_MODULE_ID);
+
+        return redirect()->route('final-lab')->with('ok', 'Контейнер финальной лабораторной удалён.');
+    }
+
+    private function resultModel(Learner $learner): FinalLabResult
+    {
+        return $learner->finalLabResult()->firstOrCreate(
+            ['learner_id' => $learner->id],
+            ['attempts' => 0, 'passed' => false, 'best_score' => 0]
         );
+    }
+
+    private function guardLearnerAccess(Learner $learner): ?RedirectResponse
+    {
+        if (! $this->scoring->allModulesComplete($learner)) {
+            return redirect()->route('dashboard')->with('err', 'Финальная лабораторная доступна после прохождения всех модулей.');
+        }
+        if (! Schema::hasTable('practice_sessions')) {
+            return redirect()->route('final-lab')->with('err', 'Не выполнены миграции practice_sessions. Запустите php artisan migrate.');
+        }
+
+        return null;
     }
 }

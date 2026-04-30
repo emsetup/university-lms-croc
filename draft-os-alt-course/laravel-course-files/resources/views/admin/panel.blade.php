@@ -8,7 +8,7 @@
 
         <h1 style="margin-top: 0">Панель администратора курса</h1>
         <p class="muted" style="margin-top: 0">
-            Единое меню сверху: переход к содержимому курса (теория в Markdown, просмотр тестов и практик), к сводке по обучающимся и к странице входа для проверки со стороны студента.
+            Единое меню сверху: переход к содержимому курса (теория в Markdown, просмотр тестов и практик), к сводке по обучающимся и к странице входа для проверки со стороны обучающегося.
         </p>
         <p class="muted small" style="margin: 0 0 1.25rem">
             Доступ по параметру <code>key</code> в URL — значение <code>TEACHER_REPORT_TOKEN</code> или <code>COURSE_ADMIN_TOKEN</code> из <code>.env</code> (см. <code>STAND.md</code>).
@@ -22,6 +22,10 @@
             <a class="card" href="{{ route('teacher.course-report', ['key' => $adminKey]) }}" style="display: block; text-decoration: none; padding: 1rem 1.1rem; border-radius: 12px; color: inherit; border: 1px solid var(--line, #dfe8e4); transition: box-shadow 0.15s, border-color 0.15s">
                 <h2 style="margin: 0 0 0.35rem; font-size: 1.05rem; color: var(--accent, #0a7)">Обучающиеся</h2>
                 <p class="muted small" style="margin: 0">Сводка по курсу, карточки обучающихся, детализация по модулям, сброс попыток.</p>
+            </a>
+            <a class="card" href="{{ route('admin.certificates', ['key' => $adminKey]) }}" style="display: block; text-decoration: none; padding: 1rem 1.1rem; border-radius: 12px; color: inherit; border: 1px solid var(--line, #dfe8e4); transition: box-shadow 0.15s, border-color 0.15s">
+                <h2 style="margin: 0 0 0.35rem; font-size: 1.05rem; color: var(--accent, #0a7)">Выданные сертификаты</h2>
+                <p class="muted small" style="margin: 0">Реестр сертификатов: номер, ФИО, email, дата выдачи и итоговые баллы.</p>
             </a>
         </div>
     </div>

@@ -54,7 +54,7 @@ final class CourseScoringService
     public function moduleProgressPercent(ModuleProgress $p): int
     {
         $mid = (int) $p->module_id;
-        $skipPractice = ! empty(CourseModuleMeta::resolved($mid)['skip_practice']);
+        $skipPractice = CourseModuleMeta::shouldSkipPractice($mid);
         // Всегда считаем по обязательным этапам модуля, а не по уже "появившимся":
         // иначе можно получить 100% до сдачи экзамена.
         $parts = $skipPractice ? 3 : 4;
@@ -113,7 +113,7 @@ final class CourseScoringService
         $out = [];
         foreach ($this->moduleIdRange() as $id) {
             $p = $learner->progressExisting($id);
-            $skipPractice = ! empty(CourseModuleMeta::resolved($id)['skip_practice']);
+            $skipPractice = CourseModuleMeta::shouldSkipPractice($id);
             $out[] = [
                 'module_id' => $id,
                 'points' => $this->modulePointsRow($id, $p),
@@ -139,7 +139,7 @@ final class CourseScoringService
         if ($p === null) {
             return 0;
         }
-        $skipPractice = ! empty(CourseModuleMeta::resolved($moduleId)['skip_practice']);
+        $skipPractice = CourseModuleMeta::shouldSkipPractice($moduleId);
         $tq = (int) $p->theory_quiz_best_score;
         $pr = $skipPractice ? 100 : (int) ($p->practice_lab_percent ?? 0);
         $ex = (int) $p->module_exam_best_score;
@@ -225,7 +225,7 @@ final class CourseScoringService
         foreach ($ids as $id) {
             $meta = CourseModuleMeta::resolved($id);
             $p = $learner->progressExisting($id);
-            $skipPractice = ! empty($meta['skip_practice']);
+            $skipPractice = CourseModuleMeta::shouldSkipPractice($id);
             $tq = $p ? (int) $p->theory_quiz_best_score : 0;
             $pr = $skipPractice ? null : ($p ? (int) ($p->practice_lab_percent ?? 0) : 0);
             $ex = $p ? (int) $p->module_exam_best_score : 0;
