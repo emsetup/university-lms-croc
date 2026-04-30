@@ -10,7 +10,24 @@
         $attempts = (int) ($result->attempts ?? 0);
         $attemptsLeft = (int) ($attemptsLeft ?? max(0, 2 - $attempts));
         $bestScore = (int) ($result->best_score ?? 0);
+        $finalLabBriefingSeconds = 45;
     @endphp
+
+    <dialog class="quiz-modal" id="final-lab-rules-dialog" aria-labelledby="final-lab-rules-title">
+        <div class="quiz-modal-inner">
+            <p class="quiz-modal-badge">Финальная лабораторная</p>
+            <h2 id="final-lab-rules-title" class="quiz-modal-heading">Правила и условия</h2>
+            <ul class="quiz-modal-list">
+                <li>Всего <strong>2 попытки</strong>; вторая со штрафом <strong>−10 п.п.</strong> к результату проверки.</li>
+                <li>Лимит времени каждой попытки в контейнере: <strong>90 минут</strong>.</li>
+                <li>После принятия условий на странице начнётся <strong>обратный отсчёт</strong>; полный текст заданий (раздел «Легенда» и технические требования) будет доступен только после его окончания.</li>
+                <li>Дальнейшие действия: запустить контейнер, выполнить ТЗ, нажать <strong>Проверить результат</strong>, затем при необходимости <strong>Зафиксировать попытку</strong>.</li>
+            </ul>
+            <div class="quiz-modal-actions">
+                <button type="button" class="btn btn-primary" id="final-lab-rules-accept">Принимаю условия</button>
+            </div>
+        </div>
+    </dialog>
 
     <div class="card">
         <h1 style="margin-top:0">Финальная лабораторная работа — практический экзамен</h1>
@@ -35,6 +52,12 @@
         @if ($attemptsLeft <= 0)
             <p class="quiz-modal-warn">Попытки исчерпаны (2/2). Повторный запуск недоступен.</p>
         @endif
+    </div>
+
+    <div class="quiz-timer-bar" id="final-lab-countdown-bar" role="status" aria-live="polite" hidden>
+        <span class="quiz-timer-label">До открытия текста заданий</span>
+        <span class="quiz-timer-value" id="final-lab-countdown-display">{{ $finalLabBriefingSeconds }}</span>
+        <span class="quiz-timer-label" style="opacity:.88">сек</span>
     </div>
 
     <div class="card" style="margin-top:1rem">
@@ -95,6 +118,7 @@
         @endif
     </div>
 
+    <div id="final-lab-assignments-scope" class="final-lab-assignments-scope" hidden aria-hidden="true">
     <div class="card" style="margin-top:1rem">
         <h2 style="margin-top:0">Легенда</h2>
         <p>Тебе передан новый сервер на ОС ALT Linux. Система только что установлена. Твоя задача — привести её к корпоративному стандарту безопасности перед вводом в эксплуатацию.</p>
@@ -187,6 +211,7 @@
             <li>Для задания 4 в образе намеренно нарушена целостность отдельных файлов у части установленных пакетов; какие именно — нужно найти и исправить самостоятельно.</li>
         </ul>
     </div>
+    </div>
 
     @if ($hasLab && $ps->terminal_url)
         <style>
@@ -246,4 +271,91 @@
             })();
         </script>
     @endif
+
+    <script>
+        (function () {
+            var SEC = {{ (int) $finalLabBriefingSeconds }};
+            var KEY_DONE = 'finalLabBriefingDone';
+            var KEY_UNTIL = 'finalLabBriefingUntil';
+            var dialog = document.getElementById('final-lab-rules-dialog');
+            var accept = document.getElementById('final-lab-rules-accept');
+            var scope = document.getElementById('final-lab-assignments-scope');
+            var bar = document.getElementById('final-lab-countdown-bar');
+            var display = document.getElementById('final-lab-countdown-display');
+            if (!scope || !bar || !display) return;
+
+            function showAssignments() {
+                scope.hidden = false;
+                scope.setAttribute('aria-hidden', 'false');
+                sessionStorage.setItem(KEY_DONE, '1');
+                sessionStorage.removeItem(KEY_UNTIL);
+            }
+            function hideCountdown() {
+                bar.hidden = true;
+            }
+            function showCountdown() {
+                bar.hidden = false;
+            }
+            function updateDisplay(sec) {
+                display.textContent = String(Math.max(0, sec));
+            }
+            var timer = null;
+            function clearTimer() {
+                if (timer) {
+                    clearInterval(timer);
+                    timer = null;
+                }
+            }
+            function runCountdownFrom(untilMs) {
+                showCountdown();
+                function tick() {
+                    var left = Math.ceil((untilMs - Date.now()) / 1000);
+                    if (left <= 0) {
+                        clearTimer();
+                        updateDisplay(0);
+                        hideCountdown();
+                        showAssignments();
+                        return;
+                    }
+                    updateDisplay(left);
+                }
+                tick();
+                timer = setInterval(tick, 250);
+            }
+
+            if (sessionStorage.getItem(KEY_DONE) === '1') {
+                showAssignments();
+                hideCountdown();
+                return;
+            }
+            var until = parseInt(sessionStorage.getItem(KEY_UNTIL) || '0', 10);
+            if (until > Date.now()) {
+                runCountdownFrom(until);
+                return;
+            }
+
+            if (!dialog) return;
+            dialog.addEventListener('cancel', function (e) {
+                e.preventDefault();
+            });
+            if (typeof dialog.showModal === 'function') {
+                dialog.showModal();
+            }
+            if (accept) {
+                accept.addEventListener('click', function () {
+                    var u = Date.now() + SEC * 1000;
+                    sessionStorage.setItem(KEY_UNTIL, String(u));
+                    if (typeof dialog.close === 'function') {
+                        dialog.close();
+                    }
+                    runCountdownFrom(u);
+                });
+                setTimeout(function () {
+                    try {
+                        accept.focus();
+                    } catch (ignore) {}
+                }, 0);
+            }
+        })();
+    </script>
 @endsection

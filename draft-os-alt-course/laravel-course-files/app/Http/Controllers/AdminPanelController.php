@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\FinalLabResult;
+use App\Services\CourseScoringService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View as ViewContract;
@@ -46,14 +47,18 @@ class AdminPanelController extends Controller
         ]);
     }
 
-    public function certificateShow(Request $request, FinalLabResult $result): ViewContract
+    public function certificateShow(Request $request, FinalLabResult $result, CourseScoringService $scoring): ViewContract
     {
         $adminKey = (string) $request->query('key', '');
-        $result->loadMissing('learner:id,email');
+        $result->loadMissing('learner');
+        $result->learner->loadMissing('moduleProgresses');
+        $certCoursePercent = $scoring->certificateCoursePercent($result->learner);
 
         return view('admin.certificate-preview', [
             'adminKey' => $adminKey,
             'row' => $result,
+            'certCoursePercent' => $certCoursePercent,
+            'certTier' => $scoring->certificateTier($certCoursePercent),
         ]);
     }
 

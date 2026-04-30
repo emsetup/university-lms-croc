@@ -189,6 +189,37 @@ final class CourseScoringService
         );
     }
 
+    /**
+     * Доля набранных баллов от максимума курса (модули + финальная), 0–100 — для уровня на сертификате.
+     */
+    public function certificateCoursePercent(Learner $learner): int
+    {
+        $max = $this->maxTotalModulePoints() + self::MAX_FINAL_LAB_POINTS;
+        if ($max <= 0) {
+            return 0;
+        }
+        $g = $this->grandTotalSafe($learner);
+
+        return (int) max(0, min(100, (int) round(100 * $g / $max)));
+    }
+
+    /**
+     * Уровень сертификата по сводному проценту курса.
+     *
+     * @return array{key: string, label: string}
+     */
+    public function certificateTier(int $coursePercent): array
+    {
+        if ($coursePercent >= 90) {
+            return ['key' => 'expert', 'label' => 'ALT Linux Administrator — Expert'];
+        }
+        if ($coursePercent >= 70) {
+            return ['key' => 'administrator', 'label' => 'ALT Linux Administrator'];
+        }
+
+        return ['key' => 'retake', 'label' => 'Пересдача'];
+    }
+
     public function finalLabPoints(?FinalLabResult $final): int
     {
         if ($final === null) {

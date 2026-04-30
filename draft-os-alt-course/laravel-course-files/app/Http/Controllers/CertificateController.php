@@ -22,9 +22,13 @@ class CertificateController extends Controller
             return redirect()->route('final-lab')->with('err', 'Сначала сдайте финальную лабораторную работу.');
         }
 
+        $certCoursePercent = $this->scoring->certificateCoursePercent($learner);
+
         return view('certificate', [
             'learner' => $learner,
             'grand' => $this->scoring->grandTotal($learner),
+            'certCoursePercent' => $certCoursePercent,
+            'certTier' => $this->scoring->certificateTier($certCoursePercent),
             'modulePoints' => $this->scoring->totalModulePoints($learner),
             'modulePointsMax' => $this->scoring->maxTotalModulePoints(),
             'finalPoints' => $this->scoring->finalLabPoints($final),
@@ -61,7 +65,7 @@ class CertificateController extends Controller
         }
         $final->save();
 
-        return redirect()->route('certificate')->with('ok', 'Данные сертификата сохранены. Можно открывать PDF.');
+        return redirect()->route('certificate')->with('ok', 'Данные сертификата сохранены. Можно скачать сертификат в формате PNG.');
     }
 
     private function makeCertificateSerial(int $learnerId, int $resultId): string

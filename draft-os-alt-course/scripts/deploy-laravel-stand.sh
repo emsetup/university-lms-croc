@@ -64,7 +64,8 @@ for f in \
   app/Support/AdminCourseContentInspector.php \
   app/Support/CourseModuleMeta.php \
   app/Support/CourseTheoryPaths.php \
-  app/Models/ModuleProgress.php
+  app/Models/ModuleProgress.php \
+  app/Models/FinalLabResult.php
 do
   if [[ -f "${LCF}/${f}" ]]; then
     echo "[deploy-laravel] ${f}"
@@ -113,6 +114,11 @@ for tv in assessment.blade.php certificate.blade.php dashboard.blade.php final-l
     rsync -az "${LCF}/resources/views/${tv}" "${STAND_SSH}:${REMOTE}/resources/views/${tv}"
   fi
 done
+
+if [[ -f "${LCF}/resources/views/layouts/course.blade.php" ]]; then
+  echo "[deploy-laravel] resources/views/layouts/course.blade.php"
+  rsync -az "${LCF}/resources/views/layouts/course.blade.php" "${STAND_SSH}:${REMOTE}/resources/views/layouts/course.blade.php"
+fi
 
 echo "[deploy-laravel] remote: php artisan config:clear cache:clear view:clear migrate"
 ssh -o BatchMode=yes "$STAND_SSH" "set -e; cd '${REMOTE}' && php artisan config:clear && php artisan cache:clear && php artisan view:clear && php artisan migrate --force --no-interaction"
