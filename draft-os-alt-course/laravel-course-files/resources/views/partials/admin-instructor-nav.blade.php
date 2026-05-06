@@ -2,22 +2,37 @@
 @php
     $navKey = $navKey ?? $adminKey ?? (string) request('key', '');
     $active = $active ?? '';
+    $adminCourseTitle = (string) (session('admin_course_title') ?: '');
+    $hasAdminCourse = (bool) session('admin_course_id');
+    $isCoursePicker = request()->routeIs('admin.courses.index');
+    $isPortalPanel = request()->routeIs('admin.panel') || $isCoursePicker || request()->routeIs('admin.learners.portal');
+    $settingsNavActive = $active === 'settings' || request()->routeIs('admin.course.module.*');
 @endphp
 @if ($navKey !== '')
     <nav class="ai-nav" aria-label="Панель администратора курса">
         <div class="ai-nav__inner">
-            <span class="ai-nav__brand">Админ курса</span>
+            <span class="ai-nav__brand">Админ портала@if($hasAdminCourse && ! $isPortalPanel) · {{ $adminCourseTitle }}@endif</span>
             <div class="ai-nav__links">
                 <a href="{{ route('admin.panel', ['key' => $navKey]) }}"
                    class="ai-nav__a @if ($active === 'panel') ai-nav__a--active @endif">Панель</a>
-                <a href="{{ route('admin.theory.index', ['key' => $navKey]) }}"
-                   class="ai-nav__a @if ($active === 'theory') ai-nav__a--active @endif">Содержимое курса</a>
-                <a href="{{ route('admin.quiz.index', ['key' => $navKey]) }}"
-                   class="ai-nav__a @if ($active === 'quiz') ai-nav__a--active @endif">Вопросы тестов</a>
-                <a href="{{ route('teacher.course-report', ['key' => $navKey]) }}"
-                   class="ai-nav__a @if ($active === 'learners') ai-nav__a--active @endif">Обучающиеся</a>
-                <a href="{{ route('admin.certificates', ['key' => $navKey]) }}"
-                   class="ai-nav__a @if ($active === 'certificates') ai-nav__a--active @endif">Сертификаты</a>
+                <a href="{{ route('admin.courses.index', ['key' => $navKey]) }}"
+                   class="ai-nav__a @if ($active === 'courses') ai-nav__a--active @endif">Курсы</a>
+                @if ($isPortalPanel)
+                    <a href="{{ route('admin.learners.portal', ['key' => $navKey]) }}"
+                       class="ai-nav__a @if ($active === 'learners_portal') ai-nav__a--active @endif">Обучающиеся</a>
+                @endif
+                @if ($hasAdminCourse && ! $isPortalPanel)
+                    <a href="{{ route('admin.course.settings', ['key' => $navKey]) }}"
+                       class="ai-nav__a @if ($settingsNavActive) ai-nav__a--active @endif">Настройки</a>
+                    <a href="{{ route('admin.theory.index', ['key' => $navKey]) }}"
+                       class="ai-nav__a @if ($active === 'theory') ai-nav__a--active @endif">Содержимое курса</a>
+                    <a href="{{ route('admin.quiz.index', ['key' => $navKey]) }}"
+                       class="ai-nav__a @if ($active === 'quiz') ai-nav__a--active @endif">Вопросы тестов</a>
+                    <a href="{{ route('admin.learners.course', ['key' => $navKey]) }}"
+                       class="ai-nav__a @if ($active === 'learners_course') ai-nav__a--active @endif">Обучающиеся курса</a>
+                    <a href="{{ route('admin.certificates', ['key' => $navKey]) }}"
+                       class="ai-nav__a @if ($active === 'certificates') ai-nav__a--active @endif">Сертификаты</a>
+                @endif
                 <a href="{{ route('login') }}" class="ai-nav__a ai-nav__a--external" target="_blank" rel="noopener noreferrer">Вход обучающегося ↗</a>
             </div>
         </div>

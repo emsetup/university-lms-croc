@@ -13,6 +13,10 @@ class AdminPanelController extends Controller
 {
     public function show(Request $request): View
     {
+        // Панель — портал-уровень: курс выбирается отдельно.
+        session()->forget('admin_course_id');
+        session()->forget('admin_course_title');
+
         return view('admin.panel', [
             'adminKey' => (string) $request->query('key', ''),
         ]);

@@ -12,6 +12,7 @@
         <h1 style="margin-top: 0">Содержимое курса (админ)</h1>
         <p class="muted small">Доступ по <code>?key=</code> — ключ преподавателя (<code>TEACHER_REPORT_TOKEN</code>), администратора (<code>COURSE_ADMIN_TOKEN</code>) или отдельный read-only ключ модератора (<code>COURSE_CONTENT_MODERATOR_TOKEN</code>).</p>
         <p class="muted small">Теория в виде <code>@snippet:module_N_theory.md</code> можно править в редакторе. Тесты и практика здесь только для <strong>просмотра</strong> (редактирование — в <code>config/course.php</code> и файлах в <code>config/snippets/</code>).</p>
+        <p class="muted small">Если в панели выбран курс с модулями в БД, таблица повторяет их порядок; колонка «#» — номер <strong>пакета контента</strong> (файлы и ключи в конфиге), название строки — из настроек курса.</p>
         @if (! $isReadOnly)
             <p style="margin: 0.5rem 0 1rem">
                 <a class="btn btn-primary" href="{{ route('admin.theory.zip', ['key' => $adminKey]) }}">Скачать все module_*_theory.md (ZIP)</a>

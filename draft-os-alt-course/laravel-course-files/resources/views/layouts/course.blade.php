@@ -94,19 +94,44 @@
 </head>
 <body class="course-ui">
 <div class="course-shell">
+    @php
+        $isPortalUi = request()->routeIs('portal') || request()->routeIs('login');
+        $isAdminUi = request()->routeIs('admin.*');
+        $hasCourse = (bool) session('course_id');
+        $hasAdminCourse = (bool) session('admin_course_id');
+        if ($isPortalUi) {
+            $brandTitle = 'Образовательный портал';
+            $brandKicker = 'Трек знаний';
+        } elseif ($isAdminUi) {
+            if ($hasAdminCourse) {
+                $brandKicker = 'Учебный курс';
+                $brandTitle = (string) (session('admin_course_title') ?: 'Курс');
+            } else {
+                $brandKicker = 'Трек знаний';
+                $brandTitle = 'Панель администратора';
+            }
+        } else {
+            $brandTitle = session('course_title') ?: 'Образовательный портал';
+            $brandKicker = $hasCourse ? 'Учебный курс' : 'Трек знаний';
+        }
+    @endphp
     <header class="course-header">
-        <a class="brand" href="{{ session('learner_id') ? route('dashboard') : route('login') }}">
+        <a class="brand" href="{{ route('portal') }}">
             <span class="brand-mark">
                 <img class="brand-wordmark" src="{{ asset('croc-wordmark.svg') }}" alt="КРОК">
             </span>
             <span class="brand-text">
-                <span class="brand-kicker">Учебный курс</span>
-                <span class="brand-title" style="font-weight:800;font-size:clamp(1rem,2.5vw,1.2rem);line-height:1.2">Особенности ОС «Альт»</span>
+                <span class="brand-kicker">{{ $brandKicker }}</span>
+                <span class="brand-title" style="font-weight:800;font-size:clamp(1rem,2.5vw,1.2rem);line-height:1.2">{{ $brandTitle }}</span>
             </span>
         </a>
         @if (session('learner_id'))
             <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
-                <a class="btn btn-ghost" href="{{ route('dashboard') }}">Модули</a>
+                <a class="btn btn-ghost" href="{{ route('portal') }}">Курсы</a>
+                <a class="btn btn-ghost" href="{{ route('account') }}">Личный кабинет</a>
+                @if (! $isPortalUi && $hasCourse)
+                    <a class="btn btn-ghost" href="{{ route('course.dashboard', ['course' => (int) session('course_id')]) }}">Модули</a>
+                @endif
                 <form method="post" action="{{ route('logout') }}" style="margin:0">
                     @csrf
                     <button type="submit" class="btn btn-ghost">Выйти</button>

@@ -13,7 +13,7 @@ class EmailLoginController extends Controller
     public function show(Request $request): View|RedirectResponse
     {
         if (session('learner_id')) {
-            return redirect()->route('dashboard');
+            return redirect()->route('portal');
         }
 
         return view('auth.email', [
@@ -42,13 +42,15 @@ class EmailLoginController extends Controller
         $learner = Learner::firstOrCreate(['email' => $email]);
         session(['learner_id' => $learner->id]);
 
-        return redirect()->route('dashboard');
+        return redirect()->route('portal');
     }
 
     public function logout(Request $request): RedirectResponse
     {
         session()->forget('learner_id');
+        session()->forget('course_id');
+        session()->forget('course_title');
 
-        return redirect()->route('login');
+        return redirect()->route('portal');
     }
 }

@@ -18,7 +18,8 @@
     $tqBest = (int) ($p->theory_quiz_best_score ?? 0);
     $exAtt = (int) ($p->module_exam_attempts ?? 0);
     $exBest = (int) ($p->module_exam_best_score ?? 0);
-    $exMax = (int) \App\Services\CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS;
+    $exMax = (int) ($examMaxAttemptsDisplay ?? \App\Services\CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS);
+    $thEx = (int) ($passThresholdExam ?? $passThreshold ?? $th);
 
     $theoryBar = $p->theory_read_at ? 100 : 0;
     $tqBar = $tqAtt > 0 ? min(100, $tqBest) : 0;
@@ -61,7 +62,7 @@
     if ($exAtt > 0 && isset($exLast['raw_percent']) && (int) $exLast['raw_percent'] !== $exBest) {
         $exParts[] = 'сырой '.(int) $exLast['raw_percent'].'%';
     }
-    $exLine2 = $exAtt > 0 ? implode(' · ', $exParts) : 'Порог '.$th.'% · до '.$exMax.' попыток';
+    $exLine2 = $exAtt > 0 ? implode(' · ', $exParts) : 'Порог '.$thEx.'% · до '.$exMax.' попыток';
 @endphp
 
 @section('title', 'Модуль '.$module.': '.$meta['title'])
@@ -278,6 +279,22 @@
 
         <nav aria-label="Этапы модуля" class="card-inner" style="padding: 0">
             <ul class="module-hub__steps">
+                @if (! empty($hubPresent))
+                    @foreach ($hubPresent as $hp)
+                        @include('modules.partials.hub-step-row', [
+                            'module' => $module,
+                            'section' => $hp['section'],
+                            'waived' => $hp['waived'],
+                            'accessible' => $hp['accessible'],
+                            'idx' => $loop->iteration,
+                            'title' => $hp['section']->title,
+                            'p' => $p,
+                            'th' => $th,
+                            'thEx' => $thEx,
+                            'exMax' => $exMax,
+                        ])
+                    @endforeach
+                @else
                 <li>
                     <a class="hub-row" href="{{ route('modules.theory', $module) }}">
                         <div class="hub-row__left">
@@ -383,9 +400,9 @@
                         </div>
                         <div class="hub-meta">
                             <div class="hub-line1">
-                                <div class="hub-track" title="Итог последней попытки, порог {{ $th }}%">
-                                    <span class="hub-track__tick" style="left: {{ $th }}%"></span>
-                                    <div class="hub-track__fill{{ $exBar >= $th ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) $exBar }}%"></div>
+                                <div class="hub-track" title="Итог последней попытки, порог {{ $thEx }}%">
+                                    <span class="hub-track__tick" style="left: {{ $thEx }}%"></span>
+                                    <div class="hub-track__fill{{ $exBar >= $thEx ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) $exBar }}%"></div>
                                 </div>
                                 <span class="hub-pct">{{ $exAtt > 0 ? $exBest : '—' }}@if($exAtt > 0)%@endif</span>
                                 @if ($p->module_exam_passed)
@@ -401,6 +418,7 @@
                         <span class="hub-row__go" aria-hidden="true">›</span>
                     </a>
                 </li>
+                @endif
             </ul>
         </nav>
 

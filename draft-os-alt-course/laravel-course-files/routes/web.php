@@ -3,26 +3,43 @@
 use App\Http\Controllers\AdminPanelController;
 use App\Http\Controllers\AdminQuizController;
 use App\Http\Controllers\AdminTheoryController;
+use App\Http\Controllers\AdminCoursesController;
+use App\Http\Controllers\AdminCourseSettingsController;
+use App\Http\Controllers\AdminLearnersController;
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AssessmentController;
 use App\Http\Controllers\CertificateController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmailLoginController;
 use App\Http\Controllers\FinalLabController;
 use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\PortalController;
 use App\Http\Controllers\PracticeLabController;
 use App\Http\Controllers\TeacherCourseReportController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return redirect()->route('login');
-});
+Route::get('/', [PortalController::class, 'index'])->name('portal');
+Route::post('/portal/enroll/{course}', [\App\Http\Controllers\PortalEnrollController::class, 'store'])
+    ->whereNumber('course')
+    ->name('portal.enroll');
 
 Route::get('/login', [EmailLoginController::class, 'show'])->name('login');
 Route::post('/login', [EmailLoginController::class, 'store'])->name('login.store');
 Route::post('/logout', [EmailLoginController::class, 'logout'])->name('logout');
 
-Route::middleware('learner')->group(function () {
-    Route::get('/dashboard', DashboardController::class)->name('dashboard');
+Route::middleware([\App\Http\Middleware\EnsureLearner::class])->group(function () {
+    Route::get('/account', AccountController::class)->name('account');
+});
+
+Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middleware\EnsureCourseSelected::class])->group(function () {
+    // Dashboard is course-scoped; keep legacy /dashboard as redirect.
+    Route::get('/dashboard', function () {
+        return redirect()->route('course.dashboard', ['course' => (int) session('course_id')]);
+    })->name('dashboard');
+
+    Route::get('/courses/{course}/dashboard', DashboardController::class)
+        ->whereNumber('course')
+        ->name('course.dashboard');
 
     Route::get('/assessment', AssessmentController::class)->name('assessment');
     Route::get('/final-lab', [FinalLabController::class, 'show'])->name('final-lab');
@@ -63,6 +80,52 @@ Route::middleware('learner')->group(function () {
 
 Route::middleware([\App\Http\Middleware\EnsureCourseAdminToken::class])->group(function () {
     Route::get('/adm', [AdminPanelController::class, 'show'])->name('admin.panel');
+    Route::get('/adm/kursy', [AdminCoursesController::class, 'index'])->name('admin.courses.index');
+    Route::post('/adm/kursy/{course}/select', [AdminCoursesController::class, 'select'])
+        ->whereNumber('course')
+        ->name('admin.courses.select');
+    Route::get('/adm/kursy/{course}/enter', [AdminCoursesController::class, 'enter'])
+        ->whereNumber('course')
+        ->name('admin.courses.enter');
+    Route::get('/adm/obuchayushiesya', [AdminLearnersController::class, 'indexPortal'])->name('admin.learners.portal');
+
+    Route::middleware([\App\Http\Middleware\EnsureAdminCourseSelected::class])->group(function () {
+    Route::get('/adm/kurs/nastroyki', [AdminCourseSettingsController::class, 'modulesIndex'])->name('admin.course.settings');
+    Route::post('/adm/kurs/nastroyki/modul/dobavit', [AdminCourseSettingsController::class, 'storeModule'])->name('admin.course.settings.module.store');
+    Route::post('/adm/kurs/nastroyki/modul/{courseModule}', [AdminCourseSettingsController::class, 'updateModule'])
+        ->whereNumber('courseModule')
+        ->name('admin.course.settings.module.update');
+    Route::post('/adm/kurs/nastroyki/modul/{courseModule}/udalit', [AdminCourseSettingsController::class, 'destroyModule'])
+        ->whereNumber('courseModule')
+        ->name('admin.course.settings.module.destroy');
+    Route::post('/adm/kurs/nastroyki/moduli/poryadok', [AdminCourseSettingsController::class, 'reorderModules'])->name('admin.course.settings.modules.reorder');
+
+    Route::get('/adm/kurs/nastroyki/modul/{courseModule}', [AdminCourseSettingsController::class, 'moduleSections'])
+        ->whereNumber('courseModule')
+        ->name('admin.course.module.sections');
+    Route::post('/adm/kurs/nastroyki/modul/{courseModule}/razdel', [AdminCourseSettingsController::class, 'storeSection'])
+        ->whereNumber('courseModule')
+        ->name('admin.course.module.sections.store');
+    Route::post('/adm/kurs/nastroyki/modul/{courseModule}/razdel/{section}', [AdminCourseSettingsController::class, 'updateSection'])
+        ->whereNumber('courseModule')
+        ->whereNumber('section')
+        ->name('admin.course.module.sections.update');
+    Route::post('/adm/kurs/nastroyki/modul/{courseModule}/razdel/{section}/udalit', [AdminCourseSettingsController::class, 'destroySection'])
+        ->whereNumber('courseModule')
+        ->whereNumber('section')
+        ->name('admin.course.module.sections.destroy');
+    Route::post('/adm/kurs/nastroyki/modul/{courseModule}/poryadok', [AdminCourseSettingsController::class, 'reorderSections'])
+        ->whereNumber('courseModule')
+        ->name('admin.course.module.sections.reorder');
+    Route::get('/adm/kurs/nastroyki/modul/{courseModule}/razdel/{section}', [AdminCourseSettingsController::class, 'editSettings'])
+        ->whereNumber('courseModule')
+        ->whereNumber('section')
+        ->name('admin.course.module.section.settings');
+    Route::post('/adm/kurs/nastroyki/modul/{courseModule}/razdel/{section}/save', [AdminCourseSettingsController::class, 'saveSettings'])
+        ->whereNumber('courseModule')
+        ->whereNumber('section')
+        ->name('admin.course.module.section.settings.save');
+    Route::get('/adm/kurs/obuchayushiesya', [AdminLearnersController::class, 'indexCourse'])->name('admin.learners.course');
     Route::get('/adm/sertifikaty', [AdminPanelController::class, 'certificates'])->name('admin.certificates');
     Route::get('/adm/sertifikaty/{result}', [AdminPanelController::class, 'certificateShow'])->name('admin.certificates.show');
     Route::get('/adm/voprosy', [AdminQuizController::class, 'index'])->name('admin.quiz.index');
@@ -102,6 +165,7 @@ Route::middleware([\App\Http\Middleware\EnsureCourseAdminToken::class])->group(f
     Route::post('/adm/kurs-teoriya/modul/{module}', [AdminTheoryController::class, 'update'])
         ->whereNumber('module')
         ->name('admin.theory.update');
+    });
 });
 
 Route::middleware([\App\Http\Middleware\ValidateTeacherReportToken::class])->group(function () {

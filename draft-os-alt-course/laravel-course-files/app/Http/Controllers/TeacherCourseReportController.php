@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Course;
 use App\Models\Learner;
+use App\Models\PracticeSession;
 use App\Support\CourseModuleMeta;
 use App\Services\CourseScoringService;
 use App\Services\InstructorProgressResetService;
@@ -31,22 +33,22 @@ class TeacherCourseReportController extends Controller
     public function learner(int $learner): View
     {
         $l = Learner::query()
-            ->with(['moduleProgresses', 'finalLabResult'])
+            ->with(['moduleProgresses', 'finalLabResult', 'courseEnrollments'])
             ->findOrFail($learner);
+        $courseId = $this->learnerCourseId($l);
 
         return view('teacher-learner-profile', [
             'learner' => $l,
             'summaryRow' => $this->analytics->rowForLearner($l),
-            'moduleReport' => $this->scoring->moduleReport($l),
+            'moduleReport' => $this->scoring->moduleReport($l, $courseId),
             'modulePanels' => $this->learnerDetail->modulePanels($l),
         ]);
     }
 
     public function moduleShow(int $learner, int $module): View
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
         $l = Learner::query()
-            ->with(['moduleProgresses', 'finalLabResult'])
+            ->with(['moduleProgresses', 'finalLabResult', 'courseEnrollments'])
             ->findOrFail($learner);
         $panel = $this->learnerDetail->modulePanel($l, $module);
         abort_if($panel === null, 404);
@@ -61,14 +63,16 @@ class TeacherCourseReportController extends Controller
 
     public function resetAttempt(Request $request, int $learner, int $module): RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
         $request->validate([
             'step' => 'required|in:theory_quiz,module_exam,practice',
             'confirm' => 'accepted',
             'note' => 'nullable|string|max:500',
         ]);
-        $l = Learner::findOrFail($learner);
-        $p = $l->progressFor($module);
+        $l = Learner::query()->with('courseEnrollments')->findOrFail($learner);
+        $courseId = $this->learnerCourseId($l);
+        $panel = $this->learnerDetail->modulePanel($l, $module);
+        abort_if($panel === null, 404);
+        $p = $l->progressFor($module, $courseId);
         $step = (string) $request->input('step');
         if ($step === InstructorProgressResetService::STEP_THEORY_QUIZ) {
             $hist = $p->theory_quiz_history ?? [];
@@ -85,12 +89,14 @@ class TeacherCourseReportController extends Controller
             }
         }
         if ($step === InstructorProgressResetService::STEP_PRACTICE) {
-            if (CourseModuleMeta::shouldSkipPractice($module)) {
+            $idx = (int) ($panel['content_source_index'] ?? 1);
+            if (CourseModuleMeta::shouldSkipPractice($idx)) {
                 return $this->redirectModuleWithKey($request, $learner, $module)
                     ->with('err', 'В этом модуле практика не предусмотрена.');
             }
-            $hasSession = \App\Models\PracticeSession::query()
+            $hasSession = PracticeSession::query()
                 ->where('learner_id', $l->id)
+                ->where('course_id', $courseId)
                 ->where('module_id', $module)
                 ->exists();
             if (! $p->practice_done_at && ! $hasSession) {
@@ -100,6 +106,7 @@ class TeacherCourseReportController extends Controller
         }
         $this->instructorReset->reset(
             $l,
+            $courseId,
             $module,
             $step,
             $request->filled('note') ? (string) $request->input('note') : null
@@ -107,6 +114,16 @@ class TeacherCourseReportController extends Controller
 
         return $this->redirectModuleWithKey($request, $learner, $module)
             ->with('ok', 'Сброс выполнен: у обучающегося освобождена ещё одна попытка по выбранному шагу. Снимок состояния сохранён в журнале ниже.');
+    }
+
+    private function learnerCourseId(Learner $learner): int
+    {
+        $id = (int) $learner->courseEnrollments()->orderBy('id')->value('course_id');
+        if ($id > 0) {
+            return $id;
+        }
+
+        return (int) Course::query()->where('slug', 'alt-os-features')->value('id');
     }
 
     private function redirectModuleWithKey(Request $request, int $learner, int $module): RedirectResponse

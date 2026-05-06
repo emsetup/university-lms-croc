@@ -7,8 +7,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PracticeSession extends Model
 {
+    /** module_id в practice_sessions: 0 = финальная лаба; иначе course_modules.id */
+    public const FINAL_LAB_SESSION_MODULE_ID = 0;
+
     protected $fillable = [
         'learner_id',
+        'course_id',
         'module_id',
         'daemon_lab_id',
         'status',
@@ -29,6 +33,8 @@ class PracticeSession extends Model
     protected function casts(): array
     {
         return [
+            'course_id' => 'int',
+            'module_id' => 'int',
             'last_check_passed' => 'boolean',
             'last_check_hints' => 'array',
             'terminal_snapshots' => 'array',

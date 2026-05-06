@@ -3,15 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\Learner;
+use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
 use App\Services\ModuleAccessGate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
     public function __construct(
         private CourseScoringService $scoring,
-        private ModuleAccessGate $accessGate
+        private ModuleAccessGate $accessGate,
+        private CourseModuleService $courseModules,
     ) {}
 
     public function __invoke(): View
@@ -21,46 +24,55 @@ class DashboardController extends Controller
             ->with('moduleProgresses')
             ->findOrFail(session('learner_id'));
 
+        $courseId = (int) session('course_id', 0);
         $modules = [];
         $sumPercent = 0;
         $modulesPassed = 0;
-        $moduleCount = CourseScoringService::moduleCount();
-        for ($i = 1; $i <= $moduleCount; $i++) {
-            $meta = config('course.modules.'.$i);
-            $existing = $learner->progressExisting($i);
-            $unlocked = $this->accessGate->isModuleUnlocked($learner, $i);
-            if ($existing === null && ! $unlocked) {
+
+        if ($courseId > 0 && Schema::hasTable('course_modules')) {
+            $mods = $this->courseModules->orderedModulesForCourse($courseId);
+            foreach ($mods as $idx => $mod) {
+                $id = (int) $mod->id;
+                $meta = $this->courseModules->displayMeta($mod);
+                $sequence = $idx + 1;
+                $existing = $learner->progressExisting($id, $courseId);
+                $unlocked = $this->accessGate->isModuleUnlocked($learner, $id);
+                if ($existing === null && ! $unlocked) {
+                    $modules[] = [
+                        'id' => $id,
+                        'sequence' => $sequence,
+                        'letter' => $meta['letter'],
+                        'title' => $meta['title'],
+                        'summary' => $meta['summary'],
+                        'percent' => 0,
+                        'unlocked' => false,
+                        'exam_passed' => false,
+                    ];
+                    $sumPercent += 0;
+
+                    continue;
+                }
+
+                $p = $existing ?? $learner->progressFor($id, $courseId);
+                $percent = $this->scoring->moduleProgressPercent($p);
+                if ($p->module_exam_passed) {
+                    $modulesPassed++;
+                }
+                $sumPercent += $percent;
                 $modules[] = [
-                    'id' => $i,
+                    'id' => $id,
+                    'sequence' => $sequence,
                     'letter' => $meta['letter'],
                     'title' => $meta['title'],
                     'summary' => $meta['summary'],
-                    'percent' => 0,
-                    'unlocked' => false,
-                    'exam_passed' => false,
+                    'percent' => $percent,
+                    'unlocked' => $unlocked,
+                    'exam_passed' => (bool) $p->module_exam_passed,
                 ];
-                $sumPercent += 0;
-
-                continue;
             }
-
-            $p = $existing ?? $learner->progressFor($i);
-            $percent = $this->scoring->moduleProgressPercent($p);
-            if ($p->module_exam_passed) {
-                $modulesPassed++;
-            }
-            $sumPercent += $percent;
-            $modules[] = [
-                'id' => $i,
-                'letter' => $meta['letter'],
-                'title' => $meta['title'],
-                'summary' => $meta['summary'],
-                'percent' => $percent,
-                'unlocked' => $unlocked,
-                'exam_passed' => (bool) $p->module_exam_passed,
-            ];
         }
 
+        $moduleCount = max(1, count($modules));
         $trackAvgPercent = (int) round($sumPercent / $moduleCount);
         $finalResult = $learner->finalLabResult;
         $finalBest = (int) ($finalResult->best_score ?? 0);

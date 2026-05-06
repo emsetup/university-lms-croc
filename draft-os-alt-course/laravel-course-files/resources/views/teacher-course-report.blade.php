@@ -18,7 +18,7 @@
     </style>
 
     <div style="max-width: 1100px; margin: 0 auto">
-        @include('partials.admin-instructor-nav', ['navKey' => request('key'), 'active' => 'learners'])
+        @include('partials.admin-instructor-nav', ['navKey' => request('key'), 'active' => 'learners_course'])
     </div>
 
     <div class="tr-hero">

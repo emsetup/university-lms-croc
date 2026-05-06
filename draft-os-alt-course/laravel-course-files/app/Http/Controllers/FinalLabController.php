@@ -14,7 +14,10 @@ use Throwable;
 
 class FinalLabController extends Controller
 {
-    private const FINAL_LAB_MODULE_ID = 10;
+    /** Ключ Docker-образа и lab-daemon (как раньше модуль 10). */
+    private const FINAL_LAB_DAEMON_MODULE_KEY = 10;
+
+    private const FINAL_LAB_SESSION_MODULE_ID = PracticeSession::FINAL_LAB_SESSION_MODULE_ID;
     private const FINAL_LAB_TIME_LIMIT_MINUTES = 90;
 
     public function __construct(
@@ -40,9 +43,11 @@ class FinalLabController extends Controller
         }
         $lab = PracticeLabService::make();
         $result = $this->resultModel($learner);
+        $courseId = (int) session('course_id', 0);
         $practiceSession = PracticeSession::query()
             ->where('learner_id', $learner->id)
-            ->where('module_id', self::FINAL_LAB_MODULE_ID)
+            ->where('course_id', $courseId)
+            ->where('module_id', self::FINAL_LAB_SESSION_MODULE_ID)
             ->first();
 
         return view('final-lab', [
@@ -50,7 +55,7 @@ class FinalLabController extends Controller
             'practiceSession' => $practiceSession,
             'attemptsLeft' => max(0, 2 - (int) $result->attempts),
             'labConfigured' => $lab->isConfigured(),
-            'labImage' => $lab->imageForModule(self::FINAL_LAB_MODULE_ID),
+            'labImage' => $lab->imageForModule(self::FINAL_LAB_DAEMON_MODULE_KEY),
             'labEnabled' => (bool) config('practice_lab.enabled'),
             'warningOnly' => false,
         ]);
@@ -68,7 +73,8 @@ class FinalLabController extends Controller
         }
         $lab = PracticeLabService::make();
         try {
-            $out = $lab->startLab($learner, self::FINAL_LAB_MODULE_ID);
+            $courseId = (int) session('course_id', 0);
+            $out = $lab->startLab($learner, $courseId, self::FINAL_LAB_SESSION_MODULE_ID, self::FINAL_LAB_DAEMON_MODULE_KEY);
         } catch (Throwable $e) {
             return redirect()->route('final-lab')->with('err', $e->getMessage());
         }
@@ -91,7 +97,8 @@ class FinalLabController extends Controller
             return $r;
         }
         try {
-            $out = PracticeLabService::make()->runCheck($learner, self::FINAL_LAB_MODULE_ID);
+            $courseId = (int) session('course_id', 0);
+            $out = PracticeLabService::make()->runCheck($learner, $courseId, self::FINAL_LAB_SESSION_MODULE_ID);
         } catch (Throwable $e) {
             return redirect()->route('final-lab')->with('err', $e->getMessage());
         }
@@ -113,9 +120,11 @@ class FinalLabController extends Controller
         if ($attempt > 2) {
             return redirect()->route('final-lab')->with('err', 'Попытки финальной лабораторной исчерпаны.');
         }
+        $courseId = (int) session('course_id', 0);
         $session = PracticeSession::query()
             ->where('learner_id', $learner->id)
-            ->where('module_id', self::FINAL_LAB_MODULE_ID)
+            ->where('course_id', $courseId)
+            ->where('module_id', self::FINAL_LAB_SESSION_MODULE_ID)
             ->first();
         if (! $session || $session->last_check_score === null) {
             return redirect()->route('final-lab')->with('err', 'Сначала выполните проверку результата.');
@@ -143,7 +152,8 @@ class FinalLabController extends Controller
         if ($r = $this->guardLearnerAccess($learner)) {
             return $r;
         }
-        PracticeLabService::make()->destroyLab($learner, self::FINAL_LAB_MODULE_ID);
+        $courseId = (int) session('course_id', 0);
+        PracticeLabService::make()->destroyLab($learner, $courseId, self::FINAL_LAB_SESSION_MODULE_ID);
 
         return redirect()->route('final-lab')->with('ok', 'Контейнер финальной лабораторной удалён.');
     }

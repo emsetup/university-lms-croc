@@ -19,10 +19,10 @@
 
 @section('content')
     <div style="max-width: 1100px; margin: 0 auto">
-        @include('partials.admin-instructor-nav', ['navKey' => request('key'), 'active' => 'learners'])
+        @include('partials.admin-instructor-nav', ['navKey' => request('key'), 'active' => 'learners_course'])
     </div>
     <nav class="ta-breadcrumb" aria-label="Навигация">
-        <a href="{{ route('teacher.course-report').$keyQ }}">Все обучающиеся</a>
+        <a href="{{ route('admin.learners.course', ['key' => request('key')]) }}">Обучающиеся курса</a>
         <span class="ta-bc-sep">/</span>
         <a href="{{ route('teacher.course-report.learner', $learner->id).$keyQ }}">{{ $learner->email }}</a>
         <span class="ta-bc-sep">/</span>

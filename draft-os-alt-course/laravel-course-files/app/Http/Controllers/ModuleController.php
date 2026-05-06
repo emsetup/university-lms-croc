@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CourseModule;
 use App\Models\Learner;
 use App\Models\ModuleProgress;
 use App\Models\PracticeSession;
+use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
+use App\Services\CourseSectionService;
 use App\Services\ModuleAccessGate;
 use App\Services\PracticeLabService;
 use App\Support\CourseModuleMeta;
@@ -18,8 +21,17 @@ class ModuleController extends Controller
 {
     public function __construct(
         private CourseScoringService $scoring,
-        private ModuleAccessGate $accessGate
+        private ModuleAccessGate $accessGate,
+        private CourseSectionService $sectionService,
+        private CourseModuleService $courseModules,
     ) {}
+
+    private function courseModuleOrAbort(int $courseModuleId): CourseModule
+    {
+        $courseId = (int) session('course_id', 0);
+
+        return $this->courseModules->findOrFailForCourse($courseId, $courseModuleId);
+    }
 
     protected function learner(): Learner
     {
@@ -29,21 +41,33 @@ class ModuleController extends Controller
     /**
      * @return array<int, array{q:string,a:array,c:int|array<int>}>
      */
-    protected function questions(int $moduleId, string $kind): array
+    protected function questions(int $contentSourceIndex, string $kind): array
     {
-        return config('course.module_quizzes.'.$moduleId.'.'.$kind, []);
+        return config('course.module_quizzes.'.$contentSourceIndex.'.'.$kind, []);
     }
 
     /**
      * Лимит времени на итоговый тест модуля (мин.): из course.modules[N].module_exam_time_limit_minutes или константа.
      */
-    protected function moduleExamTimeLimitMinutes(int $module): int
+    protected function moduleExamTimeLimitMinutes(CourseModule $cm): int
     {
-        $v = config('course.modules.'.$module.'.module_exam_time_limit_minutes');
+        $courseId = (int) session('course_id', 0);
+        $courseModuleId = (int) $cm->id;
+        $idx = $cm->effectiveContentIndex();
+        if ($courseId > 0 && Schema::hasTable('course_sections')
+            && $this->sectionService->useDbSectionsForModule($courseModuleId)) {
+            return $this->sectionService->examTimeLimitMinutes($courseModuleId, $idx);
+        }
+        $v = config('course.modules.'.$idx.'.module_exam_time_limit_minutes');
 
         return (is_numeric($v) && (int) $v > 0)
             ? (int) $v
             : CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+    }
+
+    protected function learnerCourseId(): int
+    {
+        return (int) session('course_id', 0);
     }
 
     protected function examQuestionIsMulti(array $q): bool
@@ -294,12 +318,13 @@ class ModuleController extends Controller
 
     public function hub(int $module): View|RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleOrAbort($module);
+        $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
         }
-        $meta = CourseModuleMeta::resolved($module);
+        $meta = $this->courseModules->displayMeta($cm);
         $p = $learner->progressFor($module);
         if (Schema::hasColumn('module_progress', 'module_access_started_at') && $p->module_access_started_at === null) {
             $p->module_access_started_at = now();
@@ -311,20 +336,46 @@ class ModuleController extends Controller
         $showBriefing = Schema::hasColumn('module_progress', 'hub_briefing_acknowledged_at')
             && $p->hub_briefing_acknowledged_at === null;
 
+        $courseId = $this->learnerCourseId();
+        $hubPresent = null;
+        if ($courseId > 0 && Schema::hasTable('course_sections')
+            && $this->sectionService->useDbSectionsForModule($module)) {
+            $hubPresent = [];
+            foreach ($this->sectionService->enabledSectionsForCourseModule($module) as $sec) {
+                $bk = $sec->backendStepKey();
+                $waived = $bk === 'practice' && $this->sectionService->isPracticeWaived($module, $contentIdx);
+                $blocked = $waived ? null : $this->sectionService->firstBlockedPrerequisite($p, $module, $contentIdx, $bk);
+                $hubPresent[] = [
+                    'section' => $sec,
+                    'waived' => $waived,
+                    'accessible' => $blocked === null && ! $waived,
+                ];
+            }
+        }
+
         return view('modules.hub', [
             'module' => $module,
             'meta' => $meta,
             'progress' => $p,
             'percent' => $this->scoring->moduleProgressPercent($p),
             'modulePoints' => $this->scoring->modulePointsForProgress($p),
-            'passThreshold' => CourseScoringService::PASS_THRESHOLD,
+            'passThreshold' => $courseId > 0
+                ? $this->sectionService->passPercentForQuiz($module)
+                : CourseScoringService::PASS_THRESHOLD,
+            'passThresholdExam' => $courseId > 0
+                ? $this->sectionService->passPercentForExam($module)
+                : CourseScoringService::PASS_THRESHOLD,
+            'examMaxAttemptsDisplay' => $courseId > 0
+                ? $this->sectionService->examMaxAttempts($module)
+                : CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS,
+            'hubPresent' => $hubPresent,
             'showHubBriefing' => $showBriefing,
         ]);
     }
 
     public function ackHubBriefing(int $module): RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $this->courseModuleOrAbort($module);
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
@@ -340,11 +391,14 @@ class ModuleController extends Controller
 
     public function theory(int $module): View|RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleOrAbort($module);
         if ($r = $this->accessGate->redirectIfModuleLocked($this->learner(), $module)) {
             return $r;
         }
-        $meta = CourseModuleMeta::resolved($module);
+        if ($r = $this->accessGate->redirectIfStepBlocked($this->learner(), $module, 'theory')) {
+            return $r;
+        }
+        $meta = $this->courseModules->displayMeta($cm);
         $p = $this->learner()->progressFor($module);
         if (! $p->theory_read_at) {
             $sk = 'theory_time_start_'.$module;
@@ -362,7 +416,7 @@ class ModuleController extends Controller
 
     public function markTheoryRead(int $module): RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $this->courseModuleOrAbort($module);
         if ($r = $this->accessGate->redirectIfModuleLocked($this->learner(), $module)) {
             return $r;
         }
@@ -383,15 +437,23 @@ class ModuleController extends Controller
 
     public function theoryQuizShow(int $module): View|RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleOrAbort($module);
+        $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
+        $cid = $this->learnerCourseId();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
         }
         if ($r = $this->accessGate->redirectIfTheoryNotRead($learner, $module)) {
             return $r;
         }
-        $qs = $this->questions($module, 'theory_quiz');
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $module, 'theory_quiz')) {
+            return $r;
+        }
+        $qs = $this->questions($contentIdx, 'theory_quiz');
+        if ($cid > 0 && $this->sectionService->theoryQuizShuffle($module)) {
+            $qs = collect($qs)->shuffle()->values()->all();
+        }
 
         $deadlineKey = 'theory_quiz_deadline_'.$module;
         $ts = session($deadlineKey);
@@ -403,39 +465,65 @@ class ModuleController extends Controller
         $quizActive = $ts !== null && is_numeric($ts) && (int) $ts > now()->getTimestamp();
         $expiresAtMs = $quizActive ? ((int) $ts) * 1000 : null;
 
+        $tl = $cid > 0
+            ? $this->sectionService->theoryQuizTimeLimitMinutes($module)
+            : CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
+        $passTh = $cid > 0
+            ? $this->sectionService->passPercentForQuiz($module)
+            : CourseScoringService::PASS_THRESHOLD;
+
         return view('modules.theory-quiz', [
             'module' => $module,
-            'meta' => CourseModuleMeta::resolved($module),
+            'meta' => $this->courseModules->displayMeta($cm),
             'questions' => $qs,
             'progress' => $this->learner()->progressFor($module),
             'quizActive' => $quizActive,
             'expiresAtMs' => $expiresAtMs,
-            'timeLimitMinutes' => CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES,
+            'timeLimitMinutes' => $tl,
+            'passThreshold' => $passTh,
+            'theoryQuizRetakePenalty' => $cid > 0
+                ? $this->sectionService->theoryQuizPenaltyForAttempt($module, 2)
+                : CourseScoringService::THEORY_QUIZ_RETAKE_PENALTY_POINTS,
         ]);
     }
 
     public function theoryQuizStart(int $module): RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleOrAbort($module);
+        $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
+        $cid = $this->learnerCourseId();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
         }
         if ($r = $this->accessGate->redirectIfTheoryNotRead($learner, $module)) {
             return $r;
         }
-        $qs = $this->questions($module, 'theory_quiz');
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $module, 'theory_quiz')) {
+            return $r;
+        }
+        $qs = $this->questions($contentIdx, 'theory_quiz');
         if (count($qs) === 0) {
             return redirect()->route('modules.hub', $module)->with('err', 'Тест по теории для этого модуля не настроен.');
         }
+        $p = $this->learner()->progressFor($module);
+        $attemptLimit = $cid > 0 ? $this->sectionService->theoryQuizAttemptLimit($module) : null;
+        if ($attemptLimit !== null && (int) $p->theory_quiz_attempts >= $attemptLimit) {
+            return redirect()->route('modules.hub', $module)->with(
+                'err',
+                'Исчерпан лимит попыток теста по теории ('.$attemptLimit.').'
+            );
+        }
 
         $deadlineKey = 'theory_quiz_deadline_'.$module;
+        $tlMin = $cid > 0
+            ? $this->sectionService->theoryQuizTimeLimitMinutes($module)
+            : CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
         session([
-            $deadlineKey => now()->addMinutes(CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES)->getTimestamp(),
+            $deadlineKey => now()->addMinutes($tlMin)->getTimestamp(),
             'theory_quiz_wall_start_'.$module => now()->getTimestamp(),
         ]);
 
-        $p = $this->learner()->progressFor($module);
         if ($p->theory_quiz_attempts >= 1 || $p->theory_quiz_best_score > 0 || $p->theory_quiz_passed) {
             $p->theory_quiz_passed = false;
             // Лучший процент не обнуляем: при пересдаче доступ к практике не блокируется до завершения новой попытки.
@@ -447,12 +535,15 @@ class ModuleController extends Controller
 
     public function theoryQuizResult(int $module): View|RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleOrAbort($module);
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
         }
         if ($r = $this->accessGate->redirectIfTheoryNotRead($learner, $module)) {
+            return $r;
+        }
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $module, 'theory_quiz')) {
             return $r;
         }
         $data = session('theory_quiz_result');
@@ -466,19 +557,23 @@ class ModuleController extends Controller
 
         return view('modules.theory-quiz-result', [
             'module' => $module,
-            'meta' => CourseModuleMeta::resolved($module),
+            'meta' => $this->courseModules->displayMeta($cm),
             'result' => $data,
         ]);
     }
 
     public function theoryQuizSubmit(Request $request, int $module): RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleOrAbort($module);
+        $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
         }
         if ($r = $this->accessGate->redirectIfTheoryNotRead($learner, $module)) {
+            return $r;
+        }
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $module, 'theory_quiz')) {
             return $r;
         }
         $deadlineKey = 'theory_quiz_deadline_'.$module;
@@ -489,10 +584,17 @@ class ModuleController extends Controller
             return redirect()->route('modules.theory-quiz', $module)->with('err', 'Время на прохождение теста истекло. Начните попытку снова.');
         }
 
-        $qs = $this->questions($module, 'theory_quiz');
+        $qs = $this->questions($contentIdx, 'theory_quiz');
         $p = $this->learner()->progressFor($module);
+        $cid = $this->learnerCourseId();
         $attemptsBefore = (int) $p->theory_quiz_attempts;
-        $penalty = $attemptsBefore >= 1 ? CourseScoringService::THEORY_QUIZ_RETAKE_PENALTY_POINTS : 0;
+        $attemptNo = $attemptsBefore + 1;
+        $penalty = $cid > 0
+            ? $this->sectionService->theoryQuizPenaltyForAttempt($module, $attemptNo)
+            : ($attemptsBefore >= 1 ? CourseScoringService::THEORY_QUIZ_RETAKE_PENALTY_POINTS : 0);
+        $threshold = $cid > 0
+            ? $this->sectionService->passPercentForQuiz($module)
+            : CourseScoringService::PASS_THRESHOLD;
 
         $breakdown = $this->scoreTheoryQuizBreakdown($qs, $request, 'q');
         $rawPercent = $breakdown['raw_percent'];
@@ -500,7 +602,9 @@ class ModuleController extends Controller
 
         $wallStart = session()->pull('theory_quiz_wall_start_'.$module);
         if ($wallStart !== null && is_numeric($wallStart)) {
-            $cap = CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES * 60;
+            $cap = ($cid > 0
+                ? $this->sectionService->theoryQuizTimeLimitMinutes($module)
+                : CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES) * 60;
             $elapsed = min($cap, max(0, now()->getTimestamp() - (int) $wallStart));
             if ($elapsed > 0) {
                 $p->seconds_theory_quiz = (int) ($p->seconds_theory_quiz ?? 0) + $elapsed;
@@ -512,8 +616,8 @@ class ModuleController extends Controller
             'raw_percent' => $rawPercent,
             'penalty_points' => $penalty,
             'final_percent' => $finalPercent,
-            'passed' => $finalPercent >= CourseScoringService::PASS_THRESHOLD,
-            'threshold' => CourseScoringService::PASS_THRESHOLD,
+            'passed' => $finalPercent >= $threshold,
+            'threshold' => $threshold,
             'correct_count' => $breakdown['correct_count'],
             'wrong_count' => $breakdown['wrong_count'],
             'total' => $breakdown['total'],
@@ -528,7 +632,7 @@ class ModuleController extends Controller
         $p->theory_quiz_history = $hist;
         $p->theory_quiz_attempts = $attemptsBefore + 1;
         $p->theory_quiz_best_score = max((int) $p->theory_quiz_best_score, $finalPercent);
-        if ($finalPercent >= CourseScoringService::PASS_THRESHOLD) {
+        if ($finalPercent >= $threshold) {
             $p->theory_quiz_passed = true;
         }
         $p->save();
@@ -539,16 +643,21 @@ class ModuleController extends Controller
 
     public function practiceShow(int $module): View|RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleOrAbort($module);
+        $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
+        $courseId = (int) session('course_id', 0);
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
         }
         if ($r = $this->accessGate->redirectIfTheoryQuizNotPassed($learner, $module)) {
             return $r;
         }
-        $meta = CourseModuleMeta::resolved($module);
-        if (CourseModuleMeta::shouldSkipPractice($module)) {
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $module, 'practice')) {
+            return $r;
+        }
+        $meta = $this->courseModules->displayMeta($cm);
+        if (CourseModuleMeta::shouldSkipPractice($contentIdx)) {
             return redirect()->route('modules.hub', $module)->with(
                 'ok',
                 'В этом модуле нет практического занятия — перейдите к итоговому тесту (шаг «Экзамен» на странице модуля).'
@@ -558,6 +667,7 @@ class ModuleController extends Controller
         if (Schema::hasTable('practice_sessions')) {
             $practiceSession = PracticeSession::query()
                 ->where('learner_id', $learner->id)
+                ->where('course_id', $courseId)
                 ->where('module_id', $module)
                 ->first();
         }
@@ -570,7 +680,7 @@ class ModuleController extends Controller
             'progress' => $learner->progressFor($module),
             'practiceSession' => $practiceSession,
             'labConfigured' => $lab->isConfigured(),
-            'labImage' => $lab->imageForModule($module),
+            'labImage' => $lab->imageForModule($contentIdx),
             'labEnabled' => (bool) config('practice_lab.enabled'),
             'allowManualDone' => (bool) config('practice_lab.allow_manual_done'),
         ]);
@@ -578,7 +688,8 @@ class ModuleController extends Controller
 
     public function practiceDone(int $module): RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleOrAbort($module);
+        $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
@@ -586,7 +697,10 @@ class ModuleController extends Controller
         if ($r = $this->accessGate->redirectIfTheoryQuizNotPassed($learner, $module)) {
             return $r;
         }
-        if (CourseModuleMeta::shouldSkipPractice($module)) {
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $module, 'practice')) {
+            return $r;
+        }
+        if (CourseModuleMeta::shouldSkipPractice($contentIdx)) {
             return redirect()->route('modules.hub', $module)->with(
                 'ok',
                 'В этом модуле нет практического занятия — перейдите к итоговому тесту.'
@@ -608,7 +722,8 @@ class ModuleController extends Controller
 
     public function examShow(int $module): View|RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleOrAbort($module);
+        $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
@@ -616,15 +731,28 @@ class ModuleController extends Controller
         if ($r = $this->accessGate->redirectIfExamPrerequisitesMissing($learner, $module)) {
             return $r;
         }
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $module, 'module_exam')) {
+            return $r;
+        }
         $p = $learner->progressFor($module);
-        $qs = $this->questions($module, 'module_exam');
+        $cid = $this->learnerCourseId();
+        $maxAttempts = $cid > 0
+            ? $this->sectionService->examMaxAttempts($module)
+            : CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS;
+        $passTh = $cid > 0
+            ? $this->sectionService->passPercentForExam($module)
+            : CourseScoringService::PASS_THRESHOLD;
+        $retakePen = $cid > 0
+            ? $this->sectionService->examPenaltyForAttempt($module, 2)
+            : CourseScoringService::MODULE_EXAM_RETAKE_PENALTY_POINTS;
+        $qs = $this->questions($contentIdx, 'module_exam');
         if (count($qs) === 0) {
             return redirect()->route('modules.hub', $module)->with('err', 'Итоговый тест для этого модуля не настроен.');
         }
-        if ((int) $p->module_exam_attempts >= CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS) {
+        if ((int) $p->module_exam_attempts >= $maxAttempts) {
             return redirect()->route('modules.exam.result', $module)->with(
                 'err',
-                'Исчерпаны все попытки итогового теста ('.CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS.'). Ниже сохранённый результат.'
+                'Исчерпаны все попытки итогового теста ('.$maxAttempts.'). Ниже сохранённый результат.'
             );
         }
 
@@ -644,7 +772,7 @@ class ModuleController extends Controller
 
             return redirect()->route('modules.hub', $module)->with(
                 'err',
-                'Отведённое на итоговый тест время ('.$this->moduleExamTimeLimitMinutes($module).' мин.) истекло. Начните попытку снова.'
+                'Отведённое на итоговый тест время ('.$this->moduleExamTimeLimitMinutes($cm).' мин.) истекло. Начните попытку снова.'
             );
         }
 
@@ -653,23 +781,25 @@ class ModuleController extends Controller
 
         return view('modules.exam', [
             'module' => $module,
-            'meta' => CourseModuleMeta::resolved($module),
+            'meta' => $this->courseModules->displayMeta($cm),
             'questions' => $qs,
             'progress' => $p,
             'attemptNumber' => $attemptNo,
-            'maxAttempts' => CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS,
-            'retakePenalty' => CourseScoringService::MODULE_EXAM_RETAKE_PENALTY_POINTS,
-            'passThreshold' => CourseScoringService::PASS_THRESHOLD,
-            'timeLimitMinutes' => $this->moduleExamTimeLimitMinutes($module),
+            'maxAttempts' => $maxAttempts,
+            'retakePenalty' => $retakePen,
+            'passThreshold' => $passTh,
+            'timeLimitMinutes' => $this->moduleExamTimeLimitMinutes($cm),
             'examActive' => $examActive,
             'expiresAtMs' => $expiresAtMs,
             'needsRetakeAck' => (int) $p->module_exam_attempts >= 1,
+            'examOneByOne' => $cid > 0 ? $this->sectionService->examOneByOne($module) : true,
         ]);
     }
 
     public function examStart(int $module): RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleOrAbort($module);
+        $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
@@ -677,15 +807,22 @@ class ModuleController extends Controller
         if ($r = $this->accessGate->redirectIfExamPrerequisitesMissing($learner, $module)) {
             return $r;
         }
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $module, 'module_exam')) {
+            return $r;
+        }
         $p = $learner->progressFor($module);
-        $qs = $this->questions($module, 'module_exam');
+        $cid = $this->learnerCourseId();
+        $maxAttempts = $cid > 0
+            ? $this->sectionService->examMaxAttempts($module)
+            : CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS;
+        $qs = $this->questions($contentIdx, 'module_exam');
         if (count($qs) === 0) {
             return redirect()->route('modules.hub', $module)->with('err', 'Итоговый тест для этого модуля не настроен.');
         }
-        if ((int) $p->module_exam_attempts >= CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS) {
+        if ((int) $p->module_exam_attempts >= $maxAttempts) {
             return redirect()->route('modules.exam.result', $module)->with(
                 'err',
-                'Исчерпаны все попытки итогового теста ('.CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS.').'
+                'Исчерпаны все попытки итогового теста ('.$maxAttempts.').'
             );
         }
 
@@ -701,7 +838,7 @@ class ModuleController extends Controller
             return redirect()->route('modules.exam', $module);
         }
 
-        $p->module_exam_deadline_at = now()->addMinutes($this->moduleExamTimeLimitMinutes($module));
+        $p->module_exam_deadline_at = now()->addMinutes($this->moduleExamTimeLimitMinutes($cm));
         $p->module_exam_deadline_for_attempt = $attemptNo;
         $p->save();
 
@@ -710,7 +847,7 @@ class ModuleController extends Controller
 
     public function examResult(int $module): View|RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleOrAbort($module);
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
@@ -735,7 +872,7 @@ class ModuleController extends Controller
 
         return view('modules.exam-result', [
             'module' => $module,
-            'meta' => CourseModuleMeta::resolved($module),
+            'meta' => $this->courseModules->displayMeta($cm),
             'r' => $r,
             'progress' => $p,
             'showExamBreakdown' => $showExamBreakdown,
@@ -746,7 +883,8 @@ class ModuleController extends Controller
 
     public function examSubmit(Request $request, int $module): RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleOrAbort($module);
+        $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
@@ -754,12 +892,22 @@ class ModuleController extends Controller
         if ($r = $this->accessGate->redirectIfExamPrerequisitesMissing($learner, $module)) {
             return $r;
         }
-        $qs = $this->questions($module, 'module_exam');
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $module, 'module_exam')) {
+            return $r;
+        }
+        $cid = $this->learnerCourseId();
+        $maxAttempts = $cid > 0
+            ? $this->sectionService->examMaxAttempts($module)
+            : CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS;
+        $passTh = $cid > 0
+            ? $this->sectionService->passPercentForExam($module)
+            : CourseScoringService::PASS_THRESHOLD;
+        $qs = $this->questions($contentIdx, 'module_exam');
         $p = $learner->progressFor($module);
         if (count($qs) === 0) {
             return redirect()->route('modules.hub', $module)->with('err', 'Тест не настроен.');
         }
-        if ((int) $p->module_exam_attempts >= CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS) {
+        if ((int) $p->module_exam_attempts >= $maxAttempts) {
             return redirect()->route('modules.exam.result', $module)->with('err', 'Попытки исчерпаны.');
         }
 
@@ -784,12 +932,15 @@ class ModuleController extends Controller
         $attemptAfter = (int) $p->module_exam_attempts + 1;
         $examDeadline = $p->module_exam_deadline_at;
         $raw = $breakdown['raw_percent'];
-        $penaltyApplied = $attemptAfter >= 2;
-        $final = $penaltyApplied
-            ? max(0, $raw - CourseScoringService::MODULE_EXAM_RETAKE_PENALTY_POINTS)
+        $penaltyPts = $cid > 0
+            ? $this->sectionService->examPenaltyForAttempt($module, $attemptAfter)
+            : ($attemptAfter >= 2 ? CourseScoringService::MODULE_EXAM_RETAKE_PENALTY_POINTS : 0);
+        $penaltyApplied = $attemptAfter >= 2 && $penaltyPts > 0;
+        $final = $penaltyPts > 0
+            ? max(0, $raw - $penaltyPts)
             : $raw;
         $wasPassed = $p->module_exam_passed;
-        $passedThisAttempt = $final >= CourseScoringService::PASS_THRESHOLD;
+        $passedThisAttempt = $final >= $passTh;
         $modulePassed = $wasPassed || $passedThisAttempt;
 
         $payload = [
@@ -798,17 +949,21 @@ class ModuleController extends Controller
             'final_percent' => $final,
             'passed' => $modulePassed,
             'passed_this_attempt' => $passedThisAttempt,
-            'threshold' => CourseScoringService::PASS_THRESHOLD,
+            'threshold' => $passTh,
             'attempt' => $attemptAfter,
             'penalty_applied' => $penaltyApplied,
-            'penalty_points' => $penaltyApplied ? CourseScoringService::MODULE_EXAM_RETAKE_PENALTY_POINTS : 0,
+            'penalty_points' => $penaltyApplied ? $penaltyPts : 0,
             'items' => $breakdown['items'],
             'correct_count' => $breakdown['correct_count'],
             'wrong_count' => $breakdown['wrong_count'],
             'total' => $breakdown['total'],
             'max_points' => $breakdown['max_points'] ?? null,
             'earned_points' => $breakdown['earned_points'] ?? null,
-            'breakdown_visible_until' => now()->addMinutes(CourseScoringService::MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES)->getTimestamp(),
+            'breakdown_visible_until' => now()->addMinutes(
+                $cid > 0
+                    ? $this->sectionService->examBreakdownVisibleMinutes($module)
+                    : CourseScoringService::MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES
+            )->getTimestamp(),
             'recorded_at' => now()->toIso8601String(),
         ];
 
@@ -821,7 +976,7 @@ class ModuleController extends Controller
         $examHist[] = $payload;
         $p->module_exam_history = $examHist;
         if ($examDeadline !== null) {
-            $lim = $this->moduleExamTimeLimitMinutes($module);
+            $lim = $this->moduleExamTimeLimitMinutes($cm);
             $start = $examDeadline->copy()->subMinutes($lim);
             $cap = $lim * 60;
             $elapsed = min($cap, max(0, now()->diffInSeconds($start)));
@@ -867,7 +1022,7 @@ class ModuleController extends Controller
 
     public function saveDifficulties(Request $request, int $module): RedirectResponse
     {
-        abort_unless($module >= 1 && $module <= 9, 404);
+        $this->courseModuleOrAbort($module);
         if ($r = $this->accessGate->redirectIfModuleLocked($this->learner(), $module)) {
             return $r;
         }

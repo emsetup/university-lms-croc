@@ -28,10 +28,13 @@ final class PracticeLabService
             && config('practice_lab.daemon_secret') !== '';
     }
 
-    public function getOrCreateSessionModel(Learner $learner, int $moduleId): PracticeSession
+    /**
+     * @param  int  $sessionModuleId  course_modules.id или {@see PracticeSession::FINAL_LAB_SESSION_MODULE_ID}
+     */
+    public function getOrCreateSessionModel(Learner $learner, int $courseId, int $sessionModuleId): PracticeSession
     {
         return PracticeSession::firstOrCreate(
-            ['learner_id' => $learner->id, 'module_id' => $moduleId],
+            ['learner_id' => $learner->id, 'course_id' => $courseId, 'module_id' => $sessionModuleId],
             ['status' => 'none']
         );
     }
@@ -45,19 +48,21 @@ final class PracticeLabService
     }
 
     /**
+     * @param  int  $sessionModuleId  строка practice_sessions (course_modules.id или 0 для финальной лабы)
+     * @param  int  $daemonImageKey  ключ в practice_lab.images и для lab-daemon (content_source_index или 10)
      * @return array{session: PracticeSession, message?: string}
      */
-    public function startLab(Learner $learner, int $moduleId): array
+    public function startLab(Learner $learner, int $courseId, int $sessionModuleId, int $daemonImageKey): array
     {
         if (! $this->isConfigured()) {
-            return ['session' => $this->getOrCreateSessionModel($learner, $moduleId), 'message' => 'Лаборатория отключена в конфигурации.'];
+            return ['session' => $this->getOrCreateSessionModel($learner, $courseId, $sessionModuleId), 'message' => 'Лаборатория отключена в конфигурации.'];
         }
-        $image = $this->imageForModule($moduleId);
+        $image = $this->imageForModule($daemonImageKey);
         if ($image === null || $image === '') {
-            return ['session' => $this->getOrCreateSessionModel($learner, $moduleId), 'message' => 'Для этого модуля не задан Docker-образ.'];
+            return ['session' => $this->getOrCreateSessionModel($learner, $courseId, $sessionModuleId), 'message' => 'Для этого модуля не задан Docker-образ.'];
         }
 
-        $session = $this->getOrCreateSessionModel($learner, $moduleId);
+        $session = $this->getOrCreateSessionModel($learner, $courseId, $sessionModuleId);
 
         if ($session->daemon_lab_id && $session->isActive()) {
             return ['session' => $session, 'message' => 'Стенд уже выделен.'];
@@ -74,7 +79,7 @@ final class PracticeLabService
         $ttl = (int) config('practice_lab.session_ttl_minutes', 480);
 
         try {
-            $resp = $this->client->createLab($learner->id, $moduleId, $image);
+            $resp = $this->client->createLab($learner->id, $daemonImageKey, $image);
         } catch (\Throwable $e) {
             Log::error('practice_lab create: '.$e->getMessage());
 
@@ -103,9 +108,9 @@ final class PracticeLabService
     /**
      * @return array{session: PracticeSession, message?: string}
      */
-    public function runCheck(Learner $learner, int $moduleId): array
+    public function runCheck(Learner $learner, int $courseId, int $sessionModuleId): array
     {
-        $session = $this->getOrCreateSessionModel($learner, $moduleId);
+        $session = $this->getOrCreateSessionModel($learner, $courseId, $sessionModuleId);
         if (! $this->client || ! $this->isConfigured()) {
             return ['session' => $session, 'message' => 'Лаборатория отключена в конфигурации.'];
         }
@@ -174,9 +179,9 @@ final class PracticeLabService
         return (bool) $session->last_check_passed;
     }
 
-    public function destroyLab(Learner $learner, int $moduleId): PracticeSession
+    public function destroyLab(Learner $learner, int $courseId, int $sessionModuleId): PracticeSession
     {
-        $session = $this->getOrCreateSessionModel($learner, $moduleId);
+        $session = $this->getOrCreateSessionModel($learner, $courseId, $sessionModuleId);
         if ($session->daemon_lab_id && $this->client) {
             try {
                 $this->fetchAndAppendBashHistory($session, 'lab_destroy');
@@ -206,15 +211,15 @@ final class PracticeLabService
     /**
      * @return int|null зафиксированный балл (или 100 при старой проверке без шкалы)
      */
-    public function acceptPracticeResult(Learner $learner, int $moduleId): ?int
+    public function acceptPracticeResult(Learner $learner, int $courseId, int $courseModuleId): ?int
     {
-        $session = $this->getOrCreateSessionModel($learner, $moduleId);
+        $session = $this->getOrCreateSessionModel($learner, $courseId, $courseModuleId);
         if (! $this->canAcceptPractice($session)) {
             throw new \RuntimeException(
                 'Сначала выполните автопроверку (кнопка «Проверить результат») и дождитесь журнала проверки.'
             );
         }
-        if ($learner->progressFor($moduleId)->practice_done_at) {
+        if ($learner->progressFor($courseModuleId, $courseId)->practice_done_at) {
             throw new \RuntimeException('Результат уже принят, практика зачтена.');
         }
 
@@ -222,9 +227,9 @@ final class PracticeLabService
             ? $session->last_check_score
             : ($session->last_check_passed ? 100 : null);
 
-        DB::transaction(function () use ($learner, $moduleId, $session, $acceptedScore): void {
-            $p = $learner->progressFor($moduleId);
-            $k = 'practice_segment_start_'.$moduleId;
+        DB::transaction(function () use ($learner, $courseId, $courseModuleId, $session, $acceptedScore): void {
+            $p = $learner->progressFor($courseModuleId, $courseId);
+            $k = 'practice_segment_start_'.$courseModuleId;
             $ts = Session::pull($k);
             if ($ts !== null && is_numeric($ts)) {
                 $elapsed = max(0, min(86400 * 14, now()->getTimestamp() - (int) $ts));

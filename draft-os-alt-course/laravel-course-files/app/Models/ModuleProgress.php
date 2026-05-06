@@ -14,6 +14,8 @@ class ModuleProgress extends Model
     protected function casts(): array
     {
         return [
+            'course_id' => 'int',
+            'course_module_id' => 'int',
             'theory_read_at' => 'datetime',
             'theory_quiz_passed' => 'boolean',
             'theory_quiz_last_result' => 'array',

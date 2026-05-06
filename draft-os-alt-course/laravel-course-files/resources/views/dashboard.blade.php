@@ -83,7 +83,7 @@
                         @endif
                     </a>
                 @else
-                    <span class="{{ $cellClass }} learner-track-mini__cell--static" role="listitem" title="Сначала зачтите итоговый тест модуля {{ $m['id'] - 1 }} или сдайте попытку с результатом выше 0%">
+                    <span class="{{ $cellClass }} learner-track-mini__cell--static" role="listitem" title="Сначала зачтите итоговый тест предыдущего модуля (№{{ max(1, (int) ($m['sequence'] ?? 1) - 1) }}) или сдайте попытку с результатом выше 0%">
                         <span class="learner-track-mini__letter">{{ $m['letter'] }}</span>
                         <span class="learner-track-mini__n">{{ $m['id'] }}</span>
                         <span class="learner-track-mini__hint">закрыт</span>
@@ -96,8 +96,8 @@
     <div class="module-grid">
         @foreach ($modules as $m)
             <div class="module-card {{ empty($m['unlocked']) ? 'module-card--locked' : '' }}">
-                <div class="tag">Модуль {{ $m['letter'] }} - {{ $m['id'] }}/{{ $courseModuleCount }}</div>
-                <div style="font-weight:700">Модуль {{ $m['id'] }}: {{ $m['title'] }}</div>
+                <div class="tag">Модуль {{ $m['letter'] }} — {{ (int) ($m['sequence'] ?? $m['id']) }}/{{ $courseModuleCount }}</div>
+                <div style="font-weight:700">Модуль {{ (int) ($m['sequence'] ?? $m['id']) }}: {{ $m['title'] }}</div>
                 <div class="muted" style="font-size:0.9rem">{{ $m['summary'] }}</div>
                 <div class="range-wrap">
                     <label for="rng-{{ $m['id'] }}">Прогресс</label>
@@ -106,7 +106,7 @@
                 @if (!empty($m['unlocked']))
                     <a class="btn btn-primary" href="{{ route('modules.hub', $m['id']) }}">Открыть модуль</a>
                 @else
-                    <p class="module-card-lock-note muted small" style="margin:0">Откроется после зачёта итогового теста модуля {{ $m['id'] - 1 }} или после попытки сдачи с ненулевым результатом.</p>
+                    <p class="module-card-lock-note muted small" style="margin:0">Откроется после зачёта итогового теста предыдущего модуля (№{{ max(1, (int) ($m['sequence'] ?? 1) - 1) }}) или после попытки сдачи с ненулевым результатом.</p>
                     <span class="btn btn-primary" style="opacity:0.5;pointer-events:none;cursor:not-allowed" aria-disabled="true">Недоступно</span>
                 @endif
             </div>

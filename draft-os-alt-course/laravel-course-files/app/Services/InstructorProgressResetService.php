@@ -28,15 +28,15 @@ final class InstructorProgressResetService
         return [self::STEP_THEORY_QUIZ, self::STEP_MODULE_EXAM, self::STEP_PRACTICE];
     }
 
-    public function reset(Learner $learner, int $moduleId, string $step, ?string $note = null): void
+    public function reset(Learner $learner, int $courseId, int $courseModuleId, string $step, ?string $note = null): void
     {
-        abort_unless($moduleId >= 1 && $moduleId <= 9, 404);
+        abort_unless($courseId >= 1 && $courseModuleId >= 1, 404);
         abort_unless(in_array($step, self::allowedSteps(), true), 400);
 
-        DB::transaction(function () use ($learner, $moduleId, $step, $note): void {
-            $p = $learner->progressFor($moduleId);
+        DB::transaction(function () use ($learner, $courseId, $courseModuleId, $step, $note): void {
+            $p = $learner->progressFor($courseModuleId, $courseId);
 
-            $snap = $this->snapshotProgress($p, $learner->id, $moduleId);
+            $snap = $this->snapshotProgress($p, $learner->id, $courseId, $courseModuleId);
             $entry = [
                 'at' => now()->toIso8601String(),
                 'step' => $step,
@@ -50,7 +50,7 @@ final class InstructorProgressResetService
             match ($step) {
                 self::STEP_THEORY_QUIZ => $this->applyTheoryQuizReset($p),
                 self::STEP_MODULE_EXAM => $this->applyModuleExamReset($p),
-                self::STEP_PRACTICE => $this->applyPracticeReset($p, $learner->id, $moduleId),
+                self::STEP_PRACTICE => $this->applyPracticeReset($p, $learner->id, $courseId, $courseModuleId),
             };
 
             $p->save();
@@ -60,12 +60,15 @@ final class InstructorProgressResetService
     /**
      * @return array<string, mixed>
      */
-    private function snapshotProgress(ModuleProgress $p, int $learnerId, int $moduleId): array
+    private function snapshotProgress(ModuleProgress $p, int $learnerId, int $courseId, int $courseModuleId): array
     {
-        $session = PracticeSession::query()
+        $q = PracticeSession::query()
             ->where('learner_id', $learnerId)
-            ->where('module_id', $moduleId)
-            ->first();
+            ->where('module_id', $courseModuleId);
+        if (Schema::hasColumn('practice_sessions', 'course_id')) {
+            $q->where('course_id', $courseId);
+        }
+        $session = $q->first();
 
         return [
             'theory_quiz_attempts' => (int) $p->theory_quiz_attempts,
@@ -110,7 +113,7 @@ final class InstructorProgressResetService
         $p->module_exam_attempts = max(0, $before - 1);
     }
 
-    private function applyPracticeReset(ModuleProgress $p, int $learnerId, int $moduleId): void
+    private function applyPracticeReset(ModuleProgress $p, int $learnerId, int $courseId, int $courseModuleId): void
     {
         $p->practice_done_at = null;
         $p->practice_lab_percent = null;
@@ -118,9 +121,12 @@ final class InstructorProgressResetService
             $p->practice_m1_quest = null;
         }
 
-        PracticeSession::query()
+        $q = PracticeSession::query()
             ->where('learner_id', $learnerId)
-            ->where('module_id', $moduleId)
-            ->delete();
+            ->where('module_id', $courseModuleId);
+        if (Schema::hasColumn('practice_sessions', 'course_id')) {
+            $q->where('course_id', $courseId);
+        }
+        $q->delete();
     }
 }

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CourseModule;
 use App\Support\AdminCourseContentInspector;
 use App\Support\CourseQuizBankLoader;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -15,12 +17,29 @@ final class AdminQuizController extends Controller
     {
         $adminKey = (string) $request->query('key', '');
         $rows = [];
-        foreach (range(1, 9) as $m) {
-            $rows[] = [
-                'module' => $m,
-                'theory_quiz_count' => count(AdminCourseContentInspector::theoryQuizQuestions($m)),
-                'module_exam_count' => count(AdminCourseContentInspector::moduleExamQuestions($m)),
-            ];
+        $courseId = (int) session('admin_course_id');
+        $useDbModules = $courseId > 0 && Schema::hasTable('course_modules')
+            && CourseModule::query()->where('course_id', $courseId)->exists();
+
+        if ($useDbModules) {
+            foreach (CourseModule::query()->where('course_id', $courseId)->orderBy('sort')->orderBy('id')->get() as $ent) {
+                $m = $ent->effectiveContentIndex();
+                $rows[] = [
+                    'module' => $m,
+                    'label' => $ent->title.' · пакет №'.$m,
+                    'theory_quiz_count' => count(AdminCourseContentInspector::theoryQuizQuestions($m)),
+                    'module_exam_count' => count(AdminCourseContentInspector::moduleExamQuestions($m)),
+                ];
+            }
+        } else {
+            foreach (range(1, 9) as $m) {
+                $rows[] = [
+                    'module' => $m,
+                    'label' => null,
+                    'theory_quiz_count' => count(AdminCourseContentInspector::theoryQuizQuestions($m)),
+                    'module_exam_count' => count(AdminCourseContentInspector::moduleExamQuestions($m)),
+                ];
+            }
         }
 
         return view('admin.quiz-index', [

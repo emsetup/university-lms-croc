@@ -22,17 +22,18 @@ class CertificateController extends Controller
             return redirect()->route('final-lab')->with('err', 'Сначала сдайте финальную лабораторную работу.');
         }
 
-        $certCoursePercent = $this->scoring->certificateCoursePercent($learner);
+        $courseId = (int) session('course_id', 0);
+        $certCoursePercent = $this->scoring->certificateCoursePercent($learner, $courseId > 0 ? $courseId : null);
 
         return view('certificate', [
             'learner' => $learner,
-            'grand' => $this->scoring->grandTotal($learner),
+            'grand' => $this->scoring->grandTotal($learner, $courseId > 0 ? $courseId : null),
             'certCoursePercent' => $certCoursePercent,
             'certTier' => $this->scoring->certificateTier($certCoursePercent),
-            'modulePoints' => $this->scoring->totalModulePoints($learner),
-            'modulePointsMax' => $this->scoring->maxTotalModulePoints(),
+            'modulePoints' => $this->scoring->totalModulePoints($learner, $courseId > 0 ? $courseId : null),
+            'modulePointsMax' => $this->scoring->maxTotalModulePoints($courseId > 0 ? $courseId : null),
             'finalPoints' => $this->scoring->finalLabPoints($final),
-            'moduleReport' => $this->scoring->moduleReport($learner),
+            'moduleReport' => $this->scoring->moduleReport($learner, $courseId > 0 ? $courseId : null),
             'final' => $final,
         ]);
     }

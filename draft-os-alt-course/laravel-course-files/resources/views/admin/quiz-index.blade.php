@@ -10,6 +10,7 @@
                 <h1 style="margin:0 0 0.35rem">Вопросы тестов и экзаменов</h1>
                 <p class="muted" style="margin:0;max-width:60rem;line-height:1.5">
                     Редактирование выполняется через JSON (безопасно для PHP). Здесь можно менять порядок вопросов/ответов, тип (один/несколько/сопоставление) и содержимое.
+                    Для выбранного в панели курса набора модулей список строится из БД; колонка «пакет» — номер файлов вопросов (как в <code>config/course.php</code>).
                 </p>
             </div>
             <a class="btn btn-ghost" href="{{ route('admin.theory.index', ['key' => $adminKey]) }}">К содержимому курса</a>
@@ -29,7 +30,7 @@
             <table style="width:100%;border-collapse:separate;border-spacing:0">
                 <thead>
                 <tr>
-                    <th style="text-align:left;padding:0.6rem 0.75rem;border-bottom:1px solid #e2e8f0">Модуль</th>
+                    <th style="text-align:left;padding:0.6rem 0.75rem;border-bottom:1px solid #e2e8f0">Пакет / модуль курса</th>
                     <th style="text-align:left;padding:0.6rem 0.75rem;border-bottom:1px solid #e2e8f0">Тест по теории</th>
                     <th style="text-align:left;padding:0.6rem 0.75rem;border-bottom:1px solid #e2e8f0">Итоговый экзамен</th>
                 </tr>
@@ -37,7 +38,12 @@
                 <tbody>
                 @foreach ($rows as $r)
                     <tr>
-                        <td style="padding:0.6rem 0.75rem;border-bottom:1px solid #f1f5f9"><strong>{{ $r['module'] }}</strong></td>
+                        <td style="padding:0.6rem 0.75rem;border-bottom:1px solid #f1f5f9;vertical-align:top">
+                            <strong>{{ $r['module'] }}</strong>
+                            @if (! empty($r['label']))
+                                <div class="muted small" style="margin-top:0.25rem;line-height:1.35">{{ $r['label'] }}</div>
+                            @endif
+                        </td>
                         <td style="padding:0.6rem 0.75rem;border-bottom:1px solid #f1f5f9">
                             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
                                 <a class="btn btn-ghost" href="{{ route('admin.quiz.edit.module', ['module' => $r['module'], 'kind' => 'theory_quiz', 'key' => $adminKey]) }}">Редактировать</a>

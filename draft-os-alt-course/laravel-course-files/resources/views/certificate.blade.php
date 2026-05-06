@@ -79,9 +79,17 @@
                     $active = array_filter($flags);
                 @endphp
                 @if (count($active))
-                    @php $meta = config('course.modules.'.$row['module_id']); @endphp
+                    @php
+                        $letter = (string) ($row['letter'] ?? '');
+                        $title = (string) ($row['title'] ?? '');
+                        if ($title === '' || $letter === '') {
+                            $meta = config('course.modules.'.(int) ($row['content_source_index'] ?? 1));
+                            $title = $title !== '' ? $title : (string) ($meta['title'] ?? 'Модуль');
+                            $letter = $letter !== '' ? $letter : (string) ($meta['letter'] ?? '');
+                        }
+                    @endphp
                     <li style="margin:0.35rem 0">
-                        <strong>{{ $meta['letter'] }}</strong> - {{ $meta['title'] }}:
+                        <strong>{{ $letter }}</strong> - {{ $title }}:
                         @foreach ($active as $k => $_)
                             <span class="pill">{{ $labels[$k] ?? $k }}</span>
                         @endforeach

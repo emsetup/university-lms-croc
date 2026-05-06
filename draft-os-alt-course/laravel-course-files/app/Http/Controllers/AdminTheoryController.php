@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CourseModule;
 use App\Services\CourseScoringService;
 use App\Services\PracticeLabDaemonClient;
 use App\Support\AdminCourseContentInspector;
@@ -9,6 +10,7 @@ use App\Support\CourseModuleMeta;
 use App\Support\CourseTheoryPaths;
 use App\Support\PracticeHintMarkdown;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -26,33 +28,22 @@ class AdminTheoryController extends Controller
         $key = (string) $request->query('key', '');
         $rows = [];
         $labStateMap = [];
-        for ($m = 1; $m <= 9; $m++) {
-            $meta = config('course.modules.'.$m);
-            $title = is_array($meta) ? (string) ($meta['title'] ?? 'Модуль '.$m) : '—';
-            $ref = CourseTheoryPaths::rawTheoryReference($m);
-            $snippet = CourseTheoryPaths::snippetBasenameFromReference($ref);
-            $editable = $snippet !== null && CourseTheoryPaths::snippetBasenameTargetsModule($snippet, $m);
-            $tq = AdminCourseContentInspector::theoryQuizQuestions($m);
-            $ex = AdminCourseContentInspector::moduleExamQuestions($m);
-            $practiceMd = AdminCourseContentInspector::practiceMarkdown($m);
-            $dockerImage = AdminCourseContentInspector::practiceLabDockerImageForModule($m);
-            $theoryChars = AdminCourseContentInspector::theoryCharacterCount($m);
-            $rows[] = [
-                'module' => $m,
-                'title' => $title,
-                'editable' => $editable,
-                'ref' => $ref !== '' ? $ref : '—',
-                'theory_chars' => $theoryChars,
-                'theory_quiz_count' => count($tq),
-                'theory_quiz_match' => AdminCourseContentInspector::countMatchDrag($tq),
-                'exam_count' => count($ex),
-                'exam_match' => AdminCourseContentInspector::countMatchDrag($ex),
-                'exam_time_min' => $this->moduleExamTimeLimitMinutes($m),
-                'practice_summary' => AdminCourseContentInspector::practiceSummaryLine($practiceMd),
-                'has_practice' => $practiceMd !== '',
-                'practice_lab_docker_image' => $dockerImage,
-            ];
-            $labStateMap[$m] = $this->adminLabState($key, $m);
+        $courseId = (int) session('admin_course_id');
+        $useDbModules = $courseId > 0 && Schema::hasTable('course_modules')
+            && CourseModule::query()->where('course_id', $courseId)->exists();
+
+        if ($useDbModules) {
+            foreach (CourseModule::query()->where('course_id', $courseId)->orderBy('sort')->orderBy('id')->get() as $ent) {
+                $m = $ent->effectiveContentIndex();
+                $title = $ent->title.' · пакет №'.$m;
+                $rows[] = $this->theoryIndexRow($m, $title);
+                $labStateMap[$m] = $this->adminLabState($key, $m);
+            }
+        } else {
+            for ($m = 1; $m <= 9; $m++) {
+                $rows[] = $this->theoryIndexRow($m);
+                $labStateMap[$m] = $this->adminLabState($key, $m);
+            }
         }
 
         return view('admin.theory-index', [
@@ -288,6 +279,41 @@ class AdminTheoryController extends Controller
         return (is_numeric($v) && (int) $v > 0)
             ? (int) $v
             : CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function theoryIndexRow(int $m, string $titleOverride = ''): array
+    {
+        $meta = config('course.modules.'.$m);
+        $title = $titleOverride !== ''
+            ? $titleOverride
+            : (is_array($meta) ? (string) ($meta['title'] ?? 'Модуль '.$m) : '—');
+        $ref = CourseTheoryPaths::rawTheoryReference($m);
+        $snippet = CourseTheoryPaths::snippetBasenameFromReference($ref);
+        $editable = $snippet !== null && CourseTheoryPaths::snippetBasenameTargetsModule($snippet, $m);
+        $tq = AdminCourseContentInspector::theoryQuizQuestions($m);
+        $ex = AdminCourseContentInspector::moduleExamQuestions($m);
+        $practiceMd = AdminCourseContentInspector::practiceMarkdown($m);
+        $dockerImage = AdminCourseContentInspector::practiceLabDockerImageForModule($m);
+        $theoryChars = AdminCourseContentInspector::theoryCharacterCount($m);
+
+        return [
+            'module' => $m,
+            'title' => $title,
+            'editable' => $editable,
+            'ref' => $ref !== '' ? $ref : '—',
+            'theory_chars' => $theoryChars,
+            'theory_quiz_count' => count($tq),
+            'theory_quiz_match' => AdminCourseContentInspector::countMatchDrag($tq),
+            'exam_count' => count($ex),
+            'exam_match' => AdminCourseContentInspector::countMatchDrag($ex),
+            'exam_time_min' => $this->moduleExamTimeLimitMinutes($m),
+            'practice_summary' => AdminCourseContentInspector::practiceSummaryLine($practiceMd),
+            'has_practice' => $practiceMd !== '',
+            'practice_lab_docker_image' => $dockerImage,
+        ];
     }
 
     private function isReadOnlyAccess(Request $request): bool

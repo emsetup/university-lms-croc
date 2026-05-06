@@ -14,14 +14,14 @@ class EnsureLearner
     {
         $id = session('learner_id');
         if (! $id) {
-            return redirect()->route('login');
+            return redirect()->route('portal', ['login' => 1]);
         }
 
         $learner = Learner::find($id);
         if (! $learner) {
             session()->forget('learner_id');
 
-            return redirect()->route('login');
+            return redirect()->route('portal', ['login' => 1]);
         }
 
         View::share('currentLearner', $learner);

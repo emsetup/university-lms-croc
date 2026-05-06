@@ -46,7 +46,12 @@ if [[ -f "${LCF}/routes/web.php" ]]; then
 fi
 
 for f in \
+  app/Http/Controllers/Controller.php \
+  app/Http/Controllers/EmailLoginController.php \
   app/Http/Controllers/AdminPanelController.php \
+  app/Http/Controllers/AdminCoursesController.php \
+  app/Http/Controllers/AdminCourseSettingsController.php \
+  app/Http/Controllers/AdminLearnersController.php \
   app/Http/Controllers/AdminQuizController.php \
   app/Http/Controllers/AdminTheoryController.php \
   app/Http/Controllers/AssessmentController.php \
@@ -54,10 +59,20 @@ for f in \
   app/Http/Controllers/DashboardController.php \
   app/Http/Controllers/FinalLabController.php \
   app/Http/Controllers/ModuleController.php \
+  app/Http/Controllers/PracticeLabController.php \
+  app/Http/Controllers/AccountController.php \
+  app/Http/Controllers/PortalController.php \
+  app/Http/Controllers/PortalEnrollController.php \
   app/Http/Controllers/TeacherCourseReportController.php \
   app/Http/Middleware/EnsureCourseAdminToken.php \
+  app/Http/Middleware/EnsureAdminCourseSelected.php \
+  app/Http/Middleware/EnsureCourseSelected.php \
+  app/Http/Middleware/EnsureLearner.php \
   app/Http/Middleware/ValidateTeacherReportToken.php \
   app/Services/CourseScoringService.php \
+  app/Services/CourseSectionService.php \
+  app/Services/CourseModuleService.php \
+  app/Services/PracticeLabService.php \
   app/Services/TeacherCourseAnalyticsService.php \
   app/Services/ModuleAccessGate.php \
   app/Services/InstructorProgressResetService.php \
@@ -66,7 +81,14 @@ for f in \
   app/Support/CourseQuizBankLoader.php \
   app/Support/CourseModuleMeta.php \
   app/Support/CourseTheoryPaths.php \
+  app/Models/Course.php \
+  app/Models/CourseModule.php \
+  app/Models/CourseSection.php \
+  app/Models/CourseSectionSetting.php \
+  app/Models/CourseEnrollment.php \
+  app/Models/Learner.php \
   app/Models/ModuleProgress.php \
+  app/Models/PracticeSession.php \
   app/Models/FinalLabResult.php
 do
   if [[ -f "${LCF}/${f}" ]]; then
@@ -87,6 +109,18 @@ if [[ -f "${LCF}/database/migrations/2026_04_30_000001_add_certificate_fields_to
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_04_30_000001_add_certificate_fields_to_final_lab_results_table.php"
 fi
 
+for mf in \
+  database/migrations/2026_05_06_000001_create_courses_table.php \
+  database/migrations/2026_05_06_000002_create_course_enrollments_table.php \
+  database/migrations/2026_05_06_100000_create_course_sections_tables.php \
+  database/migrations/2026_05_07_000001_course_modules_progress_sections.php
+do
+  if [[ -f "${LCF}/${mf}" ]]; then
+    echo "[deploy-laravel] ${mf}"
+    rsync -az "${LCF}/${mf}" "${STAND_SSH}:${REMOTE}/${mf}"
+  fi
+done
+
 if [[ -d "${LCF}/resources/views/admin" ]]; then
   echo "[deploy-laravel] resources/views/admin/"
   rsync -az "${LCF}/resources/views/admin/" "${STAND_SSH}:${REMOTE}/resources/views/admin/"
@@ -102,7 +136,12 @@ if [[ -d "${LCF}/resources/views/auth" ]]; then
   rsync -az "${LCF}/resources/views/auth/" "${STAND_SSH}:${REMOTE}/resources/views/auth/"
 fi
 
-for v in hub.blade.php theory.blade.php practice.blade.php; do
+if [[ -d "${LCF}/resources/views/portal" ]]; then
+  echo "[deploy-laravel] resources/views/portal/"
+  rsync -az "${LCF}/resources/views/portal/" "${STAND_SSH}:${REMOTE}/resources/views/portal/"
+fi
+
+for v in hub.blade.php theory.blade.php theory-quiz.blade.php practice.blade.php exam.blade.php; do
   if [[ -f "${LCF}/resources/views/modules/${v}" ]]; then
     echo "[deploy-laravel] resources/views/modules/${v}"
     rsync -az "${LCF}/resources/views/modules/${v}" \
@@ -110,7 +149,12 @@ for v in hub.blade.php theory.blade.php practice.blade.php; do
   fi
 done
 
-for tv in assessment.blade.php certificate.blade.php dashboard.blade.php final-lab.blade.php teacher-course-report.blade.php teacher-learner-profile.blade.php teacher-learner-module.blade.php; do
+if [[ -d "${LCF}/resources/views/modules/partials" ]]; then
+  echo "[deploy-laravel] resources/views/modules/partials/"
+  rsync -az "${LCF}/resources/views/modules/partials/" "${STAND_SSH}:${REMOTE}/resources/views/modules/partials/"
+fi
+
+for tv in assessment.blade.php certificate.blade.php dashboard.blade.php final-lab.blade.php teacher-course-report.blade.php teacher-learner-profile.blade.php teacher-learner-module.blade.php account.blade.php; do
   if [[ -f "${LCF}/resources/views/${tv}" ]]; then
     echo "[deploy-laravel] resources/views/${tv}"
     rsync -az "${LCF}/resources/views/${tv}" "${STAND_SSH}:${REMOTE}/resources/views/${tv}"
