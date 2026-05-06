@@ -47,6 +47,7 @@ fi
 
 for f in \
   app/Http/Controllers/AdminPanelController.php \
+  app/Http/Controllers/AdminQuizController.php \
   app/Http/Controllers/AdminTheoryController.php \
   app/Http/Controllers/AssessmentController.php \
   app/Http/Controllers/CertificateController.php \
@@ -62,6 +63,7 @@ for f in \
   app/Services/InstructorProgressResetService.php \
   app/Services/TeacherLearnerProfileDetailService.php \
   app/Support/AdminCourseContentInspector.php \
+  app/Support/CourseQuizBankLoader.php \
   app/Support/CourseModuleMeta.php \
   app/Support/CourseTheoryPaths.php \
   app/Models/ModuleProgress.php \

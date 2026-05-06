@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\CourseQuizBankLoader;
+
 return [
     'email_domain' => 'croc.ru',
 
@@ -326,53 +328,99 @@ MD
 
     'module_quizzes' => [
             1 => [
-                'theory_quiz' => require __DIR__.'/snippets/module_01_theory_quiz_questions.php',
-                'module_exam' => require __DIR__.'/snippets/module_01_module_exam_questions.php',
+                'theory_quiz' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_01_theory_quiz_questions.json',
+                    __DIR__.'/snippets/module_01_theory_quiz_questions.php'
+                ),
+                'module_exam' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_01_module_exam_questions.json',
+                    __DIR__.'/snippets/module_01_module_exam_questions.php'
+                ),
             ],
             2 => [
-                'theory_quiz' => require __DIR__.'/snippets/module_02_theory_quiz_questions.php',
-                'module_exam' => require __DIR__.'/snippets/module_02_module_exam_questions.php',
+                'theory_quiz' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_02_theory_quiz_questions.json',
+                    __DIR__.'/snippets/module_02_theory_quiz_questions.php'
+                ),
+                'module_exam' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_02_module_exam_questions.json',
+                    __DIR__.'/snippets/module_02_module_exam_questions.php'
+                ),
             ],
             3 => [
-                'theory_quiz' => require __DIR__.'/snippets/module_03_theory_quiz_questions.php',
-                'module_exam' => require __DIR__.'/snippets/module_03_module_exam_questions.php',
+                'theory_quiz' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_03_theory_quiz_questions.json',
+                    __DIR__.'/snippets/module_03_theory_quiz_questions.php'
+                ),
+                'module_exam' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_03_module_exam_questions.json',
+                    __DIR__.'/snippets/module_03_module_exam_questions.php'
+                ),
             ],
             4 => [
-                'theory_quiz' => require __DIR__.'/snippets/module_04_theory_quiz_questions.php',
-                'module_exam' => require __DIR__.'/snippets/module_04_module_exam_questions.php',
+                'theory_quiz' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_04_theory_quiz_questions.json',
+                    __DIR__.'/snippets/module_04_theory_quiz_questions.php'
+                ),
+                'module_exam' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_04_module_exam_questions.json',
+                    __DIR__.'/snippets/module_04_module_exam_questions.php'
+                ),
             ],
             5 => [
-                'theory_quiz' => require __DIR__.'/snippets/module_05_theory_quiz_questions.php',
-                'module_exam' => require __DIR__.'/snippets/module_05_module_exam_questions.php',
+                'theory_quiz' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_05_theory_quiz_questions.json',
+                    __DIR__.'/snippets/module_05_theory_quiz_questions.php'
+                ),
+                'module_exam' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_05_module_exam_questions.json',
+                    __DIR__.'/snippets/module_05_module_exam_questions.php'
+                ),
             ],
             6 => [
-                'theory_quiz' => require __DIR__.'/snippets/module_06_theory_quiz_questions.php',
-                'module_exam' => require __DIR__.'/snippets/module_06_module_exam_questions.php',
+                'theory_quiz' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_06_theory_quiz_questions.json',
+                    __DIR__.'/snippets/module_06_theory_quiz_questions.php'
+                ),
+                'module_exam' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_06_module_exam_questions.json',
+                    __DIR__.'/snippets/module_06_module_exam_questions.php'
+                ),
             ],
             7 => [
-                'theory_quiz' => require __DIR__.'/snippets/module_07_theory_quiz_questions.php',
-                'module_exam' => require __DIR__.'/snippets/module_07_module_exam_questions.php',
+                'theory_quiz' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_07_theory_quiz_questions.json',
+                    __DIR__.'/snippets/module_07_theory_quiz_questions.php'
+                ),
+                'module_exam' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_07_module_exam_questions.json',
+                    __DIR__.'/snippets/module_07_module_exam_questions.php'
+                ),
             ],
             8 => [
-                'theory_quiz' => require __DIR__.'/snippets/module_08_theory_quiz_questions.php',
-                'module_exam' => require __DIR__.'/snippets/module_08_module_exam_questions.php',
+                'theory_quiz' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_08_theory_quiz_questions.json',
+                    __DIR__.'/snippets/module_08_theory_quiz_questions.php'
+                ),
+                'module_exam' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_08_module_exam_questions.json',
+                    __DIR__.'/snippets/module_08_module_exam_questions.php'
+                ),
             ],
             9 => [
-                'theory_quiz' => require __DIR__.'/snippets/module_09_theory_quiz_questions.php',
-                'module_exam' => require __DIR__.'/snippets/module_09_module_exam_questions.php',
+                'theory_quiz' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_09_theory_quiz_questions.json',
+                    __DIR__.'/snippets/module_09_theory_quiz_questions.php'
+                ),
+                'module_exam' => CourseQuizBankLoader::loadBankWithFallback(
+                    __DIR__.'/snippets/module_09_module_exam_questions.json',
+                    __DIR__.'/snippets/module_09_module_exam_questions.php'
+                ),
             ],
     ],
 
-    'final_lab_questions' => [
-        ['q' => 'Где искать официальную документацию BaseAlt в курсе?', 'a' => ['basealt.ru/documentation', 'Случайный форум', 'npmjs.com'], 'c' => 0],
-        ['q' => 'Чем apt-rpm принципиально связан с ОС "Альт"?', 'a' => ['С пакетами RPM', 'С только играми', 'С только Windows'], 'c' => 0],
-        ['q' => 'Что верно про alterator-netinst?', 'a' => ['Часть сценария сетевой установки', 'Не относится к установке', 'Только графический калькулятор'], 'c' => 0],
-        ['q' => 'Какие три сетевых менеджера перечислены в модуле E?', 'a' => ['etcnet, NetworkManager, systemd-networkd', 'Только iptables', 'Только Wi-Fi'], 'c' => 0],
-        ['q' => 'journalctl полезен для:', 'a' => ['Анализа событий служб', 'Установки игр', 'Форматирования BIOS'], 'c' => 0],
-        ['q' => 'polkit в курсе про:', 'a' => ['Привилегии приложений', 'Только обои', 'Только RAID'], 'c' => 0],
-        ['q' => 'В Альт Линукс утилита control в первую очередь используется для:', 'a' => ['Переключения режимов доступа к системным утилитам (SUID и т.п.)', 'Только для графических обоев', 'Замены Polkit'], 'c' => 0],
-        ['q' => 'В модуле F (Альт): типичный модуль для политики паролей вместо pam_pwquality?', 'a' => ['pam_passwdqc', 'pam_unix', 'pam_firewall'], 'c' => 0],
-        ['q' => 'D-Bus в курсе связан с:', 'a' => ['Связью приложений и сервисов', 'Только TCP порта 22', 'Только дисками'], 'c' => 0],
-        ['q' => 'Цель финальной лабораторной:', 'a' => ['Закрепить материал всех модулей', 'Удалить систему', 'Только тест скорости'], 'c' => 0],
-    ],
+    'final_lab_questions' => CourseQuizBankLoader::loadBankWithFallback(
+        __DIR__.'/snippets/final_lab_questions.json',
+        null
+    ),
 ];

@@ -3,7 +3,9 @@
 @section('title', 'Админ: просмотр теории — модуль '.$module)
 
 @section('content')
-    @php($isReadOnly = (bool) ($isReadOnly ?? false))
+    @php
+        $isReadOnly = (bool) ($isReadOnly ?? false);
+    @endphp
     <div style="max-width: 1000px; margin: 0 auto">
         @if (! $isReadOnly)
             @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'theory'])

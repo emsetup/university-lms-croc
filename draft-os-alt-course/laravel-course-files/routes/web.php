@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminPanelController;
+use App\Http\Controllers\AdminQuizController;
 use App\Http\Controllers\AdminTheoryController;
 use App\Http\Controllers\AssessmentController;
 use App\Http\Controllers\CertificateController;
@@ -64,6 +65,15 @@ Route::middleware([\App\Http\Middleware\EnsureCourseAdminToken::class])->group(f
     Route::get('/adm', [AdminPanelController::class, 'show'])->name('admin.panel');
     Route::get('/adm/sertifikaty', [AdminPanelController::class, 'certificates'])->name('admin.certificates');
     Route::get('/adm/sertifikaty/{result}', [AdminPanelController::class, 'certificateShow'])->name('admin.certificates.show');
+    Route::get('/adm/voprosy', [AdminQuizController::class, 'index'])->name('admin.quiz.index');
+    Route::get('/adm/voprosy/modul/{module}/{kind}', [AdminQuizController::class, 'editModule'])
+        ->whereNumber('module')
+        ->name('admin.quiz.edit.module');
+    Route::post('/adm/voprosy/modul/{module}/{kind}', [AdminQuizController::class, 'save'])
+        ->whereNumber('module')
+        ->name('admin.quiz.save.module');
+    Route::get('/adm/voprosy/final-lab', [AdminQuizController::class, 'editFinal'])->name('admin.quiz.edit.final');
+    Route::post('/adm/voprosy/final-lab', [AdminQuizController::class, 'saveFinal'])->name('admin.quiz.save.final');
     Route::get('/adm/kurs-teoriya', [AdminTheoryController::class, 'index'])->name('admin.theory.index');
     Route::get('/adm/kurs-teoriya/vse-md.zip', [AdminTheoryController::class, 'downloadZip'])->name('admin.theory.zip');
     Route::post('/adm/kurs-teoriya/modul/{module}/container/start', [AdminTheoryController::class, 'startPracticeLabProbe'])

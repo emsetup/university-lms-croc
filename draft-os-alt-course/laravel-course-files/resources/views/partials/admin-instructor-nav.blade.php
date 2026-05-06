@@ -12,6 +12,8 @@
                    class="ai-nav__a @if ($active === 'panel') ai-nav__a--active @endif">Панель</a>
                 <a href="{{ route('admin.theory.index', ['key' => $navKey]) }}"
                    class="ai-nav__a @if ($active === 'theory') ai-nav__a--active @endif">Содержимое курса</a>
+                <a href="{{ route('admin.quiz.index', ['key' => $navKey]) }}"
+                   class="ai-nav__a @if ($active === 'quiz') ai-nav__a--active @endif">Вопросы тестов</a>
                 <a href="{{ route('teacher.course-report', ['key' => $navKey]) }}"
                    class="ai-nav__a @if ($active === 'learners') ai-nav__a--active @endif">Обучающиеся</a>
                 <a href="{{ route('admin.certificates', ['key' => $navKey]) }}"
