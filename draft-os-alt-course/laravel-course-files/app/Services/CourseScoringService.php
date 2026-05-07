@@ -73,7 +73,9 @@ final class CourseScoringService
         $contentIdx = $cm?->effectiveContentIndex() ?? 1;
 
         if ($cmId > 0 && $this->courseSections->useDbSectionsForModule($cmId)) {
-            return $this->courseSections->moduleProgressPercent($p, $cmId, $contentIdx);
+            $legacyAlt = $cm ? ($cm->relationLoaded('course') ? ($cm->course?->isLegacyAltCourse() ?? false) : ($cm->loadMissing('course:id,slug')->course?->isLegacyAltCourse() ?? false)) : false;
+
+            return $this->courseSections->moduleProgressPercent($p, $cmId, $contentIdx, (bool) $legacyAlt);
         }
 
         $skipPractice = CourseModuleMeta::shouldSkipPractice($contentIdx);

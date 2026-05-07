@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Course;
+use App\Models\CourseModule;
 use App\Models\CourseEnrollment;
 use App\Models\Learner;
 use App\Services\CourseScoringService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 final class PortalController extends Controller
@@ -16,6 +18,8 @@ final class PortalController extends Controller
     public function index(Request $request): View
     {
         $courses = Course::query()
+            ->where('is_published', true)
+            ->where('is_archived', false)
             ->orderBy('sort')
             ->orderBy('id')
             ->get();
@@ -35,10 +39,12 @@ final class PortalController extends Controller
                 $enrollmentsByCourseId[(int) $e->course_id] = $e;
             }
 
-            // Пока у нас один “контентный” курс (совместимость с текущей архитектурой модулей).
             foreach ($courses as $c) {
-                $progressByCourseId[(int) $c->id] = ($c->slug === 'alt-os-features')
-                    ? $this->scoring->certificateCoursePercent($learner)
+                $courseId = (int) $c->id;
+                $hasModules = Schema::hasTable('course_modules')
+                    && CourseModule::query()->where('course_id', $courseId)->exists();
+                $progressByCourseId[$courseId] = $hasModules
+                    ? $this->scoring->certificateCoursePercent($learner, $courseId)
                     : 0;
             }
         }

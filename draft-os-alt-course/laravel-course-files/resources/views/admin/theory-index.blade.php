@@ -24,6 +24,15 @@
         @if (session('ok'))
             <p style="padding:0.65rem 0.85rem;border-radius:6px;margin:0 0 1rem;background:rgba(22,101,52,0.1)">{{ session('ok') }}</p>
         @endif
+        @if (empty($rows) || count($rows) === 0)
+            <div class="card" style="margin:0 0 1rem;border-color:#fde68a;background:#fffbeb">
+                <div style="font-weight:800;color:#92400e;margin-bottom:0.25rem">Контент не настроен</div>
+                <div class="muted" style="line-height:1.5">
+                    Для этого курса пока нет модулей в базе данных, поэтому «Содержимое курса» не сформировано.
+                    Перейдите в <a href="{{ route('admin.course.settings', ['key' => $adminKey]) }}">«Настройки»</a> и создайте модули курса (и их разделы).
+                </div>
+            </div>
+        @endif
         <style>
             .theory-admin-table .atc-actions {
                 display: flex;
@@ -42,6 +51,7 @@
                 font-weight: 600;
             }
         </style>
+        @if (!empty($rows) && count($rows) > 0)
         <div style="overflow-x:auto">
             <table class="teacher-report-table theory-admin-table" style="width:100%;min-width:1040px">
                 <thead>
@@ -122,6 +132,15 @@
                                 @if ($r['practice_lab_docker_image'])
                                     @php($ls = $adminLabStates[$r['module']] ?? null)
                                     <code style="word-break:break-all;font-size:0.8rem">{{ $r['practice_lab_docker_image'] }}</code>
+                                    @php($st = is_array($imageStatsByImage[$r['practice_lab_docker_image']] ?? null) ? $imageStatsByImage[$r['practice_lab_docker_image']] : null)
+                                    @if ($st)
+                                        <div class="muted small" style="margin-top:0.25rem;line-height:1.35">
+                                            Размер: <strong>{{ $st['size_human'] ?? '—' }}</strong>
+                                            @if (! empty($st['layers_count']))
+                                                <span>· слоёв: <strong>{{ (int) $st['layers_count'] }}</strong></span>
+                                            @endif
+                                        </div>
+                                    @endif
                                     @if (! $isReadOnly)
                                         <div class="atc-actions" style="margin-top:0.5rem">
                                             @if ($ls && ! empty($ls['lab_id']))
@@ -177,11 +196,21 @@
             </div>
             @if (! empty($finalLabDockerImage))
                 <div class="muted small" style="margin-top:0.45rem">Образ: <code>{{ $finalLabDockerImage }}</code></div>
+                @php($fst = is_array($imageStatsByImage[$finalLabDockerImage] ?? null) ? $imageStatsByImage[$finalLabDockerImage] : null)
+                @if ($fst)
+                    <div class="muted small" style="margin-top:0.25rem;line-height:1.35">
+                        Размер: <strong>{{ $fst['size_human'] ?? '—' }}</strong>
+                        @if (! empty($fst['layers_count']))
+                            <span>· слоёв: <strong>{{ (int) $fst['layers_count'] }}</strong></span>
+                        @endif
+                    </div>
+                @endif
             @endif
         </div>
         <p class="muted small" style="margin-top: 1rem">Прямой адрес списка: <code>/adm/kurs-teoriya?key=…</code> (историческое имя пути сохранено). Общая панель: <code>/adm?key=…</code>.</p>
         </div>
     </div>
+        @endif
 
     <div class="course-modal admin-theory-preview-modal" id="admin-theory-preview-modal-root" aria-hidden="true">
         <div class="course-modal__backdrop" data-admin-theory-preview-close tabindex="-1"></div>

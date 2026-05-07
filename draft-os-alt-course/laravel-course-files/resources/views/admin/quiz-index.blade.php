@@ -26,6 +26,15 @@
     <div class="card" style="max-width:1200px;margin:0 auto">
         <h2 style="margin-top:0">Модули</h2>
         <div class="muted small" style="margin:0 0 0.75rem">Для каждого модуля доступны два банка: тест по теории и итоговый экзамен.</div>
+        @if (empty($rows) || count($rows) === 0)
+            <div class="card" style="border-color:#fde68a;background:#fffbeb">
+                <div style="font-weight:800;color:#92400e;margin-bottom:0.25rem">Вопросы не привязаны к курсу</div>
+                <div class="muted" style="line-height:1.5">
+                    Для этого курса пока нет модулей в базе данных, поэтому список банков вопросов не сформирован.
+                    Сначала создайте модули в <a href="{{ route('admin.course.settings', ['key' => $adminKey]) }}">«Настройках»</a>.
+                </div>
+            </div>
+        @else
         <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:separate;border-spacing:0">
                 <thead>
@@ -61,6 +70,7 @@
                 </tbody>
             </table>
         </div>
+        @endif
     </div>
 @endsection
 

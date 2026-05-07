@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Course;
 use App\Models\CourseModule;
 use App\Services\CourseScoringService;
 use App\Services\PracticeLabDaemonClient;
+use App\Services\PracticeLabService;
 use App\Support\AdminCourseContentInspector;
 use App\Support\CourseModuleMeta;
 use App\Support\CourseTheoryPaths;
@@ -22,36 +24,62 @@ class AdminTheoryController extends Controller
 {
     private const MAX_BYTES = 2_500_000;
     private const ADMIN_LAB_TTL_MINUTES = 120;
+    private const IMAGE_STATS_TTL_MINUTES = 720;
 
     public function index(Request $request): View
     {
         $key = (string) $request->query('key', '');
         $rows = [];
         $labStateMap = [];
+        $imageStatsByImage = [];
         $courseId = (int) session('admin_course_id');
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        $isAltCourse = $course && $course->isLegacyAltCourse();
         $useDbModules = $courseId > 0 && Schema::hasTable('course_modules')
             && CourseModule::query()->where('course_id', $courseId)->exists();
+
+        $client = PracticeLabDaemonClient::fromConfig();
+        $lab = PracticeLabService::make();
 
         if ($useDbModules) {
             foreach (CourseModule::query()->where('course_id', $courseId)->orderBy('sort')->orderBy('id')->get() as $ent) {
                 $m = $ent->effectiveContentIndex();
                 $title = $ent->title.' · пакет №'.$m;
-                $rows[] = $this->theoryIndexRow($m, $title);
+                $rows[] = $this->theoryIndexRow($m, $title, $isAltCourse, $ent, $lab);
                 $labStateMap[$m] = $this->adminLabState($key, $m);
             }
-        } else {
+        } elseif ($isAltCourse) {
             for ($m = 1; $m <= 9; $m++) {
-                $rows[] = $this->theoryIndexRow($m);
+                $rows[] = $this->theoryIndexRow($m, '', true, null, $lab);
                 $labStateMap[$m] = $this->adminLabState($key, $m);
+            }
+        }
+
+        $images = [];
+        foreach ($rows as $r) {
+            if (! empty($r['practice_lab_docker_image'])) {
+                $images[] = (string) $r['practice_lab_docker_image'];
+            }
+        }
+        $finalImg = $isAltCourse ? AdminCourseContentInspector::practiceLabDockerImageForModule(10) : null;
+        if ($finalImg) {
+            $images[] = $finalImg;
+        }
+        $images = array_values(array_unique(array_filter($images)));
+        if ($client && $images !== []) {
+            foreach ($images as $img) {
+                $imageStatsByImage[$img] = $this->cachedImageStats($client, $img);
             }
         }
 
         return view('admin.theory-index', [
             'adminKey' => $key,
             'rows' => $rows,
+            'selectedCourse' => $course,
             'adminLabStates' => $labStateMap,
             'finalLabState' => $this->adminLabState($key, 10),
-            'finalLabDockerImage' => AdminCourseContentInspector::practiceLabDockerImageForModule(10),
+            'finalLabDockerImage' => $finalImg,
+            'imageStatsByImage' => $imageStatsByImage,
             'isReadOnly' => $this->isReadOnlyAccess($request),
         ]);
     }
@@ -284,20 +312,20 @@ class AdminTheoryController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function theoryIndexRow(int $m, string $titleOverride = ''): array
+    private function theoryIndexRow(int $m, string $titleOverride = '', bool $legacyAlt = true, ?CourseModule $cm = null, ?PracticeLabService $lab = null): array
     {
-        $meta = config('course.modules.'.$m);
+        $meta = $legacyAlt ? config('course.modules.'.$m) : null;
         $title = $titleOverride !== ''
             ? $titleOverride
             : (is_array($meta) ? (string) ($meta['title'] ?? 'Модуль '.$m) : '—');
-        $ref = CourseTheoryPaths::rawTheoryReference($m);
-        $snippet = CourseTheoryPaths::snippetBasenameFromReference($ref);
-        $editable = $snippet !== null && CourseTheoryPaths::snippetBasenameTargetsModule($snippet, $m);
-        $tq = AdminCourseContentInspector::theoryQuizQuestions($m);
-        $ex = AdminCourseContentInspector::moduleExamQuestions($m);
-        $practiceMd = AdminCourseContentInspector::practiceMarkdown($m);
-        $dockerImage = AdminCourseContentInspector::practiceLabDockerImageForModule($m);
-        $theoryChars = AdminCourseContentInspector::theoryCharacterCount($m);
+        $ref = $legacyAlt ? CourseTheoryPaths::rawTheoryReference($m) : '';
+        $snippet = $legacyAlt ? CourseTheoryPaths::snippetBasenameFromReference($ref) : null;
+        $editable = $legacyAlt && $snippet !== null && CourseTheoryPaths::snippetBasenameTargetsModule($snippet, $m);
+        $tq = $legacyAlt ? AdminCourseContentInspector::theoryQuizQuestions($m) : [];
+        $ex = $legacyAlt ? AdminCourseContentInspector::moduleExamQuestions($m) : [];
+        $practiceMd = $legacyAlt ? AdminCourseContentInspector::practiceMarkdown($m) : '';
+        $dockerImage = ($cm && $lab) ? $lab->imageForCourseModule($cm, $m) : ($legacyAlt ? AdminCourseContentInspector::practiceLabDockerImageForModule($m) : null);
+        $theoryChars = $legacyAlt ? AdminCourseContentInspector::theoryCharacterCount($m) : 0;
 
         return [
             'module' => $m,
@@ -331,6 +359,29 @@ class AdminTheoryController extends Controller
     private function adminLabStateCacheKey(string $key, int $module): string
     {
         return 'admin_lab_probe:'.sha1($key).':'.$module;
+    }
+
+    private function imageStatsCacheKey(string $image): string
+    {
+        return 'admin_docker_image_stats:'.sha1($image);
+    }
+
+    private function cachedImageStats(PracticeLabDaemonClient $client, string $image): ?array
+    {
+        $key = $this->imageStatsCacheKey($image);
+        $cached = Cache::get($key);
+        if (is_array($cached)) {
+            return $cached;
+        }
+        try {
+            $data = $client->imageStats($image);
+            $ok = is_array($data) ? $data : null;
+        } catch (Throwable) {
+            $ok = null;
+        }
+        Cache::put($key, $ok, now()->addMinutes(self::IMAGE_STATS_TTL_MINUTES));
+
+        return $ok;
     }
 
     private function adminPseudoLearnerId(string $key): int

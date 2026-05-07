@@ -10,6 +10,7 @@ class FinalLabResult extends Model
 {
     protected $fillable = [
         'learner_id',
+        'course_id',
         'attempts',
         'passed',
         'best_score',
@@ -22,6 +23,7 @@ class FinalLabResult extends Model
     protected function casts(): array
     {
         return [
+            'course_id' => 'int',
             'passed' => 'boolean',
             'completed_at' => 'datetime',
             'certificate_issued_at' => 'datetime',

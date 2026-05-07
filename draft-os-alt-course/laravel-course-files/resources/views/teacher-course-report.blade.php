@@ -23,9 +23,21 @@
 
     <div class="tr-hero">
         <h1>Сводка прохождения курса</h1>
+        @if (! empty($courseTitle))
+            <p class="muted" style="margin:0.25rem 0 0">
+                Курс: <strong>{{ $courseTitle }}</strong>
+            </p>
+        @endif
         <p class="muted" style="margin:0">
             Доступ по секретной ссылке с параметром <code>key</code>. Сначала выберите обучающегося, затем модуль — внутри модуля отдельно тест по теории, практика и экзамен с попытками и возможностью сброса.
         </p>
+        @if (! empty($courseCounters))
+            <p class="muted small" style="margin:0.6rem 0 0;line-height:1.45">
+                Зачислено: <strong>{{ (int) $courseCounters['enrolled'] }}</strong> ·
+                Начали: <strong>{{ (int) $courseCounters['started'] }}</strong> ·
+                Завершили: <strong>{{ (int) $courseCounters['completed'] }}</strong>
+            </p>
+        @endif
         <p class="muted small" style="margin:0.5rem 0 0">
             <strong>Баллы за модуль:</strong> взвешенное среднее процентов теста по теории, практики и итогового теста (веса {{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_THEORY_QUIZ * 100) }}/{{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_PRACTICE * 100) }}/{{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_EXAM * 100) }}), максимум {{ \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE }} за модуль; сумма по курсу — до {{ \App\Services\CourseScoringService::moduleCount() * \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE }}; финальная лаба — до {{ \App\Services\CourseScoringService::MAX_FINAL_LAB_POINTS }}. «Итого курс» — модули + финал (макс. {{ \App\Services\CourseScoringService::moduleCount() * \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE + \App\Services\CourseScoringService::MAX_FINAL_LAB_POINTS }}).
         </p>

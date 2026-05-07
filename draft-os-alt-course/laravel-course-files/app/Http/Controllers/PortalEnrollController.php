@@ -16,6 +16,9 @@ final class PortalEnrollController extends Controller
         }
 
         $c = Course::query()->findOrFail($course);
+        if (! $c->is_published || $c->is_archived) {
+            return redirect()->route('portal')->with('err', 'Этот курс недоступен для обучения.');
+        }
 
         $enroll = CourseEnrollment::query()->firstOrCreate(
             ['course_id' => $c->id, 'learner_id' => (int) session('learner_id')],

@@ -57,12 +57,12 @@ final class CourseSectionService
     /**
      * @return list<string>
      */
-    public function orderedBackendKeys(int $courseModuleId, int $contentSourceIndex): array
+    public function orderedBackendKeys(int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): array
     {
         $out = [];
         foreach ($this->enabledSectionsForCourseModule($courseModuleId) as $sec) {
             $bk = $sec->backendStepKey();
-            if ($bk === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex)) {
+            if ($bk === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)) {
                 continue;
             }
             $out[] = $bk;
@@ -71,10 +71,13 @@ final class CourseSectionService
         return $out;
     }
 
-    public function isPracticeWaived(int $courseModuleId, int $contentSourceIndex): bool
+    public function isPracticeWaived(int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): bool
     {
         if (! $this->hasBackendStep($courseModuleId, 'practice')) {
             return true;
+        }
+        if (! $legacyAlt) {
+            return false;
         }
 
         return CourseModuleMeta::shouldSkipPractice($contentSourceIndex);
@@ -169,11 +172,13 @@ final class CourseSectionService
         return (bool) ($sec ? ($this->mergedSettings($sec)['shuffle'] ?? false) : false);
     }
 
-    public function examTimeLimitMinutes(int $courseModuleId, int $contentSourceIndex): int
+    public function examTimeLimitMinutes(int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): int
     {
-        $fromConfig = config('course.modules.'.$contentSourceIndex.'.module_exam_time_limit_minutes');
-        if (is_numeric($fromConfig) && (int) $fromConfig > 0) {
-            return (int) $fromConfig;
+        if ($legacyAlt) {
+            $fromConfig = config('course.modules.'.$contentSourceIndex.'.module_exam_time_limit_minutes');
+            if (is_numeric($fromConfig) && (int) $fromConfig > 0) {
+                return (int) $fromConfig;
+            }
         }
         $sec = $this->findSectionByBackendKey($courseModuleId, 'module_exam');
         $v = $sec ? ($this->mergedSettings($sec)['time_limit_minutes'] ?? null) : null;
@@ -222,31 +227,16 @@ final class CourseSectionService
         return (bool) ($this->mergedSettings($sec)['one_by_one'] ?? true);
     }
 
-    public function isStepComplete(ModuleProgress $p, string $backendKey, int $courseModuleId, int $contentSourceIndex): bool
+    public function firstBlockedPrerequisite(ModuleProgress $p, int $courseModuleId, int $contentSourceIndex, string $targetBackendKey, bool $legacyAlt = true): ?string
     {
-        if ($backendKey === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex)) {
-            return true;
-        }
-
-        return match ($backendKey) {
-            'theory' => (bool) $p->theory_read_at,
-            'theory_quiz' => (bool) $p->theory_quiz_passed,
-            'practice' => (bool) $p->practice_done_at,
-            'module_exam' => (bool) $p->module_exam_passed,
-            default => false,
-        };
-    }
-
-    public function firstBlockedPrerequisite(ModuleProgress $p, int $courseModuleId, int $contentSourceIndex, string $targetBackendKey): ?string
-    {
-        $order = $this->orderedBackendKeys($courseModuleId, $contentSourceIndex);
+        $order = $this->orderedBackendKeys($courseModuleId, $contentSourceIndex, $legacyAlt);
         $idx = array_search($targetBackendKey, $order, true);
         if ($idx === false) {
             return null;
         }
         for ($i = 0; $i < (int) $idx; $i++) {
             $step = $order[$i];
-            if (! $this->isStepComplete($p, $step, $courseModuleId, $contentSourceIndex)) {
+            if (! $this->isStepComplete($p, $step, $courseModuleId, $contentSourceIndex, $legacyAlt)) {
                 return $step;
             }
         }
@@ -257,24 +247,39 @@ final class CourseSectionService
     /**
      * @return list<string>
      */
-    public function progressBackendKeys(int $courseModuleId, int $contentSourceIndex): array
+    public function progressBackendKeys(int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): array
     {
-        return $this->orderedBackendKeys($courseModuleId, $contentSourceIndex);
+        return $this->orderedBackendKeys($courseModuleId, $contentSourceIndex, $legacyAlt);
     }
 
-    public function moduleProgressPercent(ModuleProgress $p, int $courseModuleId, int $contentSourceIndex): int
+    public function moduleProgressPercent(ModuleProgress $p, int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): int
     {
-        $keys = $this->progressBackendKeys($courseModuleId, $contentSourceIndex);
+        $keys = $this->progressBackendKeys($courseModuleId, $contentSourceIndex, $legacyAlt);
         if ($keys === []) {
             return 0;
         }
         $done = 0;
         foreach ($keys as $bk) {
-            if ($this->isStepComplete($p, $bk, $courseModuleId, $contentSourceIndex)) {
+            if ($this->isStepComplete($p, $bk, $courseModuleId, $contentSourceIndex, $legacyAlt)) {
                 $done++;
             }
         }
 
         return (int) round(100 * $done / count($keys));
+    }
+
+    public function isStepComplete(ModuleProgress $p, string $backendKey, int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): bool
+    {
+        if ($backendKey === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)) {
+            return true;
+        }
+
+        return match ($backendKey) {
+            'theory' => (bool) $p->theory_read_at,
+            'theory_quiz' => (bool) $p->theory_quiz_passed,
+            'practice' => (bool) $p->practice_done_at,
+            'module_exam' => (bool) $p->module_exam_passed,
+            default => false,
+        };
     }
 }

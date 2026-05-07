@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\CourseModule;
+use App\Models\CourseModulePracticeSetting;
+use App\Models\PracticeImage;
 use App\Models\Learner;
 use App\Models\PracticeSession;
 use App\Support\PracticeCheckOutputParser;
@@ -48,16 +51,45 @@ final class PracticeLabService
     }
 
     /**
+     * Образ для конкретного course_module (DB) с fallback на legacy config(practice_lab.images) по contentIdx.
+     */
+    public function imageForCourseModule(CourseModule $cm, int $contentIdx): ?string
+    {
+        if (class_exists(CourseModulePracticeSetting::class) && class_exists(PracticeImage::class)) {
+            $setting = CourseModulePracticeSetting::query()
+                ->where('course_module_id', (int) $cm->id)
+                ->first();
+            if ($setting && (int) ($setting->practice_image_id ?? 0) > 0) {
+                $tag = (string) PracticeImage::query()
+                    ->where('id', (int) $setting->practice_image_id)
+                    ->value('docker_tag');
+                if ($tag !== '') {
+                    return $tag;
+                }
+            }
+        }
+        // Legacy-fallback допустим только для ALT-курса (чтобы курсы не пересекались по docker-образам).
+        $course = $cm->relationLoaded('course')
+            ? $cm->course
+            : $cm->loadMissing('course:id,slug')->course;
+        if (! ($course instanceof \App\Models\Course) || ! $course->isLegacyAltCourse()) {
+            return null;
+        }
+
+        return $this->imageForModule($contentIdx);
+    }
+
+    /**
      * @param  int  $sessionModuleId  строка practice_sessions (course_modules.id или 0 для финальной лабы)
      * @param  int  $daemonImageKey  ключ в practice_lab.images и для lab-daemon (content_source_index или 10)
      * @return array{session: PracticeSession, message?: string}
      */
-    public function startLab(Learner $learner, int $courseId, int $sessionModuleId, int $daemonImageKey): array
+    public function startLab(Learner $learner, int $courseId, int $sessionModuleId, int $daemonImageKey, ?string $imageOverride = null): array
     {
         if (! $this->isConfigured()) {
             return ['session' => $this->getOrCreateSessionModel($learner, $courseId, $sessionModuleId), 'message' => 'Лаборатория отключена в конфигурации.'];
         }
-        $image = $this->imageForModule($daemonImageKey);
+        $image = $imageOverride !== null ? $imageOverride : $this->imageForModule($daemonImageKey);
         if ($image === null || $image === '') {
             return ['session' => $this->getOrCreateSessionModel($learner, $courseId, $sessionModuleId), 'message' => 'Для этого модуля не задан Docker-образ.'];
         }

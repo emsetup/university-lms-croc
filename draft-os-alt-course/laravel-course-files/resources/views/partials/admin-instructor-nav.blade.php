@@ -7,11 +7,39 @@
     $isCoursePicker = request()->routeIs('admin.courses.index');
     $isPortalPanel = request()->routeIs('admin.panel') || $isCoursePicker || request()->routeIs('admin.learners.portal');
     $settingsNavActive = $active === 'settings' || request()->routeIs('admin.course.module.*');
+
+    $currentLabel = '';
+    if ($active === 'panel' || request()->routeIs('admin.panel')) $currentLabel = 'Панель';
+    elseif ($active === 'courses' || $isCoursePicker || request()->routeIs('admin.courses.*')) $currentLabel = 'Курсы';
+    elseif ($active === 'learners_portal' || request()->routeIs('admin.learners.portal')) $currentLabel = 'Обучающиеся';
+    elseif ($active === 'practice' || request()->routeIs('admin.practice.*')) $currentLabel = 'Практики';
+    elseif ($settingsNavActive || request()->routeIs('admin.course.settings')) $currentLabel = 'Настройки';
+    elseif ($active === 'theory' || request()->routeIs('admin.theory.*')) $currentLabel = 'Содержимое курса';
+    elseif ($active === 'quiz' || request()->routeIs('admin.quiz.*')) $currentLabel = 'Вопросы тестов';
+    elseif ($active === 'learners_course' || request()->routeIs('admin.learners.course')) $currentLabel = 'Обучающиеся курса';
+    elseif ($active === 'certificates' || request()->routeIs('admin.certificates*')) $currentLabel = 'Сертификаты';
 @endphp
 @if ($navKey !== '')
     <nav class="ai-nav" aria-label="Панель администратора курса">
         <div class="ai-nav__inner">
-            <span class="ai-nav__brand">Админ портала@if($hasAdminCourse && ! $isPortalPanel) · {{ $adminCourseTitle }}@endif</span>
+            <div class="ai-nav__crumbs ai-nav__crumbs--top" aria-label="Хлебные крошки">
+                <a class="ai-nav__crumb" href="{{ route('admin.panel', ['key' => $navKey]) }}">Админ портала</a>
+                @if ($hasAdminCourse && ! $isPortalPanel)
+                    <span class="ai-nav__sep">·</span>
+                    <a class="ai-nav__crumb" href="{{ route('admin.courses.index', ['key' => $navKey]) }}">Курсы</a>
+                    <span class="ai-nav__sep">·</span>
+                    <a class="ai-nav__crumb" href="{{ route('admin.theory.index', ['key' => $navKey]) }}">{{ $adminCourseTitle }}</a>
+                    @if ($currentLabel !== '')
+                        <span class="ai-nav__sep">·</span>
+                        <span class="ai-nav__crumb ai-nav__crumb--current">{{ $currentLabel }}</span>
+                    @endif
+                @else
+                    @if ($currentLabel !== '' && $currentLabel !== 'Панель')
+                        <span class="ai-nav__sep">·</span>
+                        <span class="ai-nav__crumb ai-nav__crumb--current">{{ $currentLabel }}</span>
+                    @endif
+                @endif
+            </div>
             <div class="ai-nav__links">
                 <a href="{{ route('admin.panel', ['key' => $navKey]) }}"
                    class="ai-nav__a @if ($active === 'panel') ai-nav__a--active @endif">Панель</a>
@@ -24,6 +52,8 @@
                 @if ($hasAdminCourse && ! $isPortalPanel)
                     <a href="{{ route('admin.course.settings', ['key' => $navKey]) }}"
                        class="ai-nav__a @if ($settingsNavActive) ai-nav__a--active @endif">Настройки</a>
+                    <a href="{{ route('admin.practice.images.index', ['key' => $navKey]) }}"
+                       class="ai-nav__a @if ($active === 'practice') ai-nav__a--active @endif">Практики</a>
                     <a href="{{ route('admin.theory.index', ['key' => $navKey]) }}"
                        class="ai-nav__a @if ($active === 'theory') ai-nav__a--active @endif">Содержимое курса</a>
                     <a href="{{ route('admin.quiz.index', ['key' => $navKey]) }}"
@@ -52,12 +82,6 @@
             align-items: center;
             gap: 0.65rem 1rem;
             justify-content: space-between;
-        }
-        .ai-nav__brand {
-            font-weight: 700;
-            font-size: 0.95rem;
-            color: var(--text, #0f172a);
-            letter-spacing: 0.01em;
         }
         .ai-nav__links {
             display: flex;
@@ -90,6 +114,37 @@
         }
         .ai-nav__a--external:hover {
             color: var(--accent, #0a7);
+        }
+        .ai-nav__crumbs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            align-items: center;
+            font-size: 0.82rem;
+            color: var(--muted, #5c6b76);
+        }
+        .ai-nav__crumbs--top {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text, #0f172a);
+            letter-spacing: 0.01em;
+        }
+        .ai-nav__crumb {
+            color: inherit;
+            text-decoration: none;
+            border-bottom: 1px dashed transparent;
+        }
+        .ai-nav__crumb:hover {
+            color: var(--accent, #0a7);
+            border-bottom-color: rgba(10, 119, 85, 0.45);
+            text-decoration: none;
+        }
+        .ai-nav__crumb--current {
+            color: var(--text, #0f172a);
+            font-weight: 700;
+        }
+        .ai-nav__sep {
+            opacity: 0.65;
         }
     </style>
 @endif

@@ -7,16 +7,24 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class Course extends Model
 {
+    public function isLegacyAltCourse(): bool
+    {
+        // Единственный курс, который продолжает жить на legacy-контенте из config/course.php и config/snippets.
+        return $this->slug === 'alt-os-features';
+    }
+
     protected $fillable = [
         'slug',
         'title',
         'summary',
         'is_published',
+        'is_archived',
         'sort',
     ];
 
     protected $casts = [
         'is_published' => 'bool',
+        'is_archived' => 'bool',
         'sort' => 'int',
     ];
 

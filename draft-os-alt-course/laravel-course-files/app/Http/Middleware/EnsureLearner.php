@@ -19,7 +19,8 @@ class EnsureLearner
 
         $learner = Learner::find($id);
         if (! $learner) {
-            session()->forget('learner_id');
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
 
             return redirect()->route('portal', ['login' => 1]);
         }

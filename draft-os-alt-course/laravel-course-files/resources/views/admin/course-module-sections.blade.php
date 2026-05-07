@@ -6,7 +6,13 @@
     <div class="card" style="max-width:960px;margin:0 auto 1rem">
         @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'settings'])
         <p class="muted" style="margin:0 0 0.5rem"><a href="{{ route('admin.course.settings', ['key' => $adminKey]) }}">← Все модули</a></p>
-        <h1 style="margin:0 0 0.35rem">Разделы: {{ $courseModule->title }}</h1>
+        <div style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;justify-content:space-between">
+            <h1 style="margin:0">Разделы: {{ $courseModule->title }}</h1>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
+                <a class="btn btn-ghost" href="{{ route('admin.course.module.content.edit', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}">Контент (БД)</a>
+                <a class="btn btn-ghost" href="{{ route('admin.course.module.practice', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}">Практика (Docker)</a>
+            </div>
+        </div>
         <p class="muted small" style="margin:0;line-height:1.5">
             Пакет контента <strong>№{{ $courseModule->effectiveContentIndex() }}</strong> —
             <a href="{{ route('admin.theory.edit', ['module' => $courseModule->effectiveContentIndex(), 'key' => $adminKey]) }}">теория и сниппеты</a>,

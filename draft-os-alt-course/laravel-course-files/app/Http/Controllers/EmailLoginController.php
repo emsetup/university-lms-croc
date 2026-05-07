@@ -40,6 +40,12 @@ class EmailLoginController extends Controller
 
         $email = strtolower((string) $request->input('email'));
         $learner = Learner::firstOrCreate(['email' => $email]);
+        $currentLearnerId = (int) session('learner_id', 0);
+        if ($currentLearnerId > 0 && $currentLearnerId !== (int) $learner->id) {
+            // В одном браузере могла остаться сессия прошлого обучающегося (активные дедлайны и т.п.).
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
         session(['learner_id' => $learner->id]);
 
         return redirect()->route('portal');
@@ -47,9 +53,8 @@ class EmailLoginController extends Controller
 
     public function logout(Request $request): RedirectResponse
     {
-        session()->forget('learner_id');
-        session()->forget('course_id');
-        session()->forget('course_title');
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return redirect()->route('portal');
     }

@@ -25,8 +25,11 @@ class TeacherCourseReportController extends Controller
 
     public function index(): View
     {
+        $courseId = (int) Course::query()->where('slug', 'alt-os-features')->value('id');
         return view('teacher-course-report', [
-            'learnerRows' => $this->analytics->learnerRows(),
+            'courseTitle' => 'Особенности ОС «Альт»',
+            'courseCounters' => $courseId > 0 ? $this->analytics->courseCounters($courseId) : null,
+            'learnerRows' => $courseId > 0 ? $this->analytics->learnerRows($courseId) : [],
         ]);
     }
 
@@ -39,7 +42,7 @@ class TeacherCourseReportController extends Controller
 
         return view('teacher-learner-profile', [
             'learner' => $l,
-            'summaryRow' => $this->analytics->rowForLearner($l),
+            'summaryRow' => $this->analytics->rowForLearner($l, $courseId),
             'moduleReport' => $this->scoring->moduleReport($l, $courseId),
             'modulePanels' => $this->learnerDetail->modulePanels($l),
         ]);
@@ -57,7 +60,7 @@ class TeacherCourseReportController extends Controller
             'learner' => $l,
             'module' => $module,
             'panel' => $panel,
-            'summaryRow' => $this->analytics->rowForLearner($l),
+            'summaryRow' => $this->analytics->rowForLearner($l, $this->learnerCourseId($l)),
         ]);
     }
 

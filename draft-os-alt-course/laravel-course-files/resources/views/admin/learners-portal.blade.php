@@ -6,7 +6,7 @@
     <div class="card" style="max-width:1200px;margin:0 auto 1rem">
         @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'learners_portal'])
         <h1 style="margin:0 0 0.35rem">Обучающиеся (все курсы)</h1>
-        <p class="muted" style="margin:0;line-height:1.5">Сводка по программам: сколько обучающихся зачислено и сколько начали обучение.</p>
+        <p class="muted" style="margin:0;line-height:1.5">Сводка по программам: сколько участников и сколько завершили (сертификат).</p>
     </div>
 
     <div class="card" style="max-width:1200px;margin:0 auto">
@@ -15,8 +15,8 @@
                 <thead>
                 <tr>
                     <th style="text-align:left;padding:0.6rem 0.75rem;border-bottom:1px solid #e2e8f0">Курс</th>
-                    <th style="text-align:left;padding:0.6rem 0.75rem;border-bottom:1px solid #e2e8f0">Зачислено</th>
-                    <th style="text-align:left;padding:0.6rem 0.75rem;border-bottom:1px solid #e2e8f0">Начали</th>
+                    <th style="text-align:left;padding:0.6rem 0.75rem;border-bottom:1px solid #e2e8f0">Участников</th>
+                    <th style="text-align:left;padding:0.6rem 0.75rem;border-bottom:1px solid #e2e8f0">Завершили</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -30,7 +30,7 @@
                             <div class="muted small">slug: <code>{{ $c['slug'] }}</code></div>
                         </td>
                         <td style="padding:0.6rem 0.75rem;border-bottom:1px solid #f1f5f9"><strong>{{ (int) $c['enrolled'] }}</strong></td>
-                        <td style="padding:0.6rem 0.75rem;border-bottom:1px solid #f1f5f9"><strong>{{ (int) $c['started'] }}</strong></td>
+                        <td style="padding:0.6rem 0.75rem;border-bottom:1px solid #f1f5f9"><strong>{{ (int) $c['completed'] }}</strong></td>
                     </tr>
                 @endforeach
                 </tbody>

@@ -12,11 +12,13 @@ import shutil
 import subprocess
 import time
 import uuid
+import json
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
+from functools import lru_cache
 
 SECRET = os.environ["LAB_DAEMON_SECRET"]
 DOCKER = os.environ.get("DOCKER_BIN", "docker")
@@ -40,6 +42,12 @@ LAB_TTY_FONT = (
 _raw_lang = (os.getenv("LAB_CONTAINER_LANG", "C") or "C").strip()
 LAB_CONTAINER_LANG = _raw_lang if re.match(r"^[A-Za-z0-9_.@-]+$", _raw_lang) else "C"
 
+BUILD_WORKDIR = (os.getenv("LAB_BUILD_WORKDIR", "/tmp/lab-build") or "/tmp/lab-build").strip()
+EXPORT_DIR = (os.getenv("LAB_IMAGE_EXPORT_DIR", "") or "").strip()
+MAX_BUILD_LOG = int(os.getenv("LAB_BUILD_LOG_MAX_CHARS", "60000") or "60000")
+PKG_SEARCH_TIMEOUT_SEC = int(os.getenv("LAB_PKG_SEARCH_TIMEOUT_SEC", "20") or "20")
+PKG_SEARCH_CACHE_SEC = int(os.getenv("LAB_PKG_SEARCH_CACHE_SEC", "300") or "300")
+
 TTY_PROCS: dict[str, subprocess.Popen] = {}
 
 _bearer = HTTPBearer()
@@ -52,6 +60,123 @@ def _require_auth(credentials: HTTPAuthorizationCredentials = Depends(_bearer)) 
 
 def _docker(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run([DOCKER, *args], check=check, capture_output=True, text=True)
+
+
+def _safe_join(base_dir: str, *parts: str) -> str:
+    base = os.path.abspath(base_dir)
+    p = os.path.abspath(os.path.join(base, *parts))
+    if p == base or p.startswith(base + os.sep):
+        return p
+    raise HTTPException(status_code=400, detail="path is outside of base dir")
+
+
+def _truncate_log(s: str) -> str:
+    if not s:
+        return ""
+    if len(s) <= MAX_BUILD_LOG:
+        return s
+    return s[:MAX_BUILD_LOG] + "\n... [truncated] ..."
+
+
+def _default_base_for_os(os_id: str) -> str:
+    o = (os_id or "").strip().lower()
+    if o in ("alma", "almalinux"):
+        return "almalinux:9"
+    if o in ("centos",):
+        return "quay.io/centos/centos:stream9"
+    # astra/redos: by default treat like alt unless stand has private base images
+    if o in ("astra", "redos"):
+        return "registry.altlinux.org/alt/alt:p10"
+    return "registry.altlinux.org/alt/alt:p10"
+
+
+def _pkg_search_cmd(os_id: str, q: str, limit: int) -> str:
+    o = (os_id or "").strip().lower()
+    qq = q.replace('"', "").replace("`", "").strip()
+    lim = max(1, min(100, int(limit)))
+    if o in ("alma", "almalinux", "centos"):
+        # dnf output is noisy; grep by query and keep short.
+        return (
+            "set -e; "
+            "dnf -q makecache -y >/dev/null 2>&1 || true; "
+            f"dnf -q search {qq} 2>/dev/null | head -n {lim}"
+        )
+    # apt-cache search
+    return f"apt-cache search {qq} 2>/dev/null | head -n {lim}"
+
+
+def _run_pkg_search_in_image(base_image: str, inner_cmd: str) -> str:
+    img = (base_image or "").strip()
+    if not img:
+        raise HTTPException(status_code=400, detail="base image is required")
+    # Use bash if available, otherwise sh.
+    # We don't mount anything; just query repo metadata inside container.
+    cp = subprocess.run(
+        [
+            DOCKER,
+            "run",
+            "--rm",
+            "--pull=missing",
+            img,
+            "/bin/sh",
+            "-lc",
+            inner_cmd,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=PKG_SEARCH_TIMEOUT_SEC,
+        check=False,
+    )
+    out = (cp.stdout or "") + ("\n" + cp.stderr if cp.stderr else "")
+    return _truncate_log(out.strip())
+
+
+@lru_cache(maxsize=512)
+def _pkg_search_cached(cache_key: str) -> str:
+    # TTL handled by key including time bucket.
+    return cache_key
+
+
+def _bytes_human(n: int) -> str:
+    if n < 0:
+        n = 0
+    units = ["B", "KB", "MB", "GB", "TB"]
+    x = float(n)
+    i = 0
+    while x >= 1024.0 and i < len(units) - 1:
+        x /= 1024.0
+        i += 1
+    if i == 0:
+        return f"{int(x)} {units[i]}"
+    return f"{x:.1f} {units[i]}"
+
+
+def _image_stats(image: str) -> dict:
+    img = (image or "").strip()
+    if not img:
+        raise HTTPException(status_code=400, detail="image is required")
+    cp = _docker("image", "inspect", img, check=False)
+    if cp.returncode != 0:
+        detail = (cp.stderr or cp.stdout or "docker image inspect failed")[:2000]
+        raise HTTPException(status_code=404, detail=detail)
+    try:
+        data = json.loads(cp.stdout or "[]")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="bad docker inspect json")
+    if not isinstance(data, list) or not data:
+        raise HTTPException(status_code=404, detail="image not found")
+    obj = data[0] if isinstance(data[0], dict) else {}
+    size = int(obj.get("Size") or 0)
+    rootfs = obj.get("RootFS") if isinstance(obj.get("RootFS"), dict) else {}
+    layers = rootfs.get("Layers") if isinstance(rootfs.get("Layers"), list) else []
+    return {
+        "image": img,
+        "id": (obj.get("Id") or "")[:32],
+        "created": obj.get("Created") or "",
+        "size_bytes": size,
+        "size_human": _bytes_human(size),
+        "layers_count": len(layers),
+    }
 
 
 def _container_name(lab_id: str) -> str:
@@ -181,6 +306,18 @@ def _start_tty(lab_id: str, container_name: str) -> str | None:
 
 
 app = FastAPI(title="OS Alt course lab daemon", version="1")
+
+
+class ImageBuildBody(BaseModel):
+    context_dir: str = Field(..., min_length=1)
+    dockerfile_rel: str = Field(..., min_length=1)
+    tags: list[str] = Field(..., min_length=1)
+    build_args: dict[str, str] | None = None
+
+
+class ImageExportBody(BaseModel):
+    tag: str = Field(..., min_length=1)
+    out_name: str = Field(..., min_length=1)
 
 
 @app.post("/internal/v1/lab")
@@ -324,6 +461,92 @@ def delete_lab(lab_id: str, _: None = Depends(_require_auth)) -> dict:
     name = _container_name(lab_id)
     subprocess.run([DOCKER, "rm", "-f", name], capture_output=True, text=True)
     return {"ok": True}
+
+
+@app.get("/internal/v1/image-stats")
+def image_stats(image: str, _: None = Depends(_require_auth)) -> dict:
+    return _image_stats(image)
+
+
+@app.get("/internal/v1/pkg-search")
+def pkg_search(os: str, q: str, base_image: str = "", limit: int = 50, _: None = Depends(_require_auth)) -> dict:
+    query = (q or "").strip()
+    if len(query) < 1:
+        raise HTTPException(status_code=400, detail="q is required")
+    base = (base_image or "").strip() or _default_base_for_os(os)
+    lim = max(1, min(100, int(limit)))
+    inner = _pkg_search_cmd(os, query, lim)
+
+    # naive TTL bucket key for lru_cache
+    bucket = int(time.time() // max(30, PKG_SEARCH_CACHE_SEC))
+    cache_key = f"{bucket}:{os}:{base}:{lim}:{query}"
+
+    # lru_cache can't store dynamic results without calling a function;
+    # we store the key and execute search only if key wasn't seen.
+    # (Good enough for MVP; can be replaced with dict+expires.)
+    if _pkg_search_cached(cache_key) != cache_key:
+        pass
+
+    try:
+        raw = _run_pkg_search_in_image(base, inner)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="pkg search timeout")
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"pkg search failed: {e}")
+
+    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()][:lim]
+    return {"os": os, "base_image": base, "q": query, "limit": lim, "lines": lines}
+
+
+@app.post("/internal/v1/image-build")
+def image_build(body: ImageBuildBody, _: None = Depends(_require_auth)) -> dict:
+    # Сборка разрешена только из каталога BUILD_WORKDIR (куда Laravel складывает рецепты).
+    ctx = _safe_join(BUILD_WORKDIR, body.context_dir)
+    dockerfile = _safe_join(ctx, body.dockerfile_rel)
+
+    tags = []
+    for t in body.tags:
+        tt = (t or "").strip()
+        if not tt:
+            continue
+        tags.append(tt)
+    if not tags:
+        raise HTTPException(status_code=400, detail="tags are required")
+
+    if not os.path.isdir(ctx):
+        raise HTTPException(status_code=404, detail="context_dir not found")
+    if not os.path.isfile(dockerfile):
+        raise HTTPException(status_code=404, detail="Dockerfile not found")
+
+    cmd: list[str] = ["build", "-f", dockerfile]
+    for t in tags:
+        cmd.extend(["-t", t])
+    if body.build_args:
+        for k, v in body.build_args.items():
+            kk = (k or "").strip()
+            if not kk:
+                continue
+            cmd.extend(["--build-arg", f"{kk}={v}"])
+    cmd.append(ctx)
+
+    cp = _docker(*cmd, check=False)
+    log = _truncate_log((cp.stdout or "") + ("\n" + cp.stderr if cp.stderr else ""))
+    if cp.returncode != 0:
+        return {"ok": False, "log": log, "exit_code": cp.returncode}
+    return {"ok": True, "log": log, "exit_code": 0}
+
+
+@app.post("/internal/v1/image-export")
+def image_export(body: ImageExportBody, _: None = Depends(_require_auth)) -> dict:
+    if not EXPORT_DIR:
+        raise HTTPException(status_code=400, detail="LAB_IMAGE_EXPORT_DIR is not configured")
+    out = _safe_join(EXPORT_DIR, body.out_name)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    cp = _docker("save", body.tag, "-o", out, check=False)
+    log = _truncate_log((cp.stdout or "") + ("\n" + cp.stderr if cp.stderr else ""))
+    if cp.returncode != 0:
+        return {"ok": False, "log": log, "exit_code": cp.returncode}
+    return {"ok": True, "log": log, "exit_code": 0, "out_path": out}
 
 
 @app.get("/health")

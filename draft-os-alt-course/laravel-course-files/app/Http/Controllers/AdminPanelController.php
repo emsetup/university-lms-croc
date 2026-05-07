@@ -25,11 +25,13 @@ class AdminPanelController extends Controller
     public function certificates(Request $request): ViewContract
     {
         $adminKey = (string) $request->query('key', '');
+        $courseId = (int) session('admin_course_id', 0);
 
         $items = FinalLabResult::query()
             ->with('learner:id,email')
             ->whereNotNull('certificate_full_name')
             ->whereNotNull('certificate_serial')
+            ->when($courseId > 0, fn ($q) => $q->where('course_id', $courseId))
             ->orderByDesc('certificate_issued_at')
             ->orderByDesc('id')
             ->paginate(50)
@@ -56,7 +58,7 @@ class AdminPanelController extends Controller
         $adminKey = (string) $request->query('key', '');
         $result->loadMissing('learner');
         $result->learner->loadMissing('moduleProgresses');
-        $certCoursePercent = $scoring->certificateCoursePercent($result->learner);
+        $certCoursePercent = $scoring->certificateCoursePercent($result->learner, (int) ($result->course_id ?? 0) ?: null);
 
         return view('admin.certificate-preview', [
             'adminKey' => $adminKey,

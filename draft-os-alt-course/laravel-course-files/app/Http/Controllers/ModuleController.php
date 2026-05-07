@@ -8,6 +8,7 @@ use App\Models\ModuleProgress;
 use App\Models\PracticeSession;
 use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
+use App\Services\CourseContentService;
 use App\Services\CourseSectionService;
 use App\Services\ModuleAccessGate;
 use App\Services\PracticeLabService;
@@ -24,7 +25,18 @@ class ModuleController extends Controller
         private ModuleAccessGate $accessGate,
         private CourseSectionService $sectionService,
         private CourseModuleService $courseModules,
+        private CourseContentService $courseContent,
     ) {}
+
+    private function theoryQuizDeadlineKey(int $learnerId, int $courseModuleId): string
+    {
+        return 'theory_quiz_deadline_l'.$learnerId.'_m'.$courseModuleId;
+    }
+
+    private function theoryQuizWallStartKey(int $learnerId, int $courseModuleId): string
+    {
+        return 'theory_quiz_wall_start_l'.$learnerId.'_m'.$courseModuleId;
+    }
 
     private function courseModuleOrAbort(int $courseModuleId): CourseModule
     {
@@ -43,7 +55,26 @@ class ModuleController extends Controller
      */
     protected function questions(int $contentSourceIndex, string $kind): array
     {
-        return config('course.module_quizzes.'.$contentSourceIndex.'.'.$kind, []);
+        // Банки вопросов в legacy-конфиге есть только у ALT-курса.
+        if ($this->courseModules->selectedCourseIsLegacyAlt()) {
+            return config('course.module_quizzes.'.$contentSourceIndex.'.'.$kind, []);
+        }
+
+        $courseId = (int) session('course_id', 0);
+        if ($courseId < 1) {
+            return [];
+        }
+        $cm = $this->courseModuleOrAbort((int) request()->route('module'));
+        $course = $cm->relationLoaded('course') ? $cm->course : $cm->loadMissing('course:id,slug')->course;
+        if (! ($course instanceof \App\Models\Course)) {
+            return [];
+        }
+        $bank = $this->courseContent->quizBankFor($course, $cm, $kind);
+        if (! $bank) {
+            return [];
+        }
+
+        return $this->courseContent->questionsForBank($bank);
     }
 
     /**
@@ -54,11 +85,12 @@ class ModuleController extends Controller
         $courseId = (int) session('course_id', 0);
         $courseModuleId = (int) $cm->id;
         $idx = $cm->effectiveContentIndex();
+        $legacyAlt = $this->courseModules->selectedCourseIsLegacyAlt();
         if ($courseId > 0 && Schema::hasTable('course_sections')
             && $this->sectionService->useDbSectionsForModule($courseModuleId)) {
-            return $this->sectionService->examTimeLimitMinutes($courseModuleId, $idx);
+            return $this->sectionService->examTimeLimitMinutes($courseModuleId, $idx, $legacyAlt);
         }
-        $v = config('course.modules.'.$idx.'.module_exam_time_limit_minutes');
+        $v = $legacyAlt ? config('course.modules.'.$idx.'.module_exam_time_limit_minutes') : null;
 
         return (is_numeric($v) && (int) $v > 0)
             ? (int) $v
@@ -340,11 +372,12 @@ class ModuleController extends Controller
         $hubPresent = null;
         if ($courseId > 0 && Schema::hasTable('course_sections')
             && $this->sectionService->useDbSectionsForModule($module)) {
+            $legacyAlt = $this->courseModules->selectedCourseIsLegacyAlt();
             $hubPresent = [];
             foreach ($this->sectionService->enabledSectionsForCourseModule($module) as $sec) {
                 $bk = $sec->backendStepKey();
-                $waived = $bk === 'practice' && $this->sectionService->isPracticeWaived($module, $contentIdx);
-                $blocked = $waived ? null : $this->sectionService->firstBlockedPrerequisite($p, $module, $contentIdx, $bk);
+                $waived = $bk === 'practice' && $this->sectionService->isPracticeWaived($module, $contentIdx, $legacyAlt);
+                $blocked = $waived ? null : $this->sectionService->firstBlockedPrerequisite($p, $module, $contentIdx, $bk, $legacyAlt);
                 $hubPresent[] = [
                     'section' => $sec,
                     'waived' => $waived,
@@ -455,7 +488,7 @@ class ModuleController extends Controller
             $qs = collect($qs)->shuffle()->values()->all();
         }
 
-        $deadlineKey = 'theory_quiz_deadline_'.$module;
+        $deadlineKey = $this->theoryQuizDeadlineKey((int) $learner->id, $module);
         $ts = session($deadlineKey);
         if ($ts !== null && is_numeric($ts) && (int) $ts <= now()->getTimestamp()) {
             session()->forget($deadlineKey);
@@ -515,13 +548,13 @@ class ModuleController extends Controller
             );
         }
 
-        $deadlineKey = 'theory_quiz_deadline_'.$module;
+        $deadlineKey = $this->theoryQuizDeadlineKey((int) $learner->id, $module);
         $tlMin = $cid > 0
             ? $this->sectionService->theoryQuizTimeLimitMinutes($module)
             : CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
         session([
             $deadlineKey => now()->addMinutes($tlMin)->getTimestamp(),
-            'theory_quiz_wall_start_'.$module => now()->getTimestamp(),
+            $this->theoryQuizWallStartKey((int) $learner->id, $module) => now()->getTimestamp(),
         ]);
 
         if ($p->theory_quiz_attempts >= 1 || $p->theory_quiz_best_score > 0 || $p->theory_quiz_passed) {
@@ -576,7 +609,7 @@ class ModuleController extends Controller
         if ($r = $this->accessGate->redirectIfStepBlocked($learner, $module, 'theory_quiz')) {
             return $r;
         }
-        $deadlineKey = 'theory_quiz_deadline_'.$module;
+        $deadlineKey = $this->theoryQuizDeadlineKey((int) $learner->id, $module);
         $ts = session($deadlineKey);
         if ($ts === null || ! is_numeric($ts) || now()->getTimestamp() > (int) $ts) {
             session()->forget($deadlineKey);
@@ -600,7 +633,7 @@ class ModuleController extends Controller
         $rawPercent = $breakdown['raw_percent'];
         $finalPercent = max(0, $rawPercent - $penalty);
 
-        $wallStart = session()->pull('theory_quiz_wall_start_'.$module);
+        $wallStart = session()->pull($this->theoryQuizWallStartKey((int) $learner->id, $module));
         if ($wallStart !== null && is_numeric($wallStart)) {
             $cap = ($cid > 0
                 ? $this->sectionService->theoryQuizTimeLimitMinutes($module)
@@ -657,7 +690,7 @@ class ModuleController extends Controller
             return $r;
         }
         $meta = $this->courseModules->displayMeta($cm);
-        if (CourseModuleMeta::shouldSkipPractice($contentIdx)) {
+        if ($this->courseModules->selectedCourseIsLegacyAlt() && CourseModuleMeta::shouldSkipPractice($contentIdx)) {
             return redirect()->route('modules.hub', $module)->with(
                 'ok',
                 'В этом модуле нет практического занятия — перейдите к итоговому тесту (шаг «Экзамен» на странице модуля).'
@@ -680,7 +713,7 @@ class ModuleController extends Controller
             'progress' => $learner->progressFor($module),
             'practiceSession' => $practiceSession,
             'labConfigured' => $lab->isConfigured(),
-            'labImage' => $lab->imageForModule($contentIdx),
+            'labImage' => $lab->imageForCourseModule($cm, $contentIdx),
             'labEnabled' => (bool) config('practice_lab.enabled'),
             'allowManualDone' => (bool) config('practice_lab.allow_manual_done'),
         ]);
@@ -700,7 +733,7 @@ class ModuleController extends Controller
         if ($r = $this->accessGate->redirectIfStepBlocked($learner, $module, 'practice')) {
             return $r;
         }
-        if (CourseModuleMeta::shouldSkipPractice($contentIdx)) {
+        if ($this->courseModules->selectedCourseIsLegacyAlt() && CourseModuleMeta::shouldSkipPractice($contentIdx)) {
             return redirect()->route('modules.hub', $module)->with(
                 'ok',
                 'В этом модуле нет практического занятия — перейдите к итоговому тесту.'

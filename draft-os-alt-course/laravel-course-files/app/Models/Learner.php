@@ -22,7 +22,18 @@ class Learner extends Model
 
     public function finalLabResult(): HasOne
     {
-        return $this->hasOne(FinalLabResult::class);
+        $courseId = (int) session('course_id', 0);
+        $q = $this->hasOne(FinalLabResult::class);
+        if ($courseId > 0) {
+            $q->where('course_id', $courseId);
+        }
+
+        return $q;
+    }
+
+    public function finalLabResults(): HasMany
+    {
+        return $this->hasMany(FinalLabResult::class);
     }
 
     /**

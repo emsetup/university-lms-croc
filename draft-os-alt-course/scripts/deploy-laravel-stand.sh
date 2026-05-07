@@ -51,6 +51,8 @@ for f in \
   app/Http/Controllers/AdminPanelController.php \
   app/Http/Controllers/AdminCoursesController.php \
   app/Http/Controllers/AdminCourseSettingsController.php \
+  app/Http/Controllers/AdminCourseContentController.php \
+  app/Http/Controllers/AdminPracticeImagesController.php \
   app/Http/Controllers/AdminLearnersController.php \
   app/Http/Controllers/AdminQuizController.php \
   app/Http/Controllers/AdminTheoryController.php \
@@ -72,6 +74,8 @@ for f in \
   app/Services/CourseScoringService.php \
   app/Services/CourseSectionService.php \
   app/Services/CourseModuleService.php \
+  app/Services/CourseContentService.php \
+  app/Services/PracticeLabDaemonClient.php \
   app/Services/PracticeLabService.php \
   app/Services/TeacherCourseAnalyticsService.php \
   app/Services/ModuleAccessGate.php \
@@ -83,13 +87,21 @@ for f in \
   app/Support/CourseTheoryPaths.php \
   app/Models/Course.php \
   app/Models/CourseModule.php \
+  app/Models/CourseModuleContent.php \
+  app/Models/CourseQuizBank.php \
+  app/Models/CourseQuizQuestion.php \
+  app/Models/CourseQuizOption.php \
+  app/Models/CourseQuizCorrectAnswer.php \
+  app/Models/CourseQuizMatchPair.php \
+  app/Models/CourseModulePracticeSetting.php \
   app/Models/CourseSection.php \
   app/Models/CourseSectionSetting.php \
   app/Models/CourseEnrollment.php \
   app/Models/Learner.php \
   app/Models/ModuleProgress.php \
   app/Models/PracticeSession.php \
-  app/Models/FinalLabResult.php
+  app/Models/FinalLabResult.php \
+  app/Models/PracticeImage.php
 do
   if [[ -f "${LCF}/${f}" ]]; then
     echo "[deploy-laravel] ${f}"
@@ -109,11 +121,22 @@ if [[ -f "${LCF}/database/migrations/2026_04_30_000001_add_certificate_fields_to
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_04_30_000001_add_certificate_fields_to_final_lab_results_table.php"
 fi
 
+if [[ -f "${LCF}/database/migrations/2026_05_07_000004_add_course_id_to_final_lab_results_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…course_id_final_lab_results…"
+  rsync -az "${LCF}/database/migrations/2026_05_07_000004_add_course_id_to_final_lab_results_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_05_07_000004_add_course_id_to_final_lab_results_table.php"
+fi
+
 for mf in \
   database/migrations/2026_05_06_000001_create_courses_table.php \
   database/migrations/2026_05_06_000002_create_course_enrollments_table.php \
   database/migrations/2026_05_06_100000_create_course_sections_tables.php \
-  database/migrations/2026_05_07_000001_course_modules_progress_sections.php
+  database/migrations/2026_05_07_000001_course_modules_progress_sections.php \
+  database/migrations/2026_05_07_000003_add_is_archived_to_courses_table.php \
+  database/migrations/2026_05_07_000005_create_practice_images_and_module_settings_tables.php \
+  database/migrations/2026_05_07_000006_extend_practice_images_for_constructor.php \
+  database/migrations/2026_05_07_000007_create_course_module_contents_table.php \
+  database/migrations/2026_05_07_000008_create_course_quiz_tables.php
 do
   if [[ -f "${LCF}/${mf}" ]]; then
     echo "[deploy-laravel] ${mf}"

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Models\Learner;
+use Illuminate\Support\Facades\Schema;
 use App\Services\CourseScoringService;
 use App\Services\TeacherCourseAnalyticsService;
 use Illuminate\Support\Facades\DB;
@@ -27,30 +28,45 @@ final class AdminLearnersController extends Controller
             ->orderBy('id')
             ->get()
             ->map(function (Course $c) {
-                if ($c->slug === 'alt-os-features') {
+                $courseId = (int) $c->id;
+
+                // Участников: enrollments ∪ progress ∪ final_lab (по этому курсу, если есть поля course_id).
+                $enrolled = (int) CourseEnrollment::query()->where('course_id', $courseId)->count();
+                if (Schema::hasTable('module_progress') || Schema::hasTable('final_lab_results')) {
                     $enrollmentIds = DB::table('course_enrollments')
-                        ->where('course_id', $c->id)
-                        ->select('learner_id');
-                    $progressIds = DB::table('module_progress')->select('learner_id');
-                    $finalIds = DB::table('final_lab_results')->select('learner_id');
-
-                    $enrolled = DB::query()
-                        ->fromSub($enrollmentIds->union($progressIds)->union($finalIds), 'u')
-                        ->distinct()
-                        ->count('learner_id');
-
-                    $startedEnrollmentIds = DB::table('course_enrollments')
-                        ->where('course_id', $c->id)
-                        ->whereNotNull('started_at')
+                        ->where('course_id', $courseId)
                         ->select('learner_id');
 
-                    $started = DB::query()
-                        ->fromSub($startedEnrollmentIds->union($progressIds)->union($finalIds), 'u')
+                    $progressIds = Schema::hasTable('module_progress')
+                        ? DB::table('module_progress')->where('course_id', $courseId)->select('learner_id')
+                        : null;
+                    $finalIds = Schema::hasTable('final_lab_results')
+                        ? DB::table('final_lab_results')->where('course_id', $courseId)->select('learner_id')
+                        : null;
+
+                    $union = $enrollmentIds;
+                    if ($progressIds) {
+                        $union = $union->union($progressIds);
+                    }
+                    if ($finalIds) {
+                        $union = $union->union($finalIds);
+                    }
+
+                    $enrolled = (int) DB::query()
+                        ->fromSub($union, 'u')
                         ->distinct()
                         ->count('learner_id');
-                } else {
-                    $enrolled = CourseEnrollment::query()->where('course_id', $c->id)->count();
-                    $started = CourseEnrollment::query()->where('course_id', $c->id)->whereNotNull('started_at')->count();
+                }
+
+                // Завершили: есть сертификат по этому курсу.
+                $completed = 0;
+                if (Schema::hasTable('final_lab_results')) {
+                    $completed = (int) DB::table('final_lab_results')
+                        ->where('course_id', $courseId)
+                        ->whereNotNull('certificate_full_name')
+                        ->whereNotNull('certificate_serial')
+                        ->distinct()
+                        ->count('learner_id');
                 }
 
                 return [
@@ -58,7 +74,7 @@ final class AdminLearnersController extends Controller
                     'title' => $c->title,
                     'slug' => $c->slug,
                     'enrolled' => (int) $enrolled,
-                    'started' => (int) $started,
+                    'completed' => (int) $completed,
                 ];
             });
 
@@ -77,7 +93,9 @@ final class AdminLearnersController extends Controller
         if ($course->slug === 'alt-os-features') {
             // Для курса "Альт" уже есть полноценная сводка (прогресс/баллы/карточки).
             return view('teacher-course-report', [
-                'learnerRows' => $this->analytics->learnerRows(),
+                'courseTitle' => $course->title,
+                'courseCounters' => $this->analytics->courseCounters($courseId),
+                'learnerRows' => $this->analytics->learnerRows($courseId),
             ]);
         }
 

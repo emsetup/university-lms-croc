@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Course;
 use App\Models\CourseModule;
+use App\Services\CourseContentService;
 use App\Support\CourseModuleMeta;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
@@ -63,18 +65,31 @@ final class CourseModuleService
      */
     public function displayMeta(CourseModule $module): array
     {
+        $course = $module->relationLoaded('course')
+            ? $module->course
+            : $module->loadMissing('course:id,slug')->course;
+        $isLegacyAlt = $course instanceof Course && $course->isLegacyAltCourse();
+
         $idx = $module->content_source_index !== null && (int) $module->content_source_index > 0
             ? (int) $module->content_source_index
             : null;
-        $base = $idx !== null
-            ? CourseModuleMeta::resolved($idx)
-            : [
+        if ($isLegacyAlt && $idx !== null) {
+            $base = CourseModuleMeta::resolved($idx);
+        } else {
+            $base = [
                 'letter' => (string) ($module->letter ?? ''),
                 'title' => $module->title,
                 'summary' => $module->summary,
                 'theory' => '',
                 'practice' => '',
             ];
+
+            /** @var CourseContentService $content */
+            $content = app(CourseContentService::class);
+            $c = $content->contentForModule($module);
+            $base['theory'] = $c['theory_markdown'] ?? '';
+            $base['practice'] = $c['practice_markdown'] ?? '';
+        }
 
         $base['title'] = $module->title;
         $base['summary'] = $module->summary;
@@ -83,6 +98,17 @@ final class CourseModuleService
         }
 
         return $base;
+    }
+
+    public function selectedCourseIsLegacyAlt(): bool
+    {
+        $courseId = (int) session('course_id', 0);
+        if ($courseId < 1 || ! Schema::hasTable('courses')) {
+            return false;
+        }
+        $course = Course::query()->select(['id', 'slug'])->find($courseId);
+
+        return $course instanceof Course && $course->isLegacyAltCourse();
     }
 
     public function moduleCountForCourse(int $courseId): int

@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Course;
 use App\Models\CourseModule;
+use App\Models\CourseQuizBank;
+use App\Services\CourseContentService;
 use App\Support\AdminCourseContentInspector;
 use App\Support\CourseQuizBankLoader;
 use Illuminate\Support\Facades\Schema;
@@ -13,11 +16,17 @@ use Illuminate\View\View;
 
 final class AdminQuizController extends Controller
 {
+    public function __construct(
+        private CourseContentService $content
+    ) {}
+
     public function index(Request $request): View
     {
         $adminKey = (string) $request->query('key', '');
         $rows = [];
         $courseId = (int) session('admin_course_id');
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        $isAltCourse = $course && $course->isLegacyAltCourse();
         $useDbModules = $courseId > 0 && Schema::hasTable('course_modules')
             && CourseModule::query()->where('course_id', $courseId)->exists();
 
@@ -25,19 +34,23 @@ final class AdminQuizController extends Controller
             foreach (CourseModule::query()->where('course_id', $courseId)->orderBy('sort')->orderBy('id')->get() as $ent) {
                 $m = $ent->effectiveContentIndex();
                 $rows[] = [
+                    'course_module_id' => (int) $ent->id,
                     'module' => $m,
                     'label' => $ent->title.' · пакет №'.$m,
-                    'theory_quiz_count' => count(AdminCourseContentInspector::theoryQuizQuestions($m)),
-                    'module_exam_count' => count(AdminCourseContentInspector::moduleExamQuestions($m)),
+                    'theory_quiz_count' => $isAltCourse ? count(AdminCourseContentInspector::theoryQuizQuestions($m)) : $this->dbQuestionCount($courseId, (int) $ent->id, 'theory_quiz'),
+                    'module_exam_count' => $isAltCourse ? count(AdminCourseContentInspector::moduleExamQuestions($m)) : $this->dbQuestionCount($courseId, (int) $ent->id, 'module_exam'),
+                    'mode' => $isAltCourse ? 'legacy' : 'db',
                 ];
             }
-        } else {
+        } elseif ($isAltCourse) {
             foreach (range(1, 9) as $m) {
                 $rows[] = [
+                    'course_module_id' => null,
                     'module' => $m,
                     'label' => null,
                     'theory_quiz_count' => count(AdminCourseContentInspector::theoryQuizQuestions($m)),
                     'module_exam_count' => count(AdminCourseContentInspector::moduleExamQuestions($m)),
+                    'mode' => 'legacy',
                 ];
             }
         }
@@ -45,6 +58,7 @@ final class AdminQuizController extends Controller
         return view('admin.quiz-index', [
             'adminKey' => $adminKey,
             'rows' => $rows,
+            'selectedCourse' => $course,
         ]);
     }
 
@@ -53,6 +67,43 @@ final class AdminQuizController extends Controller
         $adminKey = (string) $request->query('key', '');
         abort_if($module < 1 || $module > 9, 404);
         abort_if(! in_array($kind, ['theory_quiz', 'module_exam'], true), 404);
+
+        $courseId = (int) session('admin_course_id', 0);
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        $isAlt = $course && $course->isLegacyAltCourse();
+
+        if (! $isAlt) {
+            $cm = CourseModule::query()
+                ->where('course_id', $courseId)
+                ->where('content_source_index', $module)
+                ->orderBy('sort')
+                ->orderBy('id')
+                ->first();
+            abort_unless($cm !== null, 404);
+            $bank = $this->content->quizBankFor($course, $cm, $kind);
+            if (! $bank) {
+                $defaults = $kind === 'theory_quiz'
+                    ? ['pass_percent' => 70, 'time_limit_minutes' => 30, 'attempt_limit' => null, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 15, 'penalties_json' => ['2' => 10]]
+                    : ['pass_percent' => 70, 'time_limit_minutes' => 60, 'attempt_limit' => 2, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 30, 'penalties_json' => ['2' => 10]];
+                $bank = CourseQuizBank::query()->create([
+                    'course_id' => $courseId,
+                    'course_module_id' => (int) $cm->id,
+                    'kind' => $kind,
+                    ...$defaults,
+                ]);
+            }
+            $questions = $this->content->questionsForBank($bank);
+
+            return view('admin.quiz-edit-db', [
+                'adminKey' => $adminKey,
+                'course' => $course,
+                'courseModule' => $cm,
+                'bank' => $bank,
+                'kind' => $kind,
+                'title' => $kind === 'theory_quiz' ? 'Тест по теории' : 'Итоговый экзамен',
+                'questions' => $questions,
+            ]);
+        }
 
         [$jsonPath, $phpPath] = $this->bankPaths($module, $kind);
         $questions = CourseQuizBankLoader::loadBankWithFallback($jsonPath, $phpPath);
@@ -89,6 +140,13 @@ final class AdminQuizController extends Controller
         abort_if($module < 1 || $module > 9, 404);
         abort_if(! in_array($kind, ['theory_quiz', 'module_exam'], true), 404);
 
+        $courseId = (int) session('admin_course_id', 0);
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        $isAlt = $course && $course->isLegacyAltCourse();
+        if (! $isAlt) {
+            return $this->saveDbBank($request, $course, $module, $kind);
+        }
+
         $items = $request->input('questions', []);
         if (! is_array($items)) {
             return $this->fail($request, 'Неверный формат данных (questions).');
@@ -111,6 +169,172 @@ final class AdminQuizController extends Controller
         return redirect()
             ->route('admin.quiz.edit.module', ['module' => $module, 'kind' => $kind, 'key' => $adminKey])
             ->with('ok', 'Банк вопросов сохранён.');
+    }
+
+    private function dbQuestionCount(int $courseId, int $courseModuleId, string $kind): int
+    {
+        if (! Schema::hasTable('course_quiz_banks') || ! Schema::hasTable('course_quiz_questions')) {
+            return 0;
+        }
+        $bankId = CourseQuizBank::query()
+            ->where('course_id', $courseId)
+            ->where('course_module_id', $courseModuleId)
+            ->where('kind', $kind)
+            ->value('id');
+        if (! $bankId) {
+            return 0;
+        }
+
+        return (int) \App\Models\CourseQuizQuestion::query()->where('quiz_bank_id', (int) $bankId)->count();
+    }
+
+    private function saveDbBank(Request $request, ?Course $course, int $contentIdx, string $kind): RedirectResponse|JsonResponse
+    {
+        $adminKey = (string) $request->query('key', '');
+        $courseId = (int) session('admin_course_id', 0);
+        abort_unless($course && (int) $course->id === $courseId, 404);
+
+        $cm = CourseModule::query()
+            ->where('course_id', $courseId)
+            ->where('content_source_index', $contentIdx)
+            ->orderBy('sort')
+            ->orderBy('id')
+            ->first();
+        abort_unless($cm !== null, 404);
+
+        if (! Schema::hasTable('course_quiz_banks')) {
+            return $this->fail($request, 'Таблицы банков вопросов не найдены. Выполните миграции.');
+        }
+
+        $bank = $this->content->quizBankFor($course, $cm, $kind);
+        if (! $bank) {
+            $defaults = $kind === 'theory_quiz'
+                ? ['pass_percent' => 70, 'time_limit_minutes' => 30, 'attempt_limit' => null, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 15, 'penalties_json' => ['2' => 10]]
+                : ['pass_percent' => 70, 'time_limit_minutes' => 60, 'attempt_limit' => 2, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 30, 'penalties_json' => ['2' => 10]];
+            $bank = CourseQuizBank::query()->create([
+                'course_id' => $courseId,
+                'course_module_id' => (int) $cm->id,
+                'kind' => $kind,
+                ...$defaults,
+            ]);
+        }
+
+        $data = $request->validate([
+            'pass_percent' => 'required|integer|min:1|max:100',
+            'time_limit_minutes' => 'nullable|integer|min:1|max:600',
+            'attempt_limit' => 'nullable|integer|min:1|max:50',
+            'shuffle' => 'sometimes|boolean',
+            'one_by_one' => 'sometimes|boolean',
+            'breakdown_visible_minutes' => 'nullable|integer|min:0|max:10080',
+            'penalty_attempt_2' => 'nullable|integer|min:0|max:100',
+            'penalty_attempt_3' => 'nullable|integer|min:0|max:100',
+            'penalty_attempt_4' => 'nullable|integer|min:0|max:100',
+            'bank_json' => 'required|string|max:8000000',
+        ]);
+
+        $penalties = [];
+        foreach ([2, 3, 4] as $n) {
+            $k = 'penalty_attempt_'.$n;
+            if (isset($data[$k]) && $data[$k] !== null && $data[$k] !== '') {
+                $penalties[(string) $n] = (int) $data[$k];
+            }
+        }
+
+        $bank->pass_percent = (int) $data['pass_percent'];
+        $bank->time_limit_minutes = isset($data['time_limit_minutes']) ? (int) $data['time_limit_minutes'] : null;
+        $bank->attempt_limit = isset($data['attempt_limit']) ? (int) $data['attempt_limit'] : null;
+        $bank->shuffle = $request->boolean('shuffle');
+        $bank->one_by_one = $request->boolean('one_by_one');
+        $bank->breakdown_visible_minutes = isset($data['breakdown_visible_minutes']) ? (int) $data['breakdown_visible_minutes'] : $bank->breakdown_visible_minutes;
+        $bank->penalties_json = $penalties !== [] ? $penalties : null;
+        $bank->save();
+
+        $rawJson = (string) $data['bank_json'];
+        $decoded = json_decode($rawJson, true);
+        if (! is_array($decoded)) {
+            return $this->fail($request, 'JSON не распарсился. Должен быть массив вопросов.');
+        }
+
+        $validated = $this->validateBank($decoded, $kind, true);
+        if ($validated['ok'] !== true) {
+            return $this->fail($request, $validated['message']);
+        }
+        $items = $validated['data'];
+
+        // Перезапись банка (минимально, без тонкой дифф-логики).
+        \Illuminate\Support\Facades\DB::transaction(function () use ($bank, $items): void {
+            $qIds = \App\Models\CourseQuizQuestion::query()
+                ->where('quiz_bank_id', (int) $bank->id)
+                ->pluck('id')->map(fn ($v) => (int) $v)->all();
+            if ($qIds !== []) {
+                \App\Models\CourseQuizOption::query()->whereIn('question_id', $qIds)->delete();
+                \App\Models\CourseQuizCorrectAnswer::query()->whereIn('question_id', $qIds)->delete();
+                \App\Models\CourseQuizMatchPair::query()->whereIn('question_id', $qIds)->delete();
+                \App\Models\CourseQuizQuestion::query()->whereIn('id', $qIds)->delete();
+            }
+
+            foreach (array_values($items) as $i => $q) {
+                $type = ! empty($q['match_drag'])
+                    ? 'match_drag'
+                    : (is_array($q['c'] ?? null) ? 'multi' : 'single');
+
+                /** @var \App\Models\CourseQuizQuestion $qq */
+                $qq = \App\Models\CourseQuizQuestion::query()->create([
+                    'quiz_bank_id' => (int) $bank->id,
+                    'sort' => ($i + 1) * 10,
+                    'question_text' => (string) ($q['q'] ?? ''),
+                    'type' => $type,
+                    'points' => isset($q['points']) ? (int) $q['points'] : null,
+                ]);
+
+                if ($type === 'match_drag') {
+                    $left = is_array($q['left'] ?? null) ? $q['left'] : [];
+                    $right = is_array($q['right'] ?? null) ? $q['right'] : [];
+                    foreach (array_values($left) as $pi => $lv) {
+                        $rv = (string) ($right[$pi] ?? '');
+                        \App\Models\CourseQuizMatchPair::query()->create([
+                            'question_id' => (int) $qq->id,
+                            'sort' => ($pi + 1) * 10,
+                            'left_text' => (string) $lv,
+                            'right_text' => $rv,
+                        ]);
+                    }
+                    continue;
+                }
+
+                $opts = is_array($q['a'] ?? null) ? $q['a'] : [];
+                $optIds = [];
+                foreach (array_values($opts) as $oi => $text) {
+                    $o = \App\Models\CourseQuizOption::query()->create([
+                        'question_id' => (int) $qq->id,
+                        'sort' => ($oi + 1) * 10,
+                        'option_text' => (string) $text,
+                    ]);
+                    $optIds[$oi] = (int) $o->id;
+                }
+
+                $corr = $q['c'] ?? null;
+                $idxs = is_array($corr) ? $corr : [(int) $corr];
+                foreach ($idxs as $idx) {
+                    $idx = (int) $idx;
+                    if (! isset($optIds[$idx])) {
+                        continue;
+                    }
+                    \App\Models\CourseQuizCorrectAnswer::query()->create([
+                        'question_id' => (int) $qq->id,
+                        'option_id' => (int) $optIds[$idx],
+                    ]);
+                }
+            }
+        });
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
+        return redirect()
+            ->route('admin.quiz.edit.module', ['module' => $contentIdx, 'kind' => $kind, 'key' => $adminKey])
+            ->with('ok', 'Банк вопросов сохранён в БД.');
     }
 
     public function saveFinal(Request $request): RedirectResponse|JsonResponse

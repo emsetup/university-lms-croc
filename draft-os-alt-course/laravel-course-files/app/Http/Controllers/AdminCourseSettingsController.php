@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\CourseModule;
+use App\Models\CourseModulePracticeSetting;
 use App\Models\CourseSection;
 use App\Models\CourseSectionSetting;
 use App\Models\ModuleProgress;
+use App\Models\PracticeImage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -151,6 +153,54 @@ final class AdminCourseSettingsController extends Controller
             'sections' => $sections,
             'types' => CourseSection::typesList(),
         ]);
+    }
+
+    public function modulePractice(Request $request, CourseModule $courseModule): View
+    {
+        $this->assertModuleCourse($courseModule);
+        $adminKey = (string) $request->query('key', '');
+        $setting = CourseModulePracticeSetting::query()->firstOrNew(['course_module_id' => $courseModule->id]);
+        $images = PracticeImage::query()
+            ->where('is_built', true)
+            ->orderBy('title')
+            ->orderBy('id')
+            ->get();
+
+        return view('admin.course-module-practice', [
+            'adminKey' => $adminKey,
+            'courseModule' => $courseModule,
+            'setting' => $setting,
+            'images' => $images,
+        ]);
+    }
+
+    public function saveModulePractice(Request $request, CourseModule $courseModule): RedirectResponse
+    {
+        $this->assertModuleCourse($courseModule);
+        $adminKey = (string) $request->query('key', '');
+        $data = $request->validate([
+            'practice_image_id' => 'nullable|integer|min:1',
+            'daemon_image_key_override' => 'nullable|integer|min:1|max:99',
+        ]);
+
+        $practiceImageId = isset($data['practice_image_id']) ? (int) $data['practice_image_id'] : null;
+        if ($practiceImageId !== null && ! PracticeImage::query()->where('id', $practiceImageId)->where('is_built', true)->exists()) {
+            return redirect()
+                ->route('admin.course.module.practice', ['courseModule' => $courseModule->id, 'key' => $adminKey])
+                ->with('err', 'Выбранный образ не найден.');
+        }
+
+        CourseModulePracticeSetting::query()->updateOrCreate(
+            ['course_module_id' => $courseModule->id],
+            [
+                'practice_image_id' => $practiceImageId,
+                'daemon_image_key_override' => isset($data['daemon_image_key_override']) ? (int) $data['daemon_image_key_override'] : null,
+            ]
+        );
+
+        return redirect()
+            ->route('admin.course.module.practice', ['courseModule' => $courseModule->id, 'key' => $adminKey])
+            ->with('ok', 'Настройки практики сохранены.');
     }
 
     public function storeSection(Request $request, CourseModule $courseModule): RedirectResponse

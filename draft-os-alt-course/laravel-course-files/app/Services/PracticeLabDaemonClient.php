@@ -68,6 +68,53 @@ final class PracticeLabDaemonClient
         $r->throw();
     }
 
+    public function imageStats(string $image): array
+    {
+        $r = Http::withHeaders($this->headers())
+            ->timeout(30)
+            ->get($this->baseUrl.'/internal/v1/image-stats', ['image' => $image]);
+        $r->throw();
+
+        return $r->json();
+    }
+
+    public function pkgSearch(string $os, string $q, string $baseImage = '', int $limit = 50): array
+    {
+        $r = Http::withHeaders($this->headers())
+            ->timeout(30)
+            ->get($this->baseUrl.'/internal/v1/pkg-search', [
+                'os' => $os,
+                'q' => $q,
+                'base_image' => $baseImage,
+                'limit' => $limit,
+            ]);
+        $r->throw();
+
+        return $r->json();
+    }
+
+    /**
+     * @param  array{context_dir:string,dockerfile_rel:string,tags:list<string>,build_args?:array<string,string>|null}  $payload
+     */
+    public function imageBuild(array $payload): array
+    {
+        $r = $this->post('/internal/v1/image-build', $payload);
+        $r->throw();
+
+        return $r->json();
+    }
+
+    /**
+     * @param  array{tag:string,out_name:string}  $payload
+     */
+    public function imageExport(array $payload): array
+    {
+        $r = $this->post('/internal/v1/image-export', $payload);
+        $r->throw();
+
+        return $r->json();
+    }
+
     private function headers(): array
     {
         return [

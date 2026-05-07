@@ -6,6 +6,8 @@ use App\Http\Controllers\AdminTheoryController;
 use App\Http\Controllers\AdminCoursesController;
 use App\Http\Controllers\AdminCourseSettingsController;
 use App\Http\Controllers\AdminLearnersController;
+use App\Http\Controllers\AdminPracticeImagesController;
+use App\Http\Controllers\AdminCourseContentController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AssessmentController;
 use App\Http\Controllers\CertificateController;
@@ -81,6 +83,20 @@ Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middlewa
 Route::middleware([\App\Http\Middleware\EnsureCourseAdminToken::class])->group(function () {
     Route::get('/adm', [AdminPanelController::class, 'show'])->name('admin.panel');
     Route::get('/adm/kursy', [AdminCoursesController::class, 'index'])->name('admin.courses.index');
+    Route::get('/adm/kursy/sozdat', [AdminCoursesController::class, 'create'])->name('admin.courses.create');
+    Route::post('/adm/kursy', [AdminCoursesController::class, 'store'])->name('admin.courses.store');
+    Route::get('/adm/kursy/{course}/redактировать', [AdminCoursesController::class, 'edit'])
+        ->whereNumber('course')
+        ->name('admin.courses.edit');
+    Route::post('/adm/kursy/{course}', [AdminCoursesController::class, 'update'])
+        ->whereNumber('course')
+        ->name('admin.courses.update');
+    Route::post('/adm/kursy/{course}/archive', [AdminCoursesController::class, 'archive'])
+        ->whereNumber('course')
+        ->name('admin.courses.archive');
+    Route::post('/adm/kursy/{course}/unarchive', [AdminCoursesController::class, 'unarchive'])
+        ->whereNumber('course')
+        ->name('admin.courses.unarchive');
     Route::post('/adm/kursy/{course}/select', [AdminCoursesController::class, 'select'])
         ->whereNumber('course')
         ->name('admin.courses.select');
@@ -91,6 +107,17 @@ Route::middleware([\App\Http\Middleware\EnsureCourseAdminToken::class])->group(f
 
     Route::middleware([\App\Http\Middleware\EnsureAdminCourseSelected::class])->group(function () {
     Route::get('/adm/kurs/nastroyki', [AdminCourseSettingsController::class, 'modulesIndex'])->name('admin.course.settings');
+    Route::get('/adm/praktika/obraza', [AdminPracticeImagesController::class, 'index'])->name('admin.practice.images.index');
+    Route::get('/adm/praktika/obraza/create', [AdminPracticeImagesController::class, 'create'])->name('admin.practice.images.create');
+    Route::post('/adm/praktika/obraza', [AdminPracticeImagesController::class, 'store'])->name('admin.practice.images.store');
+    Route::post('/adm/praktika/obraza/system/copy', [AdminPracticeImagesController::class, 'copySystem'])->name('admin.practice.images.system.copy');
+    Route::post('/adm/praktika/obraza/stats/refresh', [AdminPracticeImagesController::class, 'refreshStats'])->name('admin.practice.images.stats.refresh');
+    Route::get('/adm/praktika/obraza/pkg-search', [AdminPracticeImagesController::class, 'pkgSearch'])->name('admin.practice.images.pkg.search');
+    Route::get('/adm/praktika/obraza/{id}', [AdminPracticeImagesController::class, 'edit'])->whereNumber('id')->name('admin.practice.images.edit');
+    Route::post('/adm/praktika/obraza/{id}', [AdminPracticeImagesController::class, 'update'])->whereNumber('id')->name('admin.practice.images.update');
+    Route::post('/adm/praktika/obraza/{id}/udalit', [AdminPracticeImagesController::class, 'destroy'])->whereNumber('id')->name('admin.practice.images.destroy');
+    Route::post('/adm/praktika/obraza/{id}/build', [AdminPracticeImagesController::class, 'build'])->whereNumber('id')->name('admin.practice.images.build');
+    Route::post('/adm/praktika/obraza/{id}/export', [AdminPracticeImagesController::class, 'export'])->whereNumber('id')->name('admin.practice.images.export');
     Route::post('/adm/kurs/nastroyki/modul/dobavit', [AdminCourseSettingsController::class, 'storeModule'])->name('admin.course.settings.module.store');
     Route::post('/adm/kurs/nastroyki/modul/{courseModule}', [AdminCourseSettingsController::class, 'updateModule'])
         ->whereNumber('courseModule')
@@ -103,6 +130,12 @@ Route::middleware([\App\Http\Middleware\EnsureCourseAdminToken::class])->group(f
     Route::get('/adm/kurs/nastroyki/modul/{courseModule}', [AdminCourseSettingsController::class, 'moduleSections'])
         ->whereNumber('courseModule')
         ->name('admin.course.module.sections');
+    Route::get('/adm/kurs/nastroyki/modul/{courseModule}/praktika', [AdminCourseSettingsController::class, 'modulePractice'])
+        ->whereNumber('courseModule')
+        ->name('admin.course.module.practice');
+    Route::post('/adm/kurs/nastroyki/modul/{courseModule}/praktika/save', [AdminCourseSettingsController::class, 'saveModulePractice'])
+        ->whereNumber('courseModule')
+        ->name('admin.course.module.practice.save');
     Route::post('/adm/kurs/nastroyki/modul/{courseModule}/razdel', [AdminCourseSettingsController::class, 'storeSection'])
         ->whereNumber('courseModule')
         ->name('admin.course.module.sections.store');
@@ -165,6 +198,13 @@ Route::middleware([\App\Http\Middleware\EnsureCourseAdminToken::class])->group(f
     Route::post('/adm/kurs-teoriya/modul/{module}', [AdminTheoryController::class, 'update'])
         ->whereNumber('module')
         ->name('admin.theory.update');
+
+    Route::get('/adm/kurs/kontent/modul/{courseModule}', [AdminCourseContentController::class, 'edit'])
+        ->whereNumber('courseModule')
+        ->name('admin.course.module.content.edit');
+    Route::post('/adm/kurs/kontent/modul/{courseModule}', [AdminCourseContentController::class, 'update'])
+        ->whereNumber('courseModule')
+        ->name('admin.course.module.content.update');
     });
 });
 

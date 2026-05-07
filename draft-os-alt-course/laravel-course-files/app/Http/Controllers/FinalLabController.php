@@ -160,8 +160,9 @@ class FinalLabController extends Controller
 
     private function resultModel(Learner $learner): FinalLabResult
     {
+        $courseId = (int) session('course_id', 0);
         return $learner->finalLabResult()->firstOrCreate(
-            ['learner_id' => $learner->id],
+            ['learner_id' => $learner->id, 'course_id' => $courseId > 0 ? $courseId : null],
             ['attempts' => 0, 'passed' => false, 'best_score' => 0]
         );
     }
