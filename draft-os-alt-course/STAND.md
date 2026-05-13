@@ -147,7 +147,7 @@ OIDC_REDIRECT_URI=https://practice.croc.ru/oidc/callback
 
 **HTTPS на `practice.croc.ru`:** для redirect URI с `https://` nginx должен слушать **порт 443**. Пока нет боевого сертификата, на стенде можно поднять **самоподписанный** сертификат (браузер один раз предупредит о риске). Пример конфига и логика портов: **`draft-os-alt-course/scripts/fixtures/nginx-os-alt-lab-practice.conf`**. Боевой сертификат и ключ кладутся локально в **`сертификаты/`** (в git не коммитим), на стенде: **`/etc/nginx/ssl-practice/practice.crt`** (PEM, можно цепочка) и **`practice.key`**, затем **`nginx -t`**, **`systemctl reload nginx`**. Альтернатива без HTTPS на портале — попросить в ADFS второй redirect `http://172.26.76.216/oidc/callback` и убрать **`OIDC_REDIRECT_URI`** из `.env`.
 
-После правок: **`php artisan config:clear`**. Кнопка «Войти через SSO» на `/login` появляется при **`OIDC_ENABLED=true`**.
+После правок: **`php artisan config:clear`**. Для **`practice.croc.ru`** в nginx задан редирект **HTTP→HTTPS**; в **`.env`** на стенде **`APP_URL=https://practice.croc.ru`**, чтобы Laravel не отдавал ссылки на `http://172…` (из‑за этого адресная строка могла оставаться «не защищённой»).
 
 Чтобы **не пускать на портал без доменного SSO** (сразу редирект на ADFS с главной `/`), задайте **`OIDC_REQUIRED=true`** вместе с **`OIDC_ENABLED=true`**. Тогда вход по почте отключён; при ошибке SSO показывается страница с повтором входа.
 
