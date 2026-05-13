@@ -145,7 +145,7 @@ OIDC_REDIRECT_URI=https://practice.croc.ru/oidc/callback
 
 Если в ADFS зарегистрирован **только** `https://practice.croc.ru/oidc/callback`, задайте **`OIDC_REDIRECT_URI`** именно так; при заходе по IP браузер будет перенаправлен на **`https://practice.croc.ru/oidc/login`**, чтобы `state`/сессия и callback совпали.
 
-**HTTPS на `practice.croc.ru`:** для redirect URI с `https://` nginx должен слушать **порт 443**. Пока нет боевого сертификата, на стенде можно поднять **самоподписанный** сертификат (браузер один раз предупредит о риске). Пример конфига и логика портов: **`draft-os-alt-course/scripts/fixtures/nginx-os-alt-lab-practice.conf`** (на стенде уже применён вариант с `server_name practice.croc.ru 172.26.76.216` на :80 и TLS на :443 для `practice.croc.ru`). Альтернатива без HTTPS на портале — попросить в ADFS второй redirect `http://172.26.76.216/oidc/callback` и убрать **`OIDC_REDIRECT_URI`** из `.env`.
+**HTTPS на `practice.croc.ru`:** для redirect URI с `https://` nginx должен слушать **порт 443**. Пока нет боевого сертификата, на стенде можно поднять **самоподписанный** сертификат (браузер один раз предупредит о риске). Пример конфига и логика портов: **`draft-os-alt-course/scripts/fixtures/nginx-os-alt-lab-practice.conf`**. Боевой сертификат и ключ кладутся локально в **`сертификаты/`** (в git не коммитим), на стенде: **`/etc/nginx/ssl-practice/practice.crt`** (PEM, можно цепочка) и **`practice.key`**, затем **`nginx -t`**, **`systemctl reload nginx`**. Альтернатива без HTTPS на портале — попросить в ADFS второй redirect `http://172.26.76.216/oidc/callback` и убрать **`OIDC_REDIRECT_URI`** из `.env`.
 
 После правок: **`php artisan config:clear`**. Кнопка «Войти через SSO» на `/login` появляется при **`OIDC_ENABLED=true`**.
 
