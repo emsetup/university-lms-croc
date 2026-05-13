@@ -25,6 +25,12 @@
             </div>
             <button type="submit" class="btn btn-primary">Продолжить</button>
         </form>
+
+        @if (config('oidc.enabled'))
+            <div style="margin-top: 0.85rem">
+                <a class="btn" href="{{ route('oidc.login') }}">Войти через SSO (OpenID)</a>
+            </div>
+        @endif
         <p class="footer-note">Данные учебного стенда. Не используйте пароли от рабочих систем.</p>
     </div>
 @endsection

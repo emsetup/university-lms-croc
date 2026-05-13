@@ -40,6 +40,11 @@ if [[ -f "${LCF}/config/course.php" ]]; then
   rsync -az "${LCF}/config/course.php" "${STAND_SSH}:${REMOTE}/config/course.php"
 fi
 
+if [[ -f "${LCF}/config/oidc.php" ]]; then
+  echo "[deploy-laravel] oidc.php (OpenID / ADFS)"
+  rsync -az "${LCF}/config/oidc.php" "${STAND_SSH}:${REMOTE}/config/oidc.php"
+fi
+
 if [[ -f "${LCF}/routes/web.php" ]]; then
   echo "[deploy-laravel] routes/web.php"
   rsync -az "${LCF}/routes/web.php" "${STAND_SSH}:${REMOTE}/routes/web.php"
@@ -48,6 +53,7 @@ fi
 for f in \
   app/Http/Controllers/Controller.php \
   app/Http/Controllers/EmailLoginController.php \
+  app/Http/Controllers/OidcLoginController.php \
   app/Http/Controllers/AdminPanelController.php \
   app/Http/Controllers/AdminCoursesController.php \
   app/Http/Controllers/AdminCourseSettingsController.php \

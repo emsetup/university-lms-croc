@@ -15,6 +15,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmailLoginController;
 use App\Http\Controllers\FinalLabController;
 use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\OidcLoginController;
 use App\Http\Controllers\PortalController;
 use App\Http\Controllers\PracticeLabController;
 use App\Http\Controllers\TeacherCourseReportController;
@@ -28,6 +29,10 @@ Route::post('/portal/enroll/{course}', [\App\Http\Controllers\PortalEnrollContro
 Route::get('/login', [EmailLoginController::class, 'show'])->name('login');
 Route::post('/login', [EmailLoginController::class, 'store'])->name('login.store');
 Route::post('/logout', [EmailLoginController::class, 'logout'])->name('logout');
+
+// OIDC (SSO) login is optional and does not replace the default email login.
+Route::get('/oidc/login', [OidcLoginController::class, 'redirect'])->name('oidc.login');
+Route::get('/oidc/callback', [OidcLoginController::class, 'callback'])->name('oidc.callback');
 
 Route::middleware([\App\Http\Middleware\EnsureLearner::class])->group(function () {
     Route::get('/account', AccountController::class)->name('account');

@@ -120,6 +120,29 @@ export STAND_SSH=emednikov@172.26.76.216
 bash scripts/deploy-laravel-stand.sh
 ```
 
+### OIDC (ADFS) — вход через SSO
+
+В ADFS для приложения должны быть зарегистрированы redirect URI:
+
+- `https://practice.croc.ru/oidc/callback`
+- при необходимости для стенда по IP: `http://172.26.76.216/oidc/callback`
+
+Discovery: [`https://fs.croc.ru/adfs/.well-known/openid-configuration`](https://fs.croc.ru/adfs/.well-known/openid-configuration).
+
+В **`/var/www/os-alt-lab/.env`** добавьте (или дополните) переменные; **`OIDC_CLIENT_SECRET`** храните только на сервере, не в git:
+
+```env
+OIDC_ENABLED=false
+OIDC_DISCOVERY_URL=https://fs.croc.ru/adfs/.well-known/openid-configuration
+OIDC_ISSUER=https://fs.croc.ru/adfs
+OIDC_CLIENT_ID=0f9cb2e1-ad40-4453-b55e-f2458c92682e
+OIDC_CLIENT_SECRET=__ВСТАВИТЬ_СЕКРЕТ_ИЗ_ADFS__
+OIDC_SCOPE="openid profile email"
+OIDC_REDIRECT_HOSTS=172.26.76.216,practice.croc.ru
+```
+
+После правок: **`php artisan config:clear`**. Кнопка «Войти через SSO» на `/login` появляется при **`OIDC_ENABLED=true`**. Пока сертификат для **`practice.croc.ru`** не готов, тестируйте по IP или временно не включайте прод-домен.
+
 ### Редактор теории (Markdown) в браузере
 
 1. В **`.env`** задан **`TEACHER_REPORT_TOKEN`** (ссылка вида `/instruktor/kurs-progress?key=…`) — этот же **`key`** подходит для **`/adm?key=…`**, **`/adm/kurs-teoriya?key=…`** и остальных страниц админ-навигации (отдельный **`COURSE_ADMIN_TOKEN`** не обязателен).
