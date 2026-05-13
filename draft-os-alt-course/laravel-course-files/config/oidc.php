@@ -14,6 +14,12 @@ return [
 
     'enabled' => filter_var(env('OIDC_ENABLED', false), FILTER_VALIDATE_BOOL),
 
+    /*
+     * Если true: без сессии обучающегося портал и защищённые страницы сразу ведут на ADFS,
+     * вход по почте отключён (кроме показа ошибок SSO на /login).
+     */
+    'required' => filter_var(env('OIDC_REQUIRED', false), FILTER_VALIDATE_BOOL),
+
     'discovery_url' => env(
         'OIDC_DISCOVERY_URL',
         'https://fs.croc.ru/adfs/.well-known/openid-configuration'

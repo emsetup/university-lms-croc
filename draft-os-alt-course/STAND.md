@@ -133,6 +133,7 @@ Discovery: [`https://fs.croc.ru/adfs/.well-known/openid-configuration`](https://
 
 ```env
 OIDC_ENABLED=false
+OIDC_REQUIRED=false
 OIDC_DISCOVERY_URL=https://fs.croc.ru/adfs/.well-known/openid-configuration
 OIDC_ISSUER=https://fs.croc.ru/adfs
 OIDC_CLIENT_ID=0f9cb2e1-ad40-4453-b55e-f2458c92682e
@@ -142,6 +143,8 @@ OIDC_REDIRECT_HOSTS=172.26.76.216,practice.croc.ru
 ```
 
 После правок: **`php artisan config:clear`**. Кнопка «Войти через SSO» на `/login` появляется при **`OIDC_ENABLED=true`**. Пока сертификат для **`practice.croc.ru`** не готов, тестируйте по IP или временно не включайте прод-домен.
+
+Чтобы **не пускать на портал без доменного SSO** (сразу редирект на ADFS с главной `/`), задайте **`OIDC_REQUIRED=true`** вместе с **`OIDC_ENABLED=true`**. Тогда вход по почте отключён; при ошибке SSO показывается страница с повтором входа.
 
 ### Редактор теории (Markdown) в браузере
 

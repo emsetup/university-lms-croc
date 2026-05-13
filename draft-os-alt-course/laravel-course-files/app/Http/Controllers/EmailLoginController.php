@@ -16,6 +16,16 @@ class EmailLoginController extends Controller
             return redirect()->route('portal');
         }
 
+        $oidcGate = (bool) config('oidc.enabled') && (bool) config('oidc.required');
+        if ($oidcGate) {
+            $bag = $request->session()->get('errors');
+            if ($bag instanceof \Illuminate\Support\ViewErrorBag && $bag->isNotEmpty()) {
+                return view('auth.oidc-required');
+            }
+
+            return redirect()->route('oidc.login');
+        }
+
         return view('auth.email', [
             'domain' => config('course.email_domain'),
         ]);
@@ -23,6 +33,10 @@ class EmailLoginController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        if (config('oidc.enabled') && config('oidc.required')) {
+            return redirect()->route('oidc.login');
+        }
+
         $domain = preg_quote(config('course.email_domain'), '/');
         $validator = Validator::make($request->all(), [
             'email' => [

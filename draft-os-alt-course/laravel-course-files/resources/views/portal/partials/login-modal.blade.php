@@ -18,8 +18,11 @@
                 <label for="portal-login-email">Электронная почта</label>
                 <input id="portal-login-email" name="email" type="email" value="{{ old('email') }}" placeholder="example@croc.ru" required autocomplete="username">
             </div>
-            <div class="quiz-modal-actions" style="justify-content:flex-start">
+            <div class="quiz-modal-actions" style="justify-content:flex-start;flex-wrap:wrap;gap:0.5rem">
                 <button type="submit" class="btn btn-primary">Продолжить</button>
+                @if (config('oidc.enabled') && ! config('oidc.required'))
+                    <a class="btn" href="{{ route('oidc.login') }}">Войти через SSO</a>
+                @endif
                 <button type="button" class="btn btn-ghost" onclick="document.getElementById('portal-login-dialog').close()">Отмена</button>
             </div>
         </form>

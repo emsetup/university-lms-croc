@@ -12,6 +12,10 @@ final class PortalEnrollController extends Controller
     public function store(Request $request, int $course): RedirectResponse
     {
         if (! session('learner_id')) {
+            if (config('oidc.enabled') && config('oidc.required')) {
+                return redirect()->route('oidc.login');
+            }
+
             return redirect()->route('portal', ['login' => 1])->with('err', 'Сначала войдите по корпоративной почте.');
         }
 

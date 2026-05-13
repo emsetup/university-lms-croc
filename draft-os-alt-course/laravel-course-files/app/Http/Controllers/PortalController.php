@@ -7,6 +7,7 @@ use App\Models\CourseModule;
 use App\Models\CourseEnrollment;
 use App\Models\Learner;
 use App\Services\CourseScoringService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -15,8 +16,12 @@ final class PortalController extends Controller
 {
     public function __construct(private CourseScoringService $scoring) {}
 
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
+        if (! session('learner_id') && config('oidc.enabled') && config('oidc.required')) {
+            return redirect()->route('oidc.login');
+        }
+
         $courses = Course::query()
             ->where('is_published', true)
             ->where('is_archived', false)

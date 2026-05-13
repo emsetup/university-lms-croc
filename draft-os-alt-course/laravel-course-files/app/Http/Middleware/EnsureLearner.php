@@ -14,6 +14,10 @@ class EnsureLearner
     {
         $id = session('learner_id');
         if (! $id) {
+            if (config('oidc.enabled') && config('oidc.required')) {
+                return redirect()->route('oidc.login');
+            }
+
             return redirect()->route('portal', ['login' => 1]);
         }
 
