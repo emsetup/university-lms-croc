@@ -21,7 +21,7 @@
             <div class="quiz-modal-actions" style="justify-content:flex-start;flex-wrap:wrap;gap:0.5rem">
                 <button type="submit" class="btn btn-primary">Продолжить</button>
                 @if (config('oidc.enabled') && ! config('oidc.required'))
-                    <a class="btn" href="{{ route('oidc.login') }}">Войти через SSO</a>
+                    <a class="btn" href="{{ \App\Support\OidcSignInRedirect::oidcLoginUrlAbsolute() }}">Войти через SSO</a>
                 @endif
                 <button type="button" class="btn btn-ghost" onclick="document.getElementById('portal-login-dialog').close()">Отмена</button>
             </div>

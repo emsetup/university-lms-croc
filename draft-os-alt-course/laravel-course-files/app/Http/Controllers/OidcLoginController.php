@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Learner;
+use App\Support\OidcSignInRedirect;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -12,23 +13,28 @@ class OidcLoginController extends Controller
     public function redirect(Request $request): RedirectResponse
     {
         if (! $this->enabled()) {
-            return redirect()->route('login');
+            return redirect('/login');
+        }
+
+        $bounce = OidcSignInRedirect::oidcLoginUrl($request);
+        if (str_starts_with($bounce, 'http://') || str_starts_with($bounce, 'https://')) {
+            return redirect()->away($bounce);
         }
 
         $cfg = $this->discovery();
         $authorize = (string) ($cfg['authorization_endpoint'] ?? '');
         if ($authorize === '') {
-            return redirect()->route('login')->withErrors(['oidc' => 'OIDC: не найден authorization_endpoint']);
+            return redirect('/login')->withErrors(['oidc' => 'OIDC: не найден authorization_endpoint']);
         }
 
         $clientId = $this->clientId();
         if ($clientId === '') {
-            return redirect()->route('login')->withErrors(['oidc' => 'OIDC: не задан client_id']);
+            return redirect('/login')->withErrors(['oidc' => 'OIDC: не задан client_id']);
         }
 
         $redirectUri = $this->redirectUriForRequest($request);
         if ($redirectUri === '') {
-            return redirect()->route('login')->withErrors(['oidc' => 'OIDC: redirect_uri не разрешён для хоста']);
+            return redirect('/login')->withErrors(['oidc' => 'OIDC: redirect_uri не разрешён для хоста']);
         }
 
         $state = bin2hex(random_bytes(16));
@@ -52,13 +58,13 @@ class OidcLoginController extends Controller
     public function callback(Request $request): RedirectResponse
     {
         if (! $this->enabled()) {
-            return redirect()->route('login');
+            return redirect('/login');
         }
 
         $state = (string) $request->query('state', '');
         $expectedState = (string) $request->session()->pull('oidc_state', '');
         if ($state === '' || $expectedState === '' || ! hash_equals($expectedState, $state)) {
-            return redirect()->route('login')->withErrors(['oidc' => 'OIDC: неверный state']);
+            return redirect('/login')->withErrors(['oidc' => 'OIDC: неверный state']);
         }
 
         $code = (string) $request->query('code', '');
@@ -66,39 +72,39 @@ class OidcLoginController extends Controller
             $desc = (string) $request->query('error_description', '');
             $err = (string) $request->query('error', '');
             $msg = trim('OIDC: ошибка авторизации: '.$err.' '.$desc);
-            return redirect()->route('login')->withErrors(['oidc' => $msg !== '' ? $msg : 'OIDC: ошибка авторизации']);
+            return redirect('/login')->withErrors(['oidc' => $msg !== '' ? $msg : 'OIDC: ошибка авторизации']);
         }
 
         $cfg = $this->discovery();
         $tokenEndpoint = (string) ($cfg['token_endpoint'] ?? '');
         if ($tokenEndpoint === '') {
-            return redirect()->route('login')->withErrors(['oidc' => 'OIDC: не найден token_endpoint']);
+            return redirect('/login')->withErrors(['oidc' => 'OIDC: не найден token_endpoint']);
         }
 
         $redirectUri = $this->redirectUriForRequest($request);
         if ($redirectUri === '') {
-            return redirect()->route('login')->withErrors(['oidc' => 'OIDC: redirect_uri не разрешён для хоста']);
+            return redirect('/login')->withErrors(['oidc' => 'OIDC: redirect_uri не разрешён для хоста']);
         }
 
         $token = $this->exchangeCode($tokenEndpoint, $code, $redirectUri);
         if (($token['ok'] ?? false) !== true) {
-            return redirect()->route('login')->withErrors(['oidc' => (string) ($token['error'] ?? 'OIDC: ошибка обмена кода')]);
+            return redirect('/login')->withErrors(['oidc' => (string) ($token['error'] ?? 'OIDC: ошибка обмена кода')]);
         }
 
         $idToken = (string) ($token['id_token'] ?? '');
         if ($idToken === '') {
-            return redirect()->route('login')->withErrors(['oidc' => 'OIDC: отсутствует id_token']);
+            return redirect('/login')->withErrors(['oidc' => 'OIDC: отсутствует id_token']);
         }
 
         $expectedNonce = (string) $request->session()->pull('oidc_nonce', '');
         $claims = $this->validateIdToken($idToken, $expectedNonce);
         if (($claims['ok'] ?? false) !== true) {
-            return redirect()->route('login')->withErrors(['oidc' => (string) ($claims['error'] ?? 'OIDC: неверный id_token')]);
+            return redirect('/login')->withErrors(['oidc' => (string) ($claims['error'] ?? 'OIDC: неверный id_token')]);
         }
 
         $email = $this->extractEmail((array) ($claims['claims'] ?? []));
         if ($email === '') {
-            return redirect()->route('login')->withErrors(['oidc' => 'OIDC: не удалось получить email/логин пользователя']);
+            return redirect('/login')->withErrors(['oidc' => 'OIDC: не удалось получить email/логин пользователя']);
         }
 
         $learner = Learner::firstOrCreate(['email' => strtolower($email)]);
@@ -117,7 +123,7 @@ class OidcLoginController extends Controller
             session(['learner_name' => $name]);
         }
 
-        return redirect()->route('portal');
+        return redirect('/');
     }
 
     private function enabled(): bool
@@ -162,6 +168,11 @@ class OidcLoginController extends Controller
 
     private function redirectUriForRequest(Request $request): string
     {
+        $fixed = trim((string) config('oidc.redirect_uri', ''));
+        if ($fixed !== '') {
+            return $fixed;
+        }
+
         $host = strtolower((string) $request->getHost());
         if ($host === '' || ! in_array($host, $this->allowedRedirectHosts(), true)) {
             return '';

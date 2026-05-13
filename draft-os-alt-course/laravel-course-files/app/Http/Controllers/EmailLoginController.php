@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Learner;
+use App\Support\OidcSignInRedirect;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -23,7 +24,7 @@ class EmailLoginController extends Controller
                 return view('auth.oidc-required');
             }
 
-            return redirect()->route('oidc.login');
+            return OidcSignInRedirect::toOidcLogin($request);
         }
 
         return view('auth.email', [
@@ -34,7 +35,7 @@ class EmailLoginController extends Controller
     public function store(Request $request): RedirectResponse
     {
         if (config('oidc.enabled') && config('oidc.required')) {
-            return redirect()->route('oidc.login');
+            return OidcSignInRedirect::toOidcLogin($request);
         }
 
         $domain = preg_quote(config('course.email_domain'), '/');

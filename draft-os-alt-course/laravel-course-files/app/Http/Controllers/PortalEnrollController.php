@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use App\Models\CourseEnrollment;
+use App\Support\OidcSignInRedirect;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -13,7 +14,7 @@ final class PortalEnrollController extends Controller
     {
         if (! session('learner_id')) {
             if (config('oidc.enabled') && config('oidc.required')) {
-                return redirect()->route('oidc.login');
+                return OidcSignInRedirect::toOidcLogin($request);
             }
 
             return redirect()->route('portal', ['login' => 1])->with('err', 'Сначала войдите по корпоративной почте.');

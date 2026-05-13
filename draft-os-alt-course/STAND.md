@@ -140,7 +140,10 @@ OIDC_CLIENT_ID=0f9cb2e1-ad40-4453-b55e-f2458c92682e
 OIDC_CLIENT_SECRET=__ВСТАВИТЬ_СЕКРЕТ_ИЗ_ADFS__
 OIDC_SCOPE="openid profile email"
 OIDC_REDIRECT_HOSTS=172.26.76.216,practice.croc.ru
+OIDC_REDIRECT_URI=https://practice.croc.ru/oidc/callback
 ```
+
+Если в ADFS зарегистрирован **только** `https://practice.croc.ru/oidc/callback`, задайте **`OIDC_REDIRECT_URI`** именно так; при заходе по IP браузер будет перенаправлен на **`https://practice.croc.ru/oidc/login`**, чтобы `state`/сессия и callback совпали. Пока на **`practice.croc.ru`** нет валидного TLS, откройте портал сразу по этому HTTPS-имени после выдачи сертификата (или попросите инженеров добавить второй redirect `http://172.26.76.216/oidc/callback` для тестов по IP).
 
 После правок: **`php artisan config:clear`**. Кнопка «Войти через SSO» на `/login` появляется при **`OIDC_ENABLED=true`**. Пока сертификат для **`practice.croc.ru`** не готов, тестируйте по IP или временно не включайте прод-домен.
 

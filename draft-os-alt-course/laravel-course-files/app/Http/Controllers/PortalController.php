@@ -7,6 +7,7 @@ use App\Models\CourseModule;
 use App\Models\CourseEnrollment;
 use App\Models\Learner;
 use App\Services\CourseScoringService;
+use App\Support\OidcSignInRedirect;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -19,7 +20,7 @@ final class PortalController extends Controller
     public function index(Request $request): View|RedirectResponse
     {
         if (! session('learner_id') && config('oidc.enabled') && config('oidc.required')) {
-            return redirect()->route('oidc.login');
+            return OidcSignInRedirect::toOidcLogin($request);
         }
 
         $courses = Course::query()

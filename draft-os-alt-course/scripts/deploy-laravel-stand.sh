@@ -91,6 +91,7 @@ for f in \
   app/Support/CourseQuizBankLoader.php \
   app/Support/CourseModuleMeta.php \
   app/Support/CourseTheoryPaths.php \
+  app/Support/OidcSignInRedirect.php \
   app/Models/Course.php \
   app/Models/CourseModule.php \
   app/Models/CourseModuleContent.php \

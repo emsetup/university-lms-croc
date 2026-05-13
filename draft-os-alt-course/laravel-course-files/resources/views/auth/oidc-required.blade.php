@@ -16,8 +16,8 @@
         @endif
 
         <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap">
-            <a class="btn btn-primary" href="{{ route('oidc.login') }}">Повторить вход через SSO</a>
-            <a class="btn btn-ghost" href="{{ route('portal') }}">На главную</a>
+            <a class="btn btn-primary" href="{{ \App\Support\OidcSignInRedirect::oidcLoginUrlAbsolute() }}">Повторить вход через SSO</a>
+            <a class="btn btn-ghost" href="{{ \App\Support\OidcSignInRedirect::portalHomeUrl() }}">На главную</a>
         </div>
     </div>
 @endsection

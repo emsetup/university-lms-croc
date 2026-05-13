@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Learner;
+use App\Support\OidcSignInRedirect;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
@@ -15,7 +16,7 @@ class EnsureLearner
         $id = session('learner_id');
         if (! $id) {
             if (config('oidc.enabled') && config('oidc.required')) {
-                return redirect()->route('oidc.login');
+                return OidcSignInRedirect::toOidcLogin($request);
             }
 
             return redirect()->route('portal', ['login' => 1]);
@@ -25,6 +26,10 @@ class EnsureLearner
         if (! $learner) {
             $request->session()->invalidate();
             $request->session()->regenerateToken();
+
+            if (config('oidc.enabled') && config('oidc.required')) {
+                return OidcSignInRedirect::toOidcLogin($request);
+            }
 
             return redirect()->route('portal', ['login' => 1]);
         }

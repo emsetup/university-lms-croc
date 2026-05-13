@@ -37,4 +37,15 @@ return [
         'trim',
         explode(',', (string) env('OIDC_REDIRECT_HOSTS', '172.26.76.216,practice.croc.ru'))
     ))),
+
+    /*
+     * Полный redirect_uri, как в ADFS (например https://practice.croc.ru/oidc/callback).
+     * Если задан — используется всегда; заход с IP перенаправляется на канонический хост (см. OidcSignInRedirect).
+     */
+    'redirect_uri' => env('OIDC_REDIRECT_URI', ''),
+
+    /*
+     * Канонический origin портала для SSO (https://practice.croc.ru), если не выводится из OIDC_REDIRECT_URI.
+     */
+    'public_origin' => rtrim((string) env('OIDC_PUBLIC_ORIGIN', ''), '/'),
 ];
