@@ -19,4 +19,4 @@ if [[ ! -f "$CA" ]]; then
 fi
 cat "$LEAF" "$CA" > "$OUT"
 echo "OK: $OUT ($(grep -c 'BEGIN CERTIFICATE' "$OUT" || true) сертификатов)"
-openssl verify -CAfile "$CA" -untrusted "$CA" "$LEAF" 2>/dev/null || openssl verify "$OUT" 2>/dev/null || true
+openssl verify -untrusted "$CA" "$LEAF" 2>/dev/null || true
