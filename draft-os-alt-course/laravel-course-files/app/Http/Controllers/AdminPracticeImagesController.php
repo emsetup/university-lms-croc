@@ -19,8 +19,6 @@ final class AdminPracticeImagesController extends Controller
 
     public function index(Request $request): View
     {
-        $adminKey = (string) $request->query('key', '');
-
         $tab = (string) $request->query('tab', 'built'); // built|library
         if (! in_array($tab, ['built', 'library'], true)) {
             $tab = 'built';
@@ -64,7 +62,6 @@ final class AdminPracticeImagesController extends Controller
         }
 
         return view('admin.practice-images-index', [
-            'adminKey' => $adminKey,
             'systemImages' => $systemImages,
             'items' => $items,
             'tab' => $tab,
@@ -76,7 +73,6 @@ final class AdminPracticeImagesController extends Controller
 
     public function copySystem(Request $request): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
         $data = $request->validate([
             'template' => 'required|string|max:40',
             'title' => 'required|string|max:200',
@@ -105,13 +101,12 @@ final class AdminPracticeImagesController extends Controller
         $this->initRecipeFromTemplate($row);
 
         return redirect()
-            ->route('admin.practice.images.edit', ['id' => $row->id, 'key' => $adminKey])
+            ->route('admin.practice.images.edit', ['id' => $row->id])
             ->with('ok', 'Создана копия системного (Alt) рецепта. Обновите tag при необходимости и нажмите «Собрать».');
     }
 
     public function refreshStats(Request $request): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
         $data = $request->validate([
             'tag' => 'required|string|max:200',
             'back' => 'nullable|string|max:200',
@@ -123,7 +118,7 @@ final class AdminPracticeImagesController extends Controller
         $client = PracticeLabDaemonClient::fromConfig();
         if (! $client) {
             return redirect()
-                ->to($this->safeBack($data['back'] ?? '', $adminKey))
+                ->to($this->safeBack($data['back'] ?? ''))
                 ->with('err', 'Lab-daemon не настроен (PRACTICE_LAB_DAEMON_URL / SECRET).');
         }
 
@@ -132,12 +127,12 @@ final class AdminPracticeImagesController extends Controller
             $ok = is_array($st);
         } catch (\Throwable $e) {
             return redirect()
-                ->to($this->safeBack($data['back'] ?? '', $adminKey))
+                ->to($this->safeBack($data['back'] ?? ''))
                 ->with('err', 'Не удалось получить статус образа: '.$e->getMessage());
         }
 
         return redirect()
-            ->to($this->safeBack($data['back'] ?? '', $adminKey))
+            ->to($this->safeBack($data['back'] ?? ''))
             ->with($ok ? 'ok' : 'err', $ok ? 'Статус образа обновлён: '.$tag : 'Не удалось обновить статус образа.');
     }
 
@@ -171,7 +166,6 @@ final class AdminPracticeImagesController extends Controller
     public function create(Request $request): View
     {
         return view('admin.practice-image-edit', [
-            'adminKey' => (string) $request->query('key', ''),
             'row' => new PracticeImage([
                 'title' => '',
                 'slug' => '',
@@ -193,7 +187,6 @@ final class AdminPracticeImagesController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
         $data = $request->validate([
             'title' => 'required|string|max:200',
             'slug' => 'nullable|string|max:80',
@@ -245,7 +238,7 @@ final class AdminPracticeImagesController extends Controller
         app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
 
         return redirect()
-            ->route('admin.practice.images.edit', ['id' => $row->id, 'key' => $adminKey])
+            ->route('admin.practice.images.edit', ['id' => $row->id])
             ->with('ok', 'Образ создан. Теперь можно собрать.');
     }
 
@@ -254,7 +247,6 @@ final class AdminPracticeImagesController extends Controller
         $row = PracticeImage::query()->findOrFail($id);
 
         return view('admin.practice-image-edit', [
-            'adminKey' => (string) $request->query('key', ''),
             'row' => $row,
             'isNew' => false,
             'templates' => $this->templatesList(),
@@ -263,7 +255,6 @@ final class AdminPracticeImagesController extends Controller
 
     public function update(Request $request, int $id): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
         $row = PracticeImage::query()->findOrFail($id);
 
         $data = $request->validate([
@@ -291,7 +282,7 @@ final class AdminPracticeImagesController extends Controller
             ->exists();
         if ($exists) {
             return redirect()
-                ->route('admin.practice.images.edit', ['id' => $row->id, 'key' => $adminKey])
+                ->route('admin.practice.images.edit', ['id' => $row->id])
                 ->with('err', 'Slug уже занят другим образом.');
         }
 
@@ -312,29 +303,27 @@ final class AdminPracticeImagesController extends Controller
         app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
 
         return redirect()
-            ->route('admin.practice.images.edit', ['id' => $row->id, 'key' => $adminKey])
+            ->route('admin.practice.images.edit', ['id' => $row->id])
             ->with('ok', 'Сохранено.');
     }
 
     public function destroy(Request $request, int $id): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
         $row = PracticeImage::query()->findOrFail($id);
         $row->delete();
 
         return redirect()
-            ->route('admin.practice.images.index', ['key' => $adminKey])
+            ->route('admin.practice.images.index')
             ->with('ok', 'Удалено.');
     }
 
     public function build(Request $request, int $id): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
         $row = PracticeImage::query()->findOrFail($id);
         $client = PracticeLabDaemonClient::fromConfig();
         if (! $client) {
             return redirect()
-                ->route('admin.practice.images.edit', ['id' => $row->id, 'key' => $adminKey])
+                ->route('admin.practice.images.edit', ['id' => $row->id])
                 ->with('err', 'Lab-daemon не настроен (PRACTICE_LAB_DAEMON_URL / SECRET).');
         }
 
@@ -355,7 +344,7 @@ final class AdminPracticeImagesController extends Controller
             $row->save();
 
             return redirect()
-                ->route('admin.practice.images.edit', ['id' => $row->id, 'key' => $adminKey])
+                ->route('admin.practice.images.edit', ['id' => $row->id])
                 ->with('err', 'Не удалось собрать: '.$e->getMessage());
         }
 
@@ -368,18 +357,17 @@ final class AdminPracticeImagesController extends Controller
         Cache::forget($this->imageStatsCacheKey((string) $row->docker_tag));
 
         return redirect()
-            ->route('admin.practice.images.edit', ['id' => $row->id, 'key' => $adminKey])
+            ->route('admin.practice.images.edit', ['id' => $row->id])
             ->with($ok ? 'ok' : 'err', $ok ? 'Сборка завершена.' : 'Сборка завершилась с ошибкой (см. лог).');
     }
 
     public function export(Request $request, int $id): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
         $row = PracticeImage::query()->findOrFail($id);
         $client = PracticeLabDaemonClient::fromConfig();
         if (! $client) {
             return redirect()
-                ->route('admin.practice.images.edit', ['id' => $row->id, 'key' => $adminKey])
+                ->route('admin.practice.images.edit', ['id' => $row->id])
                 ->with('err', 'Lab-daemon не настроен (PRACTICE_LAB_DAEMON_URL / SECRET).');
         }
 
@@ -391,7 +379,7 @@ final class AdminPracticeImagesController extends Controller
             ]);
         } catch (\Throwable $e) {
             return redirect()
-                ->route('admin.practice.images.edit', ['id' => $row->id, 'key' => $adminKey])
+                ->route('admin.practice.images.edit', ['id' => $row->id])
                 ->with('err', 'Не удалось экспортировать: '.$e->getMessage());
         }
 
@@ -402,7 +390,7 @@ final class AdminPracticeImagesController extends Controller
         }
 
         return redirect()
-            ->route('admin.practice.images.edit', ['id' => $row->id, 'key' => $adminKey])
+            ->route('admin.practice.images.edit', ['id' => $row->id])
             ->with($ok ? 'ok' : 'err', $ok ? 'Экспорт выполнен: '.$row->export_path : 'Экспорт завершился с ошибкой (см. лог daemon).');
     }
 
@@ -635,14 +623,14 @@ final class AdminPracticeImagesController extends Controller
         return $ok;
     }
 
-    private function safeBack(string $back, string $adminKey): string
+    private function safeBack(string $back): string
     {
         $b = trim($back);
         if ($b !== '' && str_starts_with($b, '/')) {
             return $b;
         }
 
-        return route('admin.practice.images.index', ['key' => $adminKey]);
+        return route('admin.practice.images.index');
     }
 
     /**

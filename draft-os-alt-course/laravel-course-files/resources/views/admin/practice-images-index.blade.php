@@ -3,7 +3,7 @@
 @section('title', 'Практики: Docker-образы')
 
 @section('content')
-    @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'practice'])
+    @include('partials.admin-instructor-nav', ['active' => 'practice'])
 
     <div class="card">
         <div style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;justify-content:space-between">
@@ -13,7 +13,7 @@
             </div>
             <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
                 @if (($tab ?? 'built') === 'library')
-                    <a class="btn btn-primary" href="{{ route('admin.practice.images.create', ['key' => $adminKey]) }}">Создать образ</a>
+                    <a class="btn btn-primary" href="{{ route('admin.practice.images.create') }}">Создать образ</a>
                 @endif
             </div>
         </div>
@@ -21,9 +21,9 @@
         @php($activeTab = (string) ($tab ?? 'built'))
         <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
             <a class="btn {{ $activeTab === 'built' ? 'btn-primary' : 'btn-ghost' }}"
-               href="{{ route('admin.practice.images.index', ['key' => $adminKey, 'tab' => 'built']) }}">Собранные образы</a>
+               href="{{ route('admin.practice.images.index', ['tab' => 'built']) }}">Собранные образы</a>
             <a class="btn {{ $activeTab === 'library' ? 'btn-primary' : 'btn-ghost' }}"
-               href="{{ route('admin.practice.images.index', ['key' => $adminKey, 'tab' => 'library']) }}">Библиотека</a>
+               href="{{ route('admin.practice.images.index', ['tab' => 'library']) }}">Библиотека</a>
         </div>
 
         @if ($activeTab === 'built' && is_array($systemImages ?? null) && count($systemImages) > 0)
@@ -62,7 +62,7 @@
                                             @endif
                                         </div>
                                     @endif
-                                    <form method="post" action="{{ route('admin.practice.images.stats.refresh', ['key' => $adminKey]) }}" style="margin-top:0.35rem">
+                                    <form method="post" action="{{ route('admin.practice.images.stats.refresh') }}" style="margin-top:0.35rem">
                                         @csrf
                                         <input type="hidden" name="tag" value="{{ $tag }}">
                                         <input type="hidden" name="back" value="{{ request()->getRequestUri() }}">
@@ -70,7 +70,7 @@
                                     </form>
                                 </td>
                                 <td class="teacher-report-nowrap" style="vertical-align:top">
-                                    <form method="post" action="{{ route('admin.practice.images.system.copy', ['key' => $adminKey]) }}" style="margin:0">
+                                    <form method="post" action="{{ route('admin.practice.images.system.copy') }}" style="margin:0">
                                         @csrf
                                         <input type="hidden" name="template" value="{{ $sys['template'] ?? '' }}">
                                         <input type="hidden" name="title" value="{{ ($sys['title'] ?? 'Alt образ').' (копия)' }}">
@@ -88,7 +88,6 @@
 
         @if ($activeTab === 'library')
             <form method="get" action="{{ route('admin.practice.images.index') }}" style="margin-top:1rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
-                <input type="hidden" name="key" value="{{ $adminKey }}">
                 <input type="hidden" name="tab" value="library">
                 <input type="text" class="input" name="q" value="{{ $q }}" placeholder="Поиск: название / slug / тег" style="min-width:18rem">
                 <select class="input" name="built">
@@ -128,7 +127,7 @@
                                     @endif
                                 </div>
                             @endif
-                            <form method="post" action="{{ route('admin.practice.images.stats.refresh', ['key' => $adminKey]) }}" style="margin-top:0.35rem">
+                            <form method="post" action="{{ route('admin.practice.images.stats.refresh') }}" style="margin-top:0.35rem">
                                 @csrf
                                 <input type="hidden" name="tag" value="{{ $row->docker_tag }}">
                                 <input type="hidden" name="back" value="{{ request()->getRequestUri() }}">
@@ -149,16 +148,16 @@
                         </td>
                         <td class="teacher-report-nowrap" style="vertical-align:top">
                             <div class="icon-strip" role="group" aria-label="Действия с образом">
-                                <a class="icon-btn" href="{{ route('admin.practice.images.edit', ['id' => $row->id, 'key' => $adminKey]) }}" data-tip="Открыть" aria-label="Открыть">
+                                <a class="icon-btn" href="{{ route('admin.practice.images.edit', ['id' => $row->id]) }}" data-tip="Открыть" aria-label="Открыть">
                                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" stroke="currentColor" stroke-width="1.8"/><path d="M4 7l3-4h10l3 4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                                 </a>
-                                <form method="post" action="{{ route('admin.practice.images.build', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin:0">
+                                <form method="post" action="{{ route('admin.practice.images.build', ['id' => $row->id]) }}" style="margin:0">
                                     @csrf
                                     <button type="submit" class="icon-btn" data-tip="Собрать" aria-label="Собрать">
                                         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 7l4-4 4 4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M5 13h14v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 16h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                                     </button>
                                 </form>
-                                <form method="post" action="{{ route('admin.practice.images.stats.refresh', ['key' => $adminKey]) }}" style="margin:0">
+                                <form method="post" action="{{ route('admin.practice.images.stats.refresh') }}" style="margin:0">
                                     @csrf
                                     <input type="hidden" name="tag" value="{{ $row->docker_tag }}">
                                     <input type="hidden" name="back" value="{{ request()->getRequestUri() }}">
@@ -166,7 +165,7 @@
                                         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21a9 9 0 1 0-9-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                     </button>
                                 </form>
-                                <form method="post" action="{{ route('admin.practice.images.export', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin:0">
+                                <form method="post" action="{{ route('admin.practice.images.export', ['id' => $row->id]) }}" style="margin:0">
                                     @csrf
                                     <button type="submit" class="icon-btn" data-tip="Экспорт (tar)" aria-label="Экспорт">
                                         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 14V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 7l4-4 4 4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M5 14v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>

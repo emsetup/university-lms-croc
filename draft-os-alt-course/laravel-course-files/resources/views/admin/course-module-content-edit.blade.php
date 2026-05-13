@@ -4,12 +4,12 @@
 
 @section('content')
     <div style="max-width: 1100px; margin: 0 auto">
-        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'theory'])
+        @include('partials.admin-instructor-nav', ['active' => 'theory'])
         <div class="card">
             <div class="muted small" style="margin:0 0 0.35rem">
-                <a href="{{ route('admin.course.settings', ['key' => $adminKey]) }}">Настройки</a>
+                <a href="{{ route('admin.course.settings') }}">Настройки</a>
                 <span class="muted">/</span>
-                <a href="{{ route('admin.course.module.sections', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}">{{ $courseModule->title }}</a>
+                <a href="{{ route('admin.course.module.sections', ['courseModule' => $courseModule->id]) }}">{{ $courseModule->title }}</a>
                 <span class="muted">/</span>
                 Контент (БД)
             </div>
@@ -38,7 +38,7 @@
                     </button>
                 </div>
 
-                <form method="post" action="{{ route('admin.course.module.content.update', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}">
+                <form method="post" action="{{ route('admin.course.module.content.update', ['courseModule' => $courseModule->id]) }}">
                     @csrf
 
                     <section class="js-cmce-panel" data-panel="theory">
@@ -61,7 +61,7 @@
 
                     <div style="display:flex;gap:0.5rem;align-items:center;justify-content:space-between;margin-top:1rem">
                         <button type="submit" class="btn btn-primary">Сохранить</button>
-                        <a class="btn btn-ghost" href="{{ route('admin.theory.index', ['key' => $adminKey]) }}">Назад к содержимому</a>
+                        <a class="btn btn-ghost" href="{{ route('admin.theory.index') }}">Назад к содержимому</a>
                     </div>
                 </form>
             </div>

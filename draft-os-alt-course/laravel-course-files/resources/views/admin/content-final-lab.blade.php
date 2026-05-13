@@ -6,10 +6,10 @@
     @php($isReadOnly = (bool) ($isReadOnly ?? false))
     <div style="max-width: 960px; margin: 0 auto">
         @if (! $isReadOnly)
-            @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'theory'])
+            @include('partials.admin-instructor-nav', ['active' => 'theory'])
         @endif
         <div class="card">
-            <p class="muted"><a href="{{ route('admin.theory.index', ['key' => $adminKey]) }}">← К сводке курса</a></p>
+            <p class="muted"><a href="{{ route('admin.theory.index') }}">← К сводке курса</a></p>
             <h1 style="margin-top:0">Финальная лабораторная работа — практический экзамен</h1>
             <p class="muted">Просмотр содержимого для админки. Формат: контейнер с базовой установкой ALT p10, время 90 минут, порог 70/100.</p>
 

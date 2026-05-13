@@ -21,7 +21,6 @@ final class AdminLearnersController extends Controller
 
     public function indexPortal(Request $request): View
     {
-        $adminKey = (string) $request->query('key', '');
 
         $courses = Course::query()
             ->orderBy('sort')
@@ -79,14 +78,12 @@ final class AdminLearnersController extends Controller
             });
 
         return view('admin.learners-portal', [
-            'adminKey' => $adminKey,
             'courses' => $courses,
         ]);
     }
 
     public function indexCourse(Request $request): View
     {
-        $adminKey = (string) $request->query('key', '');
         $courseId = (int) session('admin_course_id');
         $course = Course::query()->findOrFail($courseId);
 
@@ -154,7 +151,6 @@ final class AdminLearnersController extends Controller
         }
 
         return view('admin.learners-course', [
-            'adminKey' => $adminKey,
             'course' => $course,
             'rows' => $rows,
         ]);

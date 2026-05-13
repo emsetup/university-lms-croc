@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Learner;
+use App\Support\OidcIdentityClaims;
 use App\Support\OidcSignInRedirect;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,11 @@ class OidcLoginController extends Controller
 
         $bounce = OidcSignInRedirect::oidcLoginUrl($request);
         if (str_starts_with($bounce, 'http://') || str_starts_with($bounce, 'https://')) {
+            $hint = $this->sanitizedLoginHint($request);
+            if ($hint !== '') {
+                $bounce .= (str_contains($bounce, '?') ? '&' : '?').http_build_query(['login_hint' => $hint], '', '&', PHP_QUERY_RFC3986);
+            }
+
             return redirect()->away($bounce);
         }
 
@@ -51,6 +57,11 @@ class OidcLoginController extends Controller
             'state' => $state,
             'nonce' => $nonce,
         ];
+
+        $loginHint = $this->sanitizedLoginHint($request);
+        if ($loginHint !== '') {
+            $params['login_hint'] = $loginHint;
+        }
 
         return redirect()->away($authorize.'?'.http_build_query($params, '', '&', PHP_QUERY_RFC3986));
     }
@@ -102,7 +113,10 @@ class OidcLoginController extends Controller
             return redirect('/login')->withErrors(['oidc' => (string) ($claims['error'] ?? 'OIDC: неверный id_token')]);
         }
 
-        $email = $this->extractEmail((array) ($claims['claims'] ?? []));
+        $idClaims = (array) ($claims['claims'] ?? []);
+        $mergedClaims = $this->mergeUserInfoClaims($cfg, $idClaims, (string) ($token['access_token'] ?? ''));
+
+        $email = OidcIdentityClaims::email($mergedClaims);
         if ($email === '') {
             return redirect('/login')->withErrors(['oidc' => 'OIDC: не удалось получить email/логин пользователя']);
         }
@@ -117,10 +131,14 @@ class OidcLoginController extends Controller
 
         session(['learner_id' => $learner->id]);
 
-        // Optional: store name for future use (certificates/UI), without DB schema changes.
-        $name = $this->extractName((array) ($claims['claims'] ?? []));
+        // Снимок claim’ов для главной / отладки (обновляется при каждом SSO).
+        session(['oidc_identity_probe_claims' => $mergedClaims]);
+
+        $name = OidcIdentityClaims::displayName($mergedClaims);
         if ($name !== '') {
             session(['learner_name' => $name]);
+        } else {
+            $request->session()->forget('learner_name');
         }
 
         return redirect('/');
@@ -154,6 +172,28 @@ class OidcLoginController extends Controller
     private function scope(): string
     {
         return (string) config('oidc.scope', 'openid profile email');
+    }
+
+    /**
+     * Подсказка для IdP (OIDC login_hint): ADFS может подставить UPN на своей странице входа.
+     * Пароль на портале не собираем и не передаём.
+     */
+    private function sanitizedLoginHint(Request $request): string
+    {
+        $raw = trim((string) $request->query('login_hint', ''));
+        if ($raw === '') {
+            return '';
+        }
+        $domain = (string) config('course.email_domain', '');
+        if ($domain === '') {
+            return '';
+        }
+        $d = preg_quote(strtolower($domain), '/');
+        if (! preg_match('/^[^@\s]+@'.$d.'$/i', $raw)) {
+            return '';
+        }
+
+        return strtolower($raw);
     }
 
     private function allowedRedirectHosts(): array
@@ -462,6 +502,45 @@ class OidcLoginController extends Controller
         return json_decode($raw, true);
     }
 
+    /**
+     * @param  array<string, mixed>  $idClaims
+     * @return array<string, mixed>
+     */
+    private function mergeUserInfoClaims(array $discovery, array $idClaims, string $accessToken): array
+    {
+        $url = trim((string) ($discovery['userinfo_endpoint'] ?? ''));
+        if ($url === '' || $accessToken === '') {
+            return $idClaims;
+        }
+        $ui = $this->httpGetJsonBearer($url, $accessToken);
+        if (! is_array($ui)) {
+            return $idClaims;
+        }
+
+        return array_merge($idClaims, $ui);
+    }
+
+    private function httpGetJsonBearer(string $url, string $accessToken): mixed
+    {
+        $ctx = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 6,
+                'header' => "Accept: application/json\r\nAuthorization: Bearer ".$accessToken."\r\n",
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
+        $raw = @file_get_contents($url, false, $ctx);
+        if (! is_string($raw) || $raw === '') {
+            return null;
+        }
+
+        return json_decode($raw, true);
+    }
+
     private function httpPostJson(string $url, string $body, array $headers): mixed
     {
         $ctx = stream_context_create([
@@ -481,35 +560,6 @@ class OidcLoginController extends Controller
             return null;
         }
         return json_decode($raw, true);
-    }
-
-    private function extractEmail(array $claims): string
-    {
-        foreach (['email', 'upn', 'unique_name', 'preferred_username'] as $k) {
-            $v = $claims[$k] ?? null;
-            if (is_string($v) && trim($v) !== '') {
-                return trim($v);
-            }
-        }
-        return '';
-    }
-
-    private function extractName(array $claims): string
-    {
-        $name = $claims['name'] ?? null;
-        if (is_string($name) && trim($name) !== '') {
-            return trim($name);
-        }
-        $gn = $claims['given_name'] ?? null;
-        $fn = $claims['family_name'] ?? null;
-        $parts = [];
-        if (is_string($fn) && trim($fn) !== '') {
-            $parts[] = trim($fn);
-        }
-        if (is_string($gn) && trim($gn) !== '') {
-            $parts[] = trim($gn);
-        }
-        return trim(implode(' ', $parts));
     }
 }
 

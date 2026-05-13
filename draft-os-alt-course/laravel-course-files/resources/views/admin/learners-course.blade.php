@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="card" style="max-width:1200px;margin:0 auto 1rem">
-        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'learners_course'])
+        @include('partials.admin-instructor-nav', ['active' => 'learners_course'])
         <h1 style="margin:0 0 0.35rem">Обучающиеся курса</h1>
         <p class="muted" style="margin:0;line-height:1.5">Курс: <strong>{{ $course->title }}</strong>.</p>
     </div>

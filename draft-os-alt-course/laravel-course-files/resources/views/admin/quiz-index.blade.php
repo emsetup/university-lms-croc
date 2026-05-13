@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="card" style="max-width:1200px;margin:0 auto 1rem">
-        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'quiz'])
+        @include('partials.admin-instructor-nav', ['active' => 'quiz'])
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
             <div>
                 <h1 style="margin:0 0 0.35rem">Вопросы тестов и экзаменов</h1>
@@ -13,14 +13,18 @@
                     Для выбранного в панели курса набора модулей список строится из БД; колонка «пакет» — номер файлов вопросов (как в <code>config/course.php</code>).
                 </p>
             </div>
-            <a class="btn btn-ghost" href="{{ route('admin.theory.index', ['key' => $adminKey]) }}">К содержимому курса</a>
+            <a class="btn btn-ghost" href="{{ route('admin.theory.index') }}">К содержимому курса</a>
         </div>
     </div>
 
     <div class="card" style="max-width:1200px;margin:0 auto 1rem">
         <h2 style="margin-top:0">Финальная лабораторная</h2>
         <p class="muted" style="margin:0 0 0.75rem">Небольшой список вопросов, используемый на финальной странице.</p>
-        <a class="btn btn-primary" href="{{ route('admin.quiz.edit.final', ['key' => $adminKey]) }}">Редактировать вопросы финальной страницы</a>
+        @if (! empty($isReadOnly))
+            <p class="muted small" style="margin:0">Режим просмотра: редактирование недоступно.</p>
+        @else
+            <a class="btn btn-primary" href="{{ route('admin.quiz.edit.final') }}">Редактировать вопросы финальной страницы</a>
+        @endif
     </div>
 
     <div class="card" style="max-width:1200px;margin:0 auto">
@@ -31,7 +35,7 @@
                 <div style="font-weight:800;color:#92400e;margin-bottom:0.25rem">Вопросы не привязаны к курсу</div>
                 <div class="muted" style="line-height:1.5">
                     Для этого курса пока нет модулей в базе данных, поэтому список банков вопросов не сформирован.
-                    Сначала создайте модули в <a href="{{ route('admin.course.settings', ['key' => $adminKey]) }}">«Настройках»</a>.
+                    Сначала создайте модули в <a href="{{ route('admin.course.settings') }}">«Настройках»</a>.
                 </div>
             </div>
         @else
@@ -55,13 +59,13 @@
                         </td>
                         <td style="padding:0.6rem 0.75rem;border-bottom:1px solid #f1f5f9">
                             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
-                                <a class="btn btn-ghost" href="{{ route('admin.quiz.edit.module', ['module' => $r['module'], 'kind' => 'theory_quiz', 'key' => $adminKey]) }}">Редактировать</a>
+                                <a class="btn btn-ghost" href="{{ route('admin.quiz.edit.module', ['module' => $r['module'], 'kind' => 'theory_quiz']) }}">{{ ! empty($isReadOnly) ? 'Просмотр' : 'Редактировать' }}</a>
                                 <span class="muted small">{{ (int) $r['theory_quiz_count'] }} вопр.</span>
                             </div>
                         </td>
                         <td style="padding:0.6rem 0.75rem;border-bottom:1px solid #f1f5f9">
                             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
-                                <a class="btn btn-ghost" href="{{ route('admin.quiz.edit.module', ['module' => $r['module'], 'kind' => 'module_exam', 'key' => $adminKey]) }}">Редактировать</a>
+                                <a class="btn btn-ghost" href="{{ route('admin.quiz.edit.module', ['module' => $r['module'], 'kind' => 'module_exam']) }}">{{ ! empty($isReadOnly) ? 'Просмотр' : 'Редактировать' }}</a>
                                 <span class="muted small">{{ (int) $r['module_exam_count'] }} вопр.</span>
                             </div>
                         </td>

@@ -4,11 +4,11 @@
 
 @section('content')
     <div class="card" style="max-width:1200px;margin:0 auto 1rem">
-        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'quiz'])
+        @include('partials.admin-instructor-nav', ['active' => 'quiz'])
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
             <div>
                 <p class="muted" style="margin:0 0 0.35rem">
-                    <a href="{{ route('admin.quiz.index', ['key' => $adminKey]) }}">← К списку банков вопросов</a>
+                    <a href="{{ route('admin.quiz.index') }}">← К списку банков вопросов</a>
                 </p>
                 <h1 style="margin:0 0 0.35rem">{{ $title }}</h1>
                 @if ($scope === 'module')
@@ -18,8 +18,12 @@
                 @endif
             </div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
-                <button type="button" class="btn btn-primary js-qb-save">Сохранить</button>
-                <button type="button" class="btn btn-ghost js-qb-add">Добавить вопрос</button>
+                @if(empty($isReadOnly))
+                    <button type="button" class="btn btn-primary js-qb-save">Сохранить</button>
+                    <button type="button" class="btn btn-ghost js-qb-add">Добавить вопрос</button>
+                @else
+                    <p class="muted" style="margin:0">Режим просмотра (тестировщик курса): сохранение недоступно.</p>
+                @endif
             </div>
         </div>
         <p class="muted small" style="margin:0.75rem 0 0;line-height:1.5">
@@ -44,8 +48,10 @@
                         <strong id="qb-active-title">—</strong>
                     </div>
                     <div class="qb-toolbar__right">
-                        <button type="button" class="btn btn-ghost js-qb-dup">Дублировать</button>
-                        <button type="button" class="btn btn-ghost js-qb-del">Удалить</button>
+                        @if(empty($isReadOnly))
+                            <button type="button" class="btn btn-ghost js-qb-dup">Дублировать</button>
+                            <button type="button" class="btn btn-ghost js-qb-del">Удалить</button>
+                        @endif
                     </div>
                 </div>
 
@@ -72,9 +78,11 @@
                     <div id="qb-answers-wrap">
                         <div class="qb-section-head">
                             <div class="qb-section-title">Варианты ответов</div>
-                            <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-                                <button type="button" class="btn btn-ghost js-a-add">Добавить вариант</button>
-                            </div>
+                            @if(empty($isReadOnly))
+                                <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+                                    <button type="button" class="btn btn-ghost js-a-add">Добавить вариант</button>
+                                </div>
+                            @endif
                         </div>
                         <div class="muted small" style="margin:0.25rem 0 0.5rem" id="qb-c-hint"></div>
                         <ul class="qb-answers" id="qb-answers"></ul>
@@ -83,9 +91,11 @@
                     <div id="qb-match-wrap" hidden>
                         <div class="qb-section-head">
                             <div class="qb-section-title">Пары для сопоставления</div>
-                            <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-                                <button type="button" class="btn btn-ghost js-m-add">Добавить пару</button>
-                            </div>
+                            @if(empty($isReadOnly))
+                                <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+                                    <button type="button" class="btn btn-ghost js-m-add">Добавить пару</button>
+                                </div>
+                            @endif
                         </div>
                         <div class="muted small" style="margin:0.25rem 0 0.5rem">
                             Важно: элемент слева в строке должен соответствовать описанию справа в той же строке (индексы совпадают).
@@ -94,7 +104,7 @@
                     </div>
                 </div>
 
-                <div class="muted" id="qb-empty" style="padding:1rem 0">Выберите вопрос слева или нажмите «Добавить вопрос».</div>
+                <div class="muted" id="qb-empty" style="padding:1rem 0">Выберите вопрос слева@if(empty($isReadOnly)) или нажмите «Добавить вопрос»@endif.</div>
             </main>
         </div>
     </div>
@@ -139,7 +149,6 @@
             var scope = @json($scope);
             var module = @json($module);
             var kind = @json($kind);
-            var adminKey = @json($adminKey);
             var initial = @json(array_values($questions));
 
             var saveBtn = document.querySelector('.js-qb-save');
@@ -442,9 +451,9 @@
                 saveBtn.disabled = true;
                 var url;
                 if (scope === 'final') {
-                    url = '{{ route('admin.quiz.save.final', ['key' => $adminKey]) }}';
+                    url = '{{ route('admin.quiz.save.final') }}';
                 } else {
-                    url = '{{ route('admin.quiz.save.module', ['module' => $module ?: 1, 'kind' => $kind, 'key' => $adminKey]) }}';
+                    url = '{{ route('admin.quiz.save.module', ['module' => $module ?: 1, 'kind' => $kind]) }}';
                 }
                 var payload = { questions: state.questions };
                 fetch(url, {

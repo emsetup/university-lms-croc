@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="card" style="max-width: 1200px; margin: 0 auto">
-        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'certificates'])
+        @include('partials.admin-instructor-nav', ['active' => 'certificates'])
 
         <h1 style="margin-top: 0">Выданные сертификаты</h1>
         <p class="muted" style="margin-top: 0">
@@ -34,7 +34,7 @@
                         <td style="padding:0.6rem 0.75rem; text-align:center;">
                             @if ($row->passed)
                                 <a
-                                    href="{{ route('admin.certificates.show', ['result' => $row->id, 'key' => $adminKey]) }}"
+                                    href="{{ route('admin.certificates.show', ['result' => $row->id]) }}"
                                     class="pill"
                                     style="display:inline-block;text-decoration:none;background:#e8f7ee; color:#166534; border-color:#bbdfc8;"
                                 >Выдан</a>

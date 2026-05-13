@@ -18,15 +18,15 @@
 
 @section('content')
     <div style="max-width: 1100px; margin: 0 auto">
-        @include('partials.admin-instructor-nav', ['navKey' => request('key'), 'active' => 'learners_course'])
+        @include('partials.admin-instructor-nav', ['active' => 'learners_course'])
     </div>
     <nav class="tl-breadcrumb" aria-label="Навигация">
-        <a href="{{ route('admin.learners.course', ['key' => request('key')]) }}">Обучающиеся курса</a>
+        <a href="{{ route('admin.learners.course') }}">Обучающиеся курса</a>
         <span class="tl-bc-sep">/</span>
         <span class="tl-bc-current">{{ $learner->email }}</span>
         @if ($keyQ !== '')
             <span class="tl-bc-sep" aria-hidden="true">·</span>
-            <a href="{{ route('admin.theory.index', ['key' => request('key')]) }}">Теория модулей</a>
+            <a href="{{ route('admin.theory.index') }}">Теория модулей</a>
         @endif
     </nav>
 
@@ -234,7 +234,7 @@
     </article>
 
     <p class="muted" style="margin-top:1.25rem">
-        <a href="{{ route('admin.learners.course', ['key' => request('key')]) }}">← К сводке по обучающимся курса</a>
+        <a href="{{ route('admin.learners.course') }}">← К сводке по обучающимся курса</a>
         ·
         <a href="#tl-jump">К меню модулей</a>
     </p>

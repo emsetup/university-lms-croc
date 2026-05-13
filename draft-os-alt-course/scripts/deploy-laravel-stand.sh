@@ -61,6 +61,7 @@ for f in \
   app/Http/Controllers/AdminPracticeImagesController.php \
   app/Http/Controllers/AdminLearnersController.php \
   app/Http/Controllers/AdminQuizController.php \
+  app/Http/Controllers/AdminStaffController.php \
   app/Http/Controllers/AdminTheoryController.php \
   app/Http/Controllers/AssessmentController.php \
   app/Http/Controllers/CertificateController.php \
@@ -72,15 +73,18 @@ for f in \
   app/Http/Controllers/PortalController.php \
   app/Http/Controllers/PortalEnrollController.php \
   app/Http/Controllers/TeacherCourseReportController.php \
-  app/Http/Middleware/EnsureCourseAdminToken.php \
   app/Http/Middleware/EnsureAdminCourseSelected.php \
   app/Http/Middleware/EnsureCourseSelected.php \
   app/Http/Middleware/EnsureLearner.php \
+  app/Http/Middleware/EnsurePortalStaff.php \
+  app/Http/Middleware/EnsureStaffAbility.php \
+  app/Http/Middleware/DenyCourseTester.php \
   app/Http/Middleware/ValidateTeacherReportToken.php \
   app/Services/CourseScoringService.php \
   app/Services/CourseSectionService.php \
   app/Services/CourseModuleService.php \
   app/Services/CourseContentService.php \
+  app/Services/PortalStaffAccess.php \
   app/Services/PracticeLabDaemonClient.php \
   app/Services/PracticeLabService.php \
   app/Services/TeacherCourseAnalyticsService.php \
@@ -91,7 +95,9 @@ for f in \
   app/Support/CourseQuizBankLoader.php \
   app/Support/CourseModuleMeta.php \
   app/Support/CourseTheoryPaths.php \
+  app/Support/OidcIdentityClaims.php \
   app/Support/OidcSignInRedirect.php \
+  app/Support/PortalWelcomeName.php \
   app/Models/Course.php \
   app/Models/CourseModule.php \
   app/Models/CourseModuleContent.php \
@@ -106,6 +112,7 @@ for f in \
   app/Models/CourseEnrollment.php \
   app/Models/Learner.php \
   app/Models/ModuleProgress.php \
+  app/Models/PortalStaff.php \
   app/Models/PracticeSession.php \
   app/Models/FinalLabResult.php \
   app/Models/PracticeImage.php
@@ -143,7 +150,9 @@ for mf in \
   database/migrations/2026_05_07_000005_create_practice_images_and_module_settings_tables.php \
   database/migrations/2026_05_07_000006_extend_practice_images_for_constructor.php \
   database/migrations/2026_05_07_000007_create_course_module_contents_table.php \
-  database/migrations/2026_05_07_000008_create_course_quiz_tables.php
+  database/migrations/2026_05_07_000008_create_course_quiz_tables.php \
+  database/migrations/2026_05_13_000010_create_portal_staff_tables.php \
+  database/migrations/2026_05_13_120000_expand_alt_os_features_course_summary.php
 do
   if [[ -f "${LCF}/${mf}" ]]; then
     echo "[deploy-laravel] ${mf}"

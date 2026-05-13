@@ -3,10 +3,10 @@
 @section('title', ($isNew ? 'Создать образ практики' : 'Образ: '.$row->title))
 
 @section('content')
-    @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'practice'])
+    @include('partials.admin-instructor-nav', ['active' => 'practice'])
 
     <div class="card">
-        <p class="muted"><a href="{{ route('admin.practice.images.index', ['key' => $adminKey]) }}">← К списку образов</a></p>
+        <p class="muted"><a href="{{ route('admin.practice.images.index') }}">← К списку образов</a></p>
 
         <div style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-start;justify-content:space-between">
             <div>
@@ -15,17 +15,17 @@
             </div>
             @if (! $isNew)
                 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
-                    <form method="post" action="{{ route('admin.practice.images.build', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin:0">
+                    <form method="post" action="{{ route('admin.practice.images.build', ['id' => $row->id]) }}" style="margin:0">
                         @csrf
                         <button type="submit" class="btn btn-primary">Собрать</button>
                     </form>
-                    <form method="post" action="{{ route('admin.practice.images.stats.refresh', ['key' => $adminKey]) }}" style="margin:0">
+                    <form method="post" action="{{ route('admin.practice.images.stats.refresh') }}" style="margin:0">
                         @csrf
                         <input type="hidden" name="tag" value="{{ $row->docker_tag }}">
                         <input type="hidden" name="back" value="{{ request()->getRequestUri() }}">
                         <button type="submit" class="btn btn-ghost">Проверить образ</button>
                     </form>
-                    <form method="post" action="{{ route('admin.practice.images.export', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin:0">
+                    <form method="post" action="{{ route('admin.practice.images.export', ['id' => $row->id]) }}" style="margin:0">
                         @csrf
                         <button type="submit" class="btn btn-ghost">Экспортировать (tar)</button>
                     </form>
@@ -37,7 +37,7 @@
             <div class="muted small" style="margin-top:0.75rem">Последний экспорт: <code>{{ $row->export_path }}</code></div>
         @endif
 
-        <form method="post" action="{{ $isNew ? route('admin.practice.images.store', ['key' => $adminKey]) : route('admin.practice.images.update', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin-top:1rem">
+        <form method="post" action="{{ $isNew ? route('admin.practice.images.store') : route('admin.practice.images.update', ['id' => $row->id]) }}" style="margin-top:1rem">
             @csrf
 
             <div style="margin:0 0 0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
@@ -182,7 +182,7 @@
             <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;justify-content:space-between">
                 <button type="submit" class="btn btn-primary">Сохранить</button>
                 @if (! $isNew)
-                    <form method="post" action="{{ route('admin.practice.images.destroy', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin:0" onsubmit="return confirm('Удалить образ? Рецепт на диске останется, но запись исчезнет.');">
+                    <form method="post" action="{{ route('admin.practice.images.destroy', ['id' => $row->id]) }}" style="margin:0" onsubmit="return confirm('Удалить образ? Рецепт на диске останется, но запись исчезнет.');">
                         @csrf
                         <button type="submit" class="btn btn-ghost">Удалить</button>
                     </form>
@@ -228,7 +228,7 @@
                     var baseInp = document.querySelector('input[name=\"base_image_ref\"]');
                     var os = osSel ? osSel.value : 'alt';
                     var base = baseInp ? (baseInp.value || '') : '';
-                    var url = @json(route('admin.practice.images.pkg.search', ['key' => $adminKey])) + '&os=' + encodeURIComponent(os) + '&q=' + encodeURIComponent(qq) + '&base_image=' + encodeURIComponent(base) + '&limit=20';
+                    var url = @json(route('admin.practice.images.pkg.search')) + '&os=' + encodeURIComponent(os) + '&q=' + encodeURIComponent(qq) + '&base_image=' + encodeURIComponent(base) + '&limit=20';
                     fetch(url, { headers: { 'Accept': 'application/json' } })
                         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
                         .then(function (x) {

@@ -4,11 +4,11 @@
 
 @section('content')
     <div class="card" style="max-width:720px;margin:0 auto 1rem">
-        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'settings'])
-        <p class="muted" style="margin:0 0 0.5rem"><a href="{{ route('admin.course.module.sections', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}">← Разделы модуля</a></p>
+        @include('partials.admin-instructor-nav', ['active' => 'settings'])
+        <p class="muted" style="margin:0 0 0.5rem"><a href="{{ route('admin.course.module.sections', ['courseModule' => $courseModule->id]) }}">← Разделы модуля</a></p>
         <h1 style="margin:0">{{ $section->title }}</h1>
         <p class="muted small" style="margin:0.35rem 0 0">Тип: <strong>{{ $section->type }}</strong></p>
-        <form method="post" action="{{ route('admin.course.module.sections.update', ['courseModule' => $courseModule->id, 'section' => $section->id, 'key' => $adminKey]) }}" style="margin-top:0.75rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
+        <form method="post" action="{{ route('admin.course.module.sections.update', ['courseModule' => $courseModule->id, 'section' => $section->id]) }}" style="margin-top:0.75rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
             @csrf
             <label class="muted small" style="margin:0">Название:</label>
             <input type="text" name="title" value="{{ $section->title }}" maxlength="200" required class="btn btn-ghost" style="flex:1;min-width:12rem;padding:0.35rem 0.5rem;border:1px solid var(--line,#dfe8e4)">
@@ -22,7 +22,7 @@
 
     <div class="card" style="max-width:720px;margin:0 auto">
         <h2 style="margin-top:0">Параметры</h2>
-        <form method="post" action="{{ route('admin.course.module.section.settings.save', ['courseModule' => $courseModule->id, 'section' => $section->id, 'key' => $adminKey]) }}">
+        <form method="post" action="{{ route('admin.course.module.section.settings.save', ['courseModule' => $courseModule->id, 'section' => $section->id]) }}">
             @csrf
 
             @if ($section->type === 'text')
@@ -81,7 +81,7 @@
 
             <div style="margin-top:1.25rem">
                 <button type="submit" class="btn btn-primary">Сохранить</button>
-                <a class="btn btn-ghost" href="{{ route('admin.course.module.sections', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}">Отмена</a>
+                <a class="btn btn-ghost" href="{{ route('admin.course.module.sections', ['courseModule' => $courseModule->id]) }}">Отмена</a>
             </div>
         </form>
     </div>

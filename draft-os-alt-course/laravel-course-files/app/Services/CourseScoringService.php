@@ -100,9 +100,9 @@ final class CourseScoringService
         return (int) round(100 * $done / $parts);
     }
 
-    public function allModulesComplete(Learner $learner): bool
+    public function allModulesComplete(Learner $learner, ?int $courseIdOverride = null): bool
     {
-        $courseId = (int) session('course_id', 0);
+        $courseId = $courseIdOverride ?? (int) session('course_id', 0);
         if ($courseId < 1 || ! Schema::hasTable('course_modules')) {
             return false;
         }

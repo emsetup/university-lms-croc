@@ -8,8 +8,8 @@
         $c = $course;
     @endphp
     <div class="card" style="max-width:960px;margin:0 auto 1rem">
-        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'courses'])
-        <p class="muted" style="margin:0 0 0.5rem"><a href="{{ route('admin.courses.index', ['key' => $adminKey]) }}">← Все курсы</a></p>
+        @include('partials.admin-instructor-nav', ['active' => 'courses'])
+        <p class="muted" style="margin:0 0 0.5rem"><a href="{{ route('admin.courses.index') }}">← Все курсы</a></p>
         <h1 style="margin:0 0 0.35rem">{{ $isCreate ? 'Создать курс' : 'Редактировать курс' }}</h1>
         <p class="muted" style="margin:0;line-height:1.5">Курс определяет набор модулей и прогресс обучающихся. Вместо удаления используется архив: архивные курсы видны только администраторам и скрыты от обучающихся.</p>
     </div>
@@ -33,7 +33,7 @@
 
     <div class="card" style="max-width:960px;margin:0 auto 1rem">
         <h2 style="margin-top:0">Параметры</h2>
-        <form method="post" action="{{ $isCreate ? route('admin.courses.store', ['key' => $adminKey]) : route('admin.courses.update', ['course' => $c->id, 'key' => $adminKey]) }}" style="display:grid;gap:0.75rem;max-width:46rem">
+        <form method="post" action="{{ $isCreate ? route('admin.courses.store') : route('admin.courses.update', ['course' => $c->id]) }}" style="display:grid;gap:0.75rem;max-width:46rem">
             @csrf
             <div>
                 <label class="muted small" style="display:block;margin-bottom:0.25rem">Slug</label>
@@ -76,7 +76,7 @@
             </div>
             <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:0.25rem">
                 <button type="submit" class="btn btn-primary">{{ $isCreate ? 'Создать' : 'Сохранить' }}</button>
-                <a class="btn btn-ghost" href="{{ route('admin.courses.index', ['key' => $adminKey]) }}">Отмена</a>
+                <a class="btn btn-ghost" href="{{ route('admin.courses.index') }}">Отмена</a>
             </div>
         </form>
     </div>
@@ -86,9 +86,9 @@
             <h2 style="margin-top:0">Статистика</h2>
             <div class="muted">Участников: <strong>{{ (int) ($stats['enrolled'] ?? 0) }}</strong> · Завершили: <strong>{{ (int) ($stats['completed'] ?? 0) }}</strong></div>
             <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap">
-                <a class="btn btn-ghost" href="{{ route('admin.courses.enter', ['course' => $c->id, 'key' => $adminKey, 'next' => 'content']) }}">Открыть “Содержимое”</a>
-                <a class="btn btn-ghost" href="{{ route('admin.courses.enter', ['course' => $c->id, 'key' => $adminKey, 'next' => 'learners']) }}">Открыть “Обучающиеся”</a>
-                <a class="btn btn-ghost" href="{{ route('admin.courses.enter', ['course' => $c->id, 'key' => $adminKey, 'next' => 'certificates']) }}">Открыть “Сертификаты”</a>
+                <a class="btn btn-ghost" href="{{ route('admin.courses.enter', ['course' => $c->id, 'next' => 'content']) }}">Открыть “Содержимое”</a>
+                <a class="btn btn-ghost" href="{{ route('admin.courses.enter', ['course' => $c->id, 'next' => 'learners']) }}">Открыть “Обучающиеся”</a>
+                <a class="btn btn-ghost" href="{{ route('admin.courses.enter', ['course' => $c->id, 'next' => 'certificates']) }}">Открыть “Сертификаты”</a>
             </div>
         </div>
 
@@ -97,12 +97,12 @@
             <p class="muted" style="margin:0 0 0.75rem;line-height:1.5">Архивный курс не отображается обучающимся в портале и недоступен для начала обучения. Администраторы могут восстановить курс в любой момент.</p>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
                 @if ($c->is_archived)
-                    <form method="post" action="{{ route('admin.courses.unarchive', ['course' => $c->id, 'key' => $adminKey]) }}" style="margin:0">
+                    <form method="post" action="{{ route('admin.courses.unarchive', ['course' => $c->id]) }}" style="margin:0">
                         @csrf
                         <button type="submit" class="btn btn-primary">Восстановить из архива</button>
                     </form>
                 @else
-                    <form method="post" action="{{ route('admin.courses.archive', ['course' => $c->id, 'key' => $adminKey]) }}" style="margin:0" onsubmit="return confirm('Перенести курс «{{ $c->title }}» в архив? Он пропадёт из портала обучающихся.');">
+                    <form method="post" action="{{ route('admin.courses.archive', ['course' => $c->id]) }}" style="margin:0" onsubmit="return confirm('Перенести курс «{{ $c->title }}» в архив? Он пропадёт из портала обучающихся.');">
                         @csrf
                         <button type="submit" class="btn btn-ghost" style="color:#92400e">Перенести в архив</button>
                     </form>

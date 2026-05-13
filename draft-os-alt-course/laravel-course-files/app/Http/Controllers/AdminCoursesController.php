@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use App\Models\CourseEnrollment;
+use App\Services\PortalStaffAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,12 +15,11 @@ final class AdminCoursesController extends Controller
 {
     public function index(Request $request): View
     {
-        $adminKey = (string) $request->query('key', '');
-        // На странице выбора курса считаем, что курс ещё не выбран.
         session()->forget('admin_course_id');
         session()->forget('admin_course_title');
 
         $showArchived = (bool) $request->query('archived', false);
+        $gate = app(PortalStaffAccess::class);
 
         $courses = Course::query()
             ->when(! $showArchived, fn ($q) => $q->where('is_archived', false))
@@ -33,8 +33,6 @@ final class AdminCoursesController extends Controller
                     ->count();
                 $completed = 0;
 
-                // Исторические данные могли появиться без enrollment (старые УЗ, импорт, ранние версии).
-                // Для админ-дашборда считаем "участники" по объединению enrollments + прогресс + финал.
                 if (Schema::hasTable('module_progress') || Schema::hasTable('final_lab_results')) {
                     $enrollmentIds = DB::table('course_enrollments')
                         ->where('course_id', $courseId)
@@ -60,7 +58,6 @@ final class AdminCoursesController extends Controller
                         ->count('learner_id');
                 }
 
-                // Завершили = есть сертификат (ФИО + серийник) по этому курсу.
                 if (Schema::hasTable('final_lab_results')) {
                     $completed = (int) DB::table('final_lab_results')
                         ->where('course_id', $courseId)
@@ -82,39 +79,54 @@ final class AdminCoursesController extends Controller
                 ];
             });
 
+        if ($gate->isInstructor() || $gate->isCourseTester()) {
+            $allowed = $gate->assignedCourseIds()->flip()->all();
+            $courses = $courses->filter(fn (array $row) => isset($allowed[(int) $row['id']]))->values();
+        }
+
+        $editableCourseIds = ($gate->isPortalAdmin() || $gate->isCourseModerator())
+            ? null
+            : $gate->assignedCourseIds()->flip()->all();
+
         return view('admin.courses-index', [
-            'adminKey' => $adminKey,
             'courses' => $courses,
             'showArchived' => $showArchived,
+            'canCreateCourse' => $gate->canCreateCourses(),
+            'editableCourseIds' => $editableCourseIds,
         ]);
     }
 
     public function select(Request $request, int $course): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
+        $gate = app(PortalStaffAccess::class);
+        $gate->assertCanAccessCourseInAdmin($course);
+        $next = (string) $request->input('next', 'content');
+        $gate->assertTesterSelectNext($next);
+
         $c = Course::query()->findOrFail($course);
         session([
             'admin_course_id' => $c->id,
             'admin_course_title' => $c->title,
         ]);
 
-        $next = (string) $request->input('next', 'content');
         if ($next === 'quiz') {
-            return redirect()->route('admin.quiz.index', ['key' => $adminKey])->with('ok', 'Курс выбран: '.$c->title);
+            return redirect()->route('admin.quiz.index')->with('ok', 'Курс выбран: '.$c->title);
         }
         if ($next === 'certificates') {
-            return redirect()->route('admin.certificates', ['key' => $adminKey])->with('ok', 'Курс выбран: '.$c->title);
+            return redirect()->route('admin.certificates')->with('ok', 'Курс выбран: '.$c->title);
         }
         if ($next === 'learners') {
-            return redirect()->route('admin.learners.course', ['key' => $adminKey])->with('ok', 'Курс выбран: '.$c->title);
+            return redirect()->route('admin.learners.course')->with('ok', 'Курс выбран: '.$c->title);
         }
 
-        return redirect()->route('admin.theory.index', ['key' => $adminKey])->with('ok', 'Курс выбран: '.$c->title);
+        return redirect()->route('admin.theory.index')->with('ok', 'Курс выбран: '.$c->title);
     }
 
     public function enter(Request $request, int $course): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
+        $gate = app(PortalStaffAccess::class);
+        $gate->assertCanAccessCourseInAdmin($course);
+
         $c = Course::query()->findOrFail($course);
         session([
             'admin_course_id' => $c->id,
@@ -122,28 +134,27 @@ final class AdminCoursesController extends Controller
         ]);
 
         $next = (string) $request->query('next', 'content');
+        $gate->assertTesterSelectNext($next);
+
         if ($next === 'quiz') {
-            return redirect()->route('admin.quiz.index', ['key' => $adminKey]);
+            return redirect()->route('admin.quiz.index');
         }
         if ($next === 'certificates') {
-            return redirect()->route('admin.certificates', ['key' => $adminKey]);
+            return redirect()->route('admin.certificates');
         }
         if ($next === 'learners') {
-            return redirect()->route('admin.learners.course', ['key' => $adminKey]);
+            return redirect()->route('admin.learners.course');
         }
 
-        return redirect()->route('admin.theory.index', ['key' => $adminKey]);
+        return redirect()->route('admin.theory.index');
     }
 
     public function create(Request $request): View
     {
-        $adminKey = (string) $request->query('key', '');
-        // Создание курса — портал-уровень.
         session()->forget('admin_course_id');
         session()->forget('admin_course_title');
 
         return view('admin.course-edit', [
-            'adminKey' => $adminKey,
             'mode' => 'create',
             'course' => null,
         ]);
@@ -151,7 +162,6 @@ final class AdminCoursesController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
         $data = $request->validate([
             'slug' => ['required', 'string', 'max:80', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/', 'unique:courses,slug'],
             'title' => ['required', 'string', 'max:200'],
@@ -173,13 +183,14 @@ final class AdminCoursesController extends Controller
         ]);
 
         return redirect()
-            ->route('admin.courses.edit', ['course' => $course->id, 'key' => $adminKey])
+            ->route('admin.courses.edit', ['course' => $course->id])
             ->with('ok', 'Курс создан.');
     }
 
     public function edit(Request $request, int $course): View
     {
-        $adminKey = (string) $request->query('key', '');
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta($course);
+
         $c = Course::query()->findOrFail($course);
         $courseId = (int) $c->id;
         $enrolled = (int) CourseEnrollment::query()->where('course_id', $courseId)->count();
@@ -221,7 +232,6 @@ final class AdminCoursesController extends Controller
         }
 
         return view('admin.course-edit', [
-            'adminKey' => $adminKey,
             'mode' => 'edit',
             'course' => $c,
             'stats' => [
@@ -233,7 +243,8 @@ final class AdminCoursesController extends Controller
 
     public function update(Request $request, int $course): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta($course);
+
         $c = Course::query()->findOrFail($course);
         $data = $request->validate([
             'slug' => ['required', 'string', 'max:80', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/', 'unique:courses,slug,'.$c->id],
@@ -254,39 +265,39 @@ final class AdminCoursesController extends Controller
         $c->is_archived = isset($data['is_archived']) && (string) $data['is_archived'] === '1';
         $c->save();
 
-        // Если редактируем текущий выбранный курс админки — обновим заголовок в сессии.
         if ((int) session('admin_course_id', 0) === (int) $c->id) {
             session(['admin_course_title' => $c->title]);
         }
 
         return redirect()
-            ->route('admin.courses.edit', ['course' => $c->id, 'key' => $adminKey])
+            ->route('admin.courses.edit', ['course' => $c->id])
             ->with('ok', 'Курс обновлён.');
     }
 
     public function archive(Request $request, int $course): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta($course);
+
         $c = Course::query()->findOrFail($course);
         $c->is_archived = true;
         $c->is_published = false;
         $c->save();
 
         return redirect()
-            ->route('admin.courses.edit', ['course' => $c->id, 'key' => $adminKey])
+            ->route('admin.courses.edit', ['course' => $c->id])
             ->with('ok', 'Курс перенесён в архив.');
     }
 
     public function unarchive(Request $request, int $course): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta($course);
+
         $c = Course::query()->findOrFail($course);
         $c->is_archived = false;
         $c->save();
 
         return redirect()
-            ->route('admin.courses.edit', ['course' => $c->id, 'key' => $adminKey])
+            ->route('admin.courses.edit', ['course' => $c->id])
             ->with('ok', 'Курс восстановлен из архива.');
     }
 }
-

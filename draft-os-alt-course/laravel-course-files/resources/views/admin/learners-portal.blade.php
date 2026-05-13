@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="card" style="max-width:1200px;margin:0 auto 1rem">
-        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'learners_portal'])
+        @include('partials.admin-instructor-nav', ['active' => 'learners_portal'])
         <h1 style="margin:0 0 0.35rem">Обучающиеся (все курсы)</h1>
         <p class="muted" style="margin:0;line-height:1.5">Сводка по программам: сколько участников и сколько завершили (сертификат).</p>
     </div>
@@ -24,7 +24,7 @@
                     <tr>
                         <td style="padding:0.6rem 0.75rem;border-bottom:1px solid #f1f5f9">
                             <div style="font-weight:700">
-                                <a href="{{ route('admin.courses.enter', ['course' => (int) $c['id'], 'key' => $adminKey, 'next' => 'learners']) }}"
+                                <a href="{{ route('admin.courses.enter', ['course' => (int) $c['id'], 'next' => 'learners']) }}"
                                    style="color:inherit;text-decoration:none">{{ $c['title'] }}</a>
                             </div>
                             <div class="muted small">slug: <code>{{ $c['slug'] }}</code></div>

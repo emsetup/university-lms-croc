@@ -36,6 +36,11 @@ class Learner extends Model
         return $this->hasMany(FinalLabResult::class);
     }
 
+    public function portalStaff(): HasOne
+    {
+        return $this->hasOne(PortalStaff::class);
+    }
+
     /**
      * Только существующая запись (без INSERT). Для отображения и отчётов по заблокированным модулям.
      */

@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="card" style="max-width:960px;margin:0 auto 1rem">
-        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'settings'])
+        @include('partials.admin-instructor-nav', ['active' => 'settings'])
         <h1 style="margin:0 0 0.35rem">Модули курса</h1>
         <p class="muted" style="margin:0;line-height:1.5">
             Порядок модулей задаётся перетаскиванием. Для каждого модуля — своя цепочка разделов (теория, тест, практика, экзамен).
@@ -35,11 +35,11 @@
                                     · буква <code>{{ $m->letter }}</code>
                                 @endif
                                 · пакет контента <strong>№{{ $m->effectiveContentIndex() }}</strong>
-                                · <a href="{{ route('admin.theory.edit', ['module' => $m->effectiveContentIndex(), 'key' => $adminKey]) }}">содержимое (MD)</a>,
-                                <a href="{{ route('admin.quiz.edit.module', ['module' => $m->effectiveContentIndex(), 'kind' => 'theory_quiz', 'key' => $adminKey]) }}">тест</a>,
-                                <a href="{{ route('admin.quiz.edit.module', ['module' => $m->effectiveContentIndex(), 'kind' => 'module_exam', 'key' => $adminKey]) }}">экзамен</a>
+                                · <a href="{{ route('admin.theory.edit', ['module' => $m->effectiveContentIndex()]) }}">содержимое (MD)</a>,
+                                <a href="{{ route('admin.quiz.edit.module', ['module' => $m->effectiveContentIndex(), 'kind' => 'theory_quiz']) }}">тест</a>,
+                                <a href="{{ route('admin.quiz.edit.module', ['module' => $m->effectiveContentIndex(), 'kind' => 'module_exam']) }}">экзамен</a>
                             </div>
-                            <form method="post" action="{{ route('admin.course.settings.module.update', ['courseModule' => $m->id, 'key' => $adminKey]) }}" style="display:grid;gap:0.5rem;margin:0">
+                            <form method="post" action="{{ route('admin.course.settings.module.update', ['courseModule' => $m->id]) }}" style="display:grid;gap:0.5rem;margin:0">
                                 @csrf
                                 <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end">
                                     <div>
@@ -62,8 +62,8 @@
                                 </div>
                             </form>
                             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.65rem">
-                                <a class="btn btn-ghost" href="{{ route('admin.course.module.sections', ['courseModule' => $m->id, 'key' => $adminKey]) }}">Разделы модуля</a>
-                                <form method="post" action="{{ route('admin.course.settings.module.destroy', ['courseModule' => $m->id, 'key' => $adminKey]) }}" style="margin:0" onsubmit="return confirm('Удалить модуль «{{ $m->title }}» и все его разделы?');">
+                                <a class="btn btn-ghost" href="{{ route('admin.course.module.sections', ['courseModule' => $m->id]) }}">Разделы модуля</a>
+                                <form method="post" action="{{ route('admin.course.settings.module.destroy', ['courseModule' => $m->id]) }}" style="margin:0" onsubmit="return confirm('Удалить модуль «{{ $m->title }}» и все его разделы?');">
                                     @csrf
                                     <button type="submit" class="btn btn-ghost" style="color:#b91c1c">Удалить</button>
                                 </form>
@@ -74,7 +74,7 @@
             @endforeach
         </ul>
 
-        <form id="course-modules-reorder" method="post" action="{{ route('admin.course.settings.modules.reorder', ['key' => $adminKey]) }}" style="margin-top:1rem">
+        <form id="course-modules-reorder" method="post" action="{{ route('admin.course.settings.modules.reorder') }}" style="margin-top:1rem">
             @csrf
             <div id="module-order-fields"></div>
             <button type="submit" class="btn btn-primary" @disabled($modules->isEmpty())>Сохранить порядок модулей</button>
@@ -84,7 +84,7 @@
     <div class="card" style="max-width:960px;margin:0 auto">
         <h2 style="margin-top:0">Добавить модуль</h2>
         <p class="muted small">Разделы для нового модуля копируются с первого существующего; если модулей ещё не было — создаётся стандартный набор из четырёх типов.</p>
-        <form method="post" action="{{ route('admin.course.settings.module.store', ['key' => $adminKey]) }}" style="display:grid;gap:0.65rem;max-width:36rem">
+        <form method="post" action="{{ route('admin.course.settings.module.store') }}" style="display:grid;gap:0.65rem;max-width:36rem">
             @csrf
             <div>
                 <label class="muted small" style="display:block;margin-bottom:0.2rem">Название</label>

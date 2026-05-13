@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use App\Models\CourseEnrollment;
+use App\Models\CourseModule;
 use App\Support\OidcSignInRedirect;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -46,6 +47,18 @@ final class PortalEnrollController extends Controller
         }
         if ($next === 'account') {
             return redirect()->route('account')->with('ok', 'Курс выбран.');
+        }
+        if ($next === 'module') {
+            $moduleId = (int) $request->input('module', 0);
+            if ($moduleId > 0 && CourseModule::query()->where('course_id', $c->id)->where('id', $moduleId)->exists()) {
+                return redirect()->route('modules.hub', ['module' => $moduleId])
+                    ->with('ok', 'Продолжаем обучение.');
+            }
+
+            return redirect()->route('course.dashboard', ['course' => $c->id])->with('ok', 'Курс выбран.');
+        }
+        if ($next === 'final_lab') {
+            return redirect()->route('final-lab')->with('ok', 'Курс выбран.');
         }
 
         return redirect()->route('course.dashboard', ['course' => $c->id])->with('ok', 'Курс начат. Удачного обучения!');

@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Models\CourseModule;
 use App\Models\CourseQuizBank;
 use App\Services\CourseContentService;
+use App\Services\PortalStaffAccess;
 use App\Support\AdminCourseContentInspector;
 use App\Support\CourseQuizBankLoader;
 use Illuminate\Support\Facades\Schema;
@@ -22,7 +23,6 @@ final class AdminQuizController extends Controller
 
     public function index(Request $request): View
     {
-        $adminKey = (string) $request->query('key', '');
         $rows = [];
         $courseId = (int) session('admin_course_id');
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
@@ -55,16 +55,17 @@ final class AdminQuizController extends Controller
             }
         }
 
+        $ro = app(PortalStaffAccess::class)->isReadOnlyCourseContent();
+
         return view('admin.quiz-index', [
-            'adminKey' => $adminKey,
             'rows' => $rows,
             'selectedCourse' => $course,
+            'isReadOnly' => $ro,
         ]);
     }
 
     public function editModule(Request $request, int $module, string $kind): View
     {
-        $adminKey = (string) $request->query('key', '');
         abort_if($module < 1 || $module > 9, 404);
         abort_if(! in_array($kind, ['theory_quiz', 'module_exam'], true), 404);
 
@@ -93,50 +94,51 @@ final class AdminQuizController extends Controller
                 ]);
             }
             $questions = $this->content->questionsForBank($bank);
+            $ro = app(PortalStaffAccess::class)->isReadOnlyCourseContent();
 
             return view('admin.quiz-edit-db', [
-                'adminKey' => $adminKey,
                 'course' => $course,
                 'courseModule' => $cm,
                 'bank' => $bank,
                 'kind' => $kind,
                 'title' => $kind === 'theory_quiz' ? 'Тест по теории' : 'Итоговый экзамен',
                 'questions' => $questions,
+                'isReadOnly' => $ro,
             ]);
         }
 
         [$jsonPath, $phpPath] = $this->bankPaths($module, $kind);
         $questions = CourseQuizBankLoader::loadBankWithFallback($jsonPath, $phpPath);
+        $ro = app(PortalStaffAccess::class)->isReadOnlyCourseContent();
 
         return view('admin.quiz-edit', [
-            'adminKey' => $adminKey,
             'scope' => 'module',
             'module' => $module,
             'kind' => $kind,
             'title' => $kind === 'theory_quiz' ? 'Тест по теории' : 'Итоговый экзамен',
             'questions' => $questions,
+            'isReadOnly' => $ro,
         ]);
     }
 
     public function editFinal(Request $request): View
     {
-        $adminKey = (string) $request->query('key', '');
         $jsonPath = $this->finalJsonPath();
         $questions = CourseQuizBankLoader::loadJsonBank($jsonPath);
+        $ro = app(PortalStaffAccess::class)->isReadOnlyCourseContent();
 
         return view('admin.quiz-edit', [
-            'adminKey' => $adminKey,
             'scope' => 'final',
             'module' => null,
             'kind' => 'final_lab',
             'title' => 'Финальная лабораторная (вопросы страницы)',
             'questions' => $questions,
+            'isReadOnly' => $ro,
         ]);
     }
 
     public function save(Request $request, int $module, string $kind): RedirectResponse|JsonResponse
     {
-        $adminKey = (string) $request->query('key', '');
         abort_if($module < 1 || $module > 9, 404);
         abort_if(! in_array($kind, ['theory_quiz', 'module_exam'], true), 404);
 
@@ -167,7 +169,7 @@ final class AdminQuizController extends Controller
             return response()->json(['ok' => true]);
         }
         return redirect()
-            ->route('admin.quiz.edit.module', ['module' => $module, 'kind' => $kind, 'key' => $adminKey])
+            ->route('admin.quiz.edit.module', ['module' => $module, 'kind' => $kind])
             ->with('ok', 'Банк вопросов сохранён.');
     }
 
@@ -190,7 +192,6 @@ final class AdminQuizController extends Controller
 
     private function saveDbBank(Request $request, ?Course $course, int $contentIdx, string $kind): RedirectResponse|JsonResponse
     {
-        $adminKey = (string) $request->query('key', '');
         $courseId = (int) session('admin_course_id', 0);
         abort_unless($course && (int) $course->id === $courseId, 404);
 
@@ -333,13 +334,12 @@ final class AdminQuizController extends Controller
         }
 
         return redirect()
-            ->route('admin.quiz.edit.module', ['module' => $contentIdx, 'kind' => $kind, 'key' => $adminKey])
+            ->route('admin.quiz.edit.module', ['module' => $contentIdx, 'kind' => $kind])
             ->with('ok', 'Банк вопросов сохранён в БД.');
     }
 
     public function saveFinal(Request $request): RedirectResponse|JsonResponse
     {
-        $adminKey = (string) $request->query('key', '');
         $items = $request->input('questions', []);
         if (! is_array($items)) {
             return $this->fail($request, 'Неверный формат данных (questions).');
@@ -358,7 +358,7 @@ final class AdminQuizController extends Controller
             return response()->json(['ok' => true]);
         }
         return redirect()
-            ->route('admin.quiz.edit.final', ['key' => $adminKey])
+            ->route('admin.quiz.edit.final')
             ->with('ok', 'Вопросы финальной страницы сохранены.');
     }
 

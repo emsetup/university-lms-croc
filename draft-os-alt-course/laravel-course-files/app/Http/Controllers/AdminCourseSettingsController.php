@@ -17,24 +17,20 @@ final class AdminCourseSettingsController extends Controller
 {
     public function modulesIndex(Request $request): View
     {
-        $adminKey = (string) $request->query('key', '');
-        $courseId = (int) session('admin_course_id');
+                $courseId = (int) session('admin_course_id');
         $modules = CourseModule::query()
             ->where('course_id', $courseId)
             ->orderBy('sort')
             ->orderBy('id')
             ->get();
 
-        return view('admin.course-modules-index', [
-            'adminKey' => $adminKey,
-            'modules' => $modules,
+        return view('admin.course-modules-index', [            'modules' => $modules,
         ]);
     }
 
     public function storeModule(Request $request): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
-        $courseId = (int) session('admin_course_id');
+                $courseId = (int) session('admin_course_id');
         $data = $request->validate([
             'title' => 'required|string|max:200',
             'summary' => 'nullable|string|max:5000',
@@ -64,14 +60,13 @@ final class AdminCourseSettingsController extends Controller
         app(\App\Services\CourseSectionService::class)->clearCache();
 
         return redirect()
-            ->route('admin.course.settings', ['key' => $adminKey])
+            ->route('admin.course.settings')
             ->with('ok', 'Модуль добавлен. Настройте разделы при необходимости.');
     }
 
     public function updateModule(Request $request, CourseModule $courseModule): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
-        $this->assertModuleCourse($courseModule);
+                $this->assertModuleCourse($courseModule);
         $data = $request->validate([
             'title' => 'required|string|max:200',
             'summary' => 'nullable|string|max:5000',
@@ -86,31 +81,29 @@ final class AdminCourseSettingsController extends Controller
         app(\App\Services\CourseSectionService::class)->clearCache();
 
         return redirect()
-            ->route('admin.course.settings', ['key' => $adminKey])
+            ->route('admin.course.settings')
             ->with('ok', 'Модуль обновлён.');
     }
 
     public function destroyModule(Request $request, CourseModule $courseModule): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
-        $this->assertModuleCourse($courseModule);
+                $this->assertModuleCourse($courseModule);
         if (ModuleProgress::query()->where('course_module_id', $courseModule->id)->exists()) {
             return redirect()
-                ->route('admin.course.settings', ['key' => $adminKey])
+                ->route('admin.course.settings')
                 ->with('err', 'Нельзя удалить модуль: есть сохранённый прогресс обучающихся. Сбросьте прогресс или отключите модуль.');
         }
         $courseModule->delete();
         app(\App\Services\CourseSectionService::class)->clearCache();
 
         return redirect()
-            ->route('admin.course.settings', ['key' => $adminKey])
+            ->route('admin.course.settings')
             ->with('ok', 'Модуль удалён.');
     }
 
     public function reorderModules(Request $request): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
-        $courseId = (int) session('admin_course_id');
+                $courseId = (int) session('admin_course_id');
         $data = $request->validate([
             'order' => 'required|array',
             'order.*' => 'integer|distinct',
@@ -121,7 +114,7 @@ final class AdminCourseSettingsController extends Controller
         sort($sortedIds);
         if ($owned !== $sortedIds || $owned === []) {
             return redirect()
-                ->route('admin.course.settings', ['key' => $adminKey])
+                ->route('admin.course.settings')
                 ->with('err', 'Некорректный порядок модулей.');
         }
         DB::transaction(function () use ($ids): void {
@@ -132,24 +125,21 @@ final class AdminCourseSettingsController extends Controller
         app(\App\Services\CourseSectionService::class)->clearCache();
 
         return redirect()
-            ->route('admin.course.settings', ['key' => $adminKey])
+            ->route('admin.course.settings')
             ->with('ok', 'Порядок модулей сохранён.');
     }
 
     public function moduleSections(Request $request, CourseModule $courseModule): View
     {
         $this->assertModuleCourse($courseModule);
-        $adminKey = (string) $request->query('key', '');
-        $sections = CourseSection::query()
+                $sections = CourseSection::query()
             ->where('course_module_id', $courseModule->id)
             ->orderBy('sort')
             ->orderBy('id')
             ->with('sectionSettings')
             ->get();
 
-        return view('admin.course-module-sections', [
-            'adminKey' => $adminKey,
-            'courseModule' => $courseModule,
+        return view('admin.course-module-sections', [            'courseModule' => $courseModule,
             'sections' => $sections,
             'types' => CourseSection::typesList(),
         ]);
@@ -158,17 +148,14 @@ final class AdminCourseSettingsController extends Controller
     public function modulePractice(Request $request, CourseModule $courseModule): View
     {
         $this->assertModuleCourse($courseModule);
-        $adminKey = (string) $request->query('key', '');
-        $setting = CourseModulePracticeSetting::query()->firstOrNew(['course_module_id' => $courseModule->id]);
+                $setting = CourseModulePracticeSetting::query()->firstOrNew(['course_module_id' => $courseModule->id]);
         $images = PracticeImage::query()
             ->where('is_built', true)
             ->orderBy('title')
             ->orderBy('id')
             ->get();
 
-        return view('admin.course-module-practice', [
-            'adminKey' => $adminKey,
-            'courseModule' => $courseModule,
+        return view('admin.course-module-practice', [            'courseModule' => $courseModule,
             'setting' => $setting,
             'images' => $images,
         ]);
@@ -177,8 +164,7 @@ final class AdminCourseSettingsController extends Controller
     public function saveModulePractice(Request $request, CourseModule $courseModule): RedirectResponse
     {
         $this->assertModuleCourse($courseModule);
-        $adminKey = (string) $request->query('key', '');
-        $data = $request->validate([
+                $data = $request->validate([
             'practice_image_id' => 'nullable|integer|min:1',
             'daemon_image_key_override' => 'nullable|integer|min:1|max:99',
         ]);
@@ -186,7 +172,7 @@ final class AdminCourseSettingsController extends Controller
         $practiceImageId = isset($data['practice_image_id']) ? (int) $data['practice_image_id'] : null;
         if ($practiceImageId !== null && ! PracticeImage::query()->where('id', $practiceImageId)->where('is_built', true)->exists()) {
             return redirect()
-                ->route('admin.course.module.practice', ['courseModule' => $courseModule->id, 'key' => $adminKey])
+                ->route('admin.course.module.practice', ['courseModule' => $courseModule->id])
                 ->with('err', 'Выбранный образ не найден.');
         }
 
@@ -199,14 +185,13 @@ final class AdminCourseSettingsController extends Controller
         );
 
         return redirect()
-            ->route('admin.course.module.practice', ['courseModule' => $courseModule->id, 'key' => $adminKey])
+            ->route('admin.course.module.practice', ['courseModule' => $courseModule->id])
             ->with('ok', 'Настройки практики сохранены.');
     }
 
     public function storeSection(Request $request, CourseModule $courseModule): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
-        $this->assertModuleCourse($courseModule);
+                $this->assertModuleCourse($courseModule);
         $courseId = (int) session('admin_course_id');
         $data = $request->validate([
             'type' => 'required|in:text,quiz,practice,exam',
@@ -214,7 +199,7 @@ final class AdminCourseSettingsController extends Controller
         ]);
         if (CourseSection::query()->where('course_module_id', $courseModule->id)->where('type', $data['type'])->exists()) {
             return redirect()
-                ->route('admin.course.module.sections', ['courseModule' => $courseModule->id, 'key' => $adminKey])
+                ->route('admin.course.module.sections', ['courseModule' => $courseModule->id])
                 ->with('err', 'Тип раздела «'.$data['type'].'» уже есть у этого модуля.');
         }
         $maxSort = (int) CourseSection::query()->where('course_module_id', $courseModule->id)->max('sort');
@@ -234,14 +219,13 @@ final class AdminCourseSettingsController extends Controller
         app(\App\Services\CourseSectionService::class)->clearCache();
 
         return redirect()
-            ->route('admin.course.module.sections', ['courseModule' => $courseModule->id, 'key' => $adminKey])
+            ->route('admin.course.module.sections', ['courseModule' => $courseModule->id])
             ->with('ok', 'Раздел добавлен.');
     }
 
     public function updateSection(Request $request, CourseModule $courseModule, CourseSection $section): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
-        $this->assertSectionInModule($courseModule, $section);
+                $this->assertSectionInModule($courseModule, $section);
         $data = $request->validate([
             'title' => 'required|string|max:200',
             'is_enabled' => 'nullable|in:0,1',
@@ -254,26 +238,24 @@ final class AdminCourseSettingsController extends Controller
         app(\App\Services\CourseSectionService::class)->clearCache();
 
         return redirect()
-            ->route('admin.course.module.sections', ['courseModule' => $courseModule->id, 'key' => $adminKey])
+            ->route('admin.course.module.sections', ['courseModule' => $courseModule->id])
             ->with('ok', 'Раздел обновлён.');
     }
 
     public function destroySection(Request $request, CourseModule $courseModule, CourseSection $section): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
-        $this->assertSectionInModule($courseModule, $section);
+                $this->assertSectionInModule($courseModule, $section);
         $section->delete();
         app(\App\Services\CourseSectionService::class)->clearCache();
 
         return redirect()
-            ->route('admin.course.module.sections', ['courseModule' => $courseModule->id, 'key' => $adminKey])
+            ->route('admin.course.module.sections', ['courseModule' => $courseModule->id])
             ->with('ok', 'Раздел удалён.');
     }
 
     public function reorderSections(Request $request, CourseModule $courseModule): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
-        $this->assertModuleCourse($courseModule);
+                $this->assertModuleCourse($courseModule);
         $data = $request->validate([
             'order' => 'required|array',
             'order.*' => 'integer|distinct',
@@ -284,7 +266,7 @@ final class AdminCourseSettingsController extends Controller
         sort($sortedIds);
         if ($owned !== $sortedIds || $owned === []) {
             return redirect()
-                ->route('admin.course.module.sections', ['courseModule' => $courseModule->id, 'key' => $adminKey])
+                ->route('admin.course.module.sections', ['courseModule' => $courseModule->id])
                 ->with('err', 'Некорректный порядок разделов.');
         }
         DB::transaction(function () use ($ids): void {
@@ -295,23 +277,20 @@ final class AdminCourseSettingsController extends Controller
         app(\App\Services\CourseSectionService::class)->clearCache();
 
         return redirect()
-            ->route('admin.course.module.sections', ['courseModule' => $courseModule->id, 'key' => $adminKey])
+            ->route('admin.course.module.sections', ['courseModule' => $courseModule->id])
             ->with('ok', 'Порядок сохранён.');
     }
 
     public function editSettings(Request $request, CourseModule $courseModule, CourseSection $section): View
     {
-        $adminKey = (string) $request->query('key', '');
-        $this->assertSectionInModule($courseModule, $section);
+                $this->assertSectionInModule($courseModule, $section);
         $section->loadMissing('sectionSettings');
         $settings = $section->sectionSettings?->settings;
         if (! is_array($settings)) {
             $settings = self::defaultSettingsForType($section->type);
         }
 
-        return view('admin.course-section-settings', [
-            'adminKey' => $adminKey,
-            'courseModule' => $courseModule,
+        return view('admin.course-section-settings', [            'courseModule' => $courseModule,
             'section' => $section,
             'settings' => $settings,
         ]);
@@ -319,8 +298,7 @@ final class AdminCourseSettingsController extends Controller
 
     public function saveSettings(Request $request, CourseModule $courseModule, CourseSection $section): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
-        $this->assertSectionInModule($courseModule, $section);
+                $this->assertSectionInModule($courseModule, $section);
         $merged = match ($section->type) {
             CourseSection::TYPE_TEXT => $request->validate([
                 'min_read_seconds' => 'nullable|integer|min:0|max:86400',
@@ -388,7 +366,6 @@ final class AdminCourseSettingsController extends Controller
             ->route('admin.course.module.section.settings', [
                 'courseModule' => $courseModule->id,
                 'section' => $section->id,
-                'key' => $adminKey,
             ])
             ->with('ok', 'Настройки сохранены.');
     }

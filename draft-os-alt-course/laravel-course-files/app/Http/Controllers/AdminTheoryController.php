@@ -22,13 +22,18 @@ use ZipArchive;
 
 class AdminTheoryController extends Controller
 {
+    private function adminLabCacheKeyPrefix(): string
+    {
+        return 'lid:'.(int) session('learner_id', 0);
+    }
+
     private const MAX_BYTES = 2_500_000;
     private const ADMIN_LAB_TTL_MINUTES = 120;
     private const IMAGE_STATS_TTL_MINUTES = 720;
 
     public function index(Request $request): View
     {
-        $key = (string) $request->query('key', '');
+        $key = $this->adminLabCacheKeyPrefix();
         $rows = [];
         $labStateMap = [];
         $imageStatsByImage = [];
@@ -73,7 +78,6 @@ class AdminTheoryController extends Controller
         }
 
         return view('admin.theory-index', [
-            'adminKey' => $key,
             'rows' => $rows,
             'selectedCourse' => $course,
             'adminLabStates' => $labStateMap,
@@ -90,7 +94,7 @@ class AdminTheoryController extends Controller
         if ($this->isReadOnlyAccess($request)) {
             return $this->redirectToTheoryIndex($request)->with('err', 'Режим модератора: запуск контейнера недоступен.');
         }
-        $key = (string) $request->query('key', '');
+        $key = $this->adminLabCacheKeyPrefix();
         $image = AdminCourseContentInspector::practiceLabDockerImageForModule($module);
         if (! $image) {
             return $this->redirectToTheoryIndex($request)->with('err', 'Для модуля '.$module.' не задан Docker-образ.');
@@ -126,7 +130,7 @@ class AdminTheoryController extends Controller
         if ($this->isReadOnlyAccess($request)) {
             return $this->redirectToTheoryIndex($request)->with('err', 'Режим модератора: завершение контейнера недоступно.');
         }
-        $key = (string) $request->query('key', '');
+        $key = $this->adminLabCacheKeyPrefix();
         $state = $this->adminLabState($key, $module);
         $client = PracticeLabDaemonClient::fromConfig();
         if ($client && is_array($state) && ! empty($state['lab_id'])) {
@@ -147,17 +151,15 @@ class AdminTheoryController extends Controller
     public function previewTheory(Request $request, int $module): View|RedirectResponse
     {
         abort_unless($module >= 1 && $module <= 9, 404);
-        $key = (string) $request->query('key', '');
         $meta = CourseModuleMeta::resolved($module);
         $theoryRaw = (string) ($meta['theory'] ?? '');
         if (trim($theoryRaw) === '') {
             return redirect()
-                ->route('admin.theory.index', ['key' => $key])
+                ->route('admin.theory.index')
                 ->with('err', 'Модуль '.$module.': нет текста теории для предпросмотра.');
         }
 
         return view('admin.theory-preview', [
-            'adminKey' => $key,
             'module' => $module,
             'meta' => $meta,
             'isReadOnly' => $this->isReadOnlyAccess($request),
@@ -167,19 +169,17 @@ class AdminTheoryController extends Controller
     public function edit(Request $request, int $module): View|RedirectResponse
     {
         abort_unless($module >= 1 && $module <= 9, 404);
-        $key = (string) $request->query('key', '');
         $ref = CourseTheoryPaths::rawTheoryReference($module);
         $snippet = CourseTheoryPaths::snippetBasenameFromReference($ref);
         if ($snippet === null || ! CourseTheoryPaths::snippetBasenameTargetsModule($snippet, $module)) {
             return redirect()
-                ->route('admin.theory.index', ['key' => $key])
+                ->route('admin.theory.index')
                 ->with('err', 'Модуль '.$module.': в course.php должна быть ссылка вида @snippet:module_<номер>_theory.md для этого модуля.');
         }
         $path = CourseTheoryPaths::absolutePathForSnippetBasename($snippet);
         $markdown = is_file($path) ? (string) file_get_contents($path) : '';
 
         return view('admin.theory-edit', [
-            'adminKey' => $key,
             'module' => $module,
             'meta' => is_array(config('course.modules.'.$module)) ? config('course.modules.'.$module) : [],
             'markdown' => $markdown,
@@ -190,12 +190,11 @@ class AdminTheoryController extends Controller
     public function update(Request $request, int $module): RedirectResponse
     {
         abort_unless($module >= 1 && $module <= 9, 404);
-        $key = (string) $request->query('key', '');
         $ref = CourseTheoryPaths::rawTheoryReference($module);
         $snippet = CourseTheoryPaths::snippetBasenameFromReference($ref);
         if ($snippet === null || ! CourseTheoryPaths::snippetBasenameTargetsModule($snippet, $module)) {
             return redirect()
-                ->route('admin.theory.index', ['key' => $key])
+                ->route('admin.theory.index')
                 ->with('err', 'Сохранение отклонено: для модуля нет допустимой ссылки @snippet:module_*_theory.md.');
         }
 
@@ -207,41 +206,39 @@ class AdminTheoryController extends Controller
         $dir = CourseTheoryPaths::snippetsDirectory();
         if (! is_dir($dir)) {
             return redirect()
-                ->route('admin.theory.edit', ['module' => $module, 'key' => $key])
+                ->route('admin.theory.edit', ['module' => $module])
                 ->with('err', 'Каталог сниппетов недоступен: '.$dir);
         }
 
         $body = str_replace("\r\n", "\n", (string) ($validated['markdown'] ?? ''));
         if (strlen($body) > self::MAX_BYTES) {
             return redirect()
-                ->route('admin.theory.edit', ['module' => $module, 'key' => $key])
+                ->route('admin.theory.edit', ['module' => $module])
                 ->with('err', 'Слишком большой объём текста.');
         }
 
         if (file_put_contents($path, $body) === false) {
             return redirect()
-                ->route('admin.theory.edit', ['module' => $module, 'key' => $key])
+                ->route('admin.theory.edit', ['module' => $module])
                 ->with('err', 'Не удалось записать файл (права на каталог config/snippets?).');
         }
 
         return redirect()
-            ->route('admin.theory.edit', ['module' => $module, 'key' => $key])
+            ->route('admin.theory.edit', ['module' => $module])
             ->with('ok', 'Теория модуля '.$module.' сохранена в '.$snippet);
     }
 
     public function previewTheoryQuiz(Request $request, int $module): View|RedirectResponse
     {
         abort_unless($module >= 1 && $module <= 9, 404);
-        $key = (string) $request->query('key', '');
         $questions = AdminCourseContentInspector::theoryQuizQuestions($module);
         if ($questions === []) {
             return redirect()
-                ->route('admin.theory.index', ['key' => $key])
+                ->route('admin.theory.index')
                 ->with('err', 'Модуль '.$module.': в конфиге нет вопросов теста по теории (theory_quiz).');
         }
 
         return view('admin.content-theory-quiz', [
-            'adminKey' => $key,
             'module' => $module,
             'meta' => is_array(config('course.modules.'.$module)) ? config('course.modules.'.$module) : [],
             'questions' => $questions,
@@ -251,19 +248,17 @@ class AdminTheoryController extends Controller
     public function previewPractice(Request $request, int $module): View|RedirectResponse
     {
         abort_unless($module >= 1 && $module <= 9, 404);
-        $key = (string) $request->query('key', '');
         $markdown = PracticeHintMarkdown::stripBlockquoteHintsUnlessVisible(
             AdminCourseContentInspector::practiceMarkdown($module),
             true
         );
         if ($markdown === '') {
             return redirect()
-                ->route('admin.theory.index', ['key' => $key])
+                ->route('admin.theory.index')
                 ->with('err', 'Модуль '.$module.': в конфиге нет текста практики.');
         }
 
         return view('admin.content-practice', [
-            'adminKey' => $key,
             'module' => $module,
             'meta' => is_array(config('course.modules.'.$module)) ? config('course.modules.'.$module) : [],
             'practiceMarkdown' => $markdown,
@@ -273,16 +268,14 @@ class AdminTheoryController extends Controller
     public function previewModuleExam(Request $request, int $module): View|RedirectResponse
     {
         abort_unless($module >= 1 && $module <= 9, 404);
-        $key = (string) $request->query('key', '');
         $questions = AdminCourseContentInspector::moduleExamQuestions($module);
         if ($questions === []) {
             return redirect()
-                ->route('admin.theory.index', ['key' => $key])
+                ->route('admin.theory.index')
                 ->with('err', 'Модуль '.$module.': в конфиге нет вопросов итогового теста (module_exam).');
         }
 
         return view('admin.content-module-exam', [
-            'adminKey' => $key,
             'module' => $module,
             'meta' => is_array(config('course.modules.'.$module)) ? config('course.modules.'.$module) : [],
             'questions' => $questions,
@@ -292,10 +285,7 @@ class AdminTheoryController extends Controller
 
     public function previewFinalLab(Request $request): View
     {
-        $key = (string) $request->query('key', '');
-
         return view('admin.content-final-lab', [
-            'adminKey' => $key,
             'isReadOnly' => $this->isReadOnlyAccess($request),
         ]);
     }
@@ -393,29 +383,28 @@ class AdminTheoryController extends Controller
 
     private function redirectToTheoryIndex(Request $request): RedirectResponse
     {
-        return redirect()->route('admin.theory.index', ['key' => (string) $request->query('key', '')]);
+        return redirect()->route('admin.theory.index');
     }
 
     public function downloadZip(Request $request): Response|RedirectResponse
     {
-        $key = (string) $request->query('key', '');
         $files = CourseTheoryPaths::existingTheoryMarkdownFiles();
         if ($files === []) {
             return redirect()
-                ->route('admin.theory.index', ['key' => $key])
+                ->route('admin.theory.index')
                 ->with('err', 'Нет файлов module_*_theory.md в config/snippets.');
         }
 
         if (! class_exists(ZipArchive::class)) {
             return redirect()
-                ->route('admin.theory.index', ['key' => $key])
+                ->route('admin.theory.index')
                 ->with('err', 'Расширение PHP zip (ZipArchive) недоступно на сервере.');
         }
 
         $tmp = tempnam(sys_get_temp_dir(), 'theory-md-');
         if ($tmp === false) {
             return redirect()
-                ->route('admin.theory.index', ['key' => $key])
+                ->route('admin.theory.index')
                 ->with('err', 'Не удалось создать временный файл.');
         }
 
@@ -424,7 +413,7 @@ class AdminTheoryController extends Controller
             @unlink($tmp);
 
             return redirect()
-                ->route('admin.theory.index', ['key' => $key])
+                ->route('admin.theory.index')
                 ->with('err', 'Не удалось создать ZIP.');
         }
 

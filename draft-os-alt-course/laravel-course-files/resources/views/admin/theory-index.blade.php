@@ -6,7 +6,7 @@
     @php($isReadOnly = (bool) ($isReadOnly ?? false))
     <div style="max-width: 1100px; margin: 0 auto">
         @if (! $isReadOnly)
-            @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'theory'])
+            @include('partials.admin-instructor-nav', ['active' => 'theory'])
         @endif
         <div class="card">
         <h1 style="margin-top: 0">Содержимое курса (админ)</h1>
@@ -15,7 +15,7 @@
         <p class="muted small">Если в панели выбран курс с модулями в БД, таблица повторяет их порядок; колонка «#» — номер <strong>пакета контента</strong> (файлы и ключи в конфиге), название строки — из настроек курса.</p>
         @if (! $isReadOnly)
             <p style="margin: 0.5rem 0 1rem">
-                <a class="btn btn-primary" href="{{ route('admin.theory.zip', ['key' => $adminKey]) }}">Скачать все module_*_theory.md (ZIP)</a>
+                <a class="btn btn-primary" href="{{ route('admin.theory.zip') }}">Скачать все module_*_theory.md (ZIP)</a>
             </p>
         @endif
         @if (session('err'))
@@ -29,7 +29,7 @@
                 <div style="font-weight:800;color:#92400e;margin-bottom:0.25rem">Контент не настроен</div>
                 <div class="muted" style="line-height:1.5">
                     Для этого курса пока нет модулей в базе данных, поэтому «Содержимое курса» не сформировано.
-                    Перейдите в <a href="{{ route('admin.course.settings', ['key' => $adminKey]) }}">«Настройки»</a> и создайте модули курса (и их разделы).
+                    Перейдите в <a href="{{ route('admin.course.settings') }}">«Настройки»</a> и создайте модули курса (и их разделы).
                 </div>
             </div>
         @endif
@@ -73,10 +73,10 @@
                             <td style="vertical-align:top;font-size:0.85rem">
                                 <div class="atc-actions">
                                     @if ($r['theory_chars'] > 0)
-                                        <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр теории" data-preview-url="{{ route('admin.theory.preview-theory', ['module' => $r['module'], 'key' => $adminKey]) }}">Просмотр</button>
+                                        <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр теории" data-preview-url="{{ route('admin.theory.preview-theory', ['module' => $r['module']]) }}">Просмотр</button>
                                     @endif
                                     @if (! $isReadOnly && $r['editable'])
-                                        <a class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.85rem" href="{{ route('admin.theory.edit', ['module' => $r['module'], 'key' => $adminKey]) }}">Редактор MD</a>
+                                        <a class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.85rem" href="{{ route('admin.theory.edit', ['module' => $r['module']]) }}">Редактор MD</a>
                                     @else
                                         <span class="muted" style="font-size:0.85rem">{{ $isReadOnly ? 'редактирование отключено' : 'встроено в конфиг' }}</span>
                                     @endif
@@ -90,7 +90,7 @@
                             <td class="teacher-report-nowrap" style="vertical-align:top;font-size:0.9rem">
                                 @if ($r['theory_quiz_count'] > 0)
                                     <div class="atc-actions">
-                                        <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр теста по теории" data-preview-url="{{ route('admin.theory.preview-theory-quiz', ['module' => $r['module'], 'key' => $adminKey]) }}">Просмотр</button>
+                                        <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр теста по теории" data-preview-url="{{ route('admin.theory.preview-theory-quiz', ['module' => $r['module']]) }}">Просмотр</button>
                                     </div>
                                     <div class="atc-meta">
                                         {{ $r['theory_quiz_count'] }} вопр.
@@ -105,7 +105,7 @@
                             <td style="vertical-align:top;font-size:0.85rem">
                                 @if ($r['has_practice'])
                                     <div class="atc-actions">
-                                        <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр практики" data-preview-url="{{ route('admin.theory.preview-practice', ['module' => $r['module'], 'key' => $adminKey]) }}">Просмотр</button>
+                                        <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр практики" data-preview-url="{{ route('admin.theory.preview-practice', ['module' => $r['module']]) }}">Просмотр</button>
                                     </div>
                                     <div class="atc-meta">{{ $r['practice_summary'] }}</div>
                                 @else
@@ -115,7 +115,7 @@
                             <td class="teacher-report-nowrap" style="vertical-align:top;font-size:0.9rem">
                                 @if ($r['exam_count'] > 0)
                                     <div class="atc-actions">
-                                        <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр итогового теста" data-preview-url="{{ route('admin.theory.preview-module-exam', ['module' => $r['module'], 'key' => $adminKey]) }}">Просмотр</button>
+                                        <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр итогового теста" data-preview-url="{{ route('admin.theory.preview-module-exam', ['module' => $r['module']]) }}">Просмотр</button>
                                     </div>
                                     <div class="atc-meta">
                                         {{ $r['exam_count'] }} вопр.
@@ -147,12 +147,12 @@
                                                 @if (! empty($ls['terminal_url']))
                                                     <a class="btn btn-ghost" href="{{ $ls['terminal_url'] }}" target="_blank" rel="noopener" style="padding:0.25rem 0.55rem;font-size:0.82rem">Открыть</a>
                                                 @endif
-                                                <form method="post" action="{{ route('admin.theory.container.finish', ['module' => $r['module'], 'key' => $adminKey]) }}" style="margin:0">
+                                                <form method="post" action="{{ route('admin.theory.container.finish', ['module' => $r['module']]) }}" style="margin:0">
                                                     @csrf
                                                     <button type="submit" class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.82rem">Завершить</button>
                                                 </form>
                                             @else
-                                                <form method="post" action="{{ route('admin.theory.container.start', ['module' => $r['module'], 'key' => $adminKey]) }}" style="margin:0">
+                                                <form method="post" action="{{ route('admin.theory.container.start', ['module' => $r['module']]) }}" style="margin:0">
                                                     @csrf
                                                     <button type="submit" class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.82rem">Запустить</button>
                                                 </form>
@@ -175,18 +175,18 @@
                     <div class="muted small">Практический экзамен по всему курсу (контейнер, чек-лист, итог 100 баллов).</div>
                 </div>
                 <div class="atc-actions" style="margin:0">
-                    <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр финальной лабораторной" data-preview-url="{{ route('admin.theory.preview-final-lab', ['key' => $adminKey]) }}">Просмотр</button>
+                    <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр финальной лабораторной" data-preview-url="{{ route('admin.theory.preview-final-lab') }}">Просмотр</button>
                     @if (! $isReadOnly && ! empty($finalLabDockerImage))
                         @if ($finalLabState && ! empty($finalLabState['lab_id']))
                             @if (! empty($finalLabState['terminal_url']))
                                 <a class="btn btn-ghost" href="{{ $finalLabState['terminal_url'] }}" target="_blank" rel="noopener" style="padding:0.25rem 0.55rem;font-size:0.82rem">Открыть</a>
                             @endif
-                            <form method="post" action="{{ route('admin.theory.container.finish', ['module' => 10, 'key' => $adminKey]) }}" style="margin:0">
+                            <form method="post" action="{{ route('admin.theory.container.finish', ['module' => 10]) }}" style="margin:0">
                                 @csrf
                                 <button type="submit" class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.82rem">Завершить</button>
                             </form>
                         @else
-                            <form method="post" action="{{ route('admin.theory.container.start', ['module' => 10, 'key' => $adminKey]) }}" style="margin:0">
+                            <form method="post" action="{{ route('admin.theory.container.start', ['module' => 10]) }}" style="margin:0">
                                 @csrf
                                 <button type="submit" class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.82rem">Запустить</button>
                             </form>

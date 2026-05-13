@@ -8,19 +8,19 @@
 
 @section('content')
     <div style="max-width: 1100px; margin: 0 auto">
-        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'theory'])
+        @include('partials.admin-instructor-nav', ['active' => 'theory'])
         <div class="card">
-        <p class="muted"><a href="{{ route('admin.theory.index', ['key' => $adminKey]) }}">← К списку модулей</a></p>
+        <p class="muted"><a href="{{ route('admin.theory.index') }}">← К списку модулей</a></p>
         <h1 style="margin-top: 0">Модуль {{ $module }}: {{ $mTitle }}</h1>
         <p class="muted small">Файл: <code>config/snippets/{{ $filename }}</code>. Панель вносит разметку Markdown (**жирный**, *курсив*, списки, код). Предпросмотр — вкладка справа в редакторе.</p>
 
-        <form method="post" action="{{ route('admin.theory.update', ['module' => $module, 'key' => $adminKey]) }}" id="theory-admin-form">
+        <form method="post" action="{{ route('admin.theory.update', ['module' => $module]) }}" id="theory-admin-form">
             @csrf
             <label for="theory-md" class="muted small" style="display: block; margin-bottom: 0.35rem">Содержимое (Markdown)</label>
             <textarea id="theory-md" name="markdown" rows="24" spellcheck="false">{{ old('markdown', $markdown) }}</textarea>
             <div style="margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center">
                 <button type="submit" class="btn btn-primary">Сохранить</button>
-                <a class="btn btn-ghost" href="{{ route('admin.theory.index', ['key' => $adminKey]) }}">Отмена</a>
+                <a class="btn btn-ghost" href="{{ route('admin.theory.index') }}">Отмена</a>
             </div>
         </form>
         </div>

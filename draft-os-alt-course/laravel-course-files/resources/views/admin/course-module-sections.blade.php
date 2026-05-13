@@ -4,20 +4,20 @@
 
 @section('content')
     <div class="card" style="max-width:960px;margin:0 auto 1rem">
-        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'settings'])
-        <p class="muted" style="margin:0 0 0.5rem"><a href="{{ route('admin.course.settings', ['key' => $adminKey]) }}">← Все модули</a></p>
+        @include('partials.admin-instructor-nav', ['active' => 'settings'])
+        <p class="muted" style="margin:0 0 0.5rem"><a href="{{ route('admin.course.settings') }}">← Все модули</a></p>
         <div style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;justify-content:space-between">
             <h1 style="margin:0">Разделы: {{ $courseModule->title }}</h1>
             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
-                <a class="btn btn-ghost" href="{{ route('admin.course.module.content.edit', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}">Контент (БД)</a>
-                <a class="btn btn-ghost" href="{{ route('admin.course.module.practice', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}">Практика (Docker)</a>
+                <a class="btn btn-ghost" href="{{ route('admin.course.module.content.edit', ['courseModule' => $courseModule->id]) }}">Контент (БД)</a>
+                <a class="btn btn-ghost" href="{{ route('admin.course.module.practice', ['courseModule' => $courseModule->id]) }}">Практика (Docker)</a>
             </div>
         </div>
         <p class="muted small" style="margin:0;line-height:1.5">
             Пакет контента <strong>№{{ $courseModule->effectiveContentIndex() }}</strong> —
-            <a href="{{ route('admin.theory.edit', ['module' => $courseModule->effectiveContentIndex(), 'key' => $adminKey]) }}">теория и сниппеты</a>,
-            <a href="{{ route('admin.quiz.edit.module', ['module' => $courseModule->effectiveContentIndex(), 'kind' => 'theory_quiz', 'key' => $adminKey]) }}">тест по теории</a>,
-            <a href="{{ route('admin.quiz.edit.module', ['module' => $courseModule->effectiveContentIndex(), 'kind' => 'module_exam', 'key' => $adminKey]) }}">итоговый тест</a>.
+            <a href="{{ route('admin.theory.edit', ['module' => $courseModule->effectiveContentIndex()]) }}">теория и сниппеты</a>,
+            <a href="{{ route('admin.quiz.edit.module', ['module' => $courseModule->effectiveContentIndex(), 'kind' => 'theory_quiz']) }}">тест по теории</a>,
+            <a href="{{ route('admin.quiz.edit.module', ['module' => $courseModule->effectiveContentIndex(), 'kind' => 'module_exam']) }}">итоговый тест</a>.
         </p>
     </div>
 
@@ -30,7 +30,7 @@
 
     <div class="card" style="max-width:960px;margin:0 auto 1rem">
         <h2 style="margin-top:0">Добавить раздел</h2>
-        <form method="post" action="{{ route('admin.course.module.sections.store', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}" style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end">
+        <form method="post" action="{{ route('admin.course.module.sections.store', ['courseModule' => $courseModule->id]) }}" style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end">
             @csrf
             <div>
                 <label class="muted small" style="display:block;margin-bottom:0.25rem">Тип</label>
@@ -60,14 +60,14 @@
                         <div style="font-weight:700">{{ $s->title }}</div>
                         <div class="muted small">Тип: <code>{{ $s->type }}</code> · id {{ $s->id }} · {{ $s->is_enabled ? 'включён' : 'выключен' }}</div>
                     </div>
-                    <a class="btn btn-ghost" href="{{ route('admin.course.module.section.settings', ['courseModule' => $courseModule->id, 'section' => $s->id, 'key' => $adminKey]) }}">Настройки типа</a>
-                    <form method="post" action="{{ route('admin.course.module.sections.update', ['courseModule' => $courseModule->id, 'section' => $s->id, 'key' => $adminKey]) }}" style="margin:0">
+                    <a class="btn btn-ghost" href="{{ route('admin.course.module.section.settings', ['courseModule' => $courseModule->id, 'section' => $s->id]) }}">Настройки типа</a>
+                    <form method="post" action="{{ route('admin.course.module.sections.update', ['courseModule' => $courseModule->id, 'section' => $s->id]) }}" style="margin:0">
                         @csrf
                         <input type="hidden" name="title" value="{{ $s->title }}">
                         <input type="hidden" name="is_enabled" value="{{ $s->is_enabled ? '0' : '1' }}">
                         <button type="submit" class="btn btn-ghost">{{ $s->is_enabled ? 'Выключить' : 'Включить' }}</button>
                     </form>
-                    <form method="post" action="{{ route('admin.course.module.sections.destroy', ['courseModule' => $courseModule->id, 'section' => $s->id, 'key' => $adminKey]) }}" style="margin:0" onsubmit="return confirm('Удалить раздел «{{ $s->title }}»?');">
+                    <form method="post" action="{{ route('admin.course.module.sections.destroy', ['courseModule' => $courseModule->id, 'section' => $s->id]) }}" style="margin:0" onsubmit="return confirm('Удалить раздел «{{ $s->title }}»?');">
                         @csrf
                         <button type="submit" class="btn btn-ghost" style="color:#b91c1c">Удалить</button>
                     </form>
@@ -75,7 +75,7 @@
             @endforeach
         </ul>
 
-        <form id="course-sections-reorder" method="post" action="{{ route('admin.course.module.sections.reorder', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}" style="margin-top:1rem">
+        <form id="course-sections-reorder" method="post" action="{{ route('admin.course.module.sections.reorder', ['courseModule' => $courseModule->id]) }}" style="margin-top:1rem">
             @csrf
             <div id="order-fields"></div>
             <button type="submit" class="btn btn-primary">Сохранить порядок</button>

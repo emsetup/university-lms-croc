@@ -91,6 +91,22 @@
         .module-exam-match__card:active { cursor: grabbing; }
         .module-exam-match__card.module-exam-match__card--drag { opacity: 0.55; }
     </style>
+    <style id="course-catalog-cards">
+        /* Портал, личный кабинет, админ: сетка курсов без растягивания по высоте строки */
+        .module-grid.courses-catalog-grid {
+            align-items: start;
+        }
+        /* Краткое описание на карточке курса (полный текст — в модалке / форме редактирования) */
+        .course-card__description {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 3;
+            line-clamp: 3;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+        }
+    </style>
 </head>
 <body class="course-ui">
 <div class="course-shell">
@@ -128,6 +144,9 @@
         @if (session('learner_id'))
             <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
                 <a class="btn btn-ghost" href="{{ route('portal') }}">Курсы</a>
+                @if (! empty($portalStaffAccess))
+                    <a class="btn btn-ghost" href="{{ route('admin.panel') }}">Управление</a>
+                @endif
                 <a class="btn btn-ghost" href="{{ route('account') }}">Личный кабинет</a>
                 @if (! $isPortalUi && $hasCourse)
                     <a class="btn btn-ghost" href="{{ route('course.dashboard', ['course' => (int) session('course_id')]) }}">Модули</a>

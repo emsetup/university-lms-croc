@@ -6,17 +6,10 @@
     <style>
         .admin-course-card {
             cursor: pointer;
-            height: 100%;
             display: flex;
             flex-direction: column;
         }
         .admin-course-title { min-height: 2.7rem; }
-        .admin-course-summary {
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 6;
-            overflow: hidden;
-        }
         .admin-course-grow { flex: 1; min-height: 0; }
         .admin-course-actions { margin-top: auto; }
 
@@ -159,7 +152,7 @@
     </style>
 
     <div class="card" style="max-width:1200px;margin:0 auto 1rem">
-        @include('partials.admin-instructor-nav', ['navKey' => $adminKey, 'active' => 'courses'])
+        @include('partials.admin-instructor-nav', ['active' => 'courses'])
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
             <div>
                 <h1 style="margin:0 0 0.35rem">Курсы портала</h1>
@@ -170,19 +163,21 @@
             </div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
                 @if (!empty($showArchived))
-                    <a class="btn btn-ghost" href="{{ route('admin.courses.index', ['key' => $adminKey]) }}">Скрыть архив</a>
+                    <a class="btn btn-ghost" href="{{ route('admin.courses.index') }}">Скрыть архив</a>
                 @else
-                    <a class="btn btn-ghost" href="{{ route('admin.courses.index', ['key' => $adminKey, 'archived' => 1]) }}">Показать архив</a>
+                    <a class="btn btn-ghost" href="{{ route('admin.courses.index', ['archived' => 1]) }}">Показать архив</a>
                 @endif
-                <a class="btn btn-primary" href="{{ route('admin.courses.create', ['key' => $adminKey]) }}">Создать курс</a>
-                <a class="btn btn-ghost" href="{{ route('admin.panel', ['key' => $adminKey]) }}">К панели</a>
+                @if (! empty($canCreateCourse))
+                    <a class="btn btn-primary" href="{{ route('admin.courses.create') }}">Создать курс</a>
+                @endif
+                <a class="btn btn-ghost" href="{{ route('admin.panel') }}">К панели</a>
             </div>
         </div>
     </div>
 
     <div class="card" style="max-width:1200px;margin:0 auto">
         <h2 style="margin-top:0">Список</h2>
-        <div class="module-grid" style="margin-top:0.85rem">
+        <div class="module-grid courses-catalog-grid" style="margin-top:0.85rem">
             @foreach ($courses as $c)
                 <div class="module-card admin-course-card js-admin-course-card"
                      role="button"
@@ -199,7 +194,7 @@
                     <div class="admin-course-title" style="font-weight:800;font-size:1.05rem;line-height:1.25">{{ $c['title'] }}</div>
                     <div class="muted small" style="margin-top:0.25rem">slug: <code>{{ $c['slug'] }}</code></div>
                     <div class="admin-course-grow">
-                        <div class="muted admin-course-summary" style="font-size:0.92rem;line-height:1.45;margin-top:0.35rem">{{ $c['summary'] }}</div>
+                        <div class="muted course-card__description" style="font-size:0.92rem;line-height:1.45;margin-top:0.35rem">{{ $c['summary'] }}</div>
                     </div>
                     <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:0.85rem;align-items:center">
                         <span class="muted small">Участников: <strong>{{ (int) $c['enrolled'] }}</strong></span>
@@ -214,12 +209,19 @@
                         @endif
                     </div>
                     <div class="course-actions admin-course-actions">
+                        @php
+                            $cid = (int) $c['id'];
+                            $canEditThis = $editableCourseIds === null || isset($editableCourseIds[$cid]);
+                            $canTools = $portalStaffAccess && $portalStaffAccess->canUseCourseAdminTools();
+                        @endphp
                         <div class="icon-strip" role="group" aria-label="Действия с курсом">
-                            <a class="icon-btn" href="{{ route('admin.courses.edit', ['course' => (int) $c['id'], 'key' => $adminKey]) }}" data-tip="Редактировать" aria-label="Редактировать">
-                                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4l10.5-10.5a2 2 0 0 0 0-3L16.5 4.5a2 2 0 0 0-3 0L3 15v5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                            </a>
+                            @if ($canEditThis && $portalStaffAccess && ! $portalStaffAccess->isCourseTester())
+                                <a class="icon-btn" href="{{ route('admin.courses.edit', ['course' => $cid]) }}" data-tip="Редактировать" aria-label="Редактировать">
+                                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4l10.5-10.5a2 2 0 0 0 0-3L16.5 4.5a2 2 0 0 0-3 0L3 15v5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                                </a>
+                            @endif
 
-                            <form method="post" action="{{ route('admin.courses.select', ['course' => (int) $c['id'], 'key' => $adminKey]) }}" style="margin:0">
+                            <form method="post" action="{{ route('admin.courses.select', ['course' => $cid]) }}" style="margin:0">
                                 @csrf
                                 <input type="hidden" name="next" value="content">
                                 <button type="submit" class="icon-btn" data-tip="Содержимое" aria-label="Содержимое">
@@ -227,7 +229,7 @@
                                 </button>
                             </form>
 
-                            <form method="post" action="{{ route('admin.courses.select', ['course' => (int) $c['id'], 'key' => $adminKey]) }}" style="margin:0">
+                            <form method="post" action="{{ route('admin.courses.select', ['course' => $cid]) }}" style="margin:0">
                                 @csrf
                                 <input type="hidden" name="next" value="quiz">
                                 <button type="submit" class="icon-btn" data-tip="Вопросы" aria-label="Вопросы">
@@ -235,21 +237,23 @@
                                 </button>
                             </form>
 
-                            <form method="post" action="{{ route('admin.courses.select', ['course' => (int) $c['id'], 'key' => $adminKey]) }}" style="margin:0">
-                                @csrf
-                                <input type="hidden" name="next" value="certificates">
-                                <button type="submit" class="icon-btn" data-tip="Сертификаты" aria-label="Сертификаты">
-                                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8"/><path d="M9 7h6M9 10h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 15v6l2-1 2 1v-6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-                                </button>
-                            </form>
+                            @if ($canTools)
+                                <form method="post" action="{{ route('admin.courses.select', ['course' => $cid]) }}" style="margin:0">
+                                    @csrf
+                                    <input type="hidden" name="next" value="certificates">
+                                    <button type="submit" class="icon-btn" data-tip="Сертификаты" aria-label="Сертификаты">
+                                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8"/><path d="M9 7h6M9 10h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 15v6l2-1 2 1v-6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                    </button>
+                                </form>
 
-                            <form method="post" action="{{ route('admin.courses.select', ['course' => (int) $c['id'], 'key' => $adminKey]) }}" style="margin:0">
-                                @csrf
-                                <input type="hidden" name="next" value="learners">
-                                <button type="submit" class="icon-btn" data-tip="Обучающиеся" aria-label="Обучающиеся">
-                                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 19a4 4 0 0 0-8 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" stroke-width="1.8"/><path d="M20 19c0-2.1-1.1-3.6-3-4.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                                </button>
-                            </form>
+                                <form method="post" action="{{ route('admin.courses.select', ['course' => $cid]) }}" style="margin:0">
+                                    @csrf
+                                    <input type="hidden" name="next" value="learners">
+                                    <button type="submit" class="icon-btn" data-tip="Обучающиеся" aria-label="Обучающиеся">
+                                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 19a4 4 0 0 0-8 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" stroke-width="1.8"/><path d="M20 19c0-2.1-1.1-3.6-3-4.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                                    </button>
+                                </form>
+                            @endif
                         </div>
                     </div>
                 </div>

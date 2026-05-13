@@ -18,21 +18,19 @@ final class AdminCourseContentController extends Controller
 
     public function edit(Request $request, CourseModule $courseModule): View|RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
         $this->assertModuleCourse($courseModule);
 
         $courseId = (int) session('admin_course_id', 0);
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
         if (! $course || $course->isLegacyAltCourse()) {
             return redirect()
-                ->route('admin.theory.index', ['key' => $adminKey])
+                ->route('admin.theory.index')
                 ->with('err', 'Редактор контента в БД доступен только для новых курсов. Курс «Альт» остаётся на legacy-сниппетах.');
         }
 
         $row = $this->content->contentForModule($courseModule);
 
         return view('admin.course-module-content-edit', [
-            'adminKey' => $adminKey,
             'courseModule' => $courseModule,
             'theory' => (string) ($row['theory_markdown'] ?? ''),
             'practice' => (string) ($row['practice_markdown'] ?? ''),
@@ -41,19 +39,18 @@ final class AdminCourseContentController extends Controller
 
     public function update(Request $request, CourseModule $courseModule): RedirectResponse
     {
-        $adminKey = (string) $request->query('key', '');
         $this->assertModuleCourse($courseModule);
 
         $courseId = (int) session('admin_course_id', 0);
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
         if (! $course || $course->isLegacyAltCourse()) {
             return redirect()
-                ->route('admin.theory.index', ['key' => $adminKey])
+                ->route('admin.theory.index')
                 ->with('err', 'Сохранение отклонено: курс работает в legacy-режиме.');
         }
         if (! Schema::hasTable('course_module_contents')) {
             return redirect()
-                ->route('admin.course.module.content.edit', ['courseModule' => $courseModule->id, 'key' => $adminKey])
+                ->route('admin.course.module.content.edit', ['courseModule' => $courseModule->id])
                 ->with('err', 'Таблица course_module_contents не найдена. Выполните миграции.');
         }
 
@@ -67,7 +64,7 @@ final class AdminCourseContentController extends Controller
         $this->content->upsertContentForModule($courseModule, $theory, $practice);
 
         return redirect()
-            ->route('admin.course.module.content.edit', ['courseModule' => $courseModule->id, 'key' => $adminKey])
+            ->route('admin.course.module.content.edit', ['courseModule' => $courseModule->id])
             ->with('ok', 'Контент сохранён.');
     }
 

@@ -17,14 +17,11 @@ class AdminPanelController extends Controller
         session()->forget('admin_course_id');
         session()->forget('admin_course_title');
 
-        return view('admin.panel', [
-            'adminKey' => (string) $request->query('key', ''),
-        ]);
+        return view('admin.panel');
     }
 
     public function certificates(Request $request): ViewContract
     {
-        $adminKey = (string) $request->query('key', '');
         $courseId = (int) session('admin_course_id', 0);
 
         $items = FinalLabResult::query()
@@ -48,20 +45,17 @@ class AdminPanelController extends Controller
         }
 
         return view('admin.certificates', [
-            'adminKey' => $adminKey,
             'items' => $items,
         ]);
     }
 
     public function certificateShow(Request $request, FinalLabResult $result, CourseScoringService $scoring): ViewContract
     {
-        $adminKey = (string) $request->query('key', '');
         $result->loadMissing('learner');
         $result->learner->loadMissing('moduleProgresses');
         $certCoursePercent = $scoring->certificateCoursePercent($result->learner, (int) ($result->course_id ?? 0) ?: null);
 
         return view('admin.certificate-preview', [
-            'adminKey' => $adminKey,
             'row' => $result,
             'certCoursePercent' => $certCoursePercent,
             'certTier' => $scoring->certificateTier($certCoursePercent),

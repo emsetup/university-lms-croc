@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\PortalStaffAccess;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,9 +16,12 @@ final class EnsureAdminCourseSelected
     {
         if (! session('admin_course_id')) {
             return redirect()
-                ->route('admin.courses.index', ['key' => (string) $request->query('key', '')])
+                ->route('admin.courses.index')
                 ->with('err', 'Сначала выберите курс.');
         }
+
+        $courseId = (int) session('admin_course_id', 0);
+        app(PortalStaffAccess::class)->assertCanAccessCourseInAdmin($courseId);
 
         return $next($request);
     }
