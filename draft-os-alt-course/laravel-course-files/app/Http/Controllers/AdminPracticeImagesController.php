@@ -2,20 +2,25 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Course;
 use App\Models\PracticeImage;
+use App\Models\CourseModulePracticeSetting;
+use App\Services\PracticeImageRecipeBootstrap;
 use App\Services\PracticeImageRecipeGenerator;
 use App\Services\PracticeLabDaemonClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 final class AdminPracticeImagesController extends Controller
 {
     private const IMAGE_STATS_TTL_MINUTES = 10;
+
+    public function __construct(private PracticeImageRecipeBootstrap $recipeBootstrap) {}
 
     public function index(Request $request): View
     {
@@ -98,7 +103,7 @@ final class AdminPracticeImagesController extends Controller
             'check_script_text' => '',
             'is_built' => false,
         ]);
-        $this->initRecipeFromTemplate($row);
+        $this->recipeBootstrap->initFromTemplate($row);
 
         return redirect()
             ->route('admin.practice.images.edit', ['id' => $row->id])
@@ -232,7 +237,7 @@ final class AdminPracticeImagesController extends Controller
 
         $init = ((string) ($data['init_from_template'] ?? '1')) === '1';
         if ($init) {
-            $this->initRecipeFromTemplate($row);
+            $this->recipeBootstrap->initFromTemplate($row);
             $row->refresh();
         }
         app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
@@ -310,6 +315,19 @@ final class AdminPracticeImagesController extends Controller
     public function destroy(Request $request, int $id): RedirectResponse
     {
         $row = PracticeImage::query()->findOrFail($id);
+        $usage = CourseModulePracticeSetting::query()->where('practice_image_id', $row->id)->count();
+        $finalLabCourses = 0;
+        if (Schema::hasColumn('courses', 'final_lab_practice_image_id')) {
+            $finalLabCourses = (int) Course::query()->where('final_lab_practice_image_id', $row->id)->count();
+        }
+        $blocked = $usage + $finalLabCourses;
+        abort_if(
+            $blocked > 0,
+            422,
+            $usage > 0
+                ? 'Образ привязан к практикам модулей ('.$usage.'). Сначала отключите его в настройках курса.'
+                : 'Образ выбран для финальной лабораторной в '.$finalLabCourses.' курс(ах). Снимите привязку в настройках курса.'
+        );
         $row->delete();
 
         return redirect()
@@ -329,7 +347,11 @@ final class AdminPracticeImagesController extends Controller
 
         app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
 
-        $contextDir = $this->recipeContextDirRel($row);
+        $row->last_build_status = 'running';
+        $row->last_build_log = null;
+        $row->save();
+
+        $contextDir = $this->recipeBootstrap->contextDirRel($row);
         $dockerfileRel = 'Dockerfile';
         try {
             $resp = $client->imageBuild([
@@ -468,136 +490,6 @@ final class AdminPracticeImagesController extends Controller
         }
 
         return $s.':copy';
-    }
-
-    private function templateSourcePaths(string $template): array
-    {
-        $base = base_path();
-
-        return match ($template) {
-            'lab-m1' => [
-                'dockerfile' => $base.'/docker/lab-m1/Dockerfile',
-                'docker_dir' => $base.'/docker/lab-m1',
-                'check' => $base.'/examples/practice-checks/module_01/check.sh',
-                'check_rel' => 'examples/practice-checks/module_01/check.sh',
-            ],
-            'lab-m2' => [
-                'dockerfile' => $base.'/docker/lab-m2/Dockerfile',
-                'docker_dir' => $base.'/docker/lab-m2',
-                'check' => $base.'/examples/practice-checks/module_02/check.sh',
-                'check_rel' => 'examples/practice-checks/module_02/check.sh',
-            ],
-            'lab-m3' => [
-                'dockerfile' => $base.'/docker/lab-m3/Dockerfile',
-                'docker_dir' => $base.'/docker/lab-m3',
-                'check' => $base.'/examples/practice-checks/module_03/check.sh',
-                'check_rel' => 'examples/practice-checks/module_03/check.sh',
-            ],
-            'lab-m5' => [
-                'dockerfile' => $base.'/docker/lab-m5/Dockerfile',
-                'docker_dir' => $base.'/docker/lab-m5',
-                'check' => $base.'/examples/practice-checks/module_05/check.sh',
-                'check_rel' => 'examples/practice-checks/module_05/check.sh',
-            ],
-            'lab-m6' => [
-                'dockerfile' => $base.'/docker/lab-m6/Dockerfile',
-                'docker_dir' => $base.'/docker/lab-m6',
-                'check' => $base.'/examples/practice-checks/module_06/check.sh',
-                'check_rel' => 'examples/practice-checks/module_06/check.sh',
-            ],
-            'lab-m7' => [
-                'dockerfile' => $base.'/docker/lab-m7/Dockerfile',
-                'docker_dir' => $base.'/docker/lab-m7',
-                'check' => $base.'/examples/practice-checks/module_07/check.sh',
-                'check_rel' => 'examples/practice-checks/module_07/check.sh',
-            ],
-            'lab-m8', 'lab-m8-systemd' => [
-                'dockerfile' => $base.'/docker/lab-m8/Dockerfile',
-                'docker_dir' => $base.'/docker/lab-m8',
-                'check' => $base.'/examples/practice-checks/module_08/check.sh',
-                'check_rel' => 'examples/practice-checks/module_08/check.sh',
-            ],
-            'lab-m9' => [
-                'dockerfile' => $base.'/docker/lab-m9/Dockerfile',
-                'docker_dir' => $base.'/docker/lab-m9',
-                'check' => $base.'/examples/practice-checks/module_09/check.sh',
-                'check_rel' => 'examples/practice-checks/module_09/check.sh',
-            ],
-            'final-lab' => [
-                'dockerfile' => $base.'/docker/final-lab/Dockerfile',
-                'docker_dir' => $base.'/docker/final-lab',
-                'check' => $base.'/examples/practice-checks/final_lab/check.sh',
-                'check_rel' => 'examples/practice-checks/final_lab/check.sh',
-            ],
-            default => throw new \InvalidArgumentException('Unknown template: '.$template),
-        };
-    }
-
-    private function initRecipeFromTemplate(PracticeImage $row): void
-    {
-        $tpl = $this->templateSourcePaths((string) $row->base_template);
-        $dockerfile = File::get($tpl['dockerfile']);
-        $check = File::get($tpl['check']);
-
-        $row->dockerfile_text = $dockerfile;
-        $row->check_script_text = $check;
-        $row->save();
-
-        $this->writeRecipeFiles($row, true);
-    }
-
-    private function recipeRootAbs(PracticeImage $row): string
-    {
-        return storage_path('app/practice-images/'.$row->id);
-    }
-
-    private function recipeContextDirRel(PracticeImage $row): string
-    {
-        return 'practice-images/'.$row->id;
-    }
-
-    private function dockerfileRelForTemplate(string $template): string
-    {
-        return match ($template) {
-            'final-lab' => 'docker/final-lab/Dockerfile',
-            'lab-m1' => 'docker/lab-m1/Dockerfile',
-            'lab-m2' => 'docker/lab-m2/Dockerfile',
-            'lab-m3' => 'docker/lab-m3/Dockerfile',
-            'lab-m5' => 'docker/lab-m5/Dockerfile',
-            'lab-m6' => 'docker/lab-m6/Dockerfile',
-            'lab-m7' => 'docker/lab-m7/Dockerfile',
-            'lab-m8', 'lab-m8-systemd' => 'docker/lab-m8/Dockerfile',
-            'lab-m9' => 'docker/lab-m9/Dockerfile',
-            default => 'Dockerfile',
-        };
-    }
-
-    private function writeRecipeFiles(PracticeImage $row, bool $copyTemplateAssets = false): void
-    {
-        $root = $this->recipeRootAbs($row);
-        File::ensureDirectoryExists($root);
-
-        $tpl = $this->templateSourcePaths((string) $row->base_template);
-        if ($copyTemplateAssets) {
-            // Копируем docker/<template>/... (кроме Dockerfile, его перезапишем).
-            $dockerDir = (string) $tpl['docker_dir'];
-            if (is_dir($dockerDir)) {
-                File::copyDirectory($dockerDir, $root.'/'.Str::after($dockerDir, base_path().'/'));
-            }
-        } else {
-            // На update не трогаем ассеты: они уже лежат в recipe folder (после init).
-        }
-
-        $dockerfileRel = $this->dockerfileRelForTemplate((string) $row->base_template);
-        $dockerfileAbs = $root.'/'.$dockerfileRel;
-        File::ensureDirectoryExists(dirname($dockerfileAbs));
-        File::put($dockerfileAbs, (string) $row->dockerfile_text);
-
-        $checkRel = (string) $tpl['check_rel'];
-        $checkAbs = $root.'/'.$checkRel;
-        File::ensureDirectoryExists(dirname($checkAbs));
-        File::put($checkAbs, (string) $row->check_script_text);
-        @chmod($checkAbs, 0755);
     }
 
     private function imageStatsCacheKey(string $image): string

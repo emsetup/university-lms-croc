@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Course;
 use App\Models\CourseModule;
+use App\Models\CourseModuleContent;
 use App\Services\CourseContentService;
 use App\Support\CourseModuleMeta;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -75,6 +76,14 @@ final class CourseModuleService
             : null;
         if ($isLegacyAlt && $idx !== null) {
             $base = CourseModuleMeta::resolved($idx);
+            if (Schema::hasTable('course_module_contents')
+                && CourseModuleContent::query()->where('course_module_id', $module->id)->exists()) {
+                /** @var CourseContentService $content */
+                $content = app(CourseContentService::class);
+                $c = $content->contentForModule($module);
+                $base['theory'] = (string) ($c['theory_markdown'] ?? '');
+                $base['practice'] = (string) ($c['practice_markdown'] ?? '');
+            }
         } else {
             $base = [
                 'letter' => (string) ($module->letter ?? ''),

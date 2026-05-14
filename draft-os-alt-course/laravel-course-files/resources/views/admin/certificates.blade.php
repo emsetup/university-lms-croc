@@ -1,61 +1,93 @@
-@extends('layouts.course')
+@extends('layouts.admin')
 
-@section('title', 'Админ курса — сертификаты')
+@section('title', 'Сертификаты')
 
 @section('content')
-    <div class="card" style="max-width: 1200px; margin: 0 auto">
-        @include('partials.admin-instructor-nav', ['active' => 'certificates'])
+    <div class="ap-page ap-cert-page">
+        <p class="ap-cert-page__subtitle">Реестр выданных сертификатов</p>
 
-        <h1 style="margin-top: 0">Выданные сертификаты</h1>
-        <p class="muted" style="margin-top: 0">
-            Список всех сертификатов, для которых зафиксированы ФИО и номер.
-        </p>
-
-        <div style="overflow:auto; border:1px solid var(--line, #dfe8e4); border-radius:10px;">
-            <table style="width:100%; border-collapse:collapse; min-width:900px;">
-                <thead>
-                <tr style="background:#f8faf9; border-bottom:1px solid #dfe8e4;">
-                    <th style="text-align:left; padding:0.65rem 0.75rem;">№ сертификата</th>
-                    <th style="text-align:left; padding:0.65rem 0.75rem;">ФИО</th>
-                    <th style="text-align:left; padding:0.65rem 0.75rem;">Email</th>
-                    <th style="text-align:left; padding:0.65rem 0.75rem;">Дата выдачи</th>
-                    <th style="text-align:right; padding:0.65rem 0.75rem;">Лучший балл финалки</th>
-                    <th style="text-align:center; padding:0.65rem 0.75rem;">Статус</th>
-                </tr>
-                </thead>
-                <tbody>
-                @forelse ($items as $row)
-                    <tr style="border-bottom:1px solid #edf2ef;">
-                        <td style="padding:0.6rem 0.75rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">{{ $row->certificate_serial }}</td>
-                        <td style="padding:0.6rem 0.75rem; font-weight:600;">{{ $row->certificate_full_name }}</td>
-                        <td style="padding:0.6rem 0.75rem;">{{ $row->learner->email ?? '—' }}</td>
-                        <td style="padding:0.6rem 0.75rem;">{{ optional($row->certificate_issued_at)->format('d.m.Y H:i') ?? '—' }}</td>
-                        <td style="padding:0.6rem 0.75rem; text-align:right;">{{ (int) $row->best_score }}%</td>
-                        <td style="padding:0.6rem 0.75rem; text-align:center;">
-                            @if ($row->passed)
-                                <a
-                                    href="{{ route('admin.certificates.show', ['result' => $row->id]) }}"
-                                    class="pill"
-                                    style="display:inline-block;text-decoration:none;background:#e8f7ee; color:#166534; border-color:#bbdfc8;"
-                                >Выдан</a>
-                            @else
-                                <span class="pill" style="background:#fff4e8; color:#9a3412; border-color:#f5d7b5;">Черновик</span>
-                            @endif
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="6" class="muted" style="padding:0.9rem 0.75rem;">Пока нет выданных сертификатов.</td>
-                    </tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
-
-        @if (method_exists($items, 'links'))
-            <div style="margin-top: 1rem;">
-                {{ $items->links() }}
+        @if ($items->isEmpty())
+            <div class="empty-state" role="status">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/>
+                    <circle cx="12" cy="8" r="6"/>
+                </svg>
+                <h3>Сертификатов пока нет</h3>
+                <p>Сертификат выдаётся после успешного прохождения финальной лаборатории</p>
             </div>
+        @else
+            <div class="admin-card admin-card--flush u-mt-1">
+                <div class="ap-cert-toolbar">
+                    <label class="visually-hidden" for="ap-cert-filter-q">Поиск по таблице сертификатов</label>
+                    <input id="ap-cert-filter-q" type="search" class="form-input form-input--md" placeholder="Поиск по ФИО или email..." autocomplete="off">
+                </div>
+                <div class="admin-table-wrap">
+                    <table id="ap-cert-table" class="admin-table ap-cert-as-admin-table">
+                        <thead>
+                        <tr>
+                            <th>№ сертификата</th>
+                            <th>ФИО</th>
+                            <th>Email</th>
+                            <th>Дата выдачи</th>
+                            <th class="ap-cert-table__score-head">Лучший балл</th>
+                            <th class="ap-cert-table__status">Статус</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach ($items as $row)
+                            @php
+                                $issued = $row->certificate_issued_at;
+                                $issuedLabel = $issued
+                                    ? $issued->locale('ru')->translatedFormat('j M Y')
+                                    : '—';
+                                $email = (string) ($row->learner->email ?? '');
+                                $name = (string) ($row->certificate_full_name ?? '');
+                                $filterHaystack = mb_strtolower(trim($name.' '.$email), 'UTF-8');
+                                $scorePct = (int) $row->best_score;
+                            @endphp
+                            <tr data-cert-filter="{{ $filterHaystack }}">
+                                <td class="ap-cert-table__mono">{{ $row->certificate_serial }}</td>
+                                <td class="ap-cert-table__name">{{ $row->certificate_full_name }}</td>
+                                <td class="ap-cert-table__email">{{ $row->learner->email ?? '—' }}</td>
+                                <td>{{ $issuedLabel }}</td>
+                                <td class="ap-cert-score @if ($scorePct === 100) ap-cert-score--full @endif">{{ $scorePct }}%</td>
+                                <td class="ap-cert-table__status">
+                                    @if ($row->passed)
+                                        <a class="badge badge-green"
+                                           href="{{ route('admin.certificates.show', array_merge($ap ?? [], ['result' => $row->id])) }}">Выдан</a>
+                                    @else
+                                        <span class="ap-badge ap-badge--cert-draft">Черновик</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            @if (method_exists($items, 'links'))
+                <div class="ap-cert-page__pager">
+                    {{ $items->links() }}
+                </div>
+            @endif
+
+            <script>
+                (function () {
+                    var input = document.getElementById('ap-cert-filter-q');
+                    var table = document.getElementById('ap-cert-table');
+                    if (!input || !table) return;
+                    var rows = table.querySelectorAll('tbody tr[data-cert-filter]');
+                    input.addEventListener('input', function () {
+                        var q = (input.value || '').trim().toLowerCase();
+                        for (var i = 0; i < rows.length; i++) {
+                            var tr = rows[i];
+                            var hay = tr.getAttribute('data-cert-filter') || '';
+                            tr.style.display = !q || hay.indexOf(q) !== -1 ? '' : 'none';
+                        }
+                    });
+                })();
+            </script>
         @endif
     </div>
 @endsection

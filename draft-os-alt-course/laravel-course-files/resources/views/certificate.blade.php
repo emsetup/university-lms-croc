@@ -3,6 +3,7 @@
 @section('title', 'Итоги обучения')
 
 @section('content')
+    <div class="page-container">
     @php
         $isNameLocked = ! empty($final->certificate_full_name);
         $grandMax = (int) $modulePointsMax + 100;
@@ -231,4 +232,5 @@
             syncName();
         })();
     </script>
+    </div>
 @endsection

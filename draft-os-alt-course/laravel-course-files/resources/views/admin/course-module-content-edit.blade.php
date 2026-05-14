@@ -1,15 +1,15 @@
-@extends('layouts.course')
+@extends('layouts.admin')
 
 @section('title', 'Контент модуля')
 
 @section('content')
-    <div style="max-width: 1100px; margin: 0 auto">
-        @include('partials.admin-instructor-nav', ['active' => 'theory'])
-        <div class="card">
+    @php($apNav = \App\Support\AdminNavigation::adminCourseRouteParams())
+    <div class="ap-wide-page">
+        <div class="admin-card">
             <div class="muted small" style="margin:0 0 0.35rem">
-                <a href="{{ route('admin.course.settings') }}">Настройки</a>
+                <a href="{{ route('admin.course.settings', $apNav) }}">Модули</a>
                 <span class="muted">/</span>
-                <a href="{{ route('admin.course.module.sections', ['courseModule' => $courseModule->id]) }}">{{ $courseModule->title }}</a>
+                <a href="{{ route('admin.course.module.sections', array_merge($apNav, ['courseModule' => $courseModule->id])) }}">{{ $courseModule->title }}</a>
                 <span class="muted">/</span>
                 Контент (БД)
             </div>
@@ -34,11 +34,11 @@
                         <span class="icon-btn__icon">P</span>
                     </button>
                     <button type="button" class="icon-btn js-cmce-tab" data-tab="preview" title="Предпросмотр" aria-label="Предпросмотр">
-                        <span class="icon-btn__icon">👁</span>
+                        <span class="icon-btn__icon" aria-hidden="true">@include('partials.ap-icon', ['name' => 'eye', 'size' => 'md'])</span>
                     </button>
                 </div>
 
-                <form method="post" action="{{ route('admin.course.module.content.update', ['courseModule' => $courseModule->id]) }}">
+                <form method="post" action="{{ route('admin.course.module.content.update', array_merge($apNav, ['courseModule' => $courseModule->id])) }}">
                     @csrf
 
                     <section class="js-cmce-panel" data-panel="theory">
@@ -61,7 +61,7 @@
 
                     <div style="display:flex;gap:0.5rem;align-items:center;justify-content:space-between;margin-top:1rem">
                         <button type="submit" class="btn btn-primary">Сохранить</button>
-                        <a class="btn btn-ghost" href="{{ route('admin.theory.index') }}">Назад к содержимому</a>
+                        <a class="btn btn-ghost" href="{{ route('admin.theory.index', $apNav) }}">Назад к содержимому</a>
                     </div>
                 </form>
             </div>

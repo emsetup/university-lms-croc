@@ -1,14 +1,15 @@
-@extends('layouts.course')
+@extends('layouts.admin')
 
 @section('title', 'Редактор вопросов (БД)')
 
 @section('content')
     @php
         $pen = is_array($bank->penalties_json ?? null) ? $bank->penalties_json : [];
-        // Дефолты как в курсе «ОС Альт».
-        $def = ($kind ?? '') === 'module_exam'
-            ? ['pass' => 70, 'tl' => 60, 'al' => 2, 'bv' => 30, 'shuffle' => false, 'one_by_one' => true, 'pen2' => 10]
-            : ['pass' => 70, 'tl' => 30, 'al' => null, 'bv' => 15, 'shuffle' => false, 'one_by_one' => true, 'pen2' => 10];
+        $def = match ($kind ?? '') {
+            'module_exam' => ['pass' => 70, 'tl' => 60, 'al' => 2, 'bv' => 30, 'shuffle' => false, 'one_by_one' => true, 'pen2' => 10],
+            'final_lab' => ['pass' => 70, 'tl' => 30, 'al' => null, 'bv' => 15, 'shuffle' => false, 'one_by_one' => true, 'pen2' => 10],
+            default => ['pass' => 70, 'tl' => 30, 'al' => null, 'bv' => 15, 'shuffle' => false, 'one_by_one' => true, 'pen2' => 10],
+        };
         $vPass = old('pass_percent', $bank->pass_percent ?? $def['pass']);
         $vTl = old('time_limit_minutes', $bank->time_limit_minutes ?? $def['tl']);
         $vAl = old('attempt_limit', $bank->attempt_limit ?? $def['al']);
@@ -18,19 +19,29 @@
         $vPen2 = old('penalty_attempt_2', $pen['2'] ?? $def['pen2']);
         $vPen3 = old('penalty_attempt_3', $pen['3'] ?? null);
         $vPen4 = old('penalty_attempt_4', $pen['4'] ?? null);
+        $quizDbScope = $quizDbScope ?? 'module';
+        $moduleIdxForJs = isset($courseModule) ? $courseModule->effectiveContentIndex() : 0;
+        $saveUrlQuizDb = $quizSaveUrl ?? (isset($courseModule)
+            ? route('admin.quiz.save.module', array_merge($ap ?? [], ['module' => $courseModule->effectiveContentIndex(), 'kind' => $kind]))
+            : '#');
     @endphp
 
-    <div class="card" style="max-width:1200px;margin:0 auto 1rem">
-        @include('partials.admin-instructor-nav', ['active' => 'quiz'])
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+    <div class="ap-wide-page">
+    <div class="admin-card">
+        <div class="practice-page__head">
             <div>
                 <p class="muted" style="margin:0 0 0.35rem">
-                    <a href="{{ route('admin.quiz.index') }}">← К списку банков вопросов</a>
+                    <a href="{{ route('admin.quiz.index', $ap ?? []) }}">← К списку банков вопросов</a>
                     <span class="muted">/</span>
                     <span class="muted">режим: <strong>БД</strong></span>
                 </p>
-                <h1 style="margin:0 0 0.35rem">{{ $title }} — {{ $courseModule->title }}</h1>
-                <p class="muted" style="margin:0">Модуль: <strong>{{ $courseModule->effectiveContentIndex() }}</strong>. Тип: <strong>{{ $kind }}</strong>.</p>
+                @if (! empty($courseModule))
+                    <h1 style="margin:0 0 0.35rem">{{ $title }} — {{ $courseModule->title }}</h1>
+                    <p class="muted" style="margin:0">Модуль: <strong>{{ $courseModule->effectiveContentIndex() }}</strong>. Тип: <strong>{{ $kind }}</strong>.</p>
+                @else
+                    <h1 style="margin:0 0 0.35rem">{{ $title }}</h1>
+                    <p class="muted" style="margin:0">Тип: <strong>{{ $kind }}</strong>@if (! empty($course)) · курс <strong>{{ $course->title }}</strong>@endif.</p>
+                @endif
             </div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
                 @if(empty($isReadOnly))
@@ -102,11 +113,11 @@
                         <div class="qb-settings__title">Поведение</div>
                         <div class="qb-settings__rows">
                             <label class="qb-settings__check">
-                                <input type="checkbox" id="qb-shuffle" value="1" @checked((bool) $vSh)>
+                                <input type="checkbox" id="qb-shuffle" value="1" @if ((bool) $vSh) checked @endif>
                                 <span>Перемешивать вопросы</span>
                             </label>
                             <label class="qb-settings__check">
-                                <input type="checkbox" id="qb-onebyone" value="1" @checked((bool) $vObo)>
+                                <input type="checkbox" id="qb-onebyone" value="1" @if ((bool) $vObo) checked @endif>
                                 <span>По одному вопросу</span>
                             </label>
                         </div>
@@ -116,7 +127,7 @@
         </div>
     </div>
 
-    <div class="card" style="max-width:1200px;margin:0 auto">
+    <div class="admin-card u-mt-1">
         <div class="qb-layout">
             <aside class="qb-side">
                 <div class="qb-side__head">
@@ -192,6 +203,20 @@
             </main>
         </div>
     </div>
+    </div>
+
+    <div class="ap-modal" id="ap-qbdb-del-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="ap-qbdb-del-title">
+        <div class="ap-modal__backdrop" data-ap-qbdb-del-close tabindex="-1"></div>
+        <div class="ap-modal__panel">
+            <button type="button" class="ap-modal__close" data-ap-qbdb-del-close aria-label="Закрыть">&times;</button>
+            <h2 id="ap-qbdb-del-title" class="ap-modal__title">Удалить вопрос?</h2>
+            <p class="ap-muted">Вопрос будет удалён из черновика на этой странице.</p>
+            <div class="ap-modal__footer">
+                <button type="button" class="btn btn-ghost" data-ap-qbdb-del-close>Отмена</button>
+                <button type="button" class="btn btn-danger" id="ap-qbdb-del-confirm">Удалить</button>
+            </div>
+        </div>
+    </div>
 
     <style>
         .qb-settings__toggle {
@@ -264,8 +289,8 @@
 
     <script>
         (function () {
-            var scope = 'module';
-            var module = @json($courseModule->effectiveContentIndex());
+            var scope = @json($quizDbScope);
+            var module = @json($moduleIdxForJs);
             var kind = @json($kind);
             var initial = @json(array_values($questions ?? []));
 
@@ -603,7 +628,7 @@
             function save() {
                 if (!saveBtn) return;
                 saveBtn.disabled = true;
-                var url = '{{ route('admin.quiz.save.module', ['module' => $courseModule->effectiveContentIndex(), 'kind' => $kind]) }}';
+                var url = @json($saveUrlQuizDb);
 
                 var payload = {
                     pass_percent: parseInt((passInp && passInp.value) ? passInp.value : '70', 10),
@@ -678,7 +703,36 @@
 
             if (addBtn) addBtn.addEventListener('click', addQuestion);
             if (dupBtn) dupBtn.addEventListener('click', dupQuestion);
-            if (delBtn) delBtn.addEventListener('click', function () { if (confirm('Удалить вопрос?')) delQuestion(); });
+            var delModalDb = document.getElementById('ap-qbdb-del-modal');
+            var delConfirmDb = document.getElementById('ap-qbdb-del-confirm');
+            function openQbDelModalDb() {
+                if (!delModalDb) return;
+                delModalDb.classList.add('is-open');
+                delModalDb.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('ap-modal-open');
+            }
+            function closeQbDelModalDb() {
+                if (!delModalDb) return;
+                delModalDb.classList.remove('is-open');
+                delModalDb.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('ap-modal-open');
+            }
+            document.querySelectorAll('[data-ap-qbdb-del-close]').forEach(function (el) {
+                el.addEventListener('click', function (e) {
+                    if (el.classList.contains('ap-modal__backdrop')) e.preventDefault();
+                    closeQbDelModalDb();
+                });
+            });
+            if (delBtn) delBtn.addEventListener('click', function () { openQbDelModalDb(); });
+            if (delConfirmDb) delConfirmDb.addEventListener('click', function () {
+                delQuestion();
+                closeQbDelModalDb();
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key !== 'Escape' || !delModalDb || !delModalDb.classList.contains('is-open')) return;
+                closeQbDelModalDb();
+                e.preventDefault();
+            });
             if (saveBtn) saveBtn.addEventListener('click', save);
             if (typeSel) typeSel.addEventListener('change', syncFromInputs);
             if (qText) qText.addEventListener('input', function () {

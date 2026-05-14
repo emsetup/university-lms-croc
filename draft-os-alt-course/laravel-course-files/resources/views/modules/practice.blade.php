@@ -3,8 +3,11 @@
 @section('title', 'Модуль '.$module.': '.config('course.step_titles.practice'))
 
 @section('content')
-<div class="practice-page-anchor" id="practice-page-anchor">
-    <p class="muted"><a href="{{ route('modules.hub', $module) }}">Назад к модулю</a></p>
+<div class="page-container practice-page-anchor" id="practice-page-anchor">
+        <a class="back-link" href="{{ route('modules.hub', $module) }}">
+            @include('partials.ap-icon', ['name' => 'arrow-left'])
+            <span>К шагам модуля</span>
+        </a>
     <div class="card">
         <h1 style="margin-top:0">Модуль {{ $module }}: {{ config('course.step_titles.practice') }}</h1>
         @if ((int) $module === 1)
@@ -27,7 +30,7 @@
         @if ($practiceHintsGated)
             <p class="muted small" style="margin:0 0 0.75rem">Блоки <strong>подсказок</strong> появятся после первой автопроверки на стенде, в которой <strong>не набран полный балл</strong> (кнопка «Проверить результат» ниже). Если с первого раза всё верно — подсказки не понадобятся.</p>
         @endif
-        <article class="theory-article prose-course practice-block content-protect" data-integrity-protect>
+        <article class="theory-article prose-course practice-block theory-content content-protect" data-integrity-protect>
             {!! \Illuminate\Support\Str::markdown($practiceMarkdown) !!}
         </article>
         @include('partials.assessment-integrity')

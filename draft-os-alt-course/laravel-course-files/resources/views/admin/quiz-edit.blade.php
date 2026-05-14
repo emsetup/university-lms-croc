@@ -1,14 +1,13 @@
-@extends('layouts.course')
+@extends('layouts.admin')
 
 @section('title', 'Админ: редактор вопросов')
 
 @section('content')
     <div class="card" style="max-width:1200px;margin:0 auto 1rem">
-        @include('partials.admin-instructor-nav', ['active' => 'quiz'])
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
             <div>
                 <p class="muted" style="margin:0 0 0.35rem">
-                    <a href="{{ route('admin.quiz.index') }}">← К списку банков вопросов</a>
+                    <a href="{{ route('admin.quiz.index', $ap ?? []) }}">← К списку банков вопросов</a>
                 </p>
                 <h1 style="margin:0 0 0.35rem">{{ $title }}</h1>
                 @if ($scope === 'module')
@@ -106,6 +105,19 @@
 
                 <div class="muted" id="qb-empty" style="padding:1rem 0">Выберите вопрос слева@if(empty($isReadOnly)) или нажмите «Добавить вопрос»@endif.</div>
             </main>
+        </div>
+    </div>
+
+    <div class="ap-modal" id="ap-qb-del-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="ap-qb-del-title">
+        <div class="ap-modal__backdrop" data-ap-qb-del-close tabindex="-1"></div>
+        <div class="ap-modal__panel">
+            <button type="button" class="ap-modal__close" data-ap-qb-del-close aria-label="Закрыть">&times;</button>
+            <h2 id="ap-qb-del-title" class="ap-modal__title">Удалить вопрос?</h2>
+            <p class="ap-muted">Вопрос будет удалён из черновика. Чтобы отменить после сохранения, используйте историю в репозитории.</p>
+            <div class="ap-modal__footer">
+                <button type="button" class="btn btn-ghost" data-ap-qb-del-close>Отмена</button>
+                <button type="button" class="btn btn-primary" id="ap-qb-del-confirm" style="background:#b91c1c;border-color:#b91c1c">Удалить</button>
+            </div>
         </div>
     </div>
 
@@ -451,9 +463,9 @@
                 saveBtn.disabled = true;
                 var url;
                 if (scope === 'final') {
-                    url = '{{ route('admin.quiz.save.final') }}';
+                    url = '{{ route('admin.quiz.save.final', $ap ?? []) }}';
                 } else {
-                    url = '{{ route('admin.quiz.save.module', ['module' => $module ?: 1, 'kind' => $kind]) }}';
+                    url = '{{ route('admin.quiz.save.module', array_merge($ap ?? [], ['module' => $module ?: 1, 'kind' => $kind])) }}';
                 }
                 var payload = { questions: state.questions };
                 fetch(url, {
@@ -515,7 +527,36 @@
             }
             if (addBtn) addBtn.addEventListener('click', addQuestion);
             if (dupBtn) dupBtn.addEventListener('click', dupQuestion);
-            if (delBtn) delBtn.addEventListener('click', function () { if (confirm('Удалить вопрос?')) delQuestion(); });
+            var delModal = document.getElementById('ap-qb-del-modal');
+            var delConfirm = document.getElementById('ap-qb-del-confirm');
+            function openQbDelModal() {
+                if (!delModal) return;
+                delModal.classList.add('is-open');
+                delModal.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('ap-modal-open');
+            }
+            function closeQbDelModal() {
+                if (!delModal) return;
+                delModal.classList.remove('is-open');
+                delModal.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('ap-modal-open');
+            }
+            document.querySelectorAll('[data-ap-qb-del-close]').forEach(function (el) {
+                el.addEventListener('click', function (e) {
+                    if (el.classList.contains('ap-modal__backdrop')) e.preventDefault();
+                    closeQbDelModal();
+                });
+            });
+            if (delBtn) delBtn.addEventListener('click', function () { openQbDelModal(); });
+            if (delConfirm) delConfirm.addEventListener('click', function () {
+                delQuestion();
+                closeQbDelModal();
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key !== 'Escape' || !delModal || !delModal.classList.contains('is-open')) return;
+                closeQbDelModal();
+                e.preventDefault();
+            });
             if (saveBtn) saveBtn.addEventListener('click', save);
             if (typeSel) typeSel.addEventListener('change', syncFromInputs);
             if (qText) qText.addEventListener('input', function () {

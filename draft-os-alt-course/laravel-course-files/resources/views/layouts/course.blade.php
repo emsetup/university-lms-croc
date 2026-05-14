@@ -11,6 +11,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/course.css') }}">
+    @if (request()->routeIs('admin.*'))
+        <link rel="stylesheet" href="{{ asset('css/admin-panel.css') }}">
+        <link rel="stylesheet" href="{{ asset('static/admin/admin.css') }}">
+    @endif
     <style id="quiz-theory-console">
         /* Тесты: переносы и фрагменты конфигурации в тексте вопроса */
         .quiz-q-text,
@@ -107,48 +111,136 @@
             min-width: 0;
         }
     </style>
+    <style id="quiz-dialog-modals">
+        dialog.quiz-modal {
+            border: none;
+            padding: 0;
+            margin: 0;
+            max-width: calc(100vw - 1.5rem);
+            width: min(28rem, 100%);
+            background: transparent;
+            color: #0f172a;
+        }
+        dialog.quiz-modal::backdrop {
+            background: rgba(15, 23, 42, 0.48);
+            backdrop-filter: blur(3px);
+        }
+        dialog.quiz-modal .quiz-modal-inner {
+            background: #fff;
+            border-radius: 14px;
+            padding: 1.2rem 1.35rem 1.15rem;
+            box-shadow: 0 24px 64px rgba(15, 23, 42, 0.2);
+            border: 1px solid #e2e8f0;
+        }
+        dialog.quiz-modal .quiz-modal-heading {
+            margin: 0 0 0.5rem;
+            font-size: 1.15rem;
+            font-weight: 800;
+            line-height: 1.3;
+            color: #0f172a;
+        }
+        dialog.quiz-modal .quiz-modal-badge {
+            display: inline-block;
+            margin: 0 0 0.45rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            background: #ecfdf5;
+            color: #047857;
+            border: 1px solid #bbf7d0;
+        }
+        dialog.quiz-modal .quiz-modal-form {
+            margin-top: 0.85rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        dialog.quiz-modal .quiz-modal-actions {
+            margin-top: 0.85rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+            justify-content: flex-end;
+        }
+        dialog.quiz-modal .quiz-modal-list {
+            margin: 0.35rem 0 0;
+            padding-left: 1.1rem;
+            line-height: 1.5;
+            font-size: 0.92rem;
+            color: #334155;
+        }
+        dialog.quiz-modal .quiz-modal-warn {
+            color: #9a3412;
+        }
+        dialog.quiz-modal .quiz-modal-cancel {
+            font-size: 0.88rem;
+            color: #64748b;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        dialog.quiz-modal .quiz-modal-cancel:hover {
+            color: #0f172a;
+        }
+    </style>
 </head>
 <body class="course-ui">
-<div class="course-shell">
-    @php
-        $isPortalUi = request()->routeIs('portal') || request()->routeIs('login');
-        $isAdminUi = request()->routeIs('admin.*');
-        $hasCourse = (bool) session('course_id');
-        $hasAdminCourse = (bool) session('admin_course_id');
-        if ($isPortalUi) {
-            $brandTitle = 'Образовательный портал';
-            $brandKicker = 'Трек знаний';
-        } elseif ($isAdminUi) {
-            if ($hasAdminCourse) {
-                $brandKicker = 'Учебный курс';
-                $brandTitle = (string) (session('admin_course_title') ?: 'Курс');
-            } else {
-                $brandKicker = 'Трек знаний';
-                $brandTitle = 'Панель администратора';
-            }
+@php
+    $isPortalUi = request()->routeIs('portal') || request()->routeIs('login');
+    $isAdminUi = request()->routeIs('admin.*');
+    $hasCourse = (bool) session('course_id');
+    $hasAdminCourse = (bool) session('admin_course_id');
+    if ($isAdminUi) {
+        if ($hasAdminCourse) {
+            $brandKicker = 'Учебный курс';
+            $brandTitle = (string) (session('admin_course_title') ?: 'Курс');
         } else {
-            $brandTitle = session('course_title') ?: 'Образовательный портал';
-            $brandKicker = $hasCourse ? 'Учебный курс' : 'Трек знаний';
+            $brandKicker = 'Трек знаний';
+            $brandTitle = 'Панель администратора';
         }
-    @endphp
-    <header class="course-header">
+    } elseif ($isPortalUi) {
+        $brandTitle = 'Образовательный портал';
+        $brandKicker = 'Трек знаний';
+    } else {
+        $brandTitle = session('course_title') ?: 'Образовательный портал';
+        $brandKicker = $hasCourse ? 'Учебный курс' : 'Трек знаний';
+    }
+    $psaChrome = $portalStaffAccess ?? null;
+@endphp
+<div
+    class="course-shell"
+    @if ($isAdminUi)
+        data-ap-palette-search="{{ route('admin.command-palette.search') }}"
+        data-ap-docker-url="{{ route('admin.docker.library') }}"
+        data-ap-staff-url="{{ route('admin.staff.index') }}"
+        data-ap-can-portal-learners="{{ $psaChrome && $psaChrome->canViewPortalLearners() ? '1' : '0' }}"
+        data-ap-can-create-course="{{ $psaChrome && $psaChrome->canCreateCourses() ? '1' : '0' }}"
+        data-ap-can-staff="{{ $psaChrome && $psaChrome->canManageStaff() ? '1' : '0' }}"
+        data-ap-can-docker="{{ $psaChrome && ! $psaChrome->isCourseTester() ? '1' : '0' }}"
+    @endif
+>
+    <header class="course-header @if ($isAdminUi) course-header--admin @else course-header--public @endif">
         <a class="brand" href="{{ route('portal') }}">
             <span class="brand-mark">
                 <img class="brand-wordmark" src="{{ asset('croc-wordmark.svg') }}" alt="КРОК">
             </span>
             <span class="brand-text">
                 <span class="brand-kicker">{{ $brandKicker }}</span>
-                <span class="brand-title" style="font-weight:800;font-size:clamp(1rem,2.5vw,1.2rem);line-height:1.2">{{ $brandTitle }}</span>
+                <span class="brand-title">{{ $brandTitle }}</span>
             </span>
         </a>
         @if (session('learner_id'))
-            <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
+            <div class="course-header__actions">
                 <a class="btn btn-ghost" href="{{ route('portal') }}">Курсы</a>
                 @if (! empty($portalStaffAccess))
                     <a class="btn btn-ghost" href="{{ route('admin.panel') }}">Управление</a>
                 @endif
                 <a class="btn btn-ghost" href="{{ route('account') }}">Личный кабинет</a>
-                @if (! $isPortalUi && $hasCourse)
+                @if (! $isAdminUi && ! $isPortalUi && $hasCourse)
                     <a class="btn btn-ghost" href="{{ route('course.dashboard', ['course' => (int) session('course_id')]) }}">Модули</a>
                 @endif
                 <form method="post" action="{{ route('logout') }}" style="margin:0">
@@ -164,7 +256,37 @@
     @if (session('err'))
         <div class="flash err">{{ session('err') }}</div>
     @endif
+    @if ($isAdminUi && ! empty($adminBreadcrumbs) && count($adminBreadcrumbs))
+        <div class="admin-breadcrumb-wrap" style="max-width:1100px;margin:0 auto;padding:0.5rem 1rem 0">
+            @include('partials.admin-breadcrumbs')
+        </div>
+    @endif
     @yield('content')
 </div>
+@if ($isAdminUi)
+    @include('partials.admin-shell-tail')
+@endif
+<script>
+(function () {
+    function promoteQuizModalsToModalLayer() {
+        document.querySelectorAll('dialog.quiz-modal[open]').forEach(function (d) {
+            if (typeof d.showModal !== 'function') {
+                return;
+            }
+            d.removeAttribute('open');
+            try {
+                d.showModal();
+            } catch (e) {
+                d.setAttribute('open', '');
+            }
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', promoteQuizModalsToModalLayer);
+    } else {
+        promoteQuizModalsToModalLayer();
+    }
+})();
+</script>
 </body>
 </html>

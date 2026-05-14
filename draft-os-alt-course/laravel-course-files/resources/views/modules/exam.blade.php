@@ -7,7 +7,11 @@
 @section('title', 'Модуль '.$module.': '.config('course.step_titles.module_exam'))
 
 @section('content')
-    <p class="muted"><a href="{{ route('modules.hub', $module) }}">Назад к модулю</a></p>
+    <div class="page-container">
+    <a class="back-link" href="{{ route('modules.hub', $module) }}">
+        @include('partials.ap-icon', ['name' => 'arrow-left'])
+        <span>К шагам модуля</span>
+    </a>
 
     @if (! $examActive)
         @if ($needsRetakeAck)
@@ -384,4 +388,5 @@
             })();
         </script>
     @endif
+    </div>
 @endsection

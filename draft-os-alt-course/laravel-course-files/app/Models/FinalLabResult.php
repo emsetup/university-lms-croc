@@ -35,6 +35,11 @@ class FinalLabResult extends Model
         return $this->belongsTo(Learner::class);
     }
 
+    public function course(): BelongsTo
+    {
+        return $this->belongsTo(Course::class);
+    }
+
     /**
      * Дата «выдачи» для бланка: из БД либо из фрагмента даты в номере CROC-ALT-YYYYMMDD-…
      */

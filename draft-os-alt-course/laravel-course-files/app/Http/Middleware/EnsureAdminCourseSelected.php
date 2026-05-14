@@ -23,6 +23,18 @@ final class EnsureAdminCourseSelected
         $courseId = (int) session('admin_course_id', 0);
         app(PortalStaffAccess::class)->assertCanAccessCourseInAdmin($courseId);
 
+        $routeCourse = $request->route('adminCourse');
+        if ($routeCourse instanceof \App\Models\Course && (int) $routeCourse->id !== $courseId) {
+            abort(403);
+        }
+
+        if (! session('admin_course_slug')) {
+            $c = \App\Models\Course::query()->find($courseId);
+            if ($c) {
+                session(['admin_course_slug' => (string) $c->slug]);
+            }
+        }
+
         return $next($request);
     }
 }

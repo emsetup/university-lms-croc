@@ -3,7 +3,11 @@
 @section('title', 'Результат теста по теории')
 
 @section('content')
-    <p class="muted"><a href="{{ route('modules.hub', $module) }}">Назад к модулю</a></p>
+    <div class="page-container">
+    <a class="back-link" href="{{ route('modules.hub', $module) }}">
+        @include('partials.ap-icon', ['name' => 'arrow-left'])
+        <span>К шагам модуля</span>
+    </a>
     <div class="card">
         <h1 style="margin-top:0">Модуль {{ $module }}: тест по теории</h1>
         <p>Итог: <strong>{{ $result['final_percent'] ?? '—' }}%</strong>
@@ -40,4 +44,5 @@
             </ul>
         </div>
     @endif
+    </div>
 @endsection

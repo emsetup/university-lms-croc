@@ -61,10 +61,17 @@ final class OidcIdentityClaims
             ],
             [
                 'id' => 'middle_name',
-                'label' => 'Отчество (Middle name), опционально',
+                'label' => 'Отчество (Middle name / patronymic), опционально',
                 'keys' => [
                     'middle_name',
                     'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/middlename',
+                    'http://schemas.microsoft.com/identity/claims/middlename',
+                    'patronymic',
+                    'patronymic_name',
+                    'second_name',
+                    'secondName',
+                    'father_name',
+                    'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/fathername',
                 ],
             ],
             [
@@ -127,7 +134,7 @@ final class OidcIdentityClaims
         $resolved = self::displayName($claims);
         $summary = $resolved !== ''
             ? 'Итог: из токена собрано отображаемое имя: «'.self::shortenForTable($resolved).'».'
-            : 'Итог: ни одна группа ФИО не заполнена — портал не может показать «Добро пожаловать, Имя Фамилия» без доработки IdP (добавьте хотя бы Display name или `given_name`+`family_name` / OIDC `name`).';
+            : 'Итог: ни одна группа ФИО не заполнена — портал не может показать полное имя без доработки IdP (добавьте display name, `name`, либо `family_name` + `given_name` + при необходимости `middle_name` / patronymic).';
 
         $rows[] = ['label' => '[вывод] Сводка по ФИО', 'value' => $summary];
 
@@ -167,13 +174,13 @@ final class OidcIdentityClaims
         ] as $k) {
             $s = self::scalar($claims, $k);
             if ($s !== '' && ! str_contains($s, '\\')) {
-                return $s;
+                return self::appendMiddleIfMissing($s, $claims);
             }
         }
 
         $oidcName = self::scalar($claims, 'name');
         if ($oidcName !== '' && self::nameLooksHuman($oidcName, $claims)) {
-            return $oidcName;
+            return self::appendMiddleIfMissing($oidcName, $claims);
         }
 
         foreach ([
@@ -181,27 +188,22 @@ final class OidcIdentityClaims
         ] as $k) {
             $s = self::scalar($claims, $k);
             if ($s !== '' && self::nameLooksHuman($s, $claims)) {
-                return $s;
+                return self::appendMiddleIfMissing($s, $claims);
             }
         }
 
-        $gn = self::scalar($claims, 'given_name')
-            ?: self::scalar($claims, 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname')
-            ?: self::scalar($claims, 'firstname')
-            ?: self::scalar($claims, 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/firstname');
-        $fn = self::scalar($claims, 'family_name')
-            ?: self::scalar($claims, 'surname')
-            ?: self::scalar($claims, 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname')
-            ?: self::scalar($claims, 'lastname')
-            ?: self::scalar($claims, 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/lastname');
-        $pair = trim($gn.' '.$fn);
-        if ($pair !== '') {
-            return $pair;
+        $gn = self::givenNamePart($claims);
+        $fn = self::familyNamePart($claims);
+        $mn = self::middleNamePart($claims);
+
+        $fromParts = self::joinNameParts($fn, $gn, $mn);
+        if ($fromParts !== '') {
+            return $fromParts;
         }
 
         $nick = self::scalar($claims, 'nickname');
         if ($nick !== '' && self::nameLooksHuman($nick, $claims)) {
-            return $nick;
+            return self::appendMiddleIfMissing($nick, $claims);
         }
 
         foreach ($claims as $k => $v) {
@@ -217,7 +219,7 @@ final class OidcIdentityClaims
                 continue;
             }
             if (self::nameLooksHuman($t, $claims)) {
-                return $t;
+                return self::appendMiddleIfMissing($t, $claims);
             }
         }
 
@@ -249,6 +251,110 @@ final class OidcIdentityClaims
         }
 
         return false;
+    }
+
+    /**
+     * К отдельным claim’ам фамилии/имени (без displayName).
+     *
+     * @param  array<string, mixed>  $claims
+     */
+    private static function givenNamePart(array $claims): string
+    {
+        return self::scalar($claims, 'given_name')
+            ?: self::scalar($claims, 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname')
+            ?: self::scalar($claims, 'firstname')
+            ?: self::scalar($claims, 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/firstname');
+    }
+
+    /**
+     * @param  array<string, mixed>  $claims
+     */
+    private static function familyNamePart(array $claims): string
+    {
+        return self::scalar($claims, 'family_name')
+            ?: self::scalar($claims, 'surname')
+            ?: self::scalar($claims, 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname')
+            ?: self::scalar($claims, 'lastname')
+            ?: self::scalar($claims, 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/lastname');
+    }
+
+    /**
+     * Отчество и распространённые синонимы в IdP (РФ / ADFS / Keycloak).
+     *
+     * @param  array<string, mixed>  $claims
+     */
+    private static function middleNamePart(array $claims): string
+    {
+        foreach ([
+            'middle_name',
+            'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/middlename',
+            'http://schemas.microsoft.com/identity/claims/middlename',
+            'patronymic',
+            'patronymic_name',
+            'second_name',
+            'secondName',
+            'father_name',
+            'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/fathername',
+        ] as $k) {
+            $s = self::scalar($claims, $k);
+            if ($s !== '') {
+                return $s;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Сборка «Фамилия Имя Отчество» для кириллицы, иначе Given + Family (+ Middle).
+     */
+    private static function joinNameParts(string $family, string $given, string $middle): string
+    {
+        $family = trim($family);
+        $given = trim($given);
+        $middle = trim($middle);
+        $blob = $family.$given.$middle;
+        if ($family === '' && $given === '' && $middle === '') {
+            return '';
+        }
+        if ($blob !== '' && preg_match('/\p{Cyrillic}/u', $blob)) {
+            return trim(implode(' ', array_filter([$family, $given, $middle], static fn (string $p): bool => $p !== '')));
+        }
+        if ($given !== '' || $family !== '') {
+            return trim(implode(' ', array_filter([$given, $middle, $family], static fn (string $p): bool => $p !== '')));
+        }
+
+        return $middle;
+    }
+
+    /**
+     * Если в displayName / name только два слова, а отчество приходит отдельным claim — добавляем.
+     *
+     * @param  array<string, mixed>  $claims
+     */
+    private static function appendMiddleIfMissing(string $display, array $claims): string
+    {
+        $d = trim($display);
+        if ($d === '') {
+            return '';
+        }
+        $mn = self::middleNamePart($claims);
+        if ($mn === '') {
+            return $d;
+        }
+        if (function_exists('mb_stripos')) {
+            if (mb_stripos($d, $mn, 0, 'UTF-8') !== false) {
+                return $d;
+            }
+        } elseif (stripos($d, $mn) !== false) {
+            return $d;
+        }
+        $wordCount = preg_match_all('/\p{L}[\p{L}\-]*/u', $d);
+        if ($wordCount !== false && (int) $wordCount >= 3) {
+            return $d;
+        }
+
+        return trim($d.' '.$mn);
     }
 
     private static function shortenForTable(string $s, int $max = 200): string

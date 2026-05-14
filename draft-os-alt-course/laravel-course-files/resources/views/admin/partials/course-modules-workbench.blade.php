@@ -1,0 +1,675 @@
+@php
+    $tp = $ap ?? ['adminCourse' => $course->slug];
+    $rp = array_merge($tp, isset($adminKey) && $adminKey !== '' ? ['key' => $adminKey] : []);
+    $sectionTypeLabels = [
+        'text' => 'Теория',
+        'quiz' => 'Тест',
+        'practice' => 'Практика',
+        'exam' => 'Экзамен',
+    ];
+    $defaultSectionTitles = [
+        'text' => 'Теория',
+        'quiz' => 'Тест по теории',
+        'practice' => 'Практика',
+        'exam' => 'Итоговый тест',
+    ];
+@endphp
+
+<div class="ap-mod-workbench" data-ap-workbench data-ap-csrf="{{ csrf_token() }}">
+    <div class="ap-mod-workbench__head">
+        <div>
+            <h1 class="ap-page-title ap-mod-workbench__title">Модули курса</h1>
+            <p class="ap-page-lead ap-muted ap-mod-workbench__lead">Порядок модулей и разделов, пакеты контента и цепочка этапов.</p>
+        </div>
+        <div class="ap-mod-workbench__head-actions">
+            <button type="button" class="btn btn-primary" id="ap-open-add-module">+ Добавить модуль</button>
+            <button type="submit" form="ap-modules-reorder-form" class="btn btn-ghost ap-mod-workbench__save-order" id="ap-save-module-order" hidden>Сохранить порядок</button>
+        </div>
+    </div>
+
+    <form id="ap-modules-reorder-form" method="post" action="{{ route('admin.course.settings.modules.reorder', $rp) }}" class="ap-mod-workbench__reorder-form">
+        @csrf
+        <div id="ap-module-order-fields" class="ap-mod-workbench__hidden-fields" aria-hidden="true"></div>
+    </form>
+
+    <ul id="ap-modules-sortable" class="ap-mod-list">
+        @foreach ($modules as $m)
+            @php
+                $idx = $loop->iteration;
+                $letterDisp = $m->letter ? $m->letter : '—';
+                $nSec = $m->sections->count();
+            @endphp
+            <li id="ap-mod-{{ $m->id }}"
+                class="ap-mod-card"
+                data-module-id="{{ $m->id }}"
+                data-module-title="{{ e($m->title) }}"
+                data-module-letter="{{ e($m->letter ?? '') }}"
+                data-module-pkg="{{ $m->content_source_index ?? '' }}"
+                data-module-summary="{{ e($m->summary ?? '') }}"
+                data-update-url="{{ route('admin.course.settings.module.update', array_merge($rp, ['courseModule' => $m->id])) }}"
+                data-destroy-url="{{ route('admin.course.settings.module.destroy', array_merge($rp, ['courseModule' => $m->id])) }}"
+                data-section-store-url="{{ route('admin.course.module.sections.store', array_merge($rp, ['courseModule' => $m->id])) }}"
+                data-section-reorder-url="{{ route('admin.course.module.sections.reorder', array_merge($rp, ['courseModule' => $m->id])) }}">
+                <div class="ap-mod-card__main">
+                    <span class="ap-mod-drag-handle ap-mod-drag-handle--module" title="Перетащить" aria-hidden="true">≡</span>
+                    <div class="ap-mod-card__body">
+                        <div class="ap-mod-card__title-row">
+                            <button type="button" class="ap-mod-card__toggle" data-ap-mod-toggle aria-expanded="false" aria-controls="ap-mod-body-{{ $m->id }}">
+                                <span class="ap-mod-card__badges">
+                                    <span class="ap-mod-card__badge ap-mod-card__badge--num">[{{ $idx }}]</span>
+                                    <span class="ap-mod-card__badge ap-mod-card__badge--letter">[{{ $letterDisp }}]</span>
+                                </span>
+                                <span class="ap-mod-card__name">{{ $m->title }}</span>
+                                <span class="ap-mod-card__chev" data-ap-chev>∨</span>
+                            </button>
+                            <div class="ap-mod-card__meta">
+                                Пакет №{{ $m->effectiveContentIndex() }} · {{ $nSec }} {{ $nSec === 1 ? 'раздел' : ($nSec > 1 && $nSec < 5 ? 'раздела' : 'разделов') }}
+                            </div>
+                        </div>
+                        <div class="ap-mod-card__actions">
+                            <button type="button" class="btn btn-secondary btn-sm" data-ap-open-sections>Разделы</button>
+                            <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn" title="Настройки модуля" data-ap-open-module-settings aria-label="Настройки">
+                                @include('partials.ap-icon', ['name' => 'cog', 'size' => 'md'])
+                            </button>
+                            <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn ap-mod-icon-btn--danger" title="Удалить модуль" data-ap-open-delete-module aria-label="Удалить">
+                                @include('partials.ap-icon', ['name' => 'trash', 'size' => 'md'])
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div id="ap-mod-body-{{ $m->id }}" class="ap-mod-card__accordion" hidden data-ap-mod-accordion>
+                    <div class="ap-mod-card__accordion-inner">
+                        <div class="ap-mod-sections-head">
+                            <button type="button" class="btn btn-primary btn-sm" data-ap-open-add-section>+ Добавить раздел</button>
+                            <button type="submit" form="ap-sections-reorder-{{ $m->id }}" class="btn btn-ghost btn-sm" data-ap-save-section-order hidden>Сохранить порядок разделов</button>
+                        </div>
+                        <form id="ap-sections-reorder-{{ $m->id }}" method="post" action="{{ route('admin.course.module.sections.reorder', array_merge($rp, ['courseModule' => $m->id])) }}" class="ap-sec-reorder-form">
+                            @csrf
+                            <div class="ap-sec-order-fields" data-ap-sec-order-fields aria-hidden="true"></div>
+                        </form>
+                        <ul class="ap-sec-list" id="ap-sec-sortable-{{ $m->id }}" data-ap-sec-sortable>
+                            @foreach ($m->sections as $sec)
+                                <li class="ap-sec-row" data-section-id="{{ $sec->id }}">
+                                    <span class="ap-mod-drag-handle ap-mod-drag-handle--sec" title="Перетащить">≡</span>
+                                    <span class="ap-sec-chip ap-sec-chip--{{ $sec->type }}">
+                                        @php
+                                            $secIcon = match ($sec->type) {
+                                                'quiz' => 'help-circle',
+                                                'practice' => 'terminal',
+                                                'exam' => 'clipboard-check',
+                                                default => 'file-text',
+                                            };
+                                        @endphp
+                                        @include('partials.ap-icon', ['name' => $secIcon, 'size' => 'sm', 'class' => 'ap-sec-chip__icon'])
+                                        <span>{{ $sectionTypeLabels[$sec->type] ?? $sec->type }}</span>
+                                    </span>
+                                    <span class="ap-sec-row__title">{{ $sec->title }}</span>
+                                    <span class="ap-sec-row__meta">{{ $sec->is_enabled ? 'Включён' : 'Выключен' }}</span>
+                                    <div class="ap-sec-row__actions">
+                                        <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn" title="Редактировать раздел" data-ap-open-section-panel
+                                            data-ap-panel-data-url="{{ route('admin.course.section.panel.data', array_merge($rp, ['courseModule' => $m->id, 'section' => $sec->id])) }}"><span class="ap-mod-icon-btn__ic" aria-hidden="true">@include('partials.ap-icon', ['name' => 'chevron-right', 'size' => 'sm'])</span></button>
+                                        <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn ap-mod-icon-btn--danger" title="Удалить раздел" data-ap-open-delete-section
+                                            data-destroy-url="{{ route('admin.course.module.sections.destroy', array_merge($rp, ['courseModule' => $m->id, 'section' => $sec->id])) }}"
+                                            data-section-title="{{ e($sec->title) }}" aria-label="Удалить раздел">
+                                            @include('partials.ap-icon', ['name' => 'trash', 'size' => 'md'])
+                                        </button>
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </div>
+            </li>
+        @endforeach
+    </ul>
+
+    @if ($course->final_lab_enabled)
+        <section class="ap-mod-final-lab" aria-labelledby="ap-final-lab-h">
+            <h2 id="ap-final-lab-h" class="ap-mod-final-lab__title">Финальная лаборатория</h2>
+            <p class="ap-muted ap-mod-final-lab__lead">Включена в настройках курса. Обучающиеся увидят этап после прохождения модулей.</p>
+            <div class="ap-mod-final-lab__grid">
+                <div>
+                    @if ($course->finalLabPracticeImage)
+                        <p class="ap-settings-pill ap-mod-final-lab__pill">
+                            <strong>{{ $course->finalLabPracticeImage->title }}</strong>
+                            <code class="ap-muted">{{ $course->finalLabPracticeImage->docker_tag }}</code>
+                        </p>
+                    @else
+                        <p class="ap-muted">Образ не выбран — укажите в разделе «О курсе».</p>
+                    @endif
+                </div>
+                <div class="ap-mod-final-lab__links">
+                    <a class="btn btn-ghost" href="{{ route('admin.quiz.edit.final', $tp) }}">Вопросы финальной страницы</a>
+                    <a class="btn btn-ghost" href="{{ route('admin.theory.preview-final-lab', $tp) }}">Предпросмотр</a>
+                </div>
+            </div>
+        </section>
+    @endif
+</div>
+
+{{-- Модалка: новый модуль --}}
+<div id="ap-modal-add-module" class="ap-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+    <div class="ap-modal__backdrop" data-ap-modal-close tabindex="-1"></div>
+    <div class="ap-modal__panel">
+        <div class="ap-modal__head">
+            <h2 class="ap-modal__title">Добавить модуль</h2>
+            <button type="button" class="btn btn-ghost" data-ap-modal-close>Закрыть</button>
+        </div>
+        <p class="ap-muted small">Разделы копируются с первого модуля; если модулей не было — создаётся стандартный набор из четырёх типов.</p>
+        <form method="post" action="{{ route('admin.course.settings.module.store', $rp) }}" class="ap-modal__form">
+            @csrf
+            <label class="ap-settings-label" for="ap-new-mod-title">Название</label>
+            <input id="ap-new-mod-title" class="ap-modal__input" type="text" name="title" required maxlength="200">
+            <label class="ap-settings-label" for="ap-new-mod-letter">Буква</label>
+            <input id="ap-new-mod-letter" class="ap-modal__input" type="text" name="letter" maxlength="8" style="max-width:6rem">
+            <label class="ap-settings-label" for="ap-new-mod-pkg">Пакет контента №</label>
+            <input id="ap-new-mod-pkg" class="ap-modal__input" type="number" name="content_source_index" min="1" max="99" style="max-width:7rem" placeholder="1">
+            <label class="ap-settings-label" for="ap-new-mod-sum">Описание для обучающихся</label>
+            <textarea id="ap-new-mod-sum" class="ap-modal__input ap-settings-textarea" name="summary" rows="3" maxlength="5000"></textarea>
+            <div class="ap-modal__footer">
+                <button type="button" class="btn btn-ghost" data-ap-modal-close>Отмена</button>
+                <button type="submit" class="btn btn-primary">Добавить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Модалка: тип раздела --}}
+<div id="ap-modal-add-section" class="ap-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+    <div class="ap-modal__backdrop" data-ap-modal-close tabindex="-1"></div>
+    <div class="ap-modal__panel ap-modal__panel--type-picker">
+        <div class="ap-modal__head">
+            <h2 class="ap-modal__title">Тип раздела</h2>
+            <button type="button" class="btn btn-ghost" data-ap-modal-close>Закрыть</button>
+        </div>
+        <form id="ap-form-add-section" method="post" action="#" class="ap-sec-type-picker-form">
+            @csrf
+            <input type="hidden" name="type" id="ap-add-sec-type" value="text">
+            <div class="ap-sec-type-grid">
+                <button type="button" class="ap-sec-type-card ap-sec-type-card--text" data-ap-pick-sec-type="text">
+                    @include('partials.ap-icon', ['name' => 'file-text', 'size' => 'lg'])
+                    <span class="ap-sec-type-card__label">Теория</span>
+                </button>
+                <button type="button" class="ap-sec-type-card ap-sec-type-card--quiz" data-ap-pick-sec-type="quiz">
+                    @include('partials.ap-icon', ['name' => 'help-circle', 'size' => 'lg'])
+                    <span class="ap-sec-type-card__label">Тест</span>
+                </button>
+                <button type="button" class="ap-sec-type-card ap-sec-type-card--practice" data-ap-pick-sec-type="practice">
+                    @include('partials.ap-icon', ['name' => 'terminal', 'size' => 'lg'])
+                    <span class="ap-sec-type-card__label">Практика</span>
+                </button>
+                <button type="button" class="ap-sec-type-card ap-sec-type-card--exam" data-ap-pick-sec-type="exam">
+                    @include('partials.ap-icon', ['name' => 'clipboard-check', 'size' => 'lg'])
+                    <span class="ap-sec-type-card__label">Экзамен</span>
+                </button>
+            </div>
+            <label class="ap-settings-label" for="ap-add-sec-title">Название раздела</label>
+            <input id="ap-add-sec-title" class="ap-modal__input" type="text" name="title" required maxlength="200" value="{{ $defaultSectionTitles['text'] }}">
+            <div class="ap-modal__footer">
+                <button type="button" class="btn btn-ghost" data-ap-modal-close>Отмена</button>
+                <button type="submit" class="btn btn-primary">Создать раздел</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Модалка: удалить модуль --}}
+<div id="ap-modal-delete-module" class="ap-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+    <div class="ap-modal__backdrop" data-ap-modal-close tabindex="-1"></div>
+    <div class="ap-modal__panel">
+        <div class="ap-modal__head">
+            <h2 class="ap-modal__title">Удалить модуль?</h2>
+            <button type="button" class="btn btn-ghost" data-ap-modal-close>Закрыть</button>
+        </div>
+        <p class="ap-muted" id="ap-delete-mod-text">Модуль и все разделы будут удалены без восстановления.</p>
+        <form id="ap-form-delete-module" method="post" action="#" class="ap-modal__form">
+            @csrf
+            <div class="ap-modal__footer">
+                <button type="button" class="btn btn-ghost" data-ap-modal-close>Отмена</button>
+                <button type="submit" class="btn btn-primary" style="background:#b91c1c;border-color:#b91c1c">Удалить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Модалка: удалить раздел --}}
+<div id="ap-modal-delete-section" class="ap-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+    <div class="ap-modal__backdrop" data-ap-modal-close tabindex="-1"></div>
+    <div class="ap-modal__panel">
+        <div class="ap-modal__head">
+            <h2 class="ap-modal__title">Удалить раздел?</h2>
+            <button type="button" class="btn btn-ghost" data-ap-modal-close>Закрыть</button>
+        </div>
+        <p class="ap-muted" id="ap-delete-sec-text"></p>
+        <form id="ap-form-delete-section" method="post" action="#" class="ap-modal__form">
+            @csrf
+            <div class="ap-modal__footer">
+                <button type="button" class="btn btn-ghost" data-ap-modal-close>Отмена</button>
+                <button type="submit" class="btn btn-primary" style="background:#b91c1c;border-color:#b91c1c">Удалить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Боковая панель настроек модуля --}}
+<aside id="ap-drawer-module-settings" class="ap-drawer ap-drawer--right" aria-hidden="true" aria-label="Настройки модуля">
+    <div class="ap-drawer__backdrop" data-ap-drawer-close tabindex="-1"></div>
+    <div class="ap-drawer__panel ap-drawer__panel--narrow ap-drawer__panel--stack" role="dialog" aria-modal="true">
+        <div class="ap-drawer__head">
+            <span class="ap-drawer__title">Настройки модуля</span>
+            <button type="button" class="btn btn-ghost ap-drawer__close" data-ap-drawer-close>Закрыть</button>
+        </div>
+        <form id="ap-form-module-settings" method="post" action="#" class="ap-drawer__body ap-drawer-form">
+            @csrf
+            <label class="ap-settings-label" for="ap-mod-set-title">Название</label>
+            <input id="ap-mod-set-title" class="ap-modal__input" type="text" name="title" required maxlength="200">
+            <label class="ap-settings-label" for="ap-mod-set-letter">Буква</label>
+            <input id="ap-mod-set-letter" class="ap-modal__input" type="text" name="letter" maxlength="8" style="max-width:6rem">
+            <label class="ap-settings-label" for="ap-mod-set-pkg">Пакет №</label>
+            <input id="ap-mod-set-pkg" class="ap-modal__input" type="number" name="content_source_index" min="1" max="99" style="max-width:7rem">
+            <label class="ap-settings-label" for="ap-mod-set-sum">Описание для обучающихся</label>
+            <textarea id="ap-mod-set-sum" class="ap-modal__input ap-settings-textarea" name="summary" rows="5" maxlength="5000"></textarea>
+            <div class="ap-drawer__footer">
+                <button type="button" class="btn btn-ghost" data-ap-drawer-close>Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+</aside>
+
+{{-- Боковая панель редактирования раздела --}}
+<aside id="ap-sec-edit-panel" class="ap-sec-edit-panel" aria-hidden="true" hidden>
+    <div id="ap-sec-edit-panel-resize" class="ap-sec-edit-panel__resize" role="separator" aria-label="Изменить ширину панели"></div>
+    <div class="ap-sec-edit-panel__inner">
+        <header class="ap-sec-edit-panel__head">
+            <div class="ap-sec-edit-panel__head-row">
+                <span id="ap-sec-edit-panel-chip" class="ap-sec-edit-panel__chip">Теория</span>
+                <h2 id="ap-sec-edit-panel-heading" class="ap-sec-edit-panel__heading">Раздел</h2>
+                <button type="button" id="ap-sec-edit-panel-close" class="btn btn-ghost ap-sec-edit-panel__close" aria-label="Закрыть">✕</button>
+            </div>
+            <p id="ap-sec-edit-panel-sub" class="ap-sec-edit-panel__sub ap-muted"></p>
+            <div class="ap-sec-edit-panel__tabs" role="tablist">
+                <button type="button" class="ap-sec-edit-panel__tab is-active" role="tab" data-ap-sec-tab="content" aria-selected="true">Содержимое</button>
+                <button type="button" class="ap-sec-edit-panel__tab" role="tab" data-ap-sec-tab="settings" aria-selected="false">Настройки раздела</button>
+            </div>
+        </header>
+        <div class="ap-sec-edit-panel__body">
+            <div id="ap-sec-edit-panel-pane-settings" class="ap-sec-edit-panel__pane" hidden role="tabpanel">
+                <label class="ap-settings-label" for="ap-sec-set-title">Название</label>
+                <input id="ap-sec-set-title" class="ap-modal__input" type="text" maxlength="200">
+                <label class="ap-settings-label" for="ap-sec-set-type">Тип</label>
+                <select id="ap-sec-set-type" class="ap-modal__input">
+                    <option value="text">Теория</option>
+                    <option value="quiz">Тест</option>
+                    <option value="practice">Практика</option>
+                    <option value="exam">Экзамен</option>
+                </select>
+                <div class="ap-sec-edit-panel__toggle-row">
+                    <span class="ap-settings-label" style="margin:0">Активен</span>
+                    <label class="ap-sec-edit-panel__switch">
+                        <input type="checkbox" id="ap-sec-set-enabled">
+                        <span class="ap-sec-edit-panel__switch-ui" aria-hidden="true"></span>
+                    </label>
+                </div>
+                <fieldset class="ap-sec-edit-panel__inherit">
+                    <legend class="ap-settings-label">Попытки</legend>
+                    <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-att" value="inherit"> Наследовать от курса (<span id="ap-sec-hint-att"></span>)</label>
+                    <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-att" value="own"> Задать своё</label>
+                    <input id="ap-sec-own-att" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="1" max="99" placeholder="число попыток" hidden>
+                </fieldset>
+                <fieldset class="ap-sec-edit-panel__inherit">
+                    <legend class="ap-settings-label">Время</legend>
+                    <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-time" value="inherit"> Наследовать от курса (<span id="ap-sec-hint-time"></span>)</label>
+                    <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-time" value="own"> Задать своё</label>
+                    <input id="ap-sec-own-time" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="0" max="10080" placeholder="минуты" hidden>
+                </fieldset>
+                <fieldset class="ap-sec-edit-panel__inherit">
+                    <legend class="ap-settings-label">Проходной балл</legend>
+                    <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-pass" value="inherit"> Наследовать от курса (<span id="ap-sec-hint-pass"></span>)</label>
+                    <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-pass" value="own"> Задать своё</label>
+                    <input id="ap-sec-own-pass" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="1" max="100" placeholder="%" hidden>
+                </fieldset>
+            </div>
+            <div id="ap-sec-edit-panel-pane-content" class="ap-sec-edit-panel__pane" role="tabpanel">
+                <div id="ap-sec-edit-legacy" class="ap-sec-edit-panel__legacy ap-muted" hidden>Курс в legacy-режиме: откройте классические редакторы через «Содержимое».</div>
+                <div id="ap-sec-edit-content-theory" hidden>
+                    <div class="ap-sec-edit-toolbar" role="toolbar" aria-label="Форматирование">
+                        <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="bold"><strong>B</strong></button>
+                        <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="italic"><em>I</em></button>
+                        <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="h2">H2</button>
+                        <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="h3">H3</button>
+                        <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="code">Code</button>
+                        <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="link">Link</button>
+                    </div>
+                    <textarea id="ap-sec-theory-md" class="ap-modal__input ap-settings-textarea ap-sec-edit-panel__editor" rows="14"></textarea>
+                    <div class="ap-sec-edit-panel__theory-foot">
+                        <span id="ap-sec-theory-chars" class="ap-muted small">0 символов</span>
+                        <span id="ap-sec-theory-saved" class="ap-sec-edit-panel__saved small" hidden style="display:inline-flex;align-items:center;gap:0.25rem">Сохранено @include('partials.ap-icon', ['name' => 'check', 'size' => 'sm'])</span>
+                    </div>
+                </div>
+                <div id="ap-sec-edit-content-quiz" hidden>
+                    <p id="ap-sec-quiz-summary" class="ap-muted small"></p>
+                    <button type="button" class="btn btn-primary btn-sm" id="ap-sec-quiz-add">+ Добавить вопрос</button>
+                    <ul id="ap-sec-quiz-list" class="ap-sec-quiz-list"></ul>
+                    <div id="ap-sec-quiz-new" class="ap-sec-quiz-new">
+                        <h3 class="ap-sec-edit-panel__h3">Новый вопрос</h3>
+                        <label class="ap-settings-label" for="ap-new-q-text">Текст</label>
+                        <textarea id="ap-new-q-text" class="ap-modal__input ap-settings-textarea" rows="2"></textarea>
+                        <label class="ap-settings-label" for="ap-new-q-type">Тип</label>
+                        <select id="ap-new-q-type" class="ap-modal__input">
+                            <option value="single">Один ответ</option>
+                            <option value="multi">Несколько ответов</option>
+                            <option value="match">Сопоставление</option>
+                        </select>
+                        <div id="ap-new-q-block-opts">
+                            <label class="ap-settings-label" for="ap-new-q-opts">Варианты (по одному в строке)</label>
+                            <textarea id="ap-new-q-opts" class="ap-modal__input ap-settings-textarea" rows="4" placeholder="Вариант 1&#10;Вариант 2"></textarea>
+                            <label class="ap-settings-label" for="ap-new-q-correct">Правильный ответ: индекс с 0 или несколько через запятую</label>
+                            <input id="ap-new-q-correct" class="ap-modal__input" type="text" placeholder="0 или 0,2">
+                        </div>
+                        <div id="ap-new-q-block-match" hidden>
+                            <label class="ap-settings-label" for="ap-new-q-left">Слева (по строке)</label>
+                            <textarea id="ap-new-q-left" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
+                            <label class="ap-settings-label" for="ap-new-q-right">Справа (по строке, та же число строк)</label>
+                            <textarea id="ap-new-q-right" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm" id="ap-new-q-submit">Добавить в список</button>
+                    </div>
+                </div>
+                <div id="ap-sec-edit-content-practice" hidden>
+                    <h3 class="ap-sec-edit-panel__h3">Задание</h3>
+                    <textarea id="ap-sec-practice-md" class="ap-modal__input ap-settings-textarea" rows="8"></textarea>
+                    <h3 class="ap-sec-edit-panel__h3">Docker-образ</h3>
+                    <div id="ap-sec-docker-bound" class="ap-sec-docker-card" hidden>
+                        <p><strong id="ap-sec-docker-title"></strong> <code id="ap-sec-docker-tag" class="ap-muted"></code></p>
+                        <p class="ap-muted small" id="ap-sec-docker-layers"></p>
+                        <div class="ap-sec-docker-card__actions">
+                            <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-docker-unbind">Отвязать</button>
+                            <button type="button" class="btn btn-primary btn-sm" id="ap-sec-docker-replace">Заменить</button>
+                        </div>
+                    </div>
+                    <div id="ap-sec-docker-unbound" class="ap-sec-docker-unbound">
+                        <button type="button" class="btn btn-ghost" id="ap-sec-docker-pick" style="display:inline-flex;align-items:center;gap:0.35rem">Выбрать из библиотеки <span aria-hidden="true">@include('partials.ap-icon', ['name' => 'chevron-right', 'size' => 'sm'])</span></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <footer class="ap-sec-edit-panel__footer">
+            <button type="button" class="btn btn-ghost" id="ap-sec-edit-cancel">Отмена</button>
+            <button type="button" class="btn btn-primary" id="ap-sec-edit-save">Сохранить изменения</button>
+        </footer>
+    </div>
+</aside>
+<div id="ap-sec-docker-modal" class="ap-modal ap-sec-docker-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
+    <div class="ap-modal__backdrop" data-ap-sec-docker-modal-close tabindex="-1"></div>
+    <div class="ap-modal__panel ap-modal__panel--wide">
+        <div class="ap-modal__head">
+            <h2 class="ap-modal__title">Образы из библиотеки</h2>
+            <button type="button" class="btn btn-ghost" data-ap-sec-docker-modal-close>Закрыть</button>
+        </div>
+        <p class="ap-muted small">Список собранных образов (как в разделе Docker).</p>
+        <ul id="ap-sec-docker-modal-list" class="ap-sec-docker-modal-list"></ul>
+    </div>
+</div>
+
+<script src="{{ asset('js/section-edit-panel.js') }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" crossorigin="anonymous"></script>
+<script>
+(function () {
+    var root = document.querySelector('[data-ap-workbench]');
+    if (!root) return;
+
+    var defaultTitles = @json($defaultSectionTitles);
+
+    function openModal(el) {
+        if (!el) return;
+        el.hidden = false;
+        el.classList.add('is-open');
+        el.setAttribute('aria-hidden', 'false');
+    }
+    function closeModal(el) {
+        if (!el) return;
+        el.classList.remove('is-open');
+        el.setAttribute('aria-hidden', 'true');
+        el.hidden = true;
+    }
+    document.querySelectorAll('[data-ap-modal-close]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var m = btn.closest('.ap-modal');
+            if (m) closeModal(m);
+        });
+    });
+
+    var addModBtn = document.getElementById('ap-open-add-module');
+    var addModModal = document.getElementById('ap-modal-add-module');
+    if (addModBtn && addModModal) addModBtn.addEventListener('click', function () { openModal(addModModal); });
+
+    var addSecModal = document.getElementById('ap-modal-add-section');
+    var addSecForm = document.getElementById('ap-form-add-section');
+    var addSecType = document.getElementById('ap-add-sec-type');
+    var addSecTitle = document.getElementById('ap-add-sec-title');
+    var currentSectionStoreUrl = '';
+
+    var delModModal = document.getElementById('ap-modal-delete-module');
+    var delModForm = document.getElementById('ap-form-delete-module');
+    var delModText = document.getElementById('ap-delete-mod-text');
+
+    var delSecModal = document.getElementById('ap-modal-delete-section');
+    var delSecForm = document.getElementById('ap-form-delete-section');
+    var delSecText = document.getElementById('ap-delete-sec-text');
+
+    var drawer = document.getElementById('ap-drawer-module-settings');
+    var modSetForm = document.getElementById('ap-form-module-settings');
+
+    function openDrawer() {
+        if (!drawer) return;
+        drawer.classList.add('is-open');
+        drawer.setAttribute('aria-hidden', 'false');
+    }
+    function closeDrawer() {
+        if (!drawer) return;
+        drawer.classList.remove('is-open');
+        drawer.setAttribute('aria-hidden', 'true');
+    }
+    if (drawer) {
+        drawer.querySelectorAll('[data-ap-drawer-close]').forEach(function (b) {
+            b.addEventListener('click', closeDrawer);
+        });
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') {
+            return;
+        }
+        if (drawer && drawer.classList.contains('is-open')) {
+            closeDrawer();
+            e.preventDefault();
+            return;
+        }
+        document.querySelectorAll('.ap-modal.is-open').forEach(function (m) {
+            closeModal(m);
+        });
+    });
+
+    function fillModuleOrderFields() {
+        var wrap = document.getElementById('ap-module-order-fields');
+        var list = document.getElementById('ap-modules-sortable');
+        if (!wrap || !list) return;
+        wrap.innerHTML = '';
+        list.querySelectorAll('.ap-mod-card[data-module-id]').forEach(function (li) {
+            var inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'order[]';
+            inp.value = li.getAttribute('data-module-id');
+            wrap.appendChild(inp);
+        });
+    }
+
+    var saveModOrderBtn = document.getElementById('ap-save-module-order');
+    var modOrderForm = document.getElementById('ap-modules-reorder-form');
+    var initialModuleOrder = '';
+
+    function refreshModuleOrderState() {
+        fillModuleOrderFields();
+        var ids = [];
+        document.querySelectorAll('#ap-modules-sortable .ap-mod-card[data-module-id]').forEach(function (li) {
+            ids.push(li.getAttribute('data-module-id'));
+        });
+        var s = ids.join(',');
+        if (saveModOrderBtn) saveModOrderBtn.hidden = (s === initialModuleOrder || ids.length === 0);
+    }
+
+    if (document.getElementById('ap-modules-sortable')) {
+        document.querySelectorAll('#ap-modules-sortable .ap-mod-card[data-module-id]').forEach(function (li) {
+            initialModuleOrder += (initialModuleOrder ? ',' : '') + li.getAttribute('data-module-id');
+        });
+        if (typeof Sortable !== 'undefined') {
+            new Sortable(document.getElementById('ap-modules-sortable'), {
+                animation: 150,
+                handle: '.ap-mod-drag-handle--module',
+                draggable: '.ap-mod-card',
+                ghostClass: 'ap-sortable-ghost',
+                onEnd: refreshModuleOrderState
+            });
+        }
+    }
+    if (modOrderForm) modOrderForm.addEventListener('submit', fillModuleOrderFields);
+
+    function fillSecOrderFields(ul) {
+        var acc = ul.closest('.ap-mod-card__accordion');
+        if (!acc) return;
+        var wrap = acc.querySelector('[data-ap-sec-order-fields]');
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        ul.querySelectorAll('.ap-sec-row[data-section-id]').forEach(function (row) {
+            var inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'order[]';
+            inp.value = row.getAttribute('data-section-id');
+            wrap.appendChild(inp);
+        });
+        var btn = acc.querySelector('[data-ap-save-section-order]');
+        var initial = ul.getAttribute('data-initial-order') || '';
+        var now = [];
+        ul.querySelectorAll('.ap-sec-row[data-section-id]').forEach(function (row) {
+            now.push(row.getAttribute('data-section-id'));
+        });
+        if (btn) btn.hidden = (now.join(',') === initial || now.length === 0);
+    }
+
+    document.querySelectorAll('.ap-sec-reorder-form').forEach(function (form) {
+        form.addEventListener('submit', function () {
+            var id = form.id.replace('ap-sections-reorder-', '');
+            var ul = document.getElementById('ap-sec-sortable-' + id);
+            if (ul) fillSecOrderFields(ul);
+        });
+    });
+
+    document.querySelectorAll('[data-ap-sec-sortable]').forEach(function (ul) {
+        var ids = [];
+        ul.querySelectorAll('.ap-sec-row[data-section-id]').forEach(function (row) {
+            ids.push(row.getAttribute('data-section-id'));
+        });
+        ul.setAttribute('data-initial-order', ids.join(','));
+        if (typeof Sortable !== 'undefined') {
+            new Sortable(ul, {
+                animation: 150,
+                handle: '.ap-mod-drag-handle--sec',
+                draggable: '.ap-sec-row',
+                ghostClass: 'ap-sortable-ghost',
+                onEnd: function () { fillSecOrderFields(ul); }
+            });
+        }
+    });
+
+    function setExpanded(card, open) {
+        var acc = card.querySelector('[data-ap-mod-accordion]');
+        var btn = card.querySelector('[data-ap-mod-toggle]');
+        var chev = card.querySelector('[data-ap-chev]');
+        if (!acc || !btn) return;
+        acc.hidden = !open;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (chev) chev.textContent = open ? '∧' : '∨';
+        if (open) card.classList.add('is-expanded'); else card.classList.remove('is-expanded');
+    }
+
+    document.querySelectorAll('.ap-mod-card').forEach(function (card) {
+        var t = card.querySelector('[data-ap-mod-toggle]');
+        var secBtn = card.querySelector('[data-ap-open-sections]');
+        function toggle() {
+            var acc = card.querySelector('[data-ap-mod-accordion]');
+            var open = acc && acc.hidden;
+            setExpanded(card, !!open);
+        }
+        if (t) t.addEventListener('click', function (e) { e.preventDefault(); toggle(); });
+        if (secBtn) secBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            setExpanded(card, true);
+            var acc = card.querySelector('[data-ap-mod-accordion]');
+            if (acc) acc.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+
+        var setBtn = card.querySelector('[data-ap-open-module-settings]');
+        if (setBtn && modSetForm) {
+            setBtn.addEventListener('click', function () {
+                modSetForm.action = card.getAttribute('data-update-url');
+                document.getElementById('ap-mod-set-title').value = card.getAttribute('data-module-title') || '';
+                document.getElementById('ap-mod-set-letter').value = card.getAttribute('data-module-letter') || '';
+                document.getElementById('ap-mod-set-pkg').value = card.getAttribute('data-module-pkg') || '';
+                document.getElementById('ap-mod-set-sum').value = card.getAttribute('data-module-summary') || '';
+                openDrawer();
+            });
+        }
+
+        var delBtn = card.querySelector('[data-ap-open-delete-module]');
+        if (delBtn && delModForm) {
+            delBtn.addEventListener('click', function () {
+                delModForm.action = card.getAttribute('data-destroy-url');
+                if (delModText) delModText.textContent = 'Удалить модуль «' + (card.getAttribute('data-module-title') || '') + '» и все разделы?';
+                openModal(delModModal);
+            });
+        }
+
+        var addSecBtn = card.querySelector('[data-ap-open-add-section]');
+        if (addSecBtn && addSecForm) {
+            addSecBtn.addEventListener('click', function () {
+                currentSectionStoreUrl = card.getAttribute('data-section-store-url');
+                addSecForm.action = currentSectionStoreUrl;
+                addSecType.value = 'text';
+                if (addSecTitle) addSecTitle.value = defaultTitles['text'] || 'Теория';
+                document.querySelectorAll('[data-ap-pick-sec-type]').forEach(function (x) {
+                    x.classList.toggle('is-selected', x.getAttribute('data-ap-pick-sec-type') === 'text');
+                });
+                openModal(addSecModal);
+            });
+        }
+    });
+
+    if (addSecForm) {
+        document.querySelectorAll('[data-ap-pick-sec-type]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var typ = b.getAttribute('data-ap-pick-sec-type');
+                addSecType.value = typ;
+                if (addSecTitle) addSecTitle.value = defaultTitles[typ] || '';
+                document.querySelectorAll('[data-ap-pick-sec-type]').forEach(function (x) {
+                    x.classList.toggle('is-selected', x === b);
+                });
+            });
+        });
+    }
+
+    document.querySelectorAll('[data-ap-open-delete-section]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            delSecForm.action = btn.getAttribute('data-destroy-url');
+            if (delSecText) delSecText.textContent = 'Удалить раздел «' + (btn.getAttribute('data-section-title') || '') + '»?';
+            openModal(delSecModal);
+        });
+    });
+
+    if (location.hash && location.hash.indexOf('ap-mod-') === 1) {
+        var id = location.hash.slice(1).replace('ap-mod-', '');
+        var card = document.getElementById('ap-mod-' + id);
+        if (card) setExpanded(card, true);
+    }
+})();
+</script>

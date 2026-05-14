@@ -9,143 +9,266 @@
         $courseRows = $courseRows ?? [];
         $certificates = $certificates ?? [];
         $portalWelcomeName = $portalWelcomeName ?? null;
+        $learnerInitials = $learnerInitials ?? '??';
+        $displayName = $portalWelcomeName ?: (string) $learner->email;
     @endphp
     <style>
-        .acc-page { max-width: 1120px; margin: 0 auto; padding: 0 0 2rem; --acc-brand: {{ $brand }}; }
-        .acc-hero {
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            padding: 1.25rem 1.35rem 1.1rem;
-            margin-bottom: 1rem;
+        .acc-page { max-width: 1100px; margin: 0 auto; padding: 0 0 2rem; --acc-brand: {{ $brand }}; }
+        @media (max-width: 560px) {
+            .acc-page { padding-left: 0.65rem; padding-right: 0.65rem; }
+        }
+        .page-section + .page-section { margin-top: 24px; }
+        .welcome-block { padding: 28px 32px; }
+        @media (max-width: 560px) {
+            .welcome-block { padding: 1.1rem 1rem; }
+        }
+
+        .acc-welcome-eyebrow {
+            margin: 0 0 0.65rem;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+        .portal-welcome-head {
             display: flex;
-            flex-wrap: wrap;
             align-items: flex-start;
             justify-content: space-between;
             gap: 1rem;
+            flex-wrap: wrap;
         }
-        .acc-hero__title { margin: 0 0 0.35rem; font-size: 1.45rem; font-weight: 800; letter-spacing: -0.02em; }
-        .acc-hero__sub { margin: 0; color: #64748b; line-height: 1.55; font-size: 0.95rem; }
-        .acc-hero__sub strong { color: #0f172a; }
-        .acc-hero__fio {
-            margin: 0.35rem 0 0;
-            font-size: 0.98rem;
-            line-height: 1.45;
-            color: #334155;
+        .portal-welcome-main {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            min-width: 0;
         }
-        .acc-hero__fio strong {
+        .portal-welcome-avatar {
+            flex: 0 0 auto;
+            width: 3.25rem;
+            height: 3.25rem;
+            border-radius: 50%;
+            background: #00b956;
+            color: #fff;
+            font-weight: 800;
+            font-size: 1.05rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            letter-spacing: 0.02em;
+        }
+        .portal-welcome-greet {
+            font-size: 1.2rem;
             font-weight: 700;
             color: #0f172a;
+            line-height: 1.3;
         }
-        .acc-metrics {
+        .portal-welcome-email {
+            font-size: 0.92rem;
+            margin-top: 0.2rem;
+            color: #64748b;
+            word-break: break-word;
+        }
+
+        .portal-welcome-metrics {
             display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem 1.1rem;
+            margin-top: 1.35rem;
+        }
+        .acc-welcome-metrics--4 {
             grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 0.85rem;
-            width: 100%;
-            margin-top: 1.15rem;
-            padding-top: 1.15rem;
-            border-top: 1px solid rgba(15, 23, 42, 0.06);
         }
         @media (max-width: 900px) {
-            .acc-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .acc-welcome-metrics--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
-        @media (max-width: 420px) {
-            .acc-metrics { grid-template-columns: 1fr; }
+        @media (max-width: 520px) {
+            .portal-welcome-metrics { grid-template-columns: 1fr; }
         }
-        .acc-metric {
-            position: relative;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        .portal-metric {
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            min-width: 0;
+            padding: 1rem 1.15rem;
+            border-radius: 14px;
+            background: linear-gradient(165deg, #ffffff 0%, #f7fdf9 45%, #eef9f2 100%);
             border: 1px solid rgba(0, 185, 86, 0.14);
-            padding: 0;
-            text-align: center;
-            overflow: hidden;
-            transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.2s ease;
-        }
-        .acc-metric:hover {
-            transform: translateY(-3px);
-            border-color: rgba(0, 185, 86, 0.35);
             box-shadow:
-                0 14px 32px rgba(0, 185, 86, 0.12),
-                0 4px 12px rgba(15, 23, 42, 0.06);
+                0 1px 0 rgba(255, 255, 255, 0.8) inset,
+                0 2px 16px rgba(15, 23, 42, 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
         }
-        .acc-metric__stripe {
-            height: 4px;
-            background: linear-gradient(90deg, #00b956 0%, #2dd48a 55%, #5ee9b0 100%);
+        .portal-metric:hover {
+            transform: translateY(-2px);
+            border-color: rgba(0, 185, 86, 0.28);
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.85) inset,
+                0 10px 32px rgba(0, 185, 86, 0.12);
         }
-        .acc-metric__body {
-            padding: 0.95rem 0.75rem 0.9rem;
-            background: linear-gradient(180deg, rgba(240, 253, 249, 0.65) 0%, #fff 38%);
+        @media (prefers-reduced-motion: reduce) {
+            .portal-metric { transition: none; }
+            .portal-metric:hover { transform: none; }
         }
-        .acc-metric__v {
-            font-size: clamp(1.65rem, 4.2vw, 2.15rem);
-            font-weight: 800;
-            color: #00994a;
-            line-height: 1.08;
-            letter-spacing: -0.03em;
-            font-variant-numeric: tabular-nums;
+        .portal-metric__iconWrap {
+            flex: 0 0 auto;
+            width: 2.75rem;
+            height: 2.75rem;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(145deg, #e8f9f0 0%, #d4f3e2 100%);
+            border: 1px solid rgba(0, 185, 86, 0.2);
+            color: #00a84d;
         }
-        .acc-metric--time .acc-metric__v {
-            font-size: clamp(1.2rem, 3.1vw, 1.55rem);
+        .portal-metric__iconWrap svg {
+            width: 1.35rem;
+            height: 1.35rem;
+        }
+        .portal-metric__text { min-width: 0; flex: 1; }
+        .portal-metric__value {
+            font-size: clamp(1.15rem, 2.4vw, 1.5rem);
+            font-weight: 700;
             line-height: 1.2;
+            color: #0f172a;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.02em;
         }
-        .acc-metric__k {
-            margin-top: 0.4rem;
-            font-size: 0.8125rem;
+        .portal-metric--time .portal-metric__value {
+            font-size: clamp(1rem, 2.1vw, 1.35rem);
+            line-height: 1.25;
+        }
+        .portal-metric__label {
+            font-size: 0.76rem;
             font-weight: 600;
             color: #64748b;
-            letter-spacing: 0.01em;
+            margin-top: 0.3rem;
             line-height: 1.35;
+            letter-spacing: 0.01em;
         }
-        .acc-tabs {
+        .portal-metric__accent {
+            display: block;
+            width: 2.25rem;
+            height: 3px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #00b956, #34d399);
+            margin-bottom: 0.35rem;
+            opacity: 0.85;
+        }
+
+        .acc-tabs-card { padding: 1rem 1.25rem 1.35rem; }
+        .acc-tabs-card > .acc-panel { margin-top: 1.1rem; }
+        .acc-card__footer-actions .btn-primary {
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+        .acc-card__footer-actions .btn-primary:hover {
+            transform: scale(1.02);
+            box-shadow: 0 6px 18px rgba(0, 185, 86, 0.28);
+        }
+        .portal-tag-filters-wrap {
             display: flex;
-            gap: 0.25rem;
-            border-bottom: 2px solid #e8eeea;
-            margin-bottom: 1.1rem;
+            flex-wrap: nowrap;
+            gap: 0.45rem;
+            margin-top: 0;
+            overflow-x: auto;
+            padding-bottom: 0.15rem;
+            -webkit-overflow-scrolling: touch;
         }
-        .acc-tab {
-            appearance: none;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            font: inherit;
-            font-weight: 700;
-            font-size: 0.95rem;
+        .portal-tag-filter.acc-tab {
+            flex: 0 0 auto;
+            border: 1px solid #cbd5e1;
             color: #64748b;
-            padding: 0.65rem 1rem 0.75rem;
-            margin-bottom: -2px;
-            border-bottom: 3px solid transparent;
-            border-radius: 8px 8px 0 0;
-            transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+            background: #fff;
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 0.35rem 0.75rem;
+            border-radius: 999px;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            font-family: inherit;
+            transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
         }
-        .acc-tab:hover { color: #0f172a; background: rgba(0,185,86,0.06); }
-        .acc-tab[aria-selected="true"] {
+        .portal-tag-filter.acc-tab:hover {
+            border-color: #00b956;
             color: #0f172a;
-            border-bottom-color: var(--acc-brand);
-            background: rgba(0,185,86,0.08);
+        }
+        .portal-tag-filter.acc-tab.is-active {
+            background: #00b956;
+            color: #fff;
+            border-color: #00b956;
         }
         .acc-panel { display: none; }
         .acc-panel.is-active { display: block; }
-        .acc-grid {
+
+        .my-courses-grid.module-grid.portal-catalog-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 1rem;
+            gap: 16px;
+            margin-top: 0;
         }
-        @media (max-width: 960px) {
-            .acc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        @media (max-width: 820px) {
+            .my-courses-grid.module-grid.portal-catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
-        @media (max-width: 560px) {
-            .acc-grid { grid-template-columns: 1fr; }
+        @media (max-width: 520px) {
+            .my-courses-grid.module-grid.portal-catalog-grid { grid-template-columns: minmax(0, 1fr); }
         }
-        .acc-card {
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            padding: 1.05rem 1.1rem 1rem;
+
+        .portal-course-card {
+            cursor: default;
             display: flex;
             flex-direction: column;
-            min-height: 100%;
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            min-height: 220px;
+            padding-top: 2.35rem;
+            transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+        }
+        .portal-course-card.course-card-active {
+            border: 2px solid #00b956 !important;
+            box-shadow: 0 4px 16px rgba(0, 185, 86, 0.12);
+            background: #ffffff !important;
+        }
+        .portal-course-card-status {
+            position: absolute;
+            top: 0.65rem;
+            right: 0.65rem;
+            left: auto;
+            z-index: 2;
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 0.2rem 0.45rem;
+            border-radius: 999px;
+            line-height: 1.2;
+        }
+        .portal-course-card-status--progress {
+            background: #ecfdf5;
+            color: #059669;
+            border: 1px solid rgba(0, 185, 86, 0.35);
+        }
+        .portal-course-card-status--done {
+            background: #00b956;
+            color: #fff;
+        }
+        .portal-course-title { min-height: 2.7rem; }
+        .portal-course-grow { flex: 1; min-height: 0; }
+        .portal-course-progress-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin: 0 0 0.35rem;
+        }
+        .portal-course-progress-bar.learner-track-summary__bar {
+            height: 6px;
+            border-radius: 999px;
+        }
+
+        .acc-page article.acc-card.portal-course-card {
             opacity: 0;
             animation: accCardIn 0.42s ease forwards;
         }
@@ -153,26 +276,11 @@
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        .acc-card--done {
-            background: linear-gradient(180deg, #f4fdf8 0%, #fff 52%);
-            border: 1px solid rgba(0,185,86,0.22);
+        .acc-page article.acc-card.portal-course-card.acc-card--done:not(.course-card-active) {
+            border: 1px solid rgba(0, 185, 86, 0.22) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+            background: linear-gradient(180deg, #f4fdf8 0%, #fff 52%) !important;
         }
-        .acc-card__badge {
-            display: inline-flex;
-            align-self: flex-start;
-            align-items: center;
-            gap: 0.25rem;
-            font-size: 0.72rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #047857;
-            background: rgba(0,185,86,0.14);
-            border-radius: 999px;
-            padding: 0.2rem 0.55rem;
-            margin-bottom: 0.45rem;
-        }
-        .acc-card__title { font-weight: 800; font-size: 1.05rem; line-height: 1.28; margin: 0; color: #0f172a; }
         .acc-card__desc {
             margin: 0.45rem 0 0;
             font-size: 0.9rem;
@@ -183,96 +291,108 @@
             -webkit-line-clamp: 2;
             overflow: hidden;
         }
-        .acc-bar-wrap { margin-top: 0.85rem; }
-        .acc-bar-label { font-size: 0.8rem; color: #64748b; margin: 0 0 0.35rem; }
-        .acc-bar {
-            height: 10px;
-            border-radius: 999px;
-            background: #e8eeea;
-            overflow: hidden;
+        .acc-inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            vertical-align: middle;
         }
-        .acc-bar__fill {
-            height: 100%;
-            border-radius: 999px;
-            background: linear-gradient(90deg, #00b956, #34d399);
-            width: 0%;
-            transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+        .acc-svg-ico {
+            flex-shrink: 0;
         }
         .acc-pin {
             margin-top: 0.65rem;
             font-size: 0.86rem;
             line-height: 1.45;
             color: #334155;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.35rem;
         }
         .acc-pin strong { color: #0f172a; }
         .acc-time {
             margin-top: 0.45rem;
             font-size: 0.86rem;
             color: #64748b;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
         }
-        .acc-card__actions {
+        .acc-card__footer {
             margin-top: auto;
             padding-top: 1rem;
             display: flex;
             flex-wrap: wrap;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 0.75rem 1rem;
+            width: 100%;
+        }
+        .acc-card__footer-meta { flex: 1; min-width: 12rem; }
+        .acc-card__footer-actions {
+            display: flex;
+            flex-wrap: wrap;
             gap: 0.5rem;
             align-items: center;
-        }
-        .acc-btn-brand {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border: none;
-            border-radius: 10px;
-            padding: 0.55rem 1rem;
-            font-weight: 700;
-            font-size: 0.9rem;
-            cursor: pointer;
-            background: linear-gradient(180deg, #00c961 0%, #00b956 45%, #00994a 100%);
-            color: #fff;
-            text-decoration: none;
-            box-shadow: 0 2px 8px rgba(0, 185, 86, 0.35);
-            transition: filter 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
-        }
-        .acc-btn-brand:hover {
-            filter: brightness(1.04);
-            box-shadow: 0 4px 14px rgba(0, 185, 86, 0.45);
-        }
-        .acc-btn-brand:active { transform: scale(0.98); }
-        .acc-btn-ghost {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 10px;
-            padding: 0.55rem 0.95rem;
-            font-weight: 700;
-            font-size: 0.88rem;
-            cursor: pointer;
-            background: #fff;
-            color: #0f172a;
-            border: 1px solid rgba(0, 185, 86, 0.35);
-            text-decoration: none;
-            transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
-        }
-        .acc-btn-ghost:hover {
-            background: rgba(0, 185, 86, 0.08);
-            border-color: #00b956;
-            color: #047857;
-            box-shadow: 0 2px 10px rgba(0, 185, 86, 0.12);
+            justify-content: flex-end;
+            margin-left: auto;
         }
         .acc-done-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-        .acc-done-txt { font-weight: 800; color: #047857; font-size: 0.92rem; }
+        .acc-done-txt {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-weight: 800;
+            color: #047857;
+            font-size: 0.92rem;
+        }
         .acc-empty {
             text-align: center;
             padding: 2.5rem 1.25rem;
             background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-radius: 14px;
+            border: 1px solid rgba(0, 185, 86, 0.14);
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.8) inset,
+                0 2px 16px rgba(15, 23, 42, 0.05);
         }
-        .acc-empty__icon { font-size: 2.25rem; line-height: 1; margin-bottom: 0.5rem; }
+        .acc-empty__icon-wrap {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 0.75rem;
+        }
         .acc-empty__title { margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a; }
         .acc-empty__text { margin: 0.45rem auto 0; max-width: 22rem; color: #64748b; font-size: 0.95rem; line-height: 1.5; }
         .acc-empty__actions { margin-top: 1.1rem; }
+        .empty-state {
+            text-align: center;
+            padding: 60px 24px;
+            color: #6b7280;
+            background: #fff;
+            border-radius: 14px;
+            border: 1px solid rgba(0, 185, 86, 0.14);
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.8) inset,
+                0 2px 16px rgba(15, 23, 42, 0.05);
+        }
+        .empty-state .empty-icon-wrap {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+        .empty-state h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #374151;
+            margin: 0 0 8px;
+        }
+        .empty-state p {
+            font-size: 14px;
+            margin: 0 0 20px;
+        }
+        .empty-state .btn-primary {
+            display: inline-flex;
+        }
         .acc-cert-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -301,13 +421,7 @@
             border-color: rgba(0, 185, 86, 0.22);
             box-shadow: 0 8px 24px rgba(0, 185, 86, 0.1), 0 2px 8px rgba(0,0,0,0.06);
         }
-        .acc-cert-actions {
-            margin-top: auto;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            align-items: center;
-        }
+        .acc-cert-thumb {
             border-radius: 10px;
             background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
             border: 1px dashed rgba(0,185,86,0.35);
@@ -315,7 +429,13 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 2.5rem;
+        }
+        .acc-cert-actions {
+            margin-top: auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
         }
         .acc-toast {
             position: fixed;
@@ -337,69 +457,98 @@
     </style>
 
     <div class="acc-page">
-        <div class="acc-hero">
-            <div>
-                <h1 class="acc-hero__title">Личный кабинет</h1>
-                <p class="acc-hero__sub">
-                    Аккаунт: <strong>{{ $learner->email }}</strong>
-                </p>
-                @if (! empty($portalWelcomeName))
-                    <p class="acc-hero__fio">
-                        <span class="muted">ФИО:</span> <strong>{{ $portalWelcomeName }}</strong>
-                    </p>
-                @endif
+        <div class="card page-section welcome-block" style="max-width:1100px;margin:0 auto">
+            <p class="acc-welcome-eyebrow">Личный кабинет</p>
+            <div class="portal-welcome-head">
+                <div class="portal-welcome-main">
+                    <div class="portal-welcome-avatar" aria-hidden="true">{{ $learnerInitials }}</div>
+                    <div>
+                        <div class="portal-welcome-greet">{{ $displayName }}</div>
+                        @if (! empty($portalWelcomeName))
+                            <div class="portal-welcome-email">{{ $learner->email }}</div>
+                        @endif
+                    </div>
+                </div>
+                <a class="btn btn-ghost" href="{{ route('portal') }}">Каталог курсов</a>
             </div>
-            <a class="btn btn-ghost" href="{{ route('portal') }}">Каталог курсов</a>
 
-            <div class="acc-metrics" role="group" aria-label="Сводная статистика">
-                <div class="acc-metric">
-                    <div class="acc-metric__stripe" aria-hidden="true"></div>
-                    <div class="acc-metric__body">
-                        <div class="acc-metric__v">{{ (int) $stats['in_progress'] }}</div>
-                        <div class="acc-metric__k">Курсов в процессе</div>
+            <div class="portal-welcome-metrics acc-welcome-metrics--4" role="group" aria-label="Сводная статистика">
+                <div class="portal-metric">
+                    <div class="portal-metric__iconWrap" aria-hidden="true">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                            <path d="M8 7h8M8 11h6"/>
+                        </svg>
+                    </div>
+                    <div class="portal-metric__text">
+                        <span class="portal-metric__accent" aria-hidden="true"></span>
+                        <div class="portal-metric__value">{{ (int) $stats['in_progress'] }}</div>
+                        <div class="portal-metric__label">Курсов в процессе</div>
                     </div>
                 </div>
-                <div class="acc-metric">
-                    <div class="acc-metric__stripe" aria-hidden="true"></div>
-                    <div class="acc-metric__body">
-                        <div class="acc-metric__v">{{ (int) $stats['completed'] }}</div>
-                        <div class="acc-metric__k">Курсов завершено</div>
+                <div class="portal-metric">
+                    <div class="portal-metric__iconWrap" aria-hidden="true">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <path d="m9 12 2 2 4-4"/>
+                        </svg>
+                    </div>
+                    <div class="portal-metric__text">
+                        <span class="portal-metric__accent" aria-hidden="true"></span>
+                        <div class="portal-metric__value">{{ (int) $stats['completed'] }}</div>
+                        <div class="portal-metric__label">Курсов завершено</div>
                     </div>
                 </div>
-                <div class="acc-metric acc-metric--time">
-                    <div class="acc-metric__stripe" aria-hidden="true"></div>
-                    <div class="acc-metric__body">
-                        <div class="acc-metric__v">{{ $stats['total_time_label'] }}</div>
-                        <div class="acc-metric__k">Общее время обучения</div>
+                <div class="portal-metric portal-metric--time">
+                    <div class="portal-metric__iconWrap" aria-hidden="true">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="9"/>
+                            <path d="M12 7v5l3 2"/>
+                        </svg>
+                    </div>
+                    <div class="portal-metric__text">
+                        <span class="portal-metric__accent" aria-hidden="true"></span>
+                        <div class="portal-metric__value">{{ $stats['total_time_label'] }}</div>
+                        <div class="portal-metric__label">Общее время обучения</div>
                     </div>
                 </div>
-                <div class="acc-metric">
-                    <div class="acc-metric__stripe" aria-hidden="true"></div>
-                    <div class="acc-metric__body">
-                        <div class="acc-metric__v">{{ (int) $stats['certificates_count'] }}</div>
-                        <div class="acc-metric__k">Сертификатов получено</div>
+                <div class="portal-metric">
+                    <div class="portal-metric__iconWrap" aria-hidden="true">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 3h12a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2V5a2 2 0 0 1 2-2z"/>
+                            <path d="M8 8h8M8 12h8M8 16h5"/>
+                        </svg>
+                    </div>
+                    <div class="portal-metric__text">
+                        <span class="portal-metric__accent" aria-hidden="true"></span>
+                        <div class="portal-metric__value">{{ (int) $stats['certificates_count'] }}</div>
+                        <div class="portal-metric__label">Сертификатов получено</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="acc-tabs" role="tablist" aria-label="Разделы личного кабинета">
-            <button type="button" class="acc-tab" role="tab" id="acc-tab-courses" aria-controls="acc-panel-courses" aria-selected="true">Мои курсы</button>
-            <button type="button" class="acc-tab" role="tab" id="acc-tab-certs" aria-controls="acc-panel-certs" aria-selected="false">Мои сертификаты</button>
-        </div>
+        <div class="card page-section acc-tabs-card" style="max-width:1100px;margin:0 auto">
+            <div class="portal-tag-filters-wrap" role="tablist" aria-label="Разделы личного кабинета">
+                <button type="button" class="portal-tag-filter acc-tab is-active" role="tab" id="acc-tab-courses" aria-controls="acc-panel-courses" aria-selected="true">Мои курсы</button>
+                <button type="button" class="portal-tag-filter acc-tab" role="tab" id="acc-tab-certs" aria-controls="acc-panel-certs" aria-selected="false">Мои сертификаты</button>
+            </div>
 
         <div id="acc-panel-courses" class="acc-panel is-active" role="tabpanel" aria-labelledby="acc-tab-courses">
             @if (count($courseRows) === 0)
                 <div class="acc-empty">
-                    <div class="acc-empty__icon" aria-hidden="true">📚</div>
+                    <div class="acc-empty__icon-wrap" aria-hidden="true">
+                        <svg class="acc-svg-ico" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#00b956" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    </div>
                     <h2 class="acc-empty__title">Вы ещё не начали ни одного курса</h2>
                     <p class="acc-empty__text">Перейдите в каталог и выберите подходящий курс — после старта обучения он появится здесь.</p>
                     <div class="acc-empty__actions">
-                        <a class="acc-btn-brand" href="{{ route('portal') }}">Смотреть курсы</a>
+                        <a class="btn btn-primary" href="{{ route('portal') }}">Смотреть курсы</a>
                     </div>
                 </div>
             @else
-                <div class="acc-grid">
+                <div class="my-courses-grid module-grid portal-catalog-grid">
                     @foreach ($courseRows as $idx => $r)
                         @php
                             /** @var \App\Models\Course $c */
@@ -413,56 +562,73 @@
                             $mid = (int) ($r['continue_module_id'] ?? 0);
                             $curTitle = $r['current_module_title'] ?? null;
                         @endphp
-                        <article class="acc-card {{ $done ? 'acc-card--done' : '' }}" style="animation-delay: {{ min(20, (int) $idx) * 50 }}ms" data-acc-card>
+                        <article class="acc-card module-card portal-course-card {{ $done ? 'acc-card--done' : 'course-card-active' }}" style="animation-delay: {{ min(20, (int) $idx) * 50 }}ms" data-acc-card>
                             @if ($done)
-                                <span class="acc-card__badge">Завершён</span>
+                                <div class="portal-course-card-status portal-course-card-status--done">Завершён</div>
+                            @else
+                                <div class="portal-course-card-status portal-course-card-status--progress">● В процессе</div>
                             @endif
-                            <h2 class="acc-card__title">{{ $c->title }}</h2>
-                            <p class="acc-card__desc">{{ $c->summary }}</p>
-
-                            <div class="acc-bar-wrap">
-                                @if ($fromDb && $mt > 0)
-                                    <p class="acc-bar-label">{{ $mp }} из {{ $mt }} модулей пройдено</p>
-                                @else
-                                    <p class="acc-bar-label">Прогресс по курсу: {{ min(100, max(0, $pct)) }}%</p>
-                                @endif
-                                <div class="acc-bar" aria-hidden="true">
-                                    <div class="acc-bar__fill" style="width: {{ min(100, max(0, $pct)) }}%"></div>
+                            <div class="portal-course-title" style="font-weight:800;font-size:1.05rem;line-height:1.25">{{ $c->title }}</div>
+                            <div class="portal-course-grow">
+                                <p class="acc-card__desc muted">{{ $c->summary }}</p>
+                                <div style="margin-top:0.85rem">
+                                    <div class="portal-course-progress-head muted small">
+                                        @if ($fromDb && $mt > 0)
+                                            <span>{{ $mp }} из {{ $mt }} модулей</span>
+                                            <span><strong>{{ min(100, max(0, $pct)) }}%</strong></span>
+                                        @else
+                                            <span>Прогресс по курсу: <strong>{{ min(100, max(0, $pct)) }}%</strong></span>
+                                        @endif
+                                    </div>
+                                    <div class="learner-track-summary__bar portal-course-progress-bar" aria-hidden="true">
+                                        <div class="learner-track-summary__bar-fill" style="width: {{ min(100, max(0, $pct)) }}%"></div>
+                                    </div>
                                 </div>
                             </div>
 
-                            @if ($done)
-                                {{-- completed: optional current line --}}
-                            @elseif ($curTitle)
-                                <div class="acc-pin">📍 Остановились на: <strong>{{ $curTitle }}</strong></div>
-                            @endif
-
-                            <div class="acc-time">⏱ На курсе: {{ $r['time_label'] ?? '0 мин' }}</div>
-
-                            <div class="acc-card__actions">
-                                @if ($done)
-                                    <div class="acc-done-row">
-                                        <span class="acc-done-txt">Пройдено ✓</span>
-                                        @if (! empty($r['certificate_available']))
-                                            <form method="post" action="{{ route('portal.enroll', ['course' => $c->id]) }}" style="margin:0">
-                                                @csrf
-                                                <input type="hidden" name="next" value="certificate">
-                                                <button type="submit" class="acc-btn-brand">Смотреть сертификат</button>
-                                            </form>
-                                        @endif
+                            <div class="acc-card__footer">
+                                <div class="acc-card__footer-meta">
+                                    @if ($done)
+                                        {{-- completed: optional current line omitted --}}
+                                    @elseif ($curTitle)
+                                        <div class="acc-pin">
+                                            <svg class="acc-svg-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00b956" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                                            <span>Остановились на: <strong>{{ $curTitle }}</strong></span>
+                                        </div>
+                                    @endif
+                                    <div class="acc-time">
+                                        <svg class="acc-svg-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                        <span>На курсе: {{ $r['time_label'] ?? '0 мин' }}</span>
                                     </div>
-                                @else
-                                    <form method="post" action="{{ route('portal.enroll', ['course' => $c->id]) }}" style="margin:0;display:contents">
-                                        @csrf
-                                        @if ($next === 'module' && $mid > 0)
-                                            <input type="hidden" name="next" value="module">
-                                            <input type="hidden" name="module" value="{{ $mid }}">
-                                        @elseif ($next === 'final_lab')
-                                            <input type="hidden" name="next" value="final_lab">
-                                        @endif
-                                        <button type="submit" class="acc-btn-brand">Продолжить</button>
-                                    </form>
-                                @endif
+                                </div>
+                                <div class="acc-card__footer-actions">
+                                    @if ($done)
+                                        <div class="acc-done-row">
+                                            <span class="acc-done-txt">
+                                                <svg class="acc-svg-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00b956" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 12 2 2 4-4"/></svg>
+                                                Пройдено
+                                            </span>
+                                            @if (! empty($r['certificate_available']))
+                                                <form method="post" action="{{ route('portal.enroll', ['course' => $c->id]) }}" style="margin:0">
+                                                    @csrf
+                                                    <input type="hidden" name="next" value="certificate">
+                                                    <button type="submit" class="btn btn-primary">Смотреть сертификат</button>
+                                                </form>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <form method="post" action="{{ route('portal.enroll', ['course' => $c->id]) }}" style="margin:0">
+                                            @csrf
+                                            @if ($next === 'module' && $mid > 0)
+                                                <input type="hidden" name="next" value="module">
+                                                <input type="hidden" name="module" value="{{ $mid }}">
+                                            @elseif ($next === 'final_lab')
+                                                <input type="hidden" name="next" value="final_lab">
+                                            @endif
+                                            <button type="submit" class="btn btn-primary">Продолжить</button>
+                                        </form>
+                                    @endif
+                                </div>
                             </div>
                         </article>
                     @endforeach
@@ -472,13 +638,13 @@
 
         <div id="acc-panel-certs" class="acc-panel" role="tabpanel" aria-labelledby="acc-tab-certs" hidden>
             @if (count($certificates) === 0)
-                <div class="acc-empty">
-                    <div class="acc-empty__icon" aria-hidden="true">🏆</div>
-                    <h2 class="acc-empty__title">Сертификатов пока нет</h2>
-                    <p class="acc-empty__text">Завершите курс, чтобы получить первый сертификат.</p>
-                    <div class="acc-empty__actions">
-                        <button type="button" class="acc-btn-brand acc-js-goto-courses">Перейти к курсам</button>
+                <div class="empty-state">
+                    <div class="empty-icon-wrap" aria-hidden="true">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#00b956" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5"><circle cx="12" cy="8" r="6"/><path d="M8 14h8l-1 8H9l-1-8z"/><path d="M9 10h6"/></svg>
                     </div>
+                    <h3>Сертификатов пока нет</h3>
+                    <p>Завершите курс, чтобы получить первый сертификат</p>
+                    <a href="{{ route('portal') }}" class="btn btn-primary">Перейти к курсам</a>
                 </div>
             @else
                 <div class="acc-cert-grid">
@@ -488,16 +654,18 @@
                                 <div style="font-weight:800;font-size:1rem;line-height:1.25;color:#0f172a">{{ $cert['course_title'] }}</div>
                                 <div class="muted" style="margin-top:0.35rem;font-size:0.88rem">Выдан: <strong>{{ $cert['issued_label'] }}</strong></div>
                             </div>
-                            <div class="acc-cert-thumb" aria-hidden="true">🏆</div>
+                            <div class="acc-cert-thumb" aria-hidden="true">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#00b956" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"><circle cx="12" cy="8" r="6"/><path d="M8 14h8l-1 8H9l-1-8z"/><path d="M9 10h6"/></svg>
+                            </div>
                             <div class="acc-cert-actions">
                                 <form method="post" action="{{ route('portal.enroll', ['course' => $cert['course_id']]) }}" style="margin:0">
                                     @csrf
                                     <input type="hidden" name="next" value="certificate">
-                                    <button type="submit" class="acc-btn-brand" title="Откроется итоговая страница: скачивание только в PNG">Сертификат (PNG)</button>
+                                    <button type="submit" class="btn btn-primary" title="Откроется итоговая страница: скачивание только в PNG">Сертификат (PNG)</button>
                                 </form>
                                 <button
                                     type="button"
-                                    class="acc-btn-ghost acc-js-share"
+                                    class="btn btn-ghost acc-js-share"
                                     data-share-url="{{ url(route('account', [], false)) }}?tab=certificates#{{ $cert['share_anchor'] }}"
                                 >Поделиться</button>
                             </div>
@@ -505,6 +673,7 @@
                     @endforeach
                 </div>
             @endif
+        </div>
         </div>
     </div>
 
@@ -528,6 +697,7 @@
                 tabs.forEach(function (t) {
                     var sel = (isCourses && t.id === 'acc-tab-courses') || (!isCourses && t.id === 'acc-tab-certs');
                     t.setAttribute('aria-selected', sel ? 'true' : 'false');
+                    t.classList.toggle('is-active', !!sel);
                 });
                 if (pCourses) {
                     pCourses.classList.toggle('is-active', isCourses);
@@ -548,9 +718,6 @@
                 tab.addEventListener('click', function () {
                     setTab(tab.id === 'acc-tab-courses' ? 'courses' : 'certs');
                 });
-            });
-            document.querySelectorAll('.acc-js-goto-courses').forEach(function (btn) {
-                btn.addEventListener('click', function () { setTab('courses'); });
             });
             document.querySelectorAll('.acc-js-share').forEach(function (btn) {
                 btn.addEventListener('click', function () {

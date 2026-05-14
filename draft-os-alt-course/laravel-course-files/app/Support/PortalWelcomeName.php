@@ -12,14 +12,15 @@ use Illuminate\Support\Str;
 final class PortalWelcomeName
 {
     /**
-     * Имя для приветствия / подписи: из OIDC (сессия), иначе оформленная часть почты; без «имени» = null.
+     * ФИО из OIDC (сессия learner_name или userinfo/id_token в probe), без БД и без «красивой» части email.
+     * Используется для записи в learners.sso_display_name.
      */
-    public static function forLearner(Learner $learner): ?string
+    public static function ssoMeaningfulNameFromSession(Learner $learner): ?string
     {
-        $fromOidc = trim((string) session('learner_name', ''));
         $email = trim((string) $learner->email);
         $localRaw = strtolower((string) (explode('@', $email, 2)[0] ?? ''));
 
+        $fromOidc = trim((string) session('learner_name', ''));
         if ($fromOidc !== '' && self::sessionNameIsDisplayable($fromOidc, $localRaw)) {
             return $fromOidc;
         }
@@ -30,6 +31,27 @@ final class PortalWelcomeName
             if ($fromProbe !== '' && self::sessionNameIsDisplayable($fromProbe, $localRaw)) {
                 return $fromProbe;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * Имя для приветствия / подписи: из OIDC (сессия), иначе оформленная часть почты; без «имени» = null.
+     */
+    public static function forLearner(Learner $learner): ?string
+    {
+        $email = trim((string) $learner->email);
+        $localRaw = strtolower((string) (explode('@', $email, 2)[0] ?? ''));
+
+        $fromSso = self::ssoMeaningfulNameFromSession($learner);
+        if ($fromSso !== null) {
+            return $fromSso;
+        }
+
+        $fromDb = trim((string) ($learner->sso_display_name ?? ''));
+        if ($fromDb !== '' && self::sessionNameIsDisplayable($fromDb, $localRaw)) {
+            return $fromDb;
         }
 
         $local = explode('@', $email, 2)[0] ?? '';

@@ -6,6 +6,9 @@ use App\Models\CourseEnrollment;
 use App\Models\FinalLabResult;
 use App\Models\Learner;
 use App\Models\ModuleProgress;
+use App\Support\LearnerDisplay;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 final class TeacherCourseAnalyticsService
 {
@@ -27,8 +30,13 @@ final class TeacherCourseAnalyticsService
             ->orderBy('email')
             ->get();
 
+        $ids = $learners->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+        $nameByLearner = LearnerDisplay::portalDisplayNamesByLearnerIds($ids);
+
         foreach ($learners as $learner) {
-            $rows[] = $this->rowForLearner($learner, $courseId);
+            $row = $this->rowForLearner($learner, $courseId);
+            $row['full_name'] = $nameByLearner[(int) $learner->id] ?? '';
+            $rows[] = $row;
         }
 
         return $rows;
@@ -133,6 +141,69 @@ final class TeacherCourseAnalyticsService
         $completed = (int) FinalLabResult::query()->where('course_id', $courseId)->where('passed', true)->count();
 
         return ['enrolled' => $enrolled, 'started' => $started, 'completed' => $completed];
+    }
+
+    /**
+     * Обучающиеся, у которых есть запись на курс, прогресс по модулям или результат ИЛР.
+     *
+     * @return list<int>
+     */
+    public function learnerIdsTouchingCourse(int $courseId): array
+    {
+        if ($courseId < 1) {
+            return [];
+        }
+
+        $ids = collect();
+
+        if (Schema::hasTable('course_enrollments')) {
+            $ids = $ids->merge(
+                DB::table('course_enrollments')->where('course_id', $courseId)->pluck('learner_id')
+            );
+        }
+        if (Schema::hasTable('module_progress')) {
+            $ids = $ids->merge(
+                DB::table('module_progress')->where('course_id', $courseId)->pluck('learner_id')
+            );
+        }
+        if (Schema::hasTable('final_lab_results')) {
+            $ids = $ids->merge(
+                DB::table('final_lab_results')->where('course_id', $courseId)->pluck('learner_id')
+            );
+        }
+
+        return $ids->unique()->filter()->map(fn ($id) => (int) $id)->values()->all();
+    }
+
+    /**
+     * Средний процент прохождения курса по баллам (как в отчёте по обучающимся).
+     */
+    public function averageGrandTotalPercentForCourse(int $courseId): int
+    {
+        $learnerIds = $this->learnerIdsTouchingCourse($courseId);
+        if ($learnerIds === []) {
+            return 0;
+        }
+
+        $learners = Learner::query()
+            ->whereIn('id', $learnerIds)
+            ->with([
+                'moduleProgresses' => fn ($q) => $q->where('course_id', $courseId),
+                'finalLabResults' => fn ($q) => $q->where('course_id', $courseId),
+            ])
+            ->get();
+
+        if ($learners->isEmpty()) {
+            return 0;
+        }
+
+        $sum = 0;
+        foreach ($learners as $learner) {
+            $row = $this->rowForLearner($learner, $courseId);
+            $sum += (int) ($row['grand_total_percent'] ?? 0);
+        }
+
+        return (int) round($sum / $learners->count());
     }
 
     private function trackedSeconds(ModuleProgress $progress): int

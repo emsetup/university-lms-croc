@@ -7,10 +7,14 @@
     $hasAdminCourse = (bool) session('admin_course_id');
     $isCoursePicker = request()->routeIs('admin.courses.index');
     $isPortalPanel = request()->routeIs('admin.panel') || $isCoursePicker || request()->routeIs('admin.learners.portal');
-    $settingsNavActive = $active === 'settings' || request()->routeIs('admin.course.module.*');
+    $settingsNavActive = $active === 'settings'
+        || request()->routeIs('admin.course.module.*')
+        || request()->routeIs('admin.course.settings*');
     $canTools = $portalStaffAccess && $portalStaffAccess->canUseCourseAdminTools();
     $canStaff = $portalStaffAccess && $portalStaffAccess->canManageStaff();
     $canPortalLearners = $portalStaffAccess && $portalStaffAccess->canViewPortalLearners();
+
+    $apNav = \App\Support\AdminNavigation::adminCourseRouteParams();
 
     $currentLabel = '';
     if ($active === 'panel' || request()->routeIs('admin.panel')) {
@@ -23,8 +27,8 @@
         $currentLabel = 'Обучающиеся';
     } elseif ($active === 'practice' || request()->routeIs('admin.practice.*')) {
         $currentLabel = 'Практики';
-    } elseif ($settingsNavActive || request()->routeIs('admin.course.settings')) {
-        $currentLabel = 'Настройки';
+    } elseif (request()->routeIs('admin.course.settings') || request()->routeIs('admin.course.module.*')) {
+        $currentLabel = 'Модули';
     } elseif ($active === 'theory' || request()->routeIs('admin.theory.*')) {
         $currentLabel = 'Содержимое курса';
     } elseif ($active === 'quiz' || request()->routeIs('admin.quiz.*')) {
@@ -43,7 +47,7 @@
                 <span class="ai-nav__sep">·</span>
                 <a class="ai-nav__crumb" href="{{ route('admin.courses.index') }}">Курсы</a>
                 <span class="ai-nav__sep">·</span>
-                <a class="ai-nav__crumb" href="{{ route('admin.theory.index') }}">{{ $adminCourseTitle }}</a>
+                <a class="ai-nav__crumb" href="{{ ! empty($apNav) ? route('admin.theory.index', $apNav) : route('admin.courses.index') }}">{{ $adminCourseTitle }}</a>
                 @if ($currentLabel !== '')
                     <span class="ai-nav__sep">·</span>
                     <span class="ai-nav__crumb ai-nav__crumb--current">{{ $currentLabel }}</span>
@@ -68,23 +72,23 @@
                 <a href="{{ route('admin.learners.portal') }}"
                    class="ai-nav__a @if ($active === 'learners_portal') ai-nav__a--active @endif">Обучающиеся</a>
             @endif
-            @if ($hasAdminCourse && ! $isPortalPanel && $canTools)
-                <a href="{{ route('admin.course.settings') }}"
-                   class="ai-nav__a @if ($settingsNavActive) ai-nav__a--active @endif">Настройки</a>
-                <a href="{{ route('admin.practice.images.index') }}"
+            @if ($hasAdminCourse && ! $isPortalPanel && $canTools && ! empty($apNav))
+                <a href="{{ route('admin.course.settings', $apNav) }}"
+                   class="ai-nav__a @if ($settingsNavActive) ai-nav__a--active @endif">Модули</a>
+                <a href="{{ route('admin.practice.images.index', $apNav) }}"
                    class="ai-nav__a @if ($active === 'practice') ai-nav__a--active @endif">Практики</a>
-                <a href="{{ route('admin.theory.index') }}"
+                <a href="{{ route('admin.theory.index', $apNav) }}"
                    class="ai-nav__a @if ($active === 'theory') ai-nav__a--active @endif">Содержимое курса</a>
-                <a href="{{ route('admin.quiz.index') }}"
+                <a href="{{ route('admin.quiz.index', $apNav) }}"
                    class="ai-nav__a @if ($active === 'quiz') ai-nav__a--active @endif">Вопросы тестов</a>
-                <a href="{{ route('admin.learners.course') }}"
+                <a href="{{ route('admin.learners.course', $apNav) }}"
                    class="ai-nav__a @if ($active === 'learners_course') ai-nav__a--active @endif">Обучающиеся курса</a>
-                <a href="{{ route('admin.certificates') }}"
+                <a href="{{ route('admin.certificates', $apNav) }}"
                    class="ai-nav__a @if ($active === 'certificates') ai-nav__a--active @endif">Сертификаты</a>
-            @elseif ($hasAdminCourse && ! $isPortalPanel)
-                <a href="{{ route('admin.theory.index') }}"
+            @elseif ($hasAdminCourse && ! $isPortalPanel && ! empty($apNav))
+                <a href="{{ route('admin.theory.index', $apNav) }}"
                    class="ai-nav__a @if ($active === 'theory') ai-nav__a--active @endif">Содержимое курса</a>
-                <a href="{{ route('admin.quiz.index') }}"
+                <a href="{{ route('admin.quiz.index', $apNav) }}"
                    class="ai-nav__a @if ($active === 'quiz') ai-nav__a--active @endif">Вопросы тестов</a>
             @endif
             <a href="{{ route('portal') }}" class="ai-nav__a ai-nav__a--external">К порталу</a>

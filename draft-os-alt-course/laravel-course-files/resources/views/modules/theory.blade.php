@@ -8,12 +8,15 @@
 @section('title', 'Модуль '.$module.': '.$tTheory)
 
 @section('content')
-    <div class="card" style="max-width: 960px; margin: 0 auto">
-        <p class="muted"><a href="{{ route('modules.hub', $module) }}">Назад к шагам модуля</a></p>
+    <div class="page-container">
+        <a class="back-link" href="{{ route('dashboard') }}">
+            @include('partials.ap-icon', ['name' => 'arrow-left'])
+            <span>К модулям курса</span>
+        </a>
         @php
             $theoryRaw = (string) ($meta['theory'] ?? '');
         @endphp
-        <article class="theory-article prose-course practice-block">
+        <article class="theory-article prose-course practice-block theory-content">
             {!! \Illuminate\Support\Str::markdown($theoryRaw) !!}
         </article>
 

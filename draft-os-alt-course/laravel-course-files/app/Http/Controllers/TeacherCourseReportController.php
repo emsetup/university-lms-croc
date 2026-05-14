@@ -44,7 +44,7 @@ class TeacherCourseReportController extends Controller
             'learner' => $l,
             'summaryRow' => $this->analytics->rowForLearner($l, $courseId),
             'moduleReport' => $this->scoring->moduleReport($l, $courseId),
-            'modulePanels' => $this->learnerDetail->modulePanels($l),
+            'modulePanels' => $this->learnerDetail->modulePanels($l, $courseId),
         ]);
     }
 
@@ -53,14 +53,15 @@ class TeacherCourseReportController extends Controller
         $l = Learner::query()
             ->with(['moduleProgresses', 'finalLabResult', 'courseEnrollments'])
             ->findOrFail($learner);
-        $panel = $this->learnerDetail->modulePanel($l, $module);
+        $courseId = $this->learnerCourseId($l);
+        $panel = $this->learnerDetail->modulePanel($l, $module, $courseId);
         abort_if($panel === null, 404);
 
         return view('teacher-learner-module', [
             'learner' => $l,
             'module' => $module,
             'panel' => $panel,
-            'summaryRow' => $this->analytics->rowForLearner($l, $this->learnerCourseId($l)),
+            'summaryRow' => $this->analytics->rowForLearner($l, $courseId),
         ]);
     }
 
@@ -73,28 +74,28 @@ class TeacherCourseReportController extends Controller
         ]);
         $l = Learner::query()->with('courseEnrollments')->findOrFail($learner);
         $courseId = $this->learnerCourseId($l);
-        $panel = $this->learnerDetail->modulePanel($l, $module);
+        $panel = $this->learnerDetail->modulePanel($l, $module, $courseId);
         abort_if($panel === null, 404);
         $p = $l->progressFor($module, $courseId);
         $step = (string) $request->input('step');
         if ($step === InstructorProgressResetService::STEP_THEORY_QUIZ) {
             $hist = $p->theory_quiz_history ?? [];
             if ((int) $p->theory_quiz_attempts < 1 && ! is_array($p->theory_quiz_last_result) && (! is_array($hist) || count($hist) === 0)) {
-                return $this->redirectModuleWithKey($request, $learner, $module)
+                return $this->redirectToLearnerModule($learner, $module)
                     ->with('err', 'Нет зафиксированных попыток теста по теории — сброс не требуется.');
             }
         }
         if ($step === InstructorProgressResetService::STEP_MODULE_EXAM) {
             $hist = $p->module_exam_history ?? [];
             if ((int) $p->module_exam_attempts < 1 && ! is_array($p->module_exam_last_result) && (! is_array($hist) || count($hist) === 0)) {
-                return $this->redirectModuleWithKey($request, $learner, $module)
+                return $this->redirectToLearnerModule($learner, $module)
                     ->with('err', 'Нет зафиксированных попыток экзамена — сброс не требуется.');
             }
         }
         if ($step === InstructorProgressResetService::STEP_PRACTICE) {
             $idx = (int) ($panel['content_source_index'] ?? 1);
             if (CourseModuleMeta::shouldSkipPractice($idx)) {
-                return $this->redirectModuleWithKey($request, $learner, $module)
+                return $this->redirectToLearnerModule($learner, $module)
                     ->with('err', 'В этом модуле практика не предусмотрена.');
             }
             $hasSession = PracticeSession::query()
@@ -103,7 +104,7 @@ class TeacherCourseReportController extends Controller
                 ->where('module_id', $module)
                 ->exists();
             if (! $p->practice_done_at && ! $hasSession) {
-                return $this->redirectModuleWithKey($request, $learner, $module)
+                return $this->redirectToLearnerModule($learner, $module)
                     ->with('err', 'Практика не начиналась и не отмечена — сброс не требуется.');
             }
         }
@@ -115,7 +116,7 @@ class TeacherCourseReportController extends Controller
             $request->filled('note') ? (string) $request->input('note') : null
         );
 
-        return $this->redirectModuleWithKey($request, $learner, $module)
+        return $this->redirectToLearnerModule($learner, $module)
             ->with('ok', 'Сброс выполнен: у обучающегося освобождена ещё одна попытка по выбранному шагу. Снимок состояния сохранён в журнале ниже.');
     }
 
@@ -129,13 +130,8 @@ class TeacherCourseReportController extends Controller
         return (int) Course::query()->where('slug', 'alt-os-features')->value('id');
     }
 
-    private function redirectModuleWithKey(Request $request, int $learner, int $module): RedirectResponse
+    private function redirectToLearnerModule(int $learner, int $module): RedirectResponse
     {
-        $url = route('teacher.course-report.learner.module', ['learner' => $learner, 'module' => $module], false);
-        if ($request->filled('key')) {
-            $url .= '?key='.urlencode((string) $request->query('key'));
-        }
-
-        return redirect()->to($url);
+        return redirect()->route('teacher.course-report.learner.module', ['learner' => $learner, 'module' => $module]);
     }
 }

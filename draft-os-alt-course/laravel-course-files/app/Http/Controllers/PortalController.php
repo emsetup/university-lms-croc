@@ -3,12 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Course;
-use App\Models\CourseModule;
 use App\Models\CourseEnrollment;
+use App\Models\CourseModule;
 use App\Models\Learner;
+use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
+use App\Support\LearnerSsoDisplayNamePersistence;
 use App\Support\OidcIdentityClaims;
 use App\Support\OidcSignInRedirect;
+use App\Support\PortalWelcomeInitials;
 use App\Support\PortalWelcomeName;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,7 +20,10 @@ use Illuminate\View\View;
 
 final class PortalController extends Controller
 {
-    public function __construct(private CourseScoringService $scoring) {}
+    public function __construct(
+        private CourseScoringService $scoring,
+        private CourseModuleService $courseModules,
+    ) {}
 
     public function index(Request $request): View|RedirectResponse
     {
@@ -34,15 +40,17 @@ final class PortalController extends Controller
 
         $enrollmentsByCourseId = [];
         $progressByCourseId = [];
+        $modulesProgressByCourseId = [];
         $portalWelcomeName = null;
         $learner = null;
         if (session('learner_id')) {
             /** @var Learner $learner */
             $learner = Learner::query()
-                ->with(['moduleProgresses', 'finalLabResult'])
+                ->with(['moduleProgresses', 'finalLabResults'])
                 ->findOrFail(session('learner_id'));
 
             $portalWelcomeName = PortalWelcomeName::forLearner($learner);
+            LearnerSsoDisplayNamePersistence::syncIfPossible($learner);
 
             $enrollments = CourseEnrollment::query()
                 ->where('learner_id', $learner->id)
@@ -58,6 +66,7 @@ final class PortalController extends Controller
                 $progressByCourseId[$courseId] = $hasModules
                     ? $this->scoring->certificateCoursePercent($learner, $courseId)
                     : 0;
+                $modulesProgressByCourseId[$courseId] = $this->modulesPassedTotal($learner, $courseId);
             }
         }
 
@@ -66,15 +75,54 @@ final class PortalController extends Controller
             $identityDebugRows = $this->buildIdentityDebugRows($request, $learner, $portalWelcomeName);
         }
 
+        $catalogFilterTags = $courses
+            ->pluck('tags')
+            ->filter()
+            ->flatten()
+            ->map(fn ($t) => trim((string) $t))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+
         return view('portal.index', [
             'courses' => $courses,
             'showLogin' => (bool) $request->query('login', false),
             'enrollmentsByCourseId' => $enrollmentsByCourseId,
             'progressByCourseId' => $progressByCourseId,
+            'modulesProgressByCourseId' => $modulesProgressByCourseId,
             'portalWelcomeName' => $portalWelcomeName,
+            'portalWelcomeInitials' => $learner instanceof Learner
+                ? PortalWelcomeInitials::from($portalWelcomeName, (string) $learner->email)
+                : '—',
             'learnerEmail' => $learner instanceof Learner ? $learner->email : null,
             'identityDebugRows' => $identityDebugRows,
+            'catalogFilterTags' => $catalogFilterTags,
         ]);
+    }
+
+    /**
+     * @return array{passed: int, total: int}
+     */
+    private function modulesPassedTotal(Learner $learner, int $courseId): array
+    {
+        if (! Schema::hasTable('course_modules')) {
+            return ['passed' => 0, 'total' => 0];
+        }
+        $mods = $this->courseModules->orderedModulesForCourse($courseId);
+        $total = $mods->count();
+        if ($total === 0) {
+            return ['passed' => 0, 'total' => 0];
+        }
+        $passed = 0;
+        foreach ($mods as $mod) {
+            $p = $learner->progressExisting((int) $mod->id, $courseId);
+            if ($p && $p->module_exam_passed) {
+                $passed++;
+            }
+        }
+
+        return ['passed' => $passed, 'total' => $total];
     }
 
     /**
@@ -157,4 +205,3 @@ final class PortalController extends Controller
         return '(тип: '.get_debug_type($v).')';
     }
 }
-

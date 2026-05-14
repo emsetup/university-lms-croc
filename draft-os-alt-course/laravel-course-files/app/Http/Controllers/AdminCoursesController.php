@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Services\PortalStaffAccess;
+use App\Services\TeacherCourseAnalyticsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,18 +16,16 @@ final class AdminCoursesController extends Controller
 {
     public function index(Request $request): View
     {
-        session()->forget('admin_course_id');
-        session()->forget('admin_course_title');
+        session()->forget(['admin_course_id', 'admin_course_title', 'admin_course_slug']);
 
-        $showArchived = (bool) $request->query('archived', false);
         $gate = app(PortalStaffAccess::class);
+        $analytics = app(TeacherCourseAnalyticsService::class);
 
         $courses = Course::query()
-            ->when(! $showArchived, fn ($q) => $q->where('is_archived', false))
             ->orderBy('sort')
             ->orderBy('id')
             ->get()
-            ->map(function (Course $c) {
+            ->map(function (Course $c) use ($analytics) {
                 $courseId = (int) $c->id;
                 $enrolled = (int) CourseEnrollment::query()
                     ->where('course_id', $courseId)
@@ -67,6 +66,9 @@ final class AdminCoursesController extends Controller
                         ->count('learner_id');
                 }
 
+                $completedRatePct = $enrolled > 0 ? (int) round(100 * $completed / $enrolled) : 0;
+                $avgProgressPct = $enrolled > 0 ? $analytics->averageGrandTotalPercentForCourse($courseId) : 0;
+
                 return [
                     'id' => $c->id,
                     'slug' => $c->slug,
@@ -76,6 +78,8 @@ final class AdminCoursesController extends Controller
                     'is_archived' => (bool) $c->is_archived,
                     'enrolled' => (int) $enrolled,
                     'completed' => (int) $completed,
+                    'completed_rate_pct' => $completedRatePct,
+                    'avg_progress_pct' => $avgProgressPct,
                 ];
             });
 
@@ -90,9 +94,9 @@ final class AdminCoursesController extends Controller
 
         return view('admin.courses-index', [
             'courses' => $courses,
-            'showArchived' => $showArchived,
             'canCreateCourse' => $gate->canCreateCourses(),
             'editableCourseIds' => $editableCourseIds,
+            'openCreateModal' => $request->boolean('create'),
         ]);
     }
 
@@ -107,19 +111,20 @@ final class AdminCoursesController extends Controller
         session([
             'admin_course_id' => $c->id,
             'admin_course_title' => $c->title,
+            'admin_course_slug' => $c->slug,
         ]);
 
         if ($next === 'quiz') {
-            return redirect()->route('admin.quiz.index')->with('ok', 'Курс выбран: '.$c->title);
+            return redirect()->route('admin.quiz.index', ['adminCourse' => $c->slug])->with('ok', 'Курс выбран: '.$c->title);
         }
         if ($next === 'certificates') {
-            return redirect()->route('admin.certificates')->with('ok', 'Курс выбран: '.$c->title);
+            return redirect()->route('admin.certificates', ['adminCourse' => $c->slug])->with('ok', 'Курс выбран: '.$c->title);
         }
         if ($next === 'learners') {
-            return redirect()->route('admin.learners.course')->with('ok', 'Курс выбран: '.$c->title);
+            return redirect()->route('admin.learners.course', ['adminCourse' => $c->slug])->with('ok', 'Курс выбран: '.$c->title);
         }
 
-        return redirect()->route('admin.theory.index')->with('ok', 'Курс выбран: '.$c->title);
+        return redirect()->route('admin.theory.index', ['adminCourse' => $c->slug])->with('ok', 'Курс выбран: '.$c->title);
     }
 
     public function enter(Request $request, int $course): RedirectResponse
@@ -131,33 +136,30 @@ final class AdminCoursesController extends Controller
         session([
             'admin_course_id' => $c->id,
             'admin_course_title' => $c->title,
+            'admin_course_slug' => $c->slug,
         ]);
 
         $next = (string) $request->query('next', 'content');
         $gate->assertTesterSelectNext($next);
 
         if ($next === 'quiz') {
-            return redirect()->route('admin.quiz.index');
+            return redirect()->route('admin.quiz.index', ['adminCourse' => $c->slug]);
         }
         if ($next === 'certificates') {
-            return redirect()->route('admin.certificates');
+            return redirect()->route('admin.certificates', ['adminCourse' => $c->slug]);
         }
         if ($next === 'learners') {
-            return redirect()->route('admin.learners.course');
+            return redirect()->route('admin.learners.course', ['adminCourse' => $c->slug]);
         }
 
-        return redirect()->route('admin.theory.index');
+        return redirect()->route('admin.theory.index', ['adminCourse' => $c->slug]);
     }
 
-    public function create(Request $request): View
+    public function create(Request $request): RedirectResponse
     {
-        session()->forget('admin_course_id');
-        session()->forget('admin_course_title');
+        session()->forget(['admin_course_id', 'admin_course_title', 'admin_course_slug']);
 
-        return view('admin.course-edit', [
-            'mode' => 'create',
-            'course' => null,
-        ]);
+        return redirect()->route('admin.courses.index', ['create' => 1]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -182,9 +184,15 @@ final class AdminCoursesController extends Controller
             'is_archived' => isset($data['is_archived']) ? ((string) $data['is_archived'] === '1') : false,
         ]);
 
+        session([
+            'admin_course_id' => $course->id,
+            'admin_course_title' => $course->title,
+            'admin_course_slug' => $course->slug,
+        ]);
+
         return redirect()
-            ->route('admin.courses.edit', ['course' => $course->id])
-            ->with('ok', 'Курс создан.');
+            ->route('admin.course.settings', ['adminCourse' => $course->slug])
+            ->with('ok', 'Курс создан. Добавьте модули в разделе «Модули» или заполните карточку в «Настройках курса».');
     }
 
     public function edit(Request $request, int $course): View
@@ -299,5 +307,27 @@ final class AdminCoursesController extends Controller
         return redirect()
             ->route('admin.courses.edit', ['course' => $c->id])
             ->with('ok', 'Курс восстановлен из архива.');
+    }
+
+    public function publish(Request $request, int $course): RedirectResponse
+    {
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta($course);
+
+        $c = Course::query()->findOrFail($course);
+        if ($c->is_archived) {
+            return redirect()
+                ->route('admin.courses.index')
+                ->with('err', 'Нельзя опубликовать курс из архива.');
+        }
+        $c->is_published = true;
+        $c->save();
+
+        if ((int) session('admin_course_id', 0) === (int) $c->id) {
+            session(['admin_course_title' => $c->title]);
+        }
+
+        return redirect()
+            ->route('admin.courses.index')
+            ->with('ok', 'Курс опубликован.');
     }
 }

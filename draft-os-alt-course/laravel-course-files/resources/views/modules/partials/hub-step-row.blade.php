@@ -12,9 +12,9 @@
 @endphp
 <li>
 @if ($openTag === 'a')
-    <a class="hub-row" href="{{ $href }}">
+    <a class="hub-row section-card" href="{{ $href }}">
 @else
-    <div class="hub-row hub-row--disabled" role="group" aria-label="{{ $title }}: недоступно">
+    <div class="hub-row section-card hub-row--disabled locked" role="group" aria-label="{{ $title }}: недоступно">
 @endif
         <div class="hub-row__left">
             <span class="hub-idx" aria-hidden="true">{{ $idx }}</span>
@@ -28,7 +28,7 @@
                     </div>
                     <span class="hub-pct hub-pct--muted">{{ $p->theory_read_at ? '100' : '0' }}%</span>
                     @if ($p->theory_read_at)
-                        <span class="hub-badge hub-badge--ok">Готово</span>
+                        <span class="hub-badge hub-badge--ok badge-done">Готово</span>
                     @else
                         <span class="hub-badge hub-badge--wait">Дальше</span>
                     @endif
@@ -59,9 +59,9 @@
                     </div>
                     <span class="hub-pct">{{ $tqAtt > 0 ? $tqBest : '—' }}@if($tqAtt > 0)%@endif</span>
                     @if ($p->theory_quiz_passed)
-                        <span class="hub-badge hub-badge--ok">Зачтён</span>
+                        <span class="hub-badge hub-badge--counted badge-counted">Зачтён</span>
                     @elseif ($tqAtt > 0)
-                        <span class="hub-badge hub-badge--no">Ниже {{ $th }}%</span>
+                        <span class="hub-badge hub-badge--no badge-fail">Ниже {{ $th }}%</span>
                     @else
                         <span class="hub-badge hub-badge--wait">Тест</span>
                     @endif
@@ -87,7 +87,7 @@
                         </div>
                         <span class="hub-pct">{{ $p->practice_lab_percent !== null ? (int) $p->practice_lab_percent.'%' : ($p->practice_done_at ? '100%' : '—') }}</span>
                         @if ($p->practice_done_at)
-                            <span class="hub-badge hub-badge--ok">Готово</span>
+                            <span class="hub-badge hub-badge--ok badge-done">Готово</span>
                         @else
                             <span class="hub-badge hub-badge--wait">Стенд</span>
                         @endif
@@ -125,7 +125,7 @@
                     </div>
                     <span class="hub-pct">{{ $exAtt > 0 ? $exBest : '—' }}@if($exAtt > 0)%@endif</span>
                     @if ($p->module_exam_passed)
-                        <span class="hub-badge hub-badge--ok">Зачтён</span>
+                        <span class="hub-badge hub-badge--counted badge-counted">Зачтён</span>
                     @elseif ($exAtt > 0)
                         <span class="hub-badge hub-badge--warn">Ещё раз</span>
                     @else
@@ -135,7 +135,7 @@
                 <p class="hub-line2">{{ $exLine2 }}</p>
             @endif
         </div>
-        <span class="hub-row__go" aria-hidden="true">{{ ($accessible && ! $waived) ? '›' : '·' }}</span>
+        <span class="hub-row__go" aria-hidden="true">@include('partials.ap-icon', ['name' => 'chevron-right'])</span>
 @if ($closeTag === 'a')
     </a>
 @else

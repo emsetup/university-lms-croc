@@ -1,8 +1,7 @@
-@extends('layouts.course')
+@extends($layout ?? 'layouts.course')
 
 @php
     use App\Support\DurationFormat;
-    $keyQ = request()->filled('key') ? '?key=' . urlencode((string) request('key')) : '';
 @endphp
 
 @section('title', 'Сводка по обучающимся (преподаватель)')
@@ -15,11 +14,25 @@
         .tr-table-wrap table{margin:0}
         .tr-email{font-weight:600}
         .tr-go{font-size:0.82rem;font-weight:600;color:var(--accent,#0a7);white-space:nowrap}
+        .learner-cell-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #111827;
+            margin-bottom: 2px;
+        }
+        .learner-cell-email {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .learner-cell-link {
+            font-size: 12px;
+            color: #00b956;
+            text-decoration: none;
+            display: block;
+            margin-top: 2px;
+        }
+        .learner-cell-link:hover { text-decoration: underline; }
     </style>
-
-    <div style="max-width: 1100px; margin: 0 auto">
-        @include('partials.admin-instructor-nav', ['active' => 'learners_course'])
-    </div>
 
     <div class="tr-hero">
         <h1>Сводка прохождения курса</h1>
@@ -28,9 +41,15 @@
                 Курс: <strong>{{ $courseTitle }}</strong>
             </p>
         @endif
-        <p class="muted" style="margin:0">
-            Доступ по секретной ссылке с параметром <code>key</code>. Сначала выберите обучающегося, затем модуль — внутри модуля отдельно тест по теории, практика и экзамен с попытками и возможностью сброса.
-        </p>
+        @if (($layout ?? '') === 'layouts.admin')
+            <p class="muted" style="margin:0">
+                Просмотр из панели администратора. Карточки обучающихся открываются в режиме отчёта преподавателя для авторизованных сотрудников портала.
+            </p>
+        @else
+            <p class="muted" style="margin:0">
+                Сначала выберите обучающегося, затем модуль — внутри модуля отдельно тест по теории, практика и экзамен с попытками и возможностью сброса.
+            </p>
+        @endif
         @if (! empty($courseCounters))
             <p class="muted small" style="margin:0.6rem 0 0;line-height:1.45">
                 Зачислено: <strong>{{ (int) $courseCounters['enrolled'] }}</strong> ·
@@ -61,10 +80,15 @@
                 </thead>
                 <tbody>
                 @foreach ($learnerRows as $row)
-                    <tr>
+                    <tr data-user-email="{{ e($row['email']) }}">
                         <td>
-                            <a class="tr-email" href="{{ route('teacher.course-report.learner', $row['id']).$keyQ }}">{{ $row['email'] }}</a>
-                            <div><a class="tr-go" href="{{ route('teacher.course-report.learner', $row['id']).$keyQ }}">Карточка →</a></div>
+                            @if (! empty($row['full_name']))
+                                <div class="learner-cell-name">{{ $row['full_name'] }}</div>
+                                <div class="learner-cell-email">{{ $row['email'] }}</div>
+                            @else
+                                <div class="learner-cell-name">{{ $row['email'] }}</div>
+                            @endif
+                            <a class="learner-cell-link" href="{{ route('teacher.course-report.learner', $row['id']) }}">Карточка →</a>
                         </td>
                         <td>{{ $row['modules_passed_count'] }} / {{ \App\Services\CourseScoringService::moduleCount() }}</td>
                         <td>
@@ -93,4 +117,22 @@
             «Время в курсе» — сумма сохранённых интервалов по теории, тесту по теории, практике и итоговому тесту по всем модулям. «Ориент. мин. тесты» — лимит × число попыток, без фактического времени ответа.
         </p>
     </div>
+
+    @if (($layout ?? '') === 'layouts.admin')
+        <script>
+            (function () {
+                var q = new URLSearchParams(window.location.search).get('user');
+                if (!q) return;
+                var decoded = '';
+                try { decoded = decodeURIComponent(q); } catch (e) { decoded = q; }
+                document.querySelectorAll('tr[data-user-email]').forEach(function (tr) {
+                    if (tr.getAttribute('data-user-email') === decoded) {
+                        tr.style.background = '#f0fdf4';
+                        tr.style.boxShadow = 'inset 3px 0 0 #00b956';
+                        tr.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    }
+                });
+            })();
+        </script>
+    @endif
 @endsection

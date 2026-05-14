@@ -3,6 +3,7 @@
 @section('title', 'Финальная лабораторная')
 
 @section('content')
+    <div class="page-container">
     @php
         $ps = $practiceSession ?? null;
         $hasLab = $ps && $ps->daemon_lab_id && ($ps->expires_at === null || $ps->expires_at->isFuture());
@@ -62,7 +63,9 @@
 
     <div class="card" style="margin-top:1rem">
         <h2 style="margin-top:0">Лабораторный стенд</h2>
-        @if (! ($labEnabled ?? false))
+        @if ($finalLabOffForCourse ?? false)
+            <p class="flash err">Финальная лабораторная отключена для этого курса.</p>
+        @elseif (! ($labEnabled ?? false))
             <p class="flash err">Автопрактика отключена в конфигурации (PRACTICE_LAB_ENABLED=false).</p>
         @elseif (! ($labConfigured ?? false))
             <p class="flash err">Lab-daemon не настроен. Проверьте PRACTICE_LAB_DAEMON_URL / PRACTICE_LAB_DAEMON_SECRET.</p>
@@ -358,4 +361,5 @@
             }
         })();
     </script>
+    </div>
 @endsection

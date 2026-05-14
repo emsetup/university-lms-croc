@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Course;
 use App\Models\Learner;
 use App\Models\PortalStaff;
 use Illuminate\Http\RedirectResponse;
@@ -12,23 +11,31 @@ use Illuminate\View\View;
 
 final class AdminStaffController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $items = PortalStaff::query()
+        $totalStaff = PortalStaff::query()->count();
+        $q = trim((string) $request->query('q', ''));
+        $query = PortalStaff::query()
             ->with(['learner:id,email', 'courses:id,title'])
-            ->orderBy('id')
-            ->get();
+            ->orderBy('id');
+        if ($q !== '') {
+            $like = '%'.addcslashes($q, '%_\\').'%';
+            $query->whereHas('learner', function ($lq) use ($like) {
+                $lq->where('email', 'like', $like);
+            });
+        }
+        $items = $query->get();
 
-        return view('admin.staff-index', ['items' => $items]);
+        return view('admin.staff-index', [
+            'items' => $items,
+            'staffSearch' => $q,
+            'staffSearchEnabled' => $totalStaff > 5,
+        ]);
     }
 
-    public function create(): View
+    public function create(): RedirectResponse
     {
-        return view('admin.staff-edit', [
-            'mode' => 'create',
-            'staff' => null,
-            'courses' => Course::query()->orderBy('sort')->orderBy('id')->get(['id', 'title']),
-        ]);
+        return redirect()->route('admin.staff.index', ['add' => '1']);
     }
 
     public function store(Request $request): RedirectResponse
@@ -54,15 +61,9 @@ final class AdminStaffController extends Controller
             ->with('ok', 'Сотрудник добавлен.');
     }
 
-    public function edit(PortalStaff $staff): View
+    public function edit(PortalStaff $staff): RedirectResponse
     {
-        $staff->load(['learner:id,email', 'courses:id']);
-
-        return view('admin.staff-edit', [
-            'mode' => 'edit',
-            'staff' => $staff,
-            'courses' => Course::query()->orderBy('sort')->orderBy('id')->get(['id', 'title']),
-        ]);
+        return redirect()->route('admin.staff.index', ['edit' => (string) $staff->id]);
     }
 
     public function update(Request $request, PortalStaff $staff): RedirectResponse

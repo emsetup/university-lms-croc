@@ -1,10 +1,9 @@
-@extends('layouts.course')
+@extends('layouts.admin')
 
 @section('title', 'Админ курса — просмотр сертификата')
 
 @section('content')
     <div class="card" style="max-width: 1200px; margin: 0 auto 1rem;">
-        @include('partials.admin-instructor-nav', ['active' => 'certificates'])
         <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
             <div>
                 <h1 style="margin:0 0 0.35rem">Просмотр сертификата</h1>
@@ -14,7 +13,7 @@
             </div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
                 <button type="button" class="btn btn-primary js-admin-cert-pdf" data-cert-basename="{{ e(preg_replace('/[^\p{L}\p{N}\-_]+/u', '_', trim($row->certificate_full_name ?? '')) ?: 'certificate') }}">Скачать PDF</button>
-                <a class="btn btn-ghost" href="{{ route('admin.certificates') }}">Назад к реестру</a>
+                <a class="btn btn-ghost" href="{{ route('admin.certificates', $ap ?? []) }}">Назад к реестру</a>
             </div>
         </div>
     </div>

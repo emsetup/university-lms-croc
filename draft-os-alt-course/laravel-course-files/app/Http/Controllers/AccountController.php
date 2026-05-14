@@ -11,6 +11,8 @@ use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
 use App\Services\ModuleAccessGate;
 use App\Support\DurationFormat;
+use App\Support\LearnerSsoDisplayNamePersistence;
+use App\Support\PortalWelcomeInitials;
 use App\Support\PortalWelcomeName;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -84,15 +86,19 @@ final class AccountController extends Controller
         $certificates = $this->buildCertificateRows($learner);
 
         $portalWelcomeName = PortalWelcomeName::forLearner($learner);
+        LearnerSsoDisplayNamePersistence::syncIfPossible($learner);
         $emailNorm = strtolower(trim((string) $learner->email));
         $nameNorm = strtolower(trim((string) ($portalWelcomeName ?? '')));
         if ($portalWelcomeName !== null && $emailNorm !== '' && $nameNorm === $emailNorm) {
             $portalWelcomeName = null;
         }
 
+        $learnerInitials = PortalWelcomeInitials::from($portalWelcomeName, (string) $learner->email);
+
         return view('account', [
             'learner' => $learner,
             'portalWelcomeName' => $portalWelcomeName,
+            'learnerInitials' => $learnerInitials,
             'courseRows' => $courseRows,
             'stats' => [
                 'in_progress' => $inProgress,

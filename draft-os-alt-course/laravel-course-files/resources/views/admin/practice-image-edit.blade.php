@@ -1,12 +1,11 @@
-@extends('layouts.course')
+@extends('layouts.admin')
 
 @section('title', ($isNew ? 'Создать образ практики' : 'Образ: '.$row->title))
 
 @section('content')
-    @include('partials.admin-instructor-nav', ['active' => 'practice'])
-
-    <div class="card">
-        <p class="muted"><a href="{{ route('admin.practice.images.index') }}">← К списку образов</a></p>
+    <div class="ap-wide-page">
+        <div class="admin-card">
+        <p class="muted"><a href="{{ route('admin.practice.images.index', ['key' => $adminKey]) }}">← К списку образов</a></p>
 
         <div style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-start;justify-content:space-between">
             <div>
@@ -15,17 +14,17 @@
             </div>
             @if (! $isNew)
                 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
-                    <form method="post" action="{{ route('admin.practice.images.build', ['id' => $row->id]) }}" style="margin:0">
+                    <form method="post" action="{{ route('admin.practice.images.build', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin:0">
                         @csrf
                         <button type="submit" class="btn btn-primary">Собрать</button>
                     </form>
-                    <form method="post" action="{{ route('admin.practice.images.stats.refresh') }}" style="margin:0">
+                    <form method="post" action="{{ route('admin.practice.images.stats.refresh', ['key' => $adminKey]) }}" style="margin:0">
                         @csrf
                         <input type="hidden" name="tag" value="{{ $row->docker_tag }}">
                         <input type="hidden" name="back" value="{{ request()->getRequestUri() }}">
                         <button type="submit" class="btn btn-ghost">Проверить образ</button>
                     </form>
-                    <form method="post" action="{{ route('admin.practice.images.export', ['id' => $row->id]) }}" style="margin:0">
+                    <form method="post" action="{{ route('admin.practice.images.export', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin:0">
                         @csrf
                         <button type="submit" class="btn btn-ghost">Экспортировать (tar)</button>
                     </form>
@@ -37,7 +36,7 @@
             <div class="muted small" style="margin-top:0.75rem">Последний экспорт: <code>{{ $row->export_path }}</code></div>
         @endif
 
-        <form method="post" action="{{ $isNew ? route('admin.practice.images.store') : route('admin.practice.images.update', ['id' => $row->id]) }}" style="margin-top:1rem">
+        <form method="post" action="{{ $isNew ? route('admin.practice.images.store', ['key' => $adminKey]) : route('admin.practice.images.update', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin-top:1rem">
             @csrf
 
             <div style="margin:0 0 0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
@@ -66,7 +65,7 @@
                     <label class="muted small">Шаблон</label>
                     <select class="input" name="base_template" required>
                         @foreach ($templates as $k => $label)
-                            <option value="{{ $k }}" @selected(old('base_template', $row->base_template) === $k)>{{ $label }}</option>
+                            <option value="{{ $k }}" @if (old('base_template', $row->base_template) === $k) selected @endif>{{ $label }}</option>
                         @endforeach
                     </select>
                     @if ($isNew)
@@ -101,7 +100,7 @@
                         <label class="muted small">Базовая ОС</label>
                         <select class="input" name="base_os" required>
                             @foreach (['alt' => 'ALT', 'redos' => 'РЕДОС', 'astra' => 'Астра', 'alma' => 'AlmaLinux', 'centos' => 'CentOS'] as $k => $label)
-                                <option value="{{ $k }}" @selected(old('base_os', $row->base_os ?? 'alt') === $k)>{{ $label }}</option>
+                                <option value="{{ $k }}" @if (old('base_os', $row->base_os ?? 'alt') === $k) selected @endif>{{ $label }}</option>
                             @endforeach
                         </select>
                         <div class="muted small" style="margin-top:0.35rem">Определяет менеджер пакетов и дефолтный base image.</div>
@@ -153,12 +152,12 @@
                 <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:0.75rem;align-items:start">
                     <div style="grid-column:span 3">
                         <label class="muted small" style="display:block;margin-bottom:0.25rem">systemd режим</label>
-                        <label class="muted small"><input type="hidden" name="features[systemd_mode]" value="0"><input type="checkbox" name="features[systemd_mode]" value="1" @checked(!empty($f['systemd_mode']))> включить</label>
+                        <label class="muted small"><input type="hidden" name="features[systemd_mode]" value="0"><input type="checkbox" name="features[systemd_mode]" value="1" @if (! empty($f['systemd_mode'])) checked @endif> включить</label>
                         <div class="muted small" style="margin-top:0.25rem">Совет: tag должен содержать <code>-systemd</code>, иначе daemon может не дать нужные флаги.</div>
                     </div>
                     <div style="grid-column:span 3">
                         <label class="muted small" style="display:block;margin-bottom:0.25rem">SSHD</label>
-                        <label class="muted small"><input type="hidden" name="features[sshd]" value="0"><input type="checkbox" name="features[sshd]" value="1" @checked(!empty($f['sshd']))> установить openssh-server</label>
+                        <label class="muted small"><input type="hidden" name="features[sshd]" value="0"><input type="checkbox" name="features[sshd]" value="1" @if (! empty($f['sshd'])) checked @endif> установить openssh-server</label>
                     </div>
                     <div style="grid-column:span 3">
                         <label class="muted small">Locale (LANG/LC_ALL)</label>
@@ -167,14 +166,14 @@
                     @php($cu = is_array($f['create_user'] ?? null) ? $f['create_user'] : [])
                     <div style="grid-column:span 3">
                         <label class="muted small" style="display:block;margin-bottom:0.25rem">Пользователь</label>
-                        <label class="muted small"><input type="hidden" name="features[create_user][enabled]" value="0"><input type="checkbox" name="features[create_user][enabled]" value="1" @checked(!empty($cu['enabled']))> создать user</label>
+                        <label class="muted small"><input type="hidden" name="features[create_user][enabled]" value="0"><input type="checkbox" name="features[create_user][enabled]" value="1" @if (! empty($cu['enabled'])) checked @endif> создать user</label>
                         <div style="margin-top:0.35rem">
                             <input class="input" name="features[create_user][name]" value="{{ old('features.create_user.name', (string) ($cu['name'] ?? 'student')) }}" placeholder="student">
                         </div>
                         <div style="margin-top:0.35rem">
                             <input class="input" name="features[create_user][password]" value="{{ old('features.create_user.password', (string) ($cu['password'] ?? 'labstudy')) }}" placeholder="пароль">
                         </div>
-                        <label class="muted small" style="display:block;margin-top:0.35rem"><input type="hidden" name="features[create_user][sudo]" value="0"><input type="checkbox" name="features[create_user][sudo]" value="1" @checked(!isset($cu['sudo']) || !empty($cu['sudo']))> sudo NOPASSWD</label>
+                        <label class="muted small" style="display:block;margin-top:0.35rem"><input type="hidden" name="features[create_user][sudo]" value="0"><input type="checkbox" name="features[create_user][sudo]" value="1" @if (! isset($cu['sudo']) || ! empty($cu['sudo'])) checked @endif> sudo NOPASSWD</label>
                     </div>
                 </div>
             </section>
@@ -182,13 +181,28 @@
             <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;justify-content:space-between">
                 <button type="submit" class="btn btn-primary">Сохранить</button>
                 @if (! $isNew)
-                    <form method="post" action="{{ route('admin.practice.images.destroy', ['id' => $row->id]) }}" style="margin:0" onsubmit="return confirm('Удалить образ? Рецепт на диске останется, но запись исчезнет.');">
-                        @csrf
-                        <button type="submit" class="btn btn-ghost">Удалить</button>
-                    </form>
+                    <button type="button" class="btn btn-ghost ap-pi-del-open" id="ap-pi-del-open">Удалить</button>
                 @endif
             </div>
         </form>
+
+        @if (! $isNew)
+            <form method="post" id="ap-pi-del-form" action="{{ route('admin.practice.images.destroy', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin:0;display:none">
+                @csrf
+            </form>
+            <div class="ap-modal" id="ap-pi-del-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="ap-pi-del-title">
+                <div class="ap-modal__backdrop" data-ap-pi-del-close tabindex="-1"></div>
+                <div class="ap-modal__panel">
+                    <button type="button" class="ap-modal__close" data-ap-pi-del-close aria-label="Закрыть">&times;</button>
+                    <h2 id="ap-pi-del-title" class="ap-modal__title">Удалить образ?</h2>
+                    <p class="ap-muted">Запись в каталоге будет удалена. Рецепт на диске останется, если он уже создан.</p>
+                    <div class="ap-modal__footer">
+                        <button type="button" class="btn btn-ghost" data-ap-pi-del-close>Отмена</button>
+                        <button type="button" class="btn btn-danger" id="ap-pi-del-confirm">Удалить</button>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         @if (! $isNew && $row->last_build_log)
             <div style="margin-top:1rem">
@@ -196,10 +210,45 @@
                 <pre class="check-log-pre" style="max-height:420px;overflow:auto">{{ $row->last_build_log }}</pre>
             </div>
         @endif
+        </div>
     </div>
 
     <script>
         (function () {
+            var delModal = document.getElementById('ap-pi-del-modal');
+            var delForm = document.getElementById('ap-pi-del-form');
+            var delOpen = document.getElementById('ap-pi-del-open');
+            var delConfirm = document.getElementById('ap-pi-del-confirm');
+            function openDel() {
+                if (!delModal) return;
+                delModal.classList.add('is-open');
+                delModal.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('ap-modal-open');
+            }
+            function closeDel() {
+                if (!delModal) return;
+                delModal.classList.remove('is-open');
+                delModal.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('ap-modal-open');
+            }
+            if (delOpen) delOpen.addEventListener('click', openDel);
+            document.querySelectorAll('[data-ap-pi-del-close]').forEach(function (el) {
+                el.addEventListener('click', function (e) {
+                    if (el.classList.contains('ap-modal__backdrop')) e.preventDefault();
+                    closeDel();
+                });
+            });
+            if (delConfirm && delForm) {
+                delConfirm.addEventListener('click', function () {
+                    delForm.submit();
+                });
+            }
+            document.addEventListener('keydown', function (e) {
+                if (e.key !== 'Escape' || !delModal || !delModal.classList.contains('is-open')) return;
+                closeDel();
+                e.preventDefault();
+            });
+
             function show(tab) {
                 document.querySelectorAll('.js-pi-panel').forEach(function (el) {
                     el.style.display = (el.getAttribute('data-panel') === tab) ? '' : 'none';
@@ -228,7 +277,7 @@
                     var baseInp = document.querySelector('input[name=\"base_image_ref\"]');
                     var os = osSel ? osSel.value : 'alt';
                     var base = baseInp ? (baseInp.value || '') : '';
-                    var url = @json(route('admin.practice.images.pkg.search')) + '&os=' + encodeURIComponent(os) + '&q=' + encodeURIComponent(qq) + '&base_image=' + encodeURIComponent(base) + '&limit=20';
+                    var url = @json(route('admin.practice.images.pkg.search', ['key' => $adminKey])) + '&os=' + encodeURIComponent(os) + '&q=' + encodeURIComponent(qq) + '&base_image=' + encodeURIComponent(base) + '&limit=20';
                     fetch(url, { headers: { 'Accept': 'application/json' } })
                         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
                         .then(function (x) {

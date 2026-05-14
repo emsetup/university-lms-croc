@@ -17,17 +17,19 @@ class CertificateController extends Controller
     public function __invoke(): View|RedirectResponse
     {
         $learner = Learner::findOrFail(session('learner_id'));
-        $final = $learner->finalLabResult;
+        $courseId = (int) session('course_id', 0);
+        $final = $courseId > 0
+            ? $learner->finalLabResults()->where('course_id', $courseId)->first()
+            : $learner->finalLabResult;
         if (! $final || ! $final->passed) {
             return redirect()->route('final-lab')->with('err', 'Сначала сдайте финальную лабораторную работу.');
         }
 
-        $courseId = (int) session('course_id', 0);
-        $certCoursePercent = $this->scoring->certificateCoursePercent($learner, $courseId > 0 ? $courseId : null);
+        $certCoursePercent = $this->scoring->certificateCoursePercent($learner, $courseId > 0 ? $courseId : null, $final);
 
         return view('certificate', [
             'learner' => $learner,
-            'grand' => $this->scoring->grandTotal($learner, $courseId > 0 ? $courseId : null),
+            'grand' => $this->scoring->grandTotal($learner, $courseId > 0 ? $courseId : null, $final),
             'certCoursePercent' => $certCoursePercent,
             'certTier' => $this->scoring->certificateTier($certCoursePercent),
             'modulePoints' => $this->scoring->totalModulePoints($learner, $courseId > 0 ? $courseId : null),
@@ -41,7 +43,10 @@ class CertificateController extends Controller
     public function saveRecipient(Request $request): RedirectResponse
     {
         $learner = Learner::findOrFail(session('learner_id'));
-        $final = $learner->finalLabResult;
+        $courseId = (int) session('course_id', 0);
+        $final = $courseId > 0
+            ? $learner->finalLabResults()->where('course_id', $courseId)->first()
+            : $learner->finalLabResult;
         if (! $final || ! $final->passed) {
             return redirect()->route('final-lab')->with('err', 'Сначала сдайте финальную лабораторную работу.');
         }

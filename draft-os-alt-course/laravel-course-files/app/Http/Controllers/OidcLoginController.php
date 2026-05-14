@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Learner;
+use App\Support\LearnerSsoDisplayNamePersistence;
 use App\Support\OidcIdentityClaims;
 use App\Support\OidcSignInRedirect;
 use Illuminate\Http\RedirectResponse;
@@ -140,6 +141,8 @@ class OidcLoginController extends Controller
         } else {
             $request->session()->forget('learner_name');
         }
+
+        LearnerSsoDisplayNamePersistence::syncIfPossible($learner);
 
         return redirect('/');
     }

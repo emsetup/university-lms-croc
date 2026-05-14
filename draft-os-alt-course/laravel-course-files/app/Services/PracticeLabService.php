@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Course;
 use App\Models\CourseModule;
 use App\Models\CourseModulePracticeSetting;
 use App\Models\PracticeImage;
@@ -48,6 +49,22 @@ final class PracticeLabService
         $images = config('practice_lab.images', []);
 
         return isset($images[$key]) ? (string) $images[$key] : null;
+    }
+
+    /**
+     * Docker-тег для финальной лабораторной: образ курса в БД или legacy config(practice_lab.images), ключ 10.
+     */
+    public function imageForFinalLab(Course $course): ?string
+    {
+        $imgId = (int) ($course->final_lab_practice_image_id ?? 0);
+        if ($imgId > 0 && class_exists(PracticeImage::class)) {
+            $tag = (string) PracticeImage::query()->where('id', $imgId)->value('docker_tag');
+            if ($tag !== '') {
+                return $tag;
+            }
+        }
+
+        return $this->imageForModule(10);
     }
 
     /**

@@ -43,10 +43,12 @@ final class TeacherLearnerProfileDetailService
      *   instructor_resets:array
      * }>
      */
-    public function modulePanels(Learner $learner): array
+    public function modulePanels(Learner $learner, ?int $forceCourseId = null): array
     {
-        $learner->loadMissing(['moduleProgresses']);
-        $courseId = $this->resolveCourseId($learner);
+        $courseId = $forceCourseId ?? $this->resolveCourseId($learner);
+        $learner->loadMissing([
+            'moduleProgresses' => fn ($q) => $q->where('course_id', $courseId),
+        ]);
 
         /** @var Collection<int, PracticeSession> $sessions */
         $sessions = Schema::hasColumn('practice_sessions', 'course_id')
@@ -92,9 +94,9 @@ final class TeacherLearnerProfileDetailService
     /**
      * @return array|null  тот же формат элемента, что и в modulePanels()
      */
-    public function modulePanel(Learner $learner, int $moduleId): ?array
+    public function modulePanel(Learner $learner, int $moduleId, ?int $forceCourseId = null): ?array
     {
-        foreach ($this->modulePanels($learner) as $panel) {
+        foreach ($this->modulePanels($learner, $forceCourseId) as $panel) {
             if ((int) $panel['module_id'] === $moduleId) {
                 return $panel;
             }

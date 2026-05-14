@@ -3,6 +3,7 @@
 @section('title', 'Модули курса')
 
 @section('content')
+    <div class="page-container">
     <div class="dashboard-plaques">
         <button type="button" class="dashboard-plaque dashboard-plaque--audience" id="course-audience-open" aria-haspopup="dialog" aria-controls="course-audience-modal">
             <span class="dashboard-plaque__accent" aria-hidden="true"></span>
@@ -34,18 +35,18 @@
     <section class="learner-track-summary card" aria-label="Общий прогресс по курсу">
         <h2 class="learner-track-summary__title">Ваш прогресс по модулям</h2>
         <p class="muted small learner-track-summary__lead">Модули открываются по очереди: следующий доступен после <strong>зачёта</strong> итогового теста предыдущего или после <strong>попытки сдачи с результатом выше 0%</strong> (ноль процентов — как будто экзамен не сдавали). Ползунок на карточке — четыре шага внутри модуля (по 25%).</p>
-        <div class="learner-track-summary__stats">
-            <div class="learner-track-stat">
-                <span class="learner-track-stat__label">Модулей закрыто</span>
-                <span class="learner-track-stat__value">{{ $trackModulesPassed }}<span class="learner-track-stat__of">/{{ $courseModuleCount }}</span></span>
+        <div class="stats-row" role="group" aria-label="Сводные показатели">
+            <div class="stat-card">
+                <div class="stat-value">{{ $trackModulesPassed }}<span style="font-size:1.1rem;font-weight:700;color:var(--text-muted)">/{{ $courseModuleCount }}</span></div>
+                <div class="stat-label">Модулей закрыто</div>
             </div>
-            <div class="learner-track-stat">
-                <span class="learner-track-stat__label">Средний прогресс по шагам</span>
-                <span class="learner-track-stat__value">{{ $trackAvgPercent }}<span class="learner-track-stat__pct">%</span></span>
+            <div class="stat-card">
+                <div class="stat-value">{{ $trackAvgPercent }}%</div>
+                <div class="stat-label">Средний прогресс по шагам</div>
             </div>
-            <div class="learner-track-stat learner-track-stat--wide">
-                <span class="learner-track-stat__label">Баллы по модулям (с учётом тестов)</span>
-                <span class="learner-track-stat__value">{{ $modulePointsTotal }}<span class="learner-track-stat__of">/{{ $modulePointsMax }}</span></span>
+            <div class="stat-card">
+                <div class="stat-value">{{ $modulePointsTotal }}<span style="font-size:1.1rem;font-weight:700;color:var(--text-muted)">/{{ $modulePointsMax }}</span></div>
+                <div class="stat-label">Баллы по модулям</div>
             </div>
         </div>
         <div class="learner-track-summary__bar-wrap" role="presentation">
@@ -54,40 +55,24 @@
                 <div class="learner-track-summary__bar-fill" style="width: {{ min(100, max(0, (int) $trackAvgPercent)) }}%"></div>
             </div>
         </div>
-        <div class="learner-track-mini" role="list" aria-label="Кратко по модулям A–{{ $modules[count($modules) - 1]['letter'] ?? '' }}">
+        <div class="module-nav" role="list" aria-label="Кратко по модулям A–{{ $modules[count($modules) - 1]['letter'] ?? '' }}">
             @foreach ($modules as $m)
                 @php
-                    $cellClass = 'learner-track-mini__cell';
+                    $cellClass = 'module-nav-item';
                     if (! empty($m['exam_passed'])) {
-                        $cellClass .= ' learner-track-mini__cell--done';
+                        $cellClass .= ' done';
                     } elseif (empty($m['unlocked'])) {
-                        $cellClass .= ' learner-track-mini__cell--locked';
+                        $cellClass .= ' locked';
                     } elseif ((int) ($m['percent'] ?? 0) > 0) {
-                        $cellClass .= ' learner-track-mini__cell--active';
-                    } else {
-                        $cellClass .= ' learner-track-mini__cell--avail';
+                        $cellClass .= ' current';
                     }
                 @endphp
                 @if (!empty($m['unlocked']))
                     <a href="{{ route('modules.hub', $m['id']) }}" class="{{ $cellClass }}" role="listitem" title="Модуль {{ $m['id'] }}: {{ $m['title'] }}">
-                        <span class="learner-track-mini__letter">{{ $m['letter'] }}</span>
-                        <span class="learner-track-mini__n">{{ $m['id'] }}</span>
-                        @if (!empty($m['exam_passed']))
-                            <span class="learner-track-mini__hint">сдан</span>
-                        @elseif ((int) ($m['percent'] ?? 0) >= 100)
-                            <span class="learner-track-mini__hint">100%</span>
-                        @elseif ((int) ($m['percent'] ?? 0) > 0)
-                            <span class="learner-track-mini__hint">{{ (int) $m['percent'] }}%</span>
-                        @else
-                            <span class="learner-track-mini__hint">открыть</span>
-                        @endif
+                        {{ $m['id'] }}
                     </a>
                 @else
-                    <span class="{{ $cellClass }} learner-track-mini__cell--static" role="listitem" title="Сначала зачтите итоговый тест предыдущего модуля (№{{ max(1, (int) ($m['sequence'] ?? 1) - 1) }}) или сдайте попытку с результатом выше 0%">
-                        <span class="learner-track-mini__letter">{{ $m['letter'] }}</span>
-                        <span class="learner-track-mini__n">{{ $m['id'] }}</span>
-                        <span class="learner-track-mini__hint">закрыт</span>
-                    </span>
+                    <span class="{{ $cellClass }}" role="listitem" title="Сначала зачтите итоговый тест предыдущего модуля (№{{ max(1, (int) ($m['sequence'] ?? 1) - 1) }}) или сдайте попытку с результатом выше 0%">{{ $m['id'] }}</span>
                 @endif
             @endforeach
         </div>
@@ -95,19 +80,22 @@
 
     <div class="module-grid">
         @foreach ($modules as $m)
-            <div class="module-card {{ empty($m['unlocked']) ? 'module-card--locked' : '' }}">
+            <div class="module-card {{ empty($m['unlocked']) ? 'module-card--locked locked' : '' }}">
                 <div class="tag">Модуль {{ $m['letter'] }} — {{ (int) ($m['sequence'] ?? $m['id']) }}/{{ $courseModuleCount }}</div>
                 <div style="font-weight:700">Модуль {{ (int) ($m['sequence'] ?? $m['id']) }}: {{ $m['title'] }}</div>
                 <div class="muted" style="font-size:0.9rem">{{ $m['summary'] }}</div>
-                <div class="range-wrap">
-                    <label for="rng-{{ $m['id'] }}">Прогресс</label>
-                    <input id="rng-{{ $m['id'] }}" type="range" min="0" max="100" value="{{ $m['percent'] }}" class="course-range-readonly" tabindex="-1" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) $m['percent'] }}" aria-label="Прогресс модуля {{ $m['id'] }}: {{ (int) $m['percent'] }}%" @if(empty($m['unlocked'])) disabled @endif>
+                <div>
+                    <span class="muted small" style="display:block;margin-bottom:4px">Прогресс</span>
+                    <div class="progress-track" aria-hidden="true">
+                        <div class="progress-fill" style="width: {{ min(100, max(0, (int) $m['percent'])) }}%"></div>
+                    </div>
+                    <span class="visually-hidden">Прогресс модуля {{ $m['id'] }}: {{ (int) $m['percent'] }}%</span>
                 </div>
                 @if (!empty($m['unlocked']))
                     <a class="btn btn-primary" href="{{ route('modules.hub', $m['id']) }}">Открыть модуль</a>
                 @else
                     <p class="module-card-lock-note muted small" style="margin:0">Откроется после зачёта итогового теста предыдущего модуля (№{{ max(1, (int) ($m['sequence'] ?? 1) - 1) }}) или после попытки сдачи с ненулевым результатом.</p>
-                    <span class="btn btn-primary" style="opacity:0.5;pointer-events:none;cursor:not-allowed" aria-disabled="true">Недоступно</span>
+                    <span class="btn btn-module-locked" aria-disabled="true">Недоступно</span>
                 @endif
             </div>
         @endforeach
@@ -120,20 +108,24 @@
                 <div class="tag">Оценка</div>
                 <div style="font-weight:700">Оценка по модулям</div>
                 <div class="muted" style="font-size:0.9rem">Сводная аналитика по всем модулям: проценты, баллы и слабые места. Полезно перед финальной лабораторной.</div>
-                <div class="range-wrap">
-                    <label>Готовность трека</label>
-                    <input type="range" min="0" max="100" value="{{ min(100, max(0, (int) $trackAvgPercent)) }}" class="course-range-readonly" tabindex="-1" aria-label="Средний прогресс трека {{ (int) $trackAvgPercent }}%" disabled>
+                <div>
+                    <span class="muted small" style="display:block;margin-bottom:4px">Готовность трека</span>
+                    <div class="progress-track" aria-hidden="true">
+                        <div class="progress-fill" style="width: {{ min(100, max(0, (int) $trackAvgPercent)) }}%"></div>
+                    </div>
                 </div>
                 <button type="button" class="btn btn-primary" id="dash-assessment-open" aria-haspopup="dialog" aria-controls="dash-assessment-modal-dialog">Перейти к оценке</button>
             </div>
 
-            <div class="module-card {{ ! $allDone ? 'module-card--locked' : '' }}">
+            <div class="module-card {{ ! $allDone ? 'module-card--locked locked' : '' }}">
                 <div class="tag">Финальная лаба</div>
                 <div style="font-weight:700">Практический экзамен</div>
                 <div class="muted" style="font-size:0.9rem">Итоговый кейс по всем темам курса: реальная настройка системы по ТЗ. Можно возвращаться и улучшать результат.</div>
-                <div class="range-wrap">
-                    <label for="rng-final-lab">Прогресс</label>
-                    <input id="rng-final-lab" type="range" min="0" max="100" value="{{ min(100, max(0, (int) ($finalLabBestScore ?? 0))) }}" class="course-range-readonly" tabindex="-1" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ (int) ($finalLabBestScore ?? 0) }}" aria-label="Прогресс финальной лабы: {{ (int) ($finalLabBestScore ?? 0) }}%" @if(! $allDone) disabled @endif>
+                <div>
+                    <span class="muted small" style="display:block;margin-bottom:4px">Прогресс</span>
+                    <div class="progress-track" aria-hidden="true">
+                        <div class="progress-fill" style="width: {{ min(100, max(0, (int) ($finalLabBestScore ?? 0))) }}%"></div>
+                    </div>
                 </div>
                 @if (($finalLabAttempts ?? 0) > 0)
                     <p class="module-card-lock-note muted small" style="margin:0">Попыток: {{ (int) $finalLabAttempts }} · лучший результат: {{ (int) ($finalLabBestScore ?? 0) }}%.</p>
@@ -142,11 +134,11 @@
                     <a class="btn btn-primary" href="{{ route('final-lab') }}">Открыть финальную лабу</a>
                 @else
                     <p class="module-card-lock-note muted small" style="margin:0">Станет доступна после завершения всех модулей.</p>
-                    <span class="btn btn-primary" style="opacity:0.5;pointer-events:none;cursor:not-allowed" aria-disabled="true">Недоступно</span>
+                    <span class="btn btn-module-locked" aria-disabled="true">Недоступно</span>
                 @endif
             </div>
 
-            <div class="module-card {{ ! $finalDone ? 'module-card--locked' : '' }}">
+            <div class="module-card {{ ! $finalDone ? 'module-card--locked locked' : '' }}">
                 <div class="tag">Итог</div>
                 <div style="font-weight:700">Итоговая страница и сертификат</div>
                 <div class="muted" style="font-size:0.9rem">Финальная страница завершения обучения. После полного прохождения курса здесь доступен сертификат.</div>
@@ -154,7 +146,7 @@
                     <a class="btn btn-primary" href="{{ route('certificate') }}">Открыть итоговую страницу</a>
                 @else
                     <p class="module-card-lock-note muted small" style="margin:0">Откроется после успешной сдачи финальной лабораторной.</p>
-                    <span class="btn btn-primary" style="opacity:0.5;pointer-events:none;cursor:not-allowed" aria-disabled="true">Недоступно</span>
+                    <span class="btn btn-module-locked" aria-disabled="true">Недоступно</span>
                 @endif
             </div>
         </div>
@@ -247,4 +239,5 @@
             });
         })();
     </script>
+    </div>
 @endsection

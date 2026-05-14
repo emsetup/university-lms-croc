@@ -202,28 +202,28 @@ final class CourseScoringService
         return min($this->maxTotalModulePoints($courseIdOverride), $this->totalModulePoints($learner, $courseIdOverride));
     }
 
-    public function grandTotal(Learner $learner, ?int $courseIdOverride = null): int
+    public function grandTotal(Learner $learner, ?int $courseIdOverride = null, ?FinalLabResult $finalForPoints = null): int
     {
-        $final = $learner->finalLabResult;
+        $final = $finalForPoints ?? $learner->finalLabResult;
 
         return $this->totalModulePoints($learner, $courseIdOverride) + $this->finalLabPoints($final);
     }
 
-    public function grandTotalSafe(Learner $learner, ?int $courseIdOverride = null): int
+    public function grandTotalSafe(Learner $learner, ?int $courseIdOverride = null, ?FinalLabResult $finalForPoints = null): int
     {
         return min(
             $this->maxTotalModulePoints($courseIdOverride) + self::MAX_FINAL_LAB_POINTS,
-            max(0, $this->grandTotal($learner, $courseIdOverride))
+            max(0, $this->grandTotal($learner, $courseIdOverride, $finalForPoints))
         );
     }
 
-    public function certificateCoursePercent(Learner $learner, ?int $courseIdOverride = null): int
+    public function certificateCoursePercent(Learner $learner, ?int $courseIdOverride = null, ?FinalLabResult $finalForPoints = null): int
     {
         $max = $this->maxTotalModulePoints($courseIdOverride) + self::MAX_FINAL_LAB_POINTS;
         if ($max <= 0) {
             return 0;
         }
-        $g = $this->grandTotalSafe($learner, $courseIdOverride);
+        $g = $this->grandTotalSafe($learner, $courseIdOverride, $finalForPoints);
 
         return (int) max(0, min(100, (int) round(100 * $g / $max)));
     }

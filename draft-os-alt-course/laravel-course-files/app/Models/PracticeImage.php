@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class PracticeImage extends Model
 {
@@ -10,6 +11,7 @@ final class PracticeImage extends Model
 
     protected $fillable = [
         'title',
+        'description',
         'slug',
         'docker_tag',
         'base_template',
@@ -37,6 +39,11 @@ final class PracticeImage extends Model
             'package_remove' => 'array',
             'features' => 'array',
         ];
+    }
+
+    public function modulePracticeSettings(): HasMany
+    {
+        return $this->hasMany(CourseModulePracticeSetting::class, 'practice_image_id');
     }
 }
 

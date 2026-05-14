@@ -57,6 +57,18 @@ class ModuleController extends Controller
     {
         // Банки вопросов в legacy-конфиге есть только у ALT-курса.
         if ($this->courseModules->selectedCourseIsLegacyAlt()) {
+            $cm = $this->courseModuleOrAbort((int) request()->route('module'));
+            $course = $cm->loadMissing('course:id,slug')->course;
+            if ($course instanceof \App\Models\Course && Schema::hasTable('course_quiz_banks')) {
+                $bank = $this->courseContent->quizBankFor($course, $cm, $kind);
+                if ($bank !== null) {
+                    $fromDb = $this->courseContent->questionsForBank($bank);
+                    if ($fromDb !== []) {
+                        return $fromDb;
+                    }
+                }
+            }
+
             return config('course.module_quizzes.'.$contentSourceIndex.'.'.$kind, []);
         }
 

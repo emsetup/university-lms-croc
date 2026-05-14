@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Course;
+use App\Models\CourseModule;
 use App\Models\CourseSection;
 use App\Models\ModuleProgress;
 use App\Support\CourseModuleMeta;
@@ -115,39 +117,110 @@ final class CourseSectionService
         return is_array($raw) ? $raw : [];
     }
 
+    private function courseForModule(int $courseModuleId): ?Course
+    {
+        $cid = (int) CourseModule::query()->whereKey($courseModuleId)->value('course_id');
+
+        return $cid > 0 ? Course::query()->find($cid) : null;
+    }
+
     public function passPercentForQuiz(int $courseModuleId): int
     {
         $sec = $this->findSectionByBackendKey($courseModuleId, 'theory_quiz');
-        $v = $sec ? ($this->mergedSettings($sec)['pass_percent'] ?? null) : null;
+        $m = $sec ? $this->mergedSettings($sec) : [];
+        if (($m['pass_from_course'] ?? false) === true) {
+            $course = $this->courseForModule($courseModuleId);
+            $def = $course?->default_pass_percent;
+            if (is_numeric($def) && (int) $def > 0) {
+                return (int) $def;
+            }
 
-        return is_numeric($v) && (int) $v > 0 ? (int) $v : CourseScoringService::PASS_THRESHOLD;
+            return CourseScoringService::PASS_THRESHOLD;
+        }
+        $v = $sec ? ($m['pass_percent'] ?? null) : null;
+        if (is_numeric($v) && (int) $v > 0) {
+            return (int) $v;
+        }
+        $course = $this->courseForModule($courseModuleId);
+        $def = $course?->default_pass_percent;
+        if (is_numeric($def) && (int) $def > 0) {
+            return (int) $def;
+        }
+
+        return CourseScoringService::PASS_THRESHOLD;
     }
 
     public function passPercentForExam(int $courseModuleId): int
     {
         $sec = $this->findSectionByBackendKey($courseModuleId, 'module_exam');
-        $v = $sec ? ($this->mergedSettings($sec)['pass_percent'] ?? null) : null;
+        $m = $sec ? $this->mergedSettings($sec) : [];
+        if (($m['pass_from_course'] ?? false) === true) {
+            $course = $this->courseForModule($courseModuleId);
+            $def = $course?->default_pass_percent;
+            if (is_numeric($def) && (int) $def > 0) {
+                return (int) $def;
+            }
 
-        return is_numeric($v) && (int) $v > 0 ? (int) $v : CourseScoringService::PASS_THRESHOLD;
+            return CourseScoringService::PASS_THRESHOLD;
+        }
+        $v = $sec ? ($m['pass_percent'] ?? null) : null;
+        if (is_numeric($v) && (int) $v > 0) {
+            return (int) $v;
+        }
+        $course = $this->courseForModule($courseModuleId);
+        $def = $course?->default_pass_percent;
+        if (is_numeric($def) && (int) $def > 0) {
+            return (int) $def;
+        }
+
+        return CourseScoringService::PASS_THRESHOLD;
     }
 
     public function theoryQuizTimeLimitMinutes(int $courseModuleId): int
     {
         $sec = $this->findSectionByBackendKey($courseModuleId, 'theory_quiz');
-        $v = $sec ? ($this->mergedSettings($sec)['time_limit_minutes'] ?? null) : null;
+        $m = $sec ? $this->mergedSettings($sec) : [];
+        if (($m['time_from_course'] ?? false) === true) {
+            $course = $this->courseForModule($courseModuleId);
+            $def = $course?->default_quiz_time_minutes;
+            if (is_numeric($def) && (int) $def > 0) {
+                return (int) $def;
+            }
 
-        return is_numeric($v) && (int) $v > 0 ? (int) $v : CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
+            return CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
+        }
+        $v = $sec ? ($m['time_limit_minutes'] ?? null) : null;
+        if (is_numeric($v) && (int) $v > 0) {
+            return (int) $v;
+        }
+        $course = $this->courseForModule($courseModuleId);
+        $def = $course?->default_quiz_time_minutes;
+        if (is_numeric($def) && (int) $def > 0) {
+            return (int) $def;
+        }
+
+        return CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
     }
 
     public function theoryQuizAttemptLimit(int $courseModuleId): ?int
     {
         $sec = $this->findSectionByBackendKey($courseModuleId, 'theory_quiz');
-        $v = $sec ? ($this->mergedSettings($sec)['attempt_limit'] ?? null) : null;
-        if ($v === null || $v === '') {
+        $m = $sec ? $this->mergedSettings($sec) : [];
+        if (($m['attempts_from_course'] ?? false) === true) {
+            $course = $this->courseForModule($courseModuleId);
+            $def = $course?->default_attempt_limit;
+            if ($def !== null && is_numeric($def) && (int) $def > 0) {
+                return (int) $def;
+            }
+
             return null;
         }
+        $v = $sec ? ($m['attempt_limit'] ?? null) : null;
+        if ($v !== null && $v !== '' && is_numeric($v) && (int) $v > 0) {
+            return (int) $v;
+        }
 
-        return is_numeric($v) && (int) $v > 0 ? (int) $v : null;
+        return null;
     }
 
     public function theoryQuizPenaltyForAttempt(int $courseModuleId, int $attemptNo): int
@@ -181,17 +254,53 @@ final class CourseSectionService
             }
         }
         $sec = $this->findSectionByBackendKey($courseModuleId, 'module_exam');
-        $v = $sec ? ($this->mergedSettings($sec)['time_limit_minutes'] ?? null) : null;
+        $m = $sec ? $this->mergedSettings($sec) : [];
+        if (($m['time_from_course'] ?? false) === true) {
+            $course = $this->courseForModule($courseModuleId);
+            $def = $course?->default_quiz_time_minutes;
+            if (is_numeric($def) && (int) $def > 0) {
+                return (int) $def;
+            }
 
-        return is_numeric($v) && (int) $v > 0 ? (int) $v : CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+            return CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+        }
+        $v = $sec ? ($m['time_limit_minutes'] ?? null) : null;
+        if (is_numeric($v) && (int) $v > 0) {
+            return (int) $v;
+        }
+        $course = $this->courseForModule($courseModuleId);
+        $def = $course?->default_quiz_time_minutes;
+        if (is_numeric($def) && (int) $def > 0) {
+            return (int) $def;
+        }
+
+        return CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
     }
 
     public function examMaxAttempts(int $courseModuleId): int
     {
         $sec = $this->findSectionByBackendKey($courseModuleId, 'module_exam');
-        $v = $sec ? ($this->mergedSettings($sec)['attempt_limit'] ?? null) : null;
+        $m = $sec ? $this->mergedSettings($sec) : [];
+        if (($m['attempts_from_course'] ?? false) === true) {
+            $course = $this->courseForModule($courseModuleId);
+            $def = $course?->default_attempt_limit;
+            if (is_numeric($def) && (int) $def > 0) {
+                return (int) $def;
+            }
 
-        return is_numeric($v) && (int) $v > 0 ? (int) $v : CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS;
+            return CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS;
+        }
+        $v = $sec ? ($m['attempt_limit'] ?? null) : null;
+        if (is_numeric($v) && (int) $v > 0) {
+            return (int) $v;
+        }
+        $course = $this->courseForModule($courseModuleId);
+        $def = $course?->default_attempt_limit;
+        if (is_numeric($def) && (int) $def > 0) {
+            return (int) $def;
+        }
+
+        return CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS;
     }
 
     public function examPenaltyForAttempt(int $courseModuleId, int $attemptNo): int

@@ -120,6 +120,8 @@ export STAND_SSH=emednikov@172.26.76.216
 bash scripts/deploy-laravel-stand.sh
 ```
 
+Обзор админки (Blade, маршруты, middleware, чеклисты): **`laravel-course-files/docs/admin-panel.md`**.
+
 ### OIDC (ADFS) — вход через SSO
 
 В ADFS для приложения должны быть зарегистрированы redirect URI:

@@ -1,29 +1,30 @@
-@extends('layouts.course')
+@extends('layouts.admin')
 
-@section('title', 'Настройки курса — модули')
+@section('title', 'Модули курса')
 
 @section('content')
-    <div class="card" style="max-width:960px;margin:0 auto 1rem">
-        @include('partials.admin-instructor-nav', ['active' => 'settings'])
-        <h1 style="margin:0 0 0.35rem">Модули курса</h1>
-        <p class="muted" style="margin:0;line-height:1.5">
-            Порядок модулей задаётся перетаскиванием. Для каждого модуля — своя цепочка разделов (теория, тест, практика, экзамен).
-            Поле «пакет контента» — номер набора теории и вопросов в файлах курса (как в старом <code>config/course.php</code>); без номера подставляется 1.
+    @php $rp = array_merge($ap ?? [], $adminKey !== '' ? ['key' => $adminKey] : []); @endphp
+
+    <div class="ap-page-head">
+        <h1 class="ap-page-title">Модули курса</h1>
+        <p class="ap-page-lead ap-muted">
+            <a href="{{ route('admin.course.settings', $ap ?? []) }}">← Настройки курса</a>
+            · порядок модулей задаётся перетаскиванием
         </p>
     </div>
 
-    @if (session('ok'))
-        <div class="card" style="max-width:960px;margin:0 auto 1rem;border-color:#b8dcc8;background:#f0faf5">{{ session('ok') }}</div>
-    @endif
-    @if (session('err'))
-        <div class="card" style="max-width:960px;margin:0 auto 1rem;border-color:#f5c2c7;background:#fff5f5">{{ session('err') }}</div>
-    @endif
+    <div class="card" style="max-width:960px;margin:1rem auto 1rem">
+        <p class="muted" style="margin:0;line-height:1.5">
+            Для каждого модуля — своя цепочка разделов (теория, тест, практика, экзамен).
+            Поле «пакет контента» — номер набора теории и вопросов в файлах курса (как в старом <code>config/course.php</code>); без номера подставляется 1.
+        </p>
+    </div>
 
     <div class="card" style="max-width:960px;margin:0 auto 1rem">
         <h2 style="margin-top:0">Порядок модулей</h2>
         <p class="muted small">Перетащите строки, затем «Сохранить порядок модулей».</p>
         <ul id="course-modules-list" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0.75rem">
-            @foreach ($modules as $m)
+            @forelse ($modules as $m)
                 <li data-id="{{ $m->id }}" draggable="true" style="border:1px solid var(--line,#dfe8e4);border-radius:10px;background:#fff;padding:0.75rem">
                     <div style="display:flex;align-items:flex-start;gap:0.65rem">
                         <span class="drag-h" title="Перетащить" style="user-select:none;color:var(--muted,#5c6b76);font-size:1.1rem;cursor:grab;padding-top:0.35rem">≡</span>
@@ -35,11 +36,11 @@
                                     · буква <code>{{ $m->letter }}</code>
                                 @endif
                                 · пакет контента <strong>№{{ $m->effectiveContentIndex() }}</strong>
-                                · <a href="{{ route('admin.theory.edit', ['module' => $m->effectiveContentIndex()]) }}">содержимое (MD)</a>,
-                                <a href="{{ route('admin.quiz.edit.module', ['module' => $m->effectiveContentIndex(), 'kind' => 'theory_quiz']) }}">тест</a>,
-                                <a href="{{ route('admin.quiz.edit.module', ['module' => $m->effectiveContentIndex(), 'kind' => 'module_exam']) }}">экзамен</a>
+                                · <a href="{{ route('admin.theory.edit', array_merge($rp, ['module' => $m->effectiveContentIndex()])) }}">содержимое (MD)</a>,
+                                <a href="{{ route('admin.quiz.edit.module', array_merge($rp, ['module' => $m->effectiveContentIndex(), 'kind' => 'theory_quiz'])) }}">тест</a>,
+                                <a href="{{ route('admin.quiz.edit.module', array_merge($rp, ['module' => $m->effectiveContentIndex(), 'kind' => 'module_exam'])) }}">экзамен</a>
                             </div>
-                            <form method="post" action="{{ route('admin.course.settings.module.update', ['courseModule' => $m->id]) }}" style="display:grid;gap:0.5rem;margin:0">
+                            <form method="post" action="{{ route('admin.course.settings.module.update', array_merge($rp, ['courseModule' => $m->id])) }}" style="display:grid;gap:0.5rem;margin:0">
                                 @csrf
                                 <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end">
                                     <div>
@@ -62,19 +63,20 @@
                                 </div>
                             </form>
                             <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.65rem">
-                                <a class="btn btn-ghost" href="{{ route('admin.course.module.sections', ['courseModule' => $m->id]) }}">Разделы модуля</a>
-                                <form method="post" action="{{ route('admin.course.settings.module.destroy', ['courseModule' => $m->id]) }}" style="margin:0" onsubmit="return confirm('Удалить модуль «{{ $m->title }}» и все его разделы?');">
-                                    @csrf
-                                    <button type="submit" class="btn btn-ghost" style="color:#b91c1c">Удалить</button>
-                                </form>
+                                <a class="btn btn-ghost" href="{{ route('admin.course.module.sections', array_merge($rp, ['courseModule' => $m->id])) }}">Разделы модуля</a>
+                                <button type="button" class="btn btn-ghost ap-mod-page-del-open" style="color:#b91c1c"
+                                        data-ap-mod-del-url="{{ route('admin.course.settings.module.destroy', array_merge($rp, ['courseModule' => $m->id])) }}"
+                                        data-module-title="{{ e($m->title) }}">Удалить</button>
                             </div>
                         </div>
                     </div>
                 </li>
-            @endforeach
+            @empty
+                <li class="muted" style="padding:1rem;border:1px dashed var(--line,#dfe8e4);border-radius:10px;background:#fafafa;list-style:none">Модулей пока нет. Добавьте первый модуль в блоке ниже.</li>
+            @endforelse
         </ul>
 
-        <form id="course-modules-reorder" method="post" action="{{ route('admin.course.settings.modules.reorder') }}" style="margin-top:1rem">
+        <form id="course-modules-reorder" method="post" action="{{ route('admin.course.settings.modules.reorder', $rp) }}" style="margin-top:1rem">
             @csrf
             <div id="module-order-fields"></div>
             <button type="submit" class="btn btn-primary" @disabled($modules->isEmpty())>Сохранить порядок модулей</button>
@@ -84,7 +86,7 @@
     <div class="card" style="max-width:960px;margin:0 auto">
         <h2 style="margin-top:0">Добавить модуль</h2>
         <p class="muted small">Разделы для нового модуля копируются с первого существующего; если модулей ещё не было — создаётся стандартный набор из четырёх типов.</p>
-        <form method="post" action="{{ route('admin.course.settings.module.store') }}" style="display:grid;gap:0.65rem;max-width:36rem">
+        <form method="post" action="{{ route('admin.course.settings.module.store', $rp) }}" style="display:grid;gap:0.65rem;max-width:36rem">
             @csrf
             <div>
                 <label class="muted small" style="display:block;margin-bottom:0.2rem">Название</label>
@@ -106,8 +108,68 @@
         </form>
     </div>
 
+    <form method="post" id="ap-mod-page-del-form" action="#" style="margin:0;display:none">
+        @csrf
+    </form>
+
+    <div class="ap-modal" id="ap-mod-page-del-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="ap-mod-page-del-title">
+        <div class="ap-modal__backdrop" data-ap-mod-page-del-close tabindex="-1"></div>
+        <div class="ap-modal__panel">
+            <button type="button" class="ap-modal__close" data-ap-mod-page-del-close aria-label="Закрыть">&times;</button>
+            <h2 id="ap-mod-page-del-title" class="ap-modal__title">Удалить модуль?</h2>
+            <p class="ap-muted" id="ap-mod-page-del-text"></p>
+            <div class="ap-modal__footer">
+                <button type="button" class="btn btn-ghost" data-ap-mod-page-del-close>Отмена</button>
+                <button type="button" class="btn btn-primary" id="ap-mod-page-del-confirm" style="background:#b91c1c;border-color:#b91c1c">Удалить</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         (function () {
+            var delModal = document.getElementById('ap-mod-page-del-modal');
+            var delForm = document.getElementById('ap-mod-page-del-form');
+            var delText = document.getElementById('ap-mod-page-del-text');
+            var delConfirm = document.getElementById('ap-mod-page-del-confirm');
+            function openDelModal() {
+                if (!delModal) return;
+                delModal.classList.add('is-open');
+                delModal.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('ap-modal-open');
+            }
+            function closeDelModal() {
+                if (!delModal) return;
+                delModal.classList.remove('is-open');
+                delModal.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('ap-modal-open');
+            }
+            document.querySelectorAll('[data-ap-mod-page-del-close]').forEach(function (el) {
+                el.addEventListener('click', function (e) {
+                    if (el.classList.contains('ap-modal__backdrop')) e.preventDefault();
+                    closeDelModal();
+                });
+            });
+            document.querySelectorAll('.ap-mod-page-del-open').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var url = btn.getAttribute('data-ap-mod-del-url') || '';
+                    var title = btn.getAttribute('data-module-title') || '';
+                    if (!delForm || !url) return;
+                    delForm.setAttribute('action', url);
+                    if (delText) delText.textContent = 'Будет удалён модуль «' + title + '» и все его разделы. Это действие необратимо.';
+                    openDelModal();
+                });
+            });
+            if (delConfirm && delForm) {
+                delConfirm.addEventListener('click', function () {
+                    delForm.submit();
+                });
+            }
+            document.addEventListener('keydown', function (e) {
+                if (e.key !== 'Escape' || !delModal || !delModal.classList.contains('is-open')) return;
+                closeDelModal();
+                e.preventDefault();
+            });
+
             var list = document.getElementById('course-modules-list');
             var orderWrap = document.getElementById('module-order-fields');
             var reorderForm = document.getElementById('course-modules-reorder');

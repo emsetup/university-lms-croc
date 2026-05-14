@@ -7,8 +7,7 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Доступ к отчёту преподавателя с ?key=... — как у редактора теории:
- * TEACHER_REPORT_TOKEN или COURSE_ADMIN_TOKEN (единая навигация /adm).
+ * @deprecated Ранее открывало отчёт преподавателя по ?key=; маршруты перенесены на сессию портала (EnsureLearner + EnsurePortalStaff).
  */
 class ValidateTeacherReportToken
 {

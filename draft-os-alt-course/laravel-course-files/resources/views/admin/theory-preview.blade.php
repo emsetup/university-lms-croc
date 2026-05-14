@@ -1,4 +1,4 @@
-@extends('layouts.course')
+@extends('layouts.admin-preview')
 
 @section('title', 'Админ: просмотр теории — модуль '.$module)
 
@@ -8,18 +8,17 @@
     @endphp
     <div style="max-width: 1000px; margin: 0 auto">
         @if (! $isReadOnly)
-            @include('partials.admin-instructor-nav', ['active' => 'theory'])
         @endif
         <div class="card">
             <p class="muted" style="margin:0 0 0.75rem">
-                <a href="{{ route('admin.theory.index') }}">← К содержимому курса</a>
+                <a href="{{ route('admin.theory.index', $ap ?? []) }}">← К содержимому курса</a>
             </p>
             <p class="muted small" style="margin:0 0 1rem">Так же отображается теория у обучающегося (без кнопки «отмечено просмотрено»). Диаграммы Mermaid подгружаются из CDN.</p>
             @php
                 $theoryRaw = (string) ($meta['theory'] ?? '');
             @endphp
             <article class="theory-article prose-course practice-block">
-                {!! \Illuminate\Support\Str::markdown($theoryRaw) !!}
+                {!! \App\Support\AdminContentMarkdown::toHtml($theoryRaw) !!}
             </article>
 
             <style>

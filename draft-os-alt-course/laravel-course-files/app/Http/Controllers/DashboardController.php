@@ -6,6 +6,7 @@ use App\Models\Learner;
 use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
 use App\Services\ModuleAccessGate;
+use App\Support\LearnerSsoDisplayNamePersistence;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
@@ -23,6 +24,7 @@ class DashboardController extends Controller
         $learner = Learner::query()
             ->with('moduleProgresses')
             ->findOrFail(session('learner_id'));
+        LearnerSsoDisplayNamePersistence::syncIfPossible($learner);
 
         $courseId = (int) session('course_id', 0);
         $modules = [];

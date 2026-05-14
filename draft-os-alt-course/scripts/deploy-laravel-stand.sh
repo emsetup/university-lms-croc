@@ -59,6 +59,7 @@ for f in \
   app/Http/Controllers/AdminCourseSettingsController.php \
   app/Http/Controllers/AdminCourseContentController.php \
   app/Http/Controllers/AdminPracticeImagesController.php \
+  app/Http/Controllers/AdminDockerLibraryController.php \
   app/Http/Controllers/AdminLearnersController.php \
   app/Http/Controllers/AdminQuizController.php \
   app/Http/Controllers/AdminStaffController.php \
@@ -80,24 +81,33 @@ for f in \
   app/Http/Middleware/EnsureStaffAbility.php \
   app/Http/Middleware/DenyCourseTester.php \
   app/Http/Middleware/ValidateTeacherReportToken.php \
+  app/Http/Middleware/SyncAdminCourseFromSlug.php \
   app/Services/CourseScoringService.php \
   app/Services/CourseSectionService.php \
   app/Services/CourseModuleService.php \
   app/Services/CourseContentService.php \
+  app/Services/LegacyAltCourseContentBootstrap.php \
   app/Services/PortalStaffAccess.php \
   app/Services/PracticeLabDaemonClient.php \
+  app/Services/PracticeImageRecipeBootstrap.php \
   app/Services/PracticeLabService.php \
   app/Services/TeacherCourseAnalyticsService.php \
   app/Services/ModuleAccessGate.php \
   app/Services/InstructorProgressResetService.php \
   app/Services/TeacherLearnerProfileDetailService.php \
+  app/Services/AdminCourseLearnerDetailService.php \
   app/Support/AdminCourseContentInspector.php \
+  app/Support/AdminContentMarkdown.php \
   app/Support/CourseQuizBankLoader.php \
   app/Support/CourseModuleMeta.php \
   app/Support/CourseTheoryPaths.php \
+  app/Support/AdminNavigation.php \
   app/Support/OidcIdentityClaims.php \
   app/Support/OidcSignInRedirect.php \
+  app/Support/PortalWelcomeInitials.php \
   app/Support/PortalWelcomeName.php \
+  app/Support/LearnerDisplay.php \
+  app/Support/LearnerSsoDisplayNamePersistence.php \
   app/Models/Course.php \
   app/Models/CourseModule.php \
   app/Models/CourseModuleContent.php \
@@ -152,7 +162,12 @@ for mf in \
   database/migrations/2026_05_07_000007_create_course_module_contents_table.php \
   database/migrations/2026_05_07_000008_create_course_quiz_tables.php \
   database/migrations/2026_05_13_000010_create_portal_staff_tables.php \
-  database/migrations/2026_05_13_120000_expand_alt_os_features_course_summary.php
+  database/migrations/2026_05_13_200000_add_description_to_practice_images_table.php \
+  database/migrations/2026_05_13_120000_expand_alt_os_features_course_summary.php \
+  database/migrations/2026_05_14_000001_add_tags_to_courses_table.php \
+  database/migrations/2026_05_14_000002_add_course_admin_settings_columns.php \
+  database/migrations/2026_05_14_000003_add_sso_display_name_to_learners_table.php \
+  database/migrations/2026_05_14_100000_seed_legacy_alt_os_course_content_to_database.php
 do
   if [[ -f "${LCF}/${mf}" ]]; then
     echo "[deploy-laravel] ${mf}"
@@ -203,6 +218,57 @@ done
 if [[ -f "${LCF}/resources/views/layouts/course.blade.php" ]]; then
   echo "[deploy-laravel] resources/views/layouts/course.blade.php"
   rsync -az "${LCF}/resources/views/layouts/course.blade.php" "${STAND_SSH}:${REMOTE}/resources/views/layouts/course.blade.php"
+fi
+
+if [[ -f "${LCF}/resources/views/layouts/admin.blade.php" ]]; then
+  echo "[deploy-laravel] resources/views/layouts/admin.blade.php"
+  rsync -az "${LCF}/resources/views/layouts/admin.blade.php" "${STAND_SSH}:${REMOTE}/resources/views/layouts/admin.blade.php"
+fi
+
+if [[ -f "${LCF}/resources/views/layouts/admin-preview.blade.php" ]]; then
+  echo "[deploy-laravel] resources/views/layouts/admin-preview.blade.php"
+  rsync -az "${LCF}/resources/views/layouts/admin-preview.blade.php" "${STAND_SSH}:${REMOTE}/resources/views/layouts/admin-preview.blade.php"
+fi
+
+if [[ -f "${LCF}/public/css/course.css" ]]; then
+  echo "[deploy-laravel] public/css/course.css"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/css'"
+  rsync -az "${LCF}/public/css/course.css" "${STAND_SSH}:${REMOTE}/public/css/course.css"
+fi
+
+if [[ -f "${LCF}/public/css/admin-panel.css" ]]; then
+  echo "[deploy-laravel] public/css/admin-panel.css"
+  rsync -az "${LCF}/public/css/admin-panel.css" "${STAND_SSH}:${REMOTE}/public/css/admin-panel.css"
+fi
+
+if [[ -f "${LCF}/public/js/section-edit-panel.js" ]]; then
+  echo "[deploy-laravel] public/js/section-edit-panel.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/section-edit-panel.js" "${STAND_SSH}:${REMOTE}/public/js/section-edit-panel.js"
+fi
+
+if [[ -f "${LCF}/public/js/learners-course.js" ]]; then
+  echo "[deploy-laravel] public/js/learners-course.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/learners-course.js" "${STAND_SSH}:${REMOTE}/public/js/learners-course.js"
+fi
+
+if [[ -f "${LCF}/public/js/admin-create-course-modal.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-create-course-modal.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-create-course-modal.js" "${STAND_SSH}:${REMOTE}/public/js/admin-create-course-modal.js"
+fi
+
+if [[ -f "${LCF}/public/js/admin-command-palette.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-command-palette.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-command-palette.js" "${STAND_SSH}:${REMOTE}/public/js/admin-command-palette.js"
+fi
+
+if [[ -f "${LCF}/public/static/admin/admin.css" ]]; then
+  echo "[deploy-laravel] public/static/admin/admin.css"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/static/admin'"
+  rsync -az "${LCF}/public/static/admin/admin.css" "${STAND_SSH}:${REMOTE}/public/static/admin/admin.css"
 fi
 
 echo "[deploy-laravel] remote: php artisan config:clear cache:clear view:clear migrate"

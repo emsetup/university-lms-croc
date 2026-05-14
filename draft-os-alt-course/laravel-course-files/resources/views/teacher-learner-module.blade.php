@@ -1,8 +1,19 @@
-@extends('layouts.course')
+@extends('layouts.admin')
 
 @php
     use App\Support\DurationFormat;
-    $keyQ = request()->filled('key') ? '?key=' . urlencode((string) request('key')) : '';
+
+    $enrollment = $learner->courseEnrollments->sortBy('id')->first();
+    $courseModel = $enrollment?->course
+        ?? \App\Models\Course::query()->where('slug', 'alt-os-features')->first();
+    $tp = $courseModel ? ['adminCourse' => $courseModel->slug] : [];
+    $cid = $courseModel ? (int) $courseModel->id : 0;
+    $en = $cid > 0 ? (int) \App\Models\CourseEnrollment::query()->where('course_id', $cid)->count() : 0;
+    $completed = $cid > 0
+        ? (int) \App\Models\FinalLabResult::query()->where('course_id', $cid)->whereNotNull('completed_at')->count()
+        : 0;
+    $learnersListUrl = $tp !== [] ? route('admin.learners.course', $tp) : route('teacher.course-report');
+    $learnerCardUrl = route('teacher.course-report.learner', $learner->id);
     $p = $panel['progress'];
     $rep = $panel['report'];
     $mid = (int) $panel['module_id'];
@@ -12,187 +23,180 @@
     $secPr = $p ? (int) ($p->seconds_practice ?? 0) : 0;
     $secEx = $p ? (int) ($p->seconds_module_exam ?? 0) : 0;
     $secMod = $secTheory + $secTq + $secPr + $secEx;
-    $skipPractice = \App\Support\CourseModuleMeta::shouldSkipPractice($mid);
+    $contentIdxPanel = (int) ($panel['content_source_index'] ?? 1);
+    $skipPractice = \App\Support\CourseModuleMeta::shouldSkipPractice($contentIdxPanel);
+    $pts = is_array($rep) ? (int) ($rep['points'] ?? 0) : 0;
+    $tqPct = is_array($rep) ? (int) ($rep['theory_quiz_pct'] ?? 0) : 0;
+    $prPct = is_array($rep) && ! $skipPractice ? (int) ($rep['practice_pct'] ?? 0) : null;
+    $exPct = is_array($rep) ? (int) ($rep['exam_pct'] ?? 0) : 0;
+    $b100 = $pts % 100;
+    $n1 = $pts % 10;
+    $ptsWord = $pts
+        . ' '
+        . (($b100 >= 11 && $b100 <= 14)
+            ? 'баллов'
+            : ($n1 === 1
+                ? 'балл'
+                : (($n1 >= 2 && $n1 <= 4)
+                    ? 'балла'
+                    : 'баллов')));
+    $svgMore = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>';
+    $svgThOk = '<svg class="badge-threshold__icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+    $svgThFail = '<svg class="badge-threshold__icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 @endphp
 
 @section('title', 'Модуль '.$mid.' — '.$panel['title'])
 
 @section('content')
-    <div style="max-width: 1100px; margin: 0 auto">
-        @include('partials.admin-instructor-nav', ['active' => 'learners_course'])
+    <script>
+        document.body.dataset.apTeacherReport = '1';
+        document.documentElement.classList.add('ap-smooth-anchor-scroll');
+        document.querySelector('.admin-topbar__nav a.nav-item')?.classList.add('active');
+    </script>
+
+    <div class="learner-page-content">
+    <div class="ap-report-bleed">
+        @if ($courseModel)
+            <div class="ap-course-context">
+                <div class="ap-course-context__row">
+                    <div class="ap-course-context__brand">
+                        @include('partials.ap-icon', ['name' => 'book-open', 'size' => 'md'])
+                        <span class="ap-course-context__title">{{ $courseModel->title }}</span>
+                        @if ($courseModel->is_archived)
+                            <span class="ap-badge ap-badge--archive">Архив</span>
+                        @elseif ($courseModel->is_published)
+                            <span class="ap-badge ap-badge--published">Опубликован</span>
+                        @else
+                            <span class="ap-badge ap-badge--draft">Черновик</span>
+                        @endif
+                    </div>
+                    <a class="ap-course-context__back" href="{{ route('admin.courses.index') }}">← Курсы</a>
+                </div>
+                <p class="ap-course-context__meta">
+                    slug: <code>{{ $courseModel->slug }}</code>
+                    · {{ $en }} участников
+                    · {{ $completed }} завершили
+                </p>
+            </div>
+            <nav class="ap-course-tabs" aria-label="Разделы курса">
+                <a class="ap-course-tabs__a" href="{{ route('admin.course.settings', $tp) }}">Модули</a>
+                <a class="ap-course-tabs__a" href="{{ route('admin.theory.index', $tp) }}">Содержимое</a>
+                <a class="ap-course-tabs__a ap-course-tabs__a--active" href="{{ route('admin.learners.course', $tp) }}">Обучающиеся</a>
+                <a class="ap-course-tabs__a" href="{{ route('admin.certificates', $tp) }}">Сертификаты</a>
+            </nav>
+        @endif
+        <div class="admin-breadcrumb-wrap ap-report-breadcrumb-below-tabs">
+            <nav class="breadcrumb" aria-label="Хлебные крошки">
+                <a href="{{ route('admin.panel') }}">Панель</a>
+                <span class="breadcrumb-sep" aria-hidden="true">›</span>
+                <a href="{{ route('admin.courses.index') }}">Курсы</a>
+                @if ($courseModel)
+                    <span class="breadcrumb-sep" aria-hidden="true">›</span>
+                    <a href="{{ route('admin.theory.index', $tp) }}">{{ $courseModel->title }}</a>
+                    <span class="breadcrumb-sep" aria-hidden="true">›</span>
+                    <a href="{{ $learnersListUrl }}">Обучающиеся</a>
+                @endif
+                <span class="breadcrumb-sep" aria-hidden="true">›</span>
+                <a href="{{ $learnerCardUrl }}">{{ $learner->email }}</a>
+                <span class="breadcrumb-sep" aria-hidden="true">›</span>
+                <span class="breadcrumb-current">Модуль {{ $mid }}</span>
+            </nav>
+        </div>
     </div>
-    <nav class="ta-breadcrumb" aria-label="Навигация">
-        <a href="{{ route('admin.learners.course') }}">Обучающиеся курса</a>
-        <span class="ta-bc-sep">/</span>
-        <a href="{{ route('teacher.course-report.learner', $learner->id).$keyQ }}">{{ $learner->email }}</a>
-        <span class="ta-bc-sep">/</span>
-        <span class="ta-bc-current">Модуль {{ $mid }}</span>
-        @if ($keyQ !== '')
-            <span class="ta-bc-sep" aria-hidden="true">·</span>
-            <a href="{{ route('admin.theory.index') }}">Теория модулей</a>
-        @endif
-    </nav>
 
-    <header class="ta-mod-head card">
-        <p class="ta-kicker">Модуль {{ $mid }} @if($panel['letter'] !== '')<span class="muted">· {{ $panel['letter'] }}</span>@endif</p>
-        <h1 class="ta-mod-title">{{ $panel['title'] }}</h1>
-        @if (is_array($rep))
-            <div class="ta-scoreboard" aria-label="Сводные результаты по модулю">
-                <div class="ta-ring ta-ring--accent" title="Итоговый балл за модуль">
-                    <span class="ta-ring__value">{{ (int) ($rep['points'] ?? 0) }}</span>
-                    <span class="ta-ring__label">балл</span>
-                </div>
-                <div class="ta-ring" title="Тест по теории">
-                    <span class="ta-ring__value">{{ (int) ($rep['theory_quiz_pct'] ?? 0) }}%</span>
-                    <span class="ta-ring__label">теория</span>
-                </div>
-                <div class="ta-ring{{ $skipPractice ? ' ta-ring--mute' : '' }}" title="{{ $skipPractice ? 'Практика не предусмотрена' : 'Практика' }}">
-                    <span class="ta-ring__value">@if ($skipPractice){{ '—' }}@else{{ (int) ($rep['practice_pct'] ?? 0) }}%@endif</span>
-                    <span class="ta-ring__label">практика</span>
-                </div>
-                <div class="ta-ring" title="Экзамен">
-                    <span class="ta-ring__value">{{ (int) ($rep['exam_pct'] ?? 0) }}%</span>
-                    <span class="ta-ring__label">экзамен</span>
-                </div>
+    <div class="ap-report-page ap-report-stack">
+        <header class="card ap-report-mod-page-head">
+            <div class="tlm-page-kicker-row">
+                <p class="tlm-page-kicker">
+                    Модуль {{ $mid }} @if ($panel['letter'] !== '')<span class="muted">· {{ $panel['letter'] }}</span>@endif
+                </p>
+                <a class="btn btn-ghost btn-sm" href="{{ $learnerCardUrl }}">← К обучающемуся</a>
             </div>
-            <div class="ta-stat-row ta-stat-row--time" aria-label="Время по разделам модуля">
-                <span class="ta-chip"><span class="ta-chip__k">Теория</span><span class="ta-chip__v">{{ DurationFormat::fromSeconds($secTheory) }}</span></span>
-                <span class="ta-chip"><span class="ta-chip__k">Тест</span><span class="ta-chip__v">{{ DurationFormat::fromSeconds($secTq) }}</span></span>
-                <span class="ta-chip"><span class="ta-chip__k">Практика</span><span class="ta-chip__v">{{ DurationFormat::fromSeconds($secPr) }}</span></span>
-                <span class="ta-chip"><span class="ta-chip__k">Экзамен</span><span class="ta-chip__v">{{ DurationFormat::fromSeconds($secEx) }}</span></span>
-                <span class="ta-chip ta-chip--sum"><span class="ta-chip__k">Σ модуля</span><span class="ta-chip__v">{{ DurationFormat::fromSeconds($secMod) }}</span></span>
-            </div>
-        @endif
-    </header>
-
-    <nav class="ta-quicknav" id="ta-jump" aria-label="Быстрый переход по шагам модуля">
-        <span class="ta-quicknav__title">К шагу</span>
-        <a class="ta-quicknav__a" href="#ta-theory">Теория</a>
-        <a class="ta-quicknav__a" href="#ta-tq">Тест по теории</a>
-        @if (! $skipPractice)
-            <a class="ta-quicknav__a" href="#ta-pr">Практика</a>
-        @endif
-        <a class="ta-quicknav__a" href="#ta-ex">Экзамен</a>
-        @if ($p && is_array($panel['instructor_resets']) && count($panel['instructor_resets']) > 0)
-            <a class="ta-quicknav__a ta-quicknav__a--muted" href="#ta-audit">Журнал сбросов</a>
-        @endif
-    </nav>
-
-    <style>
-        .ta-breadcrumb{font-size:0.9rem;margin:0 0 1rem;color:var(--muted,#5c6b76);display:flex;flex-wrap:wrap;gap:0.35rem;align-items:center}
-        .ta-breadcrumb a{color:var(--accent,#0a7);text-decoration:none;font-weight:600}
-        .ta-breadcrumb a:hover{text-decoration:underline}
-        .ta-bc-sep{opacity:0.45}
-        .ta-bc-current{font-weight:600;color:var(--text,#0f172a)}
-        .ta-kicker{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted,#5c6b76);margin:0}
-        .ta-mod-head{margin-bottom:0.75rem;padding-bottom:1rem}
-        .ta-mod-title{margin:0.2rem 0 0.85rem;font-size:1.35rem;line-height:1.25}
-        .ta-scoreboard{display:flex;flex-wrap:wrap;gap:0.65rem 1rem;align-items:flex-end;margin:0.25rem 0 0.85rem}
-        .ta-ring{
-            width:4.35rem;height:4.35rem;border-radius:50%;
-            display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
-            border:2px solid #d4e4df;background:linear-gradient(160deg,#fff,#f4faf7);
-            box-shadow:0 2px 8px rgba(15,42,35,.06);
-        }
-        .ta-ring--accent{border-color:#1a9d6b;background:linear-gradient(165deg,#e8f7f1,#fff)}
-        .ta-ring__value{font-weight:800;font-size:0.95rem;line-height:1.1;color:#0f172a}
-        .ta-ring__label{font-size:0.62rem;text-transform:uppercase;letter-spacing:0.04em;color:#5c6b76;margin-top:0.12rem;max-width:3.6rem;line-height:1.05}
-        .ta-stat-row{display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center}
-        .ta-stat-row--time{margin-top:0.15rem}
-        .ta-chip{display:inline-flex;align-items:center;gap:0.4rem;padding:0.28rem 0.65rem;border-radius:999px;background:#eef4f1;border:1px solid #d8e6df;font-size:0.82rem}
-        .ta-chip--sum{background:#e8f4ef;border-color:#b9d9c9;font-weight:600}
-        .ta-chip__k{color:#5c6b76;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em}
-        .ta-chip__v{font-weight:700;color:#0f172a}
-        .ta-quicknav{
-            position:sticky;top:0;z-index:20;scroll-margin-top:0.5rem;
-            display:flex;flex-wrap:wrap;align-items:center;gap:0.35rem 0.5rem;
-            padding:0.55rem 0.75rem;margin:0 0 1rem;
-            background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
-            border:1px solid var(--line,#dfe8e4);border-radius:12px;
-            box-shadow:0 4px 18px rgba(15,23,42,.06);
-        }
-        .ta-quicknav__title{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:#6b7c76;margin-right:0.35rem;font-weight:700}
-        .ta-quicknav__a{
-            padding:0.32rem 0.75rem;border-radius:999px;font-size:0.84rem;font-weight:600;text-decoration:none;
-            color:#0f5c3e;background:#e6f3ec;border:1px solid #b5dcc8;
-        }
-        .ta-quicknav__a:hover{background:#d4ebdf}
-        .ta-quicknav__a--muted{color:#4a5560;background:#eef1f5;border-color:#d5dbe4}
-        .ta-stack{display:flex;flex-direction:column;gap:1.15rem}
-        .ta-step{
-            scroll-margin-top:5.5rem;
-            border:1px solid var(--line,#e1e8ea);border-radius:16px;padding:1.05rem 1.15rem 1.15rem;
-            background:var(--card,#fff);box-shadow:0 2px 12px rgba(15,23,42,.04)
-        }
-        .ta-step--muted{background:#f4f6f8;box-shadow:none;border-color:#e2e8f0}
-        .ta-ring--mute{opacity:0.55;border-color:#dbe0e6!important}
-        .ta-step__head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:0.5rem;margin-bottom:0.5rem}
-        .ta-step h2{margin:0;font-size:1.08rem}
-        .ta-step-meta{font-size:0.86rem;color:var(--muted,#5c6b76);margin:0 0 0.75rem;line-height:1.45}
-        .ta-attempt-stack{display:flex;flex-direction:column;gap:0.75rem}
-        .ta-attempt-card{
-            border:1px solid #e0ebe6;border-radius:14px;padding:0.85rem 1rem;
-            background:linear-gradient(180deg,#fbfcfc,#f5f9f7);
-        }
-        .ta-attempt-card__top{display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem 0.75rem;margin-bottom:0.45rem}
-        .ta-attempt-card h3{margin:0;font-size:0.98rem}
-        .ta-mini-ring{
-            min-width:3.25rem;height:3.25rem;border-radius:50%;
-            display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
-            border:2px solid #c5ddd2;background:#fff;font-size:0.72rem;font-weight:800;color:#0f172a
-        }
-        .ta-mini-ring span{font-size:0.58rem;font-weight:600;color:#5c6b76;text-transform:uppercase;margin-top:0.08rem}
-        .ta-meta-inline{font-size:0.82rem;color:#5c6b76}
-        .ta-tag-ok{display:inline-block;padding:0.12rem 0.45rem;border-radius:6px;background:#d9f5e4;color:#0d5c2f;font-size:0.72rem;font-weight:700}
-        .ta-pr-metrics{display:flex;flex-wrap:wrap;gap:0.5rem;margin:0.5rem 0 0.65rem}
-        .ta-pr-metric{
-            min-width:5.5rem;padding:0.5rem 0.65rem;border-radius:12px;border:1px solid #dde8e3;background:#fff;
-            display:flex;flex-direction:column;gap:0.15rem
-        }
-        .ta-pr-metric__k{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#6b7c76}
-        .ta-pr-metric__v{font-weight:700;font-size:0.95rem;color:#0f172a}
-        .ta-reset{border-top:1px dashed var(--line,#dde5ea);margin-top:0.9rem;padding-top:0.9rem}
-        .ta-reset label{display:flex;gap:0.45rem;align-items:flex-start;font-size:0.88rem;margin:0.35rem 0}
-        .ta-reset input[type="text"]{width:100%;max-width:28rem;padding:0.45rem 0.55rem;border-radius:8px;border:1px solid var(--line,#dde5ea);font:inherit}
-        .ta-reset .btn-danger{margin-top:0.5rem;background:#c0392b;color:#fff;border:none;padding:0.45rem 0.85rem;border-radius:8px;cursor:pointer;font-weight:600}
-        .ta-archives{margin-top:0.25rem}
-        .ta-archives h2{margin:0 0 0.5rem}
-        .ta-arch{border:1px solid var(--line,#e1e8ea);border-radius:12px;padding:0.65rem 0.85rem;margin-bottom:0.5rem;background:#fcfdfe}
-        .ta-arch summary{cursor:pointer;font-weight:600}
-        .ta-pre{font-size:0.75rem;max-height:16rem;overflow:auto;padding:0.55rem 0.65rem;background:#f1f4f7;border-radius:8px;border:1px solid var(--line,#e1e8ea);white-space:pre-wrap;word-break:break-word;margin:0.5rem 0 0}
-    </style>
-
-    <div class="ta-stack">
-        {{-- Теория --}}
-        <section class="ta-step" id="ta-theory" aria-labelledby="ta-theory-h">
-            <div class="ta-step__head">
-                <h2 id="ta-theory-h">Теория</h2>
-                <a class="ta-quicknav__a" style="padding:0.22rem 0.55rem;font-size:0.78rem" href="#ta-jump">меню</a>
-            </div>
-            <p class="ta-step-meta">Просмотр материала и учёт времени. Сброс не предусмотрен — обучающийся может открыть раздел снова сам.</p>
-            @if ($p)
-                <div class="ta-stat-row" style="margin-bottom:0.65rem">
-                    <span class="ta-chip" title="Когда отмечена прочтённой">
-                        <span class="ta-chip__k">Прочтено</span>
-                        <span class="ta-chip__v">{{ $p->theory_read_at ? $p->theory_read_at->timezone(config('app.timezone'))->format('d.m.Y H:i') : '—' }}</span>
-                    </span>
-                    <span class="ta-chip ta-chip--sum" title="Время на шаге «теория»">
-                        <span class="ta-chip__k">Время</span>
-                        <span class="ta-chip__v">{{ DurationFormat::fromSeconds($secTheory) }}</span>
-                    </span>
-                </div>
-            @else
-                <p class="muted">Нет записи прогресса.</p>
+            <h1 class="ap-report-mod-page-title">{{ $panel['title'] }}</h1>
+            @if (is_array($rep))
+                <p class="ap-report-mod-summary-line">
+                    {{ $ptsWord }}
+                    <span class="muted">&nbsp;·&nbsp;</span>
+                    Теория {{ $tqPct }}%
+                    <span class="muted">&nbsp;·&nbsp;</span>
+                    @if ($skipPractice)
+                        Практика —
+                    @else
+                        Практика {{ (int) $prPct }}%
+                    @endif
+                    <span class="muted">&nbsp;·&nbsp;</span>
+                    Экзамен {{ $exPct }}%
+                </p>
+                <p class="ap-report-mod-time-sum">
+                    Σ {{ DurationFormat::fromSeconds($secMod) }}
+                    <span class="muted"> (теория {{ DurationFormat::fromSeconds($secTheory) }} · тест {{ DurationFormat::fromSeconds($secTq) }} · практика {{ DurationFormat::fromSeconds($secPr) }} · экзамен {{ DurationFormat::fromSeconds($secEx) }})</span>
+                </p>
             @endif
+        </header>
+
+        <nav class="quick-nav" id="tlm-jump" aria-label="Быстрый переход по разделам">
+            <span class="quick-nav-label">К разделу</span>
+            <a class="quick-nav-btn" href="#theory">Теория</a>
+            <a class="quick-nav-btn" href="#test">Тест по теории</a>
+            @if (! $skipPractice)
+                <a class="quick-nav-btn" href="#practice">Практика</a>
+            @endif
+            <a class="quick-nav-btn" href="#exam">Экзамен</a>
+            @if ($p && is_array($panel['instructor_resets']) && count($panel['instructor_resets']) > 0)
+                <a class="quick-nav-btn" href="#audit">Журнал сбросов</a>
+            @endif
+        </nav>
+
+        <section class="card ap-report-mod-section section-card" id="theory" data-section="theory" data-type="theory">
+            <div class="section-card-header">
+                <h2 class="section-card-title" id="ta-theory-h">Теория</h2>
+                <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
+                    <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
+                    <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
+                        <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
+                    </div>
+                </div>
+            </div>
+            <p class="section-card-lead">Просмотр материала и учёт времени.</p>
+            <div class="section-card-divider" role="presentation"></div>
+            <div class="section-card-body">
+            @if ($p)
+                <p class="ap-report-sec-meta-line">
+                    Прочитано: {{ $p->theory_read_at ? $p->theory_read_at->timezone(config('app.timezone'))->format('d.m.Y H:i') : '—' }}
+                </p>
+                <p class="ap-report-sec-meta-line" style="margin-bottom:0">
+                    Время: {{ DurationFormat::fromSeconds($secTheory) }}
+                </p>
+            @else
+                <p class="muted" style="margin:0;font-size:14px">Нет записи прогресса.</p>
+            @endif
+            </div>
         </section>
 
-        {{-- Тест по теории --}}
-        <section class="ta-step" id="ta-tq" aria-labelledby="ta-tq-h">
-            <div class="ta-step__head">
-                <h2 id="ta-tq-h">Тест по теории</h2>
-                <a class="ta-quicknav__a" style="padding:0.22rem 0.55rem;font-size:0.78rem" href="#ta-jump">меню</a>
+        <section class="card ap-report-mod-section section-card" id="test" data-section="test" data-type="test">
+            <div class="section-card-header">
+                <h2 class="section-card-title" id="ta-tq-h">Тест по теории</h2>
+                <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
+                    <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
+                    <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
+                        <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
+                    @php
+                        $tqHistMenu = $panel['theory_quiz_history'] ?? [];
+                        $canResetTqMenu =
+                            $p
+                            && ((int) $p->theory_quiz_attempts >= 1
+                                || is_array($p->theory_quiz_last_result)
+                                || (is_array($tqHistMenu) && count($tqHistMenu) > 0));
+                    @endphp
+                    @if ($canResetTqMenu)
+                        <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#ta-reset-tq">Сброс попытки…</a>
+                    @endif
+                    </div>
+                </div>
             </div>
-            <p class="ta-step-meta">Каждая попытка — отдельная карточка; проценты выделены для наглядности.</p>
+            <p class="section-card-lead">Каждая попытка — отдельная карточка.</p>
+            <div class="section-card-divider" role="presentation"></div>
+            <div class="section-card-body">
             @php
                 $thHist = $panel['theory_quiz_history'] ?? [];
                 if ($p && (! is_array($thHist) || count($thHist) === 0) && is_array($p->theory_quiz_last_result) && count($p->theory_quiz_last_result) > 0) {
@@ -200,134 +204,167 @@
                 }
             @endphp
             @if ($p && is_array($thHist) && count($thHist) > 0)
-                <div class="ta-attempt-stack">
-                    @foreach ($thHist as $ti => $tattempt)
-                        <article class="ta-attempt-card">
-                            <div class="ta-attempt-card__top">
-                                <h3>Попытка {{ $tattempt['attempt_no'] ?? ($ti + 1) }}</h3>
-                                <div class="ta-mini-ring" title="Итоговый процент">{{ (int) ($tattempt['final_percent'] ?? 0) }}%<span>итог</span></div>
-                                @if (!empty($tattempt['raw_percent']))
-                                    <div class="ta-mini-ring" style="border-color:#cfd8e6" title="Сырой процент">{{ (int) $tattempt['raw_percent'] }}%<span>сырой</span></div>
-                                @endif
-                                @if (!empty($tattempt['passed']))
-                                    <span class="ta-tag-ok">порог</span>
-                                @endif
-                            </div>
-                            <p class="ta-meta-inline" style="margin:0 0 0.5rem">
-                                @if (!empty($tattempt['recorded_at']))Запись: {{ $tattempt['recorded_at'] }}@endif
-                                @if(!empty($tattempt['penalty_points']))<span> · штраф −{{ $tattempt['penalty_points'] }} п.п.</span>@endif
-                            </p>
-                            @include('partials.teacher-quiz-breakdown-items', [
-                                'items' => $tattempt['items'] ?? [],
-                                'questionBank' => $panel['theory_questions'],
-                            ])
-                        </article>
-                    @endforeach
-                </div>
+                @foreach ($thHist as $ti => $tattempt)
+                    <div class="attempt-card">
+                        <div class="attempt-header">
+                            <span>Попытка {{ $tattempt['attempt_no'] ?? ($ti + 1) }}</span>
+                            @if (! empty($tattempt['passed']))
+                                <span class="badge-threshold badge-threshold--ok">порог{!! $svgThOk !!}</span>
+                            @elseif (isset($tattempt['passed']) && ! $tattempt['passed'])
+                                <span class="badge-threshold badge-threshold--fail">порог{!! $svgThFail !!}</span>
+                            @endif
+                        </div>
+                        <p class="attempt-meta">
+                            Итог: {{ (int) ($tattempt['final_percent'] ?? 0) }}%
+                            @if (! empty($tattempt['raw_percent']))
+                                <span class="muted">&nbsp;·&nbsp;</span>Сырой: {{ (int) $tattempt['raw_percent'] }}%
+                            @endif
+                        </p>
+                        <p class="attempt-meta" style="margin-bottom:0">
+                            @if (! empty($tattempt['recorded_at'])){{ $tattempt['recorded_at'] }}@endif
+                            @if (! empty($tattempt['penalty_points']))<span> · штраф −{{ $tattempt['penalty_points'] }} п.п.</span>@endif
+                        </p>
+                        @include('partials.teacher-quiz-breakdown-items', [
+                            'items' => $tattempt['items'] ?? [],
+                            'questionBank' => $panel['theory_questions'],
+                        ])
+                    </div>
+                @endforeach
             @else
-                <p class="muted">Пока нет завершённых попыток.</p>
+                <p class="muted" style="margin:0;font-size:14px">Пока нет завершённых попыток.</p>
             @endif
+            </div>
             @php
                 $tqHist = $panel['theory_quiz_history'] ?? [];
-                $canResetTq = $p && (
-                    (int) $p->theory_quiz_attempts >= 1
-                    || is_array($p->theory_quiz_last_result)
-                    || (is_array($tqHist) && count($tqHist) > 0)
-                );
+                $canResetTq =
+                    $p
+                    && ((int) $p->theory_quiz_attempts >= 1
+                        || is_array($p->theory_quiz_last_result)
+                        || (is_array($tqHist) && count($tqHist) > 0));
             @endphp
             @if ($canResetTq)
-                <div class="ta-reset">
-                    <form method="post" action="{{ route('teacher.course-report.learner.module.reset', ['learner' => $learner->id, 'module' => $mid]).$keyQ }}" class="js-ta-reset-form">
+                <div class="ap-report-reset-block" id="ta-reset-tq">
+                    <form method="post" action="{{ route('teacher.course-report.learner.module.reset', ['learner' => $learner->id, 'module' => $mid]) }}" class="js-ta-reset-form">
                         @csrf
                         <input type="hidden" name="step" value="theory_quiz">
                         <label><input type="checkbox" name="confirm" value="1" required> Сбросить последнюю «занятую» попытку: у обучающегося счётчик попыток уменьшится на 1, текущие результаты и история на его стороне очистятся; здесь останется запись в журнале сбросов.</label>
                         <input type="text" name="note" maxlength="500" placeholder="Комментарий к сбросу (необязательно)">
-                        <button type="submit" class="btn-danger">Сбросить тест по теории</button>
+                        <button type="submit" class="btn btn-danger btn-sm" style="margin-top:8px">Сбросить тест по теории</button>
                     </form>
                 </div>
             @endif
         </section>
 
-        {{-- Практика --}}
-        <section class="ta-step{{ $skipPractice ? ' ta-step--muted' : '' }}" id="ta-pr" aria-labelledby="ta-pr-h">
-            <div class="ta-step__head">
-                <h2 id="ta-pr-h">Практика</h2>
+        <section class="card ap-report-mod-section section-card @if ($skipPractice) ap-report-section-muted @endif" id="practice" data-section="practice" data-type="practice">
+            <div class="section-card-header">
+                <h2 class="section-card-title" id="ta-pr-h">Практика</h2>
                 @if (! $skipPractice)
-                    <a class="ta-quicknav__a" style="padding:0.22rem 0.55rem;font-size:0.78rem" href="#ta-jump">меню</a>
+                    <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
+                        <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
+                        <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
+                            <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
+                            @php $canResetPrMenu = $p && ($p->practice_done_at || $ps); @endphp
+                            @if ($canResetPrMenu)
+                                <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#ta-reset-pr">Сброс попытки…</a>
+                            @endif
+                        </div>
+                    </div>
                 @endif
             </div>
+            @if (! $skipPractice)
+                <p class="section-card-lead">@if ($mid === 1)Практика: Docker-стенд. @endif Лабораторный стенд и зачёт.</p>
+            @endif
+            <div class="section-card-divider" role="presentation"></div>
+            <div class="section-card-body">
             @if ($skipPractice)
-                <p class="muted" style="margin:0">В учебном плане этого модуля практическое занятие <strong>не предусмотрено</strong>. Итоговый балл за модуль считается только из теста по теории и итогового экзамена (веса пересчитаны).</p>
+                <p class="muted" style="margin:0;font-size:14px">В учебном плане этого модуля практическое занятие <strong>не предусмотрено</strong>. Итоговый балл за модуль считается только из теста по теории и итогового экзамена (веса пересчитаны).</p>
             @else
                 @if ($mid === 1 && $p && \Illuminate\Support\Facades\Schema::hasColumn('module_progress', 'practice_m1_quest') && is_array($p->practice_m1_quest) && count($p->practice_m1_quest) > 0)
-                    <p class="ta-step-meta">Архив старого веб-квеста (JSON в БД, до перехода на Docker).</p>
-                    <pre class="ta-pre" style="max-height:16rem">{{ json_encode($p->practice_m1_quest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                    <p class="ap-report-sec-lead" style="margin-top:0">Архив старого веб-квеста (JSON в БД, до перехода на Docker).</p>
+                    <pre class="ap-report-pre" style="max-height:16rem">{{ json_encode($p->practice_m1_quest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
                 @endif
-                <p class="ta-step-meta">@if ($mid === 1)Практика: Docker-стенд. @endif Лабораторный стенд и зачёт.</p>
-                <div class="ta-stat-row" style="margin-bottom:0.65rem">
-                    <span class="ta-chip ta-chip--sum"><span class="ta-chip__k">Время на практике</span><span class="ta-chip__v">{{ DurationFormat::fromSeconds($secPr) }}</span></span>
-                </div>
+                <p class="ap-report-sec-meta-line">
+                    Время на практике: <strong>{{ DurationFormat::fromSeconds($secPr) }}</strong>
+                </p>
                 @if ($ps)
-                    <div class="ta-attempt-stack">
-                        <article class="ta-attempt-card">
-                            <div class="ta-attempt-card__top">
-                                <h3>Текущая сессия</h3>
-                                <span class="ta-chip"><span class="ta-chip__k">Статус</span><span class="ta-chip__v">{{ $ps->status }}</span></span>
+                    <div class="attempt-card">
+                        <div class="attempt-header">
+                            <span>Текущая сессия</span>
+                            <span class="muted" style="font-weight:600">{{ $ps->status }}</span>
+                        </div>
+                        <div class="ap-report-pr-grid">
+                            <div class="ap-report-pr-cell">
+                                <span class="ap-report-pr-cell__k">Баллы проверки</span>
+                                <span class="ap-report-pr-cell__v">{{ $ps->last_check_score ?? '—' }} / {{ $ps->last_check_max_score ?? '—' }}</span>
                             </div>
-                            <div class="ta-pr-metrics">
-                                <div class="ta-pr-metric">
-                                    <span class="ta-pr-metric__k">Баллы проверки</span>
-                                    <span class="ta-pr-metric__v">{{ $ps->last_check_score ?? '—' }} / {{ $ps->last_check_max_score ?? '—' }}</span>
-                                </div>
-                                <div class="ta-pr-metric">
-                                    <span class="ta-pr-metric__k">Проверка</span>
-                                    <span class="ta-pr-metric__v">{{ $ps->last_check_at ? $ps->last_check_at->timezone(config('app.timezone'))->format('d.m.Y H:i') : '—' }}</span>
-                                </div>
-                                <div class="ta-pr-metric">
-                                    <span class="ta-pr-metric__k">Принято</span>
-                                    <span class="ta-pr-metric__v">{{ $ps->accepted_at ? $ps->accepted_at->timezone(config('app.timezone'))->format('d.m.Y H:i') : '—' }}</span>
-                                </div>
-                                <div class="ta-pr-metric">
-                                    <span class="ta-pr-metric__k">Зачёт проверки</span>
-                                    <span class="ta-pr-metric__v">{{ $ps->last_check_passed ? 'да' : 'нет' }}</span>
-                                </div>
+                            <div class="ap-report-pr-cell">
+                                <span class="ap-report-pr-cell__k">Проверка</span>
+                                <span class="ap-report-pr-cell__v">{{ $ps->last_check_at ? $ps->last_check_at->timezone(config('app.timezone'))->format('d.m.Y H:i') : '—' }}</span>
                             </div>
-                            @if ($ps->last_check_log)
-                                <p class="muted small" style="margin:0.5rem 0 0.15rem">Журнал проверки:</p>
-                                <pre class="ta-pre">{{ \Illuminate\Support\Str::limit((string) $ps->last_check_log, 6000) }}</pre>
-                            @endif
-                        </article>
+                            <div class="ap-report-pr-cell">
+                                <span class="ap-report-pr-cell__k">Принято</span>
+                                <span class="ap-report-pr-cell__v">{{ $ps->accepted_at ? $ps->accepted_at->timezone(config('app.timezone'))->format('d.m.Y H:i') : '—' }}</span>
+                            </div>
+                            <div class="ap-report-pr-cell">
+                                <span class="ap-report-pr-cell__k">Зачёт проверки</span>
+                                <span class="ap-report-pr-cell__v">{{ $ps->last_check_passed ? 'да' : 'нет' }}</span>
+                            </div>
+                        </div>
+                        @if ($ps->last_check_log)
+                            <p class="muted" style="font-size:12px;margin:8px 0 4px">Журнал проверки:</p>
+                            <pre class="ap-report-pre">{{ \Illuminate\Support\Str::limit((string) $ps->last_check_log, 6000) }}</pre>
+                        @endif
                     </div>
                 @else
-                    <p class="muted">Сессии практики нет.</p>
+                    <p class="muted" style="margin:0;font-size:14px">Сессии практики нет.</p>
                 @endif
+            @endif
+            </div>
+            @if (! $skipPractice)
                 @php
                     $canResetPr = $p && ($p->practice_done_at || $ps);
                 @endphp
                 @if ($canResetPr)
-                    <div class="ta-reset">
-                        <form method="post" action="{{ route('teacher.course-report.learner.module.reset', ['learner' => $learner->id, 'module' => $mid]).$keyQ }}" class="js-ta-reset-form">
+                    <div class="ap-report-reset-block" id="ta-reset-pr">
+                        <form method="post" action="{{ route('teacher.course-report.learner.module.reset', ['learner' => $learner->id, 'module' => $mid]) }}" class="js-ta-reset-form">
                             @csrf
                             <input type="hidden" name="step" value="practice">
                             <label><input type="checkbox" name="confirm" value="1" required> Сбросить практику: снимок сессии уйдёт в журнал, отметка «сдано» и проценты у обучающегося сбросятся; контейнер нужно будет запустить заново.</label>
                             <input type="text" name="note" maxlength="500" placeholder="Комментарий к сбросу (необязательно)">
-                            <button type="submit" class="btn-danger">Сбросить практику</button>
+                            <button type="submit" class="btn btn-danger btn-sm" style="margin-top:8px">Сбросить практику</button>
                         </form>
                     </div>
                 @endif
             @endif
         </section>
 
-        {{-- Экзамен --}}
-        <section class="ta-step" id="ta-ex" aria-labelledby="ta-ex-h">
-            <div class="ta-step__head">
-                <h2 id="ta-ex-h">Итоговый тест модуля</h2>
-                <a class="ta-quicknav__a" style="padding:0.22rem 0.55rem;font-size:0.78rem" href="#ta-jump">меню</a>
+        <section class="card ap-report-mod-section section-card" id="exam" data-section="exam" data-type="exam">
+            <div class="section-card-header">
+                <h2 class="section-card-title" id="ta-ex-h">Экзамен</h2>
+                <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
+                    <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
+                    <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
+                        <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
+                        @php
+                            $exHistMenu = $panel['module_exam_history'] ?? [];
+                            $canResetExMenu =
+                                $p
+                                && ((int) $p->module_exam_attempts >= 1
+                                    || is_array($p->module_exam_last_result)
+                                    || (is_array($exHistMenu) && count($exHistMenu) > 0));
+                        @endphp
+                        @if ($canResetExMenu)
+                            <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#ta-reset-ex">Сброс попытки…</a>
+                        @endif
+                    </div>
+                </div>
             </div>
-            <p class="ta-step-meta">Все зафиксированные попытки — списком сверху вниз.</p>
-            <div class="ta-stat-row" style="margin-bottom:0.65rem">
-                <span class="ta-chip ta-chip--sum"><span class="ta-chip__k">Время на экзамене</span><span class="ta-chip__v">{{ DurationFormat::fromSeconds($secEx) }}</span></span>
-            </div>
+            <p class="section-card-lead">Все зафиксированные попытки — списком сверху вниз.</p>
+            <div class="section-card-divider" role="presentation"></div>
+            <div class="section-card-body">
+            <p class="ap-report-sec-meta-line" style="margin-top:0">
+                Время на экзамене: <strong>{{ DurationFormat::fromSeconds($secEx) }}</strong>
+            </p>
             @php
                 $exHist = $panel['module_exam_history'] ?? [];
                 if ($p && (! is_array($exHist) || count($exHist) === 0) && is_array($p->module_exam_last_result) && count($p->module_exam_last_result) > 0) {
@@ -335,84 +372,194 @@
                 }
             @endphp
             @if ($p && is_array($exHist) && count($exHist) > 0)
-                <div class="ta-attempt-stack">
-                    @foreach ($exHist as $ei => $eattempt)
-                        <article class="ta-attempt-card">
-                            <div class="ta-attempt-card__top">
-                                <h3>Попытка {{ $eattempt['attempt'] ?? ($ei + 1) }}</h3>
-                                <div class="ta-mini-ring" title="Итог">{{ (int) ($eattempt['final_percent'] ?? 0) }}%<span>итог</span></div>
-                                @if (isset($eattempt['raw_percent']))
-                                    <div class="ta-mini-ring" style="border-color:#cfd8e6" title="Сырой">{{ (int) $eattempt['raw_percent'] }}%<span>сырой</span></div>
-                                @endif
-                                @if (!empty($eattempt['passed_this_attempt']))
-                                    <span class="ta-tag-ok">порог</span>
-                                @endif
-                            </div>
-                            <p class="ta-meta-inline" style="margin:0 0 0.5rem">
-                                @if (!empty($eattempt['recorded_at']))Запись: {{ $eattempt['recorded_at'] }}@endif
-                                @if(!empty($eattempt['penalty_applied']))<span> · штраф −{{ $eattempt['penalty_points'] ?? 10 }} п.п.</span>@endif
-                            </p>
-                            @include('partials.teacher-quiz-breakdown-items', [
-                                'items' => $eattempt['items'] ?? [],
-                                'questionBank' => $panel['exam_questions'],
-                            ])
-                        </article>
-                    @endforeach
-                </div>
+                @foreach ($exHist as $ei => $eattempt)
+                    <div class="attempt-card">
+                        <div class="attempt-header">
+                            <span>Попытка {{ $eattempt['attempt'] ?? ($ei + 1) }}</span>
+                            @if (! empty($eattempt['passed_this_attempt']))
+                                <span class="badge-threshold badge-threshold--ok">порог{!! $svgThOk !!}</span>
+                            @elseif (isset($eattempt['passed_this_attempt']) && ! $eattempt['passed_this_attempt'])
+                                <span class="badge-threshold badge-threshold--fail">порог{!! $svgThFail !!}</span>
+                            @endif
+                        </div>
+                        <p class="attempt-meta">
+                            Итог: {{ (int) ($eattempt['final_percent'] ?? 0) }}%
+                            @if (isset($eattempt['raw_percent']))
+                                <span class="muted">&nbsp;·&nbsp;</span>Сырой: {{ (int) $eattempt['raw_percent'] }}%
+                            @endif
+                        </p>
+                        <p class="attempt-meta" style="margin-bottom:0">
+                            @if (! empty($eattempt['recorded_at'])){{ $eattempt['recorded_at'] }}@endif
+                            @if (! empty($eattempt['penalty_applied']))<span> · штраф −{{ $eattempt['penalty_points'] ?? 10 }} п.п.</span>@endif
+                        </p>
+                        @include('partials.teacher-quiz-breakdown-items', [
+                            'items' => $eattempt['items'] ?? [],
+                            'questionBank' => $panel['exam_questions'],
+                        ])
+                    </div>
+                @endforeach
             @else
-                <p class="muted">Пока нет завершённых попыток.</p>
+                <p class="muted" style="margin:0;font-size:14px">Пока нет завершённых попыток.</p>
             @endif
+            </div>
             @php
                 $exHistR = $panel['module_exam_history'] ?? [];
-                $canResetEx = $p && (
-                    (int) $p->module_exam_attempts >= 1
-                    || is_array($p->module_exam_last_result)
-                    || (is_array($exHistR) && count($exHistR) > 0)
-                );
+                $canResetEx =
+                    $p
+                    && ((int) $p->module_exam_attempts >= 1
+                        || is_array($p->module_exam_last_result)
+                        || (is_array($exHistR) && count($exHistR) > 0));
             @endphp
             @if ($canResetEx)
-                <div class="ta-reset">
-                    <form method="post" action="{{ route('teacher.course-report.learner.module.reset', ['learner' => $learner->id, 'module' => $mid]).$keyQ }}" class="js-ta-reset-form">
+                <div class="ap-report-reset-block" id="ta-reset-ex">
+                    <form method="post" action="{{ route('teacher.course-report.learner.module.reset', ['learner' => $learner->id, 'module' => $mid]) }}" class="js-ta-reset-form">
                         @csrf
                         <input type="hidden" name="step" value="module_exam">
                         <label><input type="checkbox" name="confirm" value="1" required> Сбросить последнюю попытку экзамена: счётчик попыток −1, видимые результаты очищаются, снимок — в журнале.</label>
                         <input type="text" name="note" maxlength="500" placeholder="Комментарий к сбросу (необязательно)">
-                        <button type="submit" class="btn-danger">Сбросить экзамен</button>
+                        <button type="submit" class="btn btn-danger btn-sm" style="margin-top:8px">Сбросить экзамен</button>
                     </form>
                 </div>
             @endif
         </section>
 
         @if ($p && is_array($panel['instructor_resets']) && count($panel['instructor_resets']) > 0)
-            <section class="ta-step ta-archives" id="ta-audit" aria-labelledby="ta-audit-h">
-                <div class="ta-step__head">
-                    <h2 id="ta-audit-h">Журнал сбросов (аудит)</h2>
-                    <a class="ta-quicknav__a ta-quicknav__a--muted" style="padding:0.22rem 0.55rem;font-size:0.78rem" href="#ta-jump">меню</a>
+            <section class="card ap-report-mod-section section-card" id="audit" data-section="audit" data-type="audit">
+                <div class="section-card-header">
+                    <h2 class="section-card-title" id="ta-audit-h">Журнал сбросов (аудит)</h2>
+                    <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
+                        <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
+                        <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
+                            <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
+                        </div>
+                    </div>
                 </div>
-                <p class="ta-step-meta" style="margin-top:0">Каждая запись — состояние <strong>до</strong> сброса. Данные не удаляются при последующих действиях обучающегося.</p>
+                <p class="section-card-lead" style="margin-top:8px">Каждая запись — состояние <strong>до</strong> сброса. Данные не удаляются при последующих действиях обучающегося.</p>
+                <div class="section-card-divider" role="presentation"></div>
+                <div class="section-card-body">
                 @foreach (array_reverse($panel['instructor_resets'], true) as $idx => $r)
-                    <details class="ta-arch">
+                    <details class="ap-report-audit-item">
                         <summary>
                             {{ $r['at'] ?? '—' }}
                             · <strong>{{ $r['step'] ?? '?' }}</strong>
-                            @if (!empty($r['note']))<span class="muted"> — {{ $r['note'] }}</span>@endif
+                            @if (! empty($r['note']))<span class="muted"> — {{ $r['note'] }}</span>@endif
                         </summary>
-                        <pre class="ta-pre">{{ json_encode($r['snapshot'] ?? $r, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                        <pre class="ap-report-pre">{{ json_encode($r['snapshot'] ?? $r, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
                     </details>
                 @endforeach
+                </div>
             </section>
         @endif
+
+        <p class="muted" style="margin-top:4px;font-size:14px">
+            <a href="{{ $learnerCardUrl }}">← Ко всем модулям обучающегося</a>
+        </p>
+    </div>
     </div>
 
-    <p class="muted" style="margin-top:1.25rem">
-        <a href="{{ route('teacher.course-report.learner', $learner->id).$keyQ }}">← Ко всем модулям обучающегося</a>
-    </p>
-
+    <button type="button" class="scroll-to-top" aria-label="Наверх">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 19V5M5 12l7-7 7 7"/>
+        </svg>
+    </button>
     <script>
+        (function () {
+            document.querySelectorAll('.js-ap-dropdown').forEach(function (root) {
+                var btn = root.querySelector('.js-ap-dropdown-btn');
+                var panel = root.querySelector('.js-ap-dropdown-panel');
+                if (!btn || !panel) {
+                    return;
+                }
+                btn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    var wasHidden = panel.hasAttribute('hidden');
+                    document.querySelectorAll('.js-ap-dropdown').forEach(function (r) {
+                        var p = r.querySelector('.js-ap-dropdown-panel');
+                        var b = r.querySelector('.js-ap-dropdown-btn');
+                        if (p) {
+                            p.setAttribute('hidden', '');
+                        }
+                        if (b) {
+                            b.setAttribute('aria-expanded', 'false');
+                        }
+                    });
+                    if (wasHidden) {
+                        panel.removeAttribute('hidden');
+                        btn.setAttribute('aria-expanded', 'true');
+                    }
+                });
+            });
+            document.addEventListener('click', function () {
+                document.querySelectorAll('.js-ap-dropdown-panel').forEach(function (p) {
+                    p.setAttribute('hidden', '');
+                });
+                document.querySelectorAll('.js-ap-dropdown-btn').forEach(function (b) {
+                    b.setAttribute('aria-expanded', 'false');
+                });
+            });
+            document.querySelectorAll('.js-ap-dropdown-panel').forEach(function (panel) {
+                panel.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                });
+            });
+        })();
         document.querySelectorAll('.js-ta-reset-form').forEach(function (f) {
             f.addEventListener('submit', function (e) {
-                if (!confirm('Выполнить сброс для этого шага?')) e.preventDefault();
+                if (!confirm('Выполнить сброс для этого шага?')) {
+                    e.preventDefault();
+                }
             });
         });
+        (function () {
+            var scrollRoot = document.querySelector('.admin-content');
+            var sections = document.querySelectorAll('[data-section]');
+            var navBtns = document.querySelectorAll('.quick-nav-btn');
+            if (sections.length && navBtns.length) {
+                var observer = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (entry) {
+                        if (!entry.isIntersecting) {
+                            return;
+                        }
+                        var active = document.querySelector(
+                            '.quick-nav-btn[href="#' + entry.target.dataset.section + '"]'
+                        );
+                        if (!active) {
+                            return;
+                        }
+                        navBtns.forEach(function (btn) {
+                            btn.classList.remove('active');
+                        });
+                        active.classList.add('active');
+                    });
+                }, {
+                    threshold: 0.3,
+                    rootMargin: '-60px 0px 0px 0px',
+                    root: scrollRoot || null,
+                });
+                sections.forEach(function (s) {
+                    observer.observe(s);
+                });
+            }
+            var scrollBtn = document.querySelector('.scroll-to-top');
+            if (scrollBtn) {
+                var onScroll = function () {
+                    var y = scrollRoot ? scrollRoot.scrollTop : window.scrollY;
+                    if (y > 400) {
+                        scrollBtn.classList.add('visible');
+                    } else {
+                        scrollBtn.classList.remove('visible');
+                    }
+                };
+                (scrollRoot || window).addEventListener('scroll', onScroll, { passive: true });
+                onScroll();
+                scrollBtn.addEventListener('click', function () {
+                    if (scrollRoot) {
+                        scrollRoot.scrollTo({ top: 0, behavior: 'smooth' });
+                    } else {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                });
+            }
+        })();
     </script>
 @endsection

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Course;
 use App\Models\FinalLabResult;
 use App\Models\Learner;
 use App\Models\PracticeSession;
@@ -44,19 +45,28 @@ class FinalLabController extends Controller
         $lab = PracticeLabService::make();
         $result = $this->resultModel($learner);
         $courseId = (int) session('course_id', 0);
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        $finalLabEnabled = $this->finalLabEnabledForCourse($course);
         $practiceSession = PracticeSession::query()
             ->where('learner_id', $learner->id)
             ->where('course_id', $courseId)
             ->where('module_id', self::FINAL_LAB_SESSION_MODULE_ID)
             ->first();
 
+        $labImage = $course instanceof Course
+            ? $lab->imageForFinalLab($course)
+            : $lab->imageForModule(self::FINAL_LAB_DAEMON_MODULE_KEY);
+
+        $finalLabOffForCourse = ! $finalLabEnabled && $course instanceof Course;
+
         return view('final-lab', [
             'result' => $result,
             'practiceSession' => $practiceSession,
             'attemptsLeft' => max(0, 2 - (int) $result->attempts),
             'labConfigured' => $lab->isConfigured(),
-            'labImage' => $lab->imageForModule(self::FINAL_LAB_DAEMON_MODULE_KEY),
-            'labEnabled' => (bool) config('practice_lab.enabled'),
+            'labImage' => $labImage,
+            'labEnabled' => $finalLabEnabled && (bool) config('practice_lab.enabled'),
+            'finalLabOffForCourse' => $finalLabOffForCourse,
             'warningOnly' => false,
         ]);
     }
@@ -74,7 +84,14 @@ class FinalLabController extends Controller
         $lab = PracticeLabService::make();
         try {
             $courseId = (int) session('course_id', 0);
-            $out = $lab->startLab($learner, $courseId, self::FINAL_LAB_SESSION_MODULE_ID, self::FINAL_LAB_DAEMON_MODULE_KEY);
+            $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+            if (! $this->finalLabEnabledForCourse($course)) {
+                return redirect()->route('final-lab')->with('err', 'Финальная лабораторная отключена для этого курса.');
+            }
+            $image = $course instanceof Course
+                ? $lab->imageForFinalLab($course)
+                : $lab->imageForModule(self::FINAL_LAB_DAEMON_MODULE_KEY);
+            $out = $lab->startLab($learner, $courseId, self::FINAL_LAB_SESSION_MODULE_ID, self::FINAL_LAB_DAEMON_MODULE_KEY, $image);
         } catch (Throwable $e) {
             return redirect()->route('final-lab')->with('err', $e->getMessage());
         }
@@ -175,7 +192,24 @@ class FinalLabController extends Controller
         if (! Schema::hasTable('practice_sessions')) {
             return redirect()->route('final-lab')->with('err', 'Не выполнены миграции practice_sessions. Запустите php artisan migrate.');
         }
+        $courseId = (int) session('course_id', 0);
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        if (! $this->finalLabEnabledForCourse($course)) {
+            return redirect()->route('final-lab')->with('err', 'Финальная лабораторная отключена для этого курса.');
+        }
 
         return null;
+    }
+
+    private function finalLabEnabledForCourse(?Course $course): bool
+    {
+        if (! $course instanceof Course) {
+            return true;
+        }
+        if (! Schema::hasColumn('courses', 'final_lab_enabled')) {
+            return true;
+        }
+
+        return (bool) $course->final_lab_enabled;
     }
 }

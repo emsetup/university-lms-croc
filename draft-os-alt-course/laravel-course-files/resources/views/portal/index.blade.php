@@ -3,11 +3,153 @@
 @section('title', 'Образовательный портал')
 
 @section('content')
+    @php
+        $courseCount = count($courses);
+        $catalogBadgeLabel = $courseCount === 1 ? '1 курс' : (
+            (($courseCount % 100) > 10 && ($courseCount % 100) < 15)
+                ? $courseCount.' курсов'
+                : (($courseCount % 10) === 1 ? $courseCount.' курс' : (
+                    ($courseCount % 10) >= 2 && ($courseCount % 10) <= 4 ? $courseCount.' курса' : $courseCount.' курсов'
+                ))
+        );
+        $greetName = $portalWelcomeName;
+        if ($greetName === null && ! empty($learnerEmail)) {
+            $local = (string) (explode('@', (string) $learnerEmail, 2)[0] ?? '');
+            $greetName = \Illuminate\Support\Str::title(str_replace(['.', '_', '-'], ' ', $local));
+            if (trim((string) $greetName) === '') {
+                $greetName = 'участник';
+            }
+        }
+        $portalPlaceholderSlots = [
+            ['l1' => 'Скоро здесь появится', 'l2' => 'новый курс', 'v' => 0],
+            ['l1' => 'В разработке', 'l2' => 'следите за обновлениями', 'v' => 1],
+            ['l1' => 'Новый трек знаний', 'l2' => 'на подходе', 'v' => 2],
+            ['l1' => 'Материалы курса', 'l2' => 'готовятся для вас', 'v' => 3],
+            ['l1' => 'Расширяем каталог', 'l2' => 'курсы в работе', 'v' => 4],
+            ['l1' => 'Совсем скоро', 'l2' => 'откроем доступ', 'v' => 5],
+            ['l1' => 'Готовим занятия', 'l2' => 'загляните позже', 'v' => 6],
+            ['l1' => 'Ещё один курс', 'l2' => 'будет здесь', 'v' => 7],
+        ];
+    @endphp
     <style>
+        .page-section + .page-section { margin-top: 24px; }
+        .welcome-block { padding: 28px 32px; }
+        @media (max-width: 560px) {
+            .welcome-block { padding: 1.1rem 1rem; }
+        }
+
+        .portal-welcome-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .portal-welcome-main {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            min-width: 0;
+        }
+        .portal-welcome-avatar {
+            flex: 0 0 auto;
+            width: 3.25rem;
+            height: 3.25rem;
+            border-radius: 50%;
+            background: #00b956;
+            color: #fff;
+            font-weight: 800;
+            font-size: 1.05rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            letter-spacing: 0.02em;
+        }
+        .portal-welcome-greet {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.3;
+        }
+        .portal-welcome-email {
+            font-size: 0.92rem;
+            margin-top: 0.2rem;
+        }
+        .portal-welcome-hint {
+            margin: 1rem 0 0;
+            line-height: 1.5;
+        }
+
+        .portal-courses-heading {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem 0.75rem;
+            margin: 0 0 0;
+        }
+        .portal-courses-heading__title {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+        .portal-courses-badge {
+            display: inline-block;
+            background: #e8f9f0;
+            color: #00b956;
+            border-radius: 20px;
+            padding: 2px 10px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
         .portal-course-card {
             cursor: pointer;
             display: flex;
             flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            min-height: 220px;
+            padding-top: 2.35rem;
+            transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+        }
+        .portal-course-card.course-card-active {
+            border: 2px solid #00b956 !important;
+            box-shadow: 0 4px 16px rgba(0, 185, 86, 0.12);
+            background: #ffffff !important;
+        }
+        .portal-course-card-status {
+            position: absolute;
+            top: 0.65rem;
+            right: 0.65rem;
+            left: auto;
+            z-index: 2;
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 0.2rem 0.45rem;
+            border-radius: 999px;
+            line-height: 1.2;
+        }
+        .portal-course-card-status--neutral {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+        }
+        .portal-course-card-status--progress {
+            background: #ecfdf5;
+            color: #059669;
+            border: 1px solid rgba(0, 185, 86, 0.35);
+        }
+        .portal-course-card-status--done {
+            background: #00b956;
+            color: #fff;
+        }
+        .portal-course-card .tag {
+            margin-top: 0;
+        }
+        .portal-course-card-status + .portal-course-title {
+            margin-top: 0;
         }
         .portal-course-title { min-height: 2.7rem; }
         .portal-course-grow { flex: 1; min-height: 0; }
@@ -20,18 +162,37 @@
             justify-content: center;
             width: 100%;
         }
+        .portal-course-actions .btn-primary {
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+        .portal-course-actions .btn-primary:hover {
+            transform: scale(1.02);
+            box-shadow: 0 6px 18px rgba(0, 185, 86, 0.28);
+        }
         .portal-course-audience-row {
             margin-top: 0.65rem;
             display: flex;
             justify-content: center;
             width: 100%;
         }
+        .portal-course-progress-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin: 0 0 0.35rem;
+        }
+        .portal-course-progress-bar.learner-track-summary__bar {
+            height: 6px;
+            border-radius: 999px;
+        }
 
-        /* Каталог курсов: единая сетка (реальные карточки + заглушки + контакт) */
         .portal-catalog-grid.module-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.85rem 1rem;
+            gap: 16px;
+            margin-top: 20px;
         }
         @media (max-width: 820px) {
             .portal-catalog-grid.module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -40,18 +201,21 @@
             .portal-catalog-grid.module-grid { grid-template-columns: minmax(0, 1fr); }
         }
 
-        .portal-slot-card {
+        .portal-slot-card.placeholder-card {
             position: relative;
             overflow: hidden;
             height: 100%;
-            min-height: 17.5rem;
+            min-height: 220px;
+            align-self: stretch;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: default;
             background: #f5f5f5 !important;
-            border: 1px solid #e0e0e0 !important;
+            border: 1.5px dashed #d1d5db !important;
             box-shadow: none !important;
+            border-radius: 12px;
+            transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
         }
         .portal-slot-card::before {
             content: "";
@@ -60,30 +224,89 @@
             border-radius: inherit;
             background-image: radial-gradient(circle at 1px 1px, #dcdcdc 0.65px, transparent 0.7px);
             background-size: 14px 14px;
-            opacity: 0.45;
+            opacity: 0.35;
             pointer-events: none;
+            z-index: 0;
+        }
+        .portal-slot-card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(255, 255, 255, 0.55) 50%,
+                transparent 100%
+            );
+            background-size: 400px 100%;
+            background-repeat: no-repeat;
+            animation: portal-shimmer 3.5s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+        @keyframes portal-shimmer {
+            0% { background-position: -400px 0; }
+            100% { background-position: 400px 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .portal-slot-card::after { animation: none; opacity: 0; }
+            .portal-slot-card:hover .portal-slot-card__icon { transform: none; }
         }
         .portal-slot-card__hover-msg {
             position: relative;
             z-index: 1;
-            text-align: center;
-            font-size: 0.9rem;
-            line-height: 1.5;
-            color: #737373;
-            max-width: 12rem;
+            width: 100%;
+            max-width: 100%;
+            padding: 0 0.5rem;
+            box-sizing: border-box;
             opacity: 0;
             transform: translateY(4px);
             transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .portal-slot-card__hover-inner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 5.75rem;
+            text-align: center;
+        }
+        .portal-slot-card__icon {
+            color: #00b956;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 0.5rem;
+            transition: transform 0.18s ease;
+        }
+        .portal-slot-card__icon svg {
+            width: 1.65rem;
+            height: 1.65rem;
+            display: block;
+        }
+        .portal-slot-card__lines {
+            font-size: 0.88rem;
+            line-height: 1.45;
+            color: #5c6570;
+            font-weight: 500;
+        }
+        .portal-slot-card:hover {
+            border: 1.5px solid #00b956 !important;
+            background: #f0fdf4 !important;
         }
         .portal-slot-card:hover .portal-slot-card__hover-msg {
             opacity: 1;
             transform: translateY(0);
         }
+        .portal-slot-card:hover .portal-slot-card__icon {
+            transform: scale(1.08);
+        }
 
         .portal-contact-card {
             position: relative;
             height: 100%;
-            min-height: 17.5rem;
+            min-height: 220px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -93,7 +316,8 @@
             background: #f5f5f5 !important;
             border: 1px solid #e0e0e0 !important;
             box-shadow: none !important;
-            transition: background-color 0.2s ease, box-shadow 0.2s ease;
+            border-radius: 12px;
+            transition: background-color 0.18s ease, box-shadow 0.18s ease;
         }
         .portal-contact-card:hover {
             background: #ececec !important;
@@ -110,11 +334,12 @@
             font-weight: 500;
             text-decoration: none;
             border-bottom: 1px solid transparent;
-            transition: color 0.15s ease, border-color 0.15s ease;
+            transition: color 0.18s ease, border-color 0.18s ease, text-decoration 0.18s ease;
         }
         .portal-contact-card__text a:hover {
-            color: #374151;
-            border-bottom-color: #9ca3af;
+            color: #1f2937;
+            text-decoration: underline;
+            border-bottom-color: transparent;
         }
 
         .portal-catalog-empty {
@@ -146,7 +371,7 @@
             border: 1px solid #d5e3da;
             background: linear-gradient(180deg, #fbfffc 0%, #f4faf6 100%);
             box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-            transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
         }
         .portal-course-search-row:focus-within {
             border-color: #00b956;
@@ -177,8 +402,39 @@
         .portal-course-search-status {
             margin: 0.45rem 0 0;
             font-size: 0.82rem;
-            min-height: 1.25em;
+            min-height: 0;
         }
+        .portal-tag-filters-wrap {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 0.45rem;
+            margin-top: 0.65rem;
+            overflow-x: auto;
+            padding-bottom: 0.15rem;
+            -webkit-overflow-scrolling: touch;
+        }
+        .portal-tag-filter {
+            flex: 0 0 auto;
+            border: 1px solid #cbd5e1;
+            color: #64748b;
+            background: #fff;
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 0.35rem 0.75rem;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+        }
+        .portal-tag-filter:hover {
+            border-color: #00b956;
+            color: #0f172a;
+        }
+        .portal-tag-filter.is-active {
+            background: #00b956;
+            color: #fff;
+            border-color: #00b956;
+        }
+
         .portal-catalog-card--hidden {
             display: none !important;
         }
@@ -247,56 +503,92 @@
         .course-info-modal__summary { line-height: 1.6; color: #334155; white-space: pre-wrap; }
     </style>
 
-    <div class="card" style="max-width:1100px;margin:0 auto 1rem">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
-            <div>
-                <h1 style="margin:0 0 0.35rem">Образовательный портал</h1>
-                @if (! empty($portalWelcomeName))
-                    <p class="muted" style="margin:0 0 0.5rem;max-width:60rem;line-height:1.5">
-                        Добро пожаловать, <strong>{{ $portalWelcomeName }}</strong>!
-                    </p>
-                @elseif (! empty($learnerEmail))
-                    <p class="muted" style="margin:0 0 0.5rem;max-width:60rem;line-height:1.5">
-                        Добро пожаловать! Вы вошли как <strong>{{ $learnerEmail }}</strong>.
-                    </p>
+    @if (session('learner_id') && ! empty($learnerEmail))
+        <div class="card page-section welcome-block" style="max-width:1100px;margin:0 auto">
+            <div class="portal-welcome-head">
+                <div class="portal-welcome-main">
+                    <div class="portal-welcome-avatar" aria-hidden="true">{{ $portalWelcomeInitials }}</div>
+                    <div>
+                        <div class="portal-welcome-greet">Добро пожаловать, {{ $greetName }}!</div>
+                        <div class="portal-welcome-email muted">{{ $learnerEmail }}</div>
+                    </div>
+                </div>
+                @if (! empty($portalStaffAccess) && $portalStaffAccess->isPortalAdmin())
+                    <a class="btn btn-ghost" href="{{ route('admin.panel') }}">Управление ↗</a>
                 @endif
-                <p class="muted" style="margin:0;max-width:60rem;line-height:1.5">
-                    Выберите курс и начните обучение. Прогресс и попытки привязаны к вашей корпоративной почте.
-                </p>
             </div>
-            @if (! session('learner_id'))
+            <p class="muted portal-welcome-hint">
+                Выберите курс и начните обучение. Прогресс и попытки привязаны к вашей корпоративной почте.
+            </p>
+            <div class="portal-course-search-wrap" role="search" aria-label="Поиск по каталогу курсов">
+                <label class="portal-course-search-label" for="portal-course-search">Поиск курса</label>
+                <div class="portal-course-search-row">
+                    <svg class="portal-course-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7"/>
+                        <path d="M20 20l-3.5-3.5"/>
+                    </svg>
+                    <input type="search"
+                           id="portal-course-search"
+                           class="portal-course-search-input"
+                           placeholder="Название, описание или идентификатор курса…"
+                           autocomplete="off"
+                           spellcheck="false"
+                           enterkeyhint="search">
+                </div>
+                @if ($catalogFilterTags->isNotEmpty())
+                    <div class="portal-tag-filters-wrap" id="portal-tag-filters" role="group" aria-label="Фильтр по темам">
+                        <button type="button" class="portal-tag-filter is-active" data-tag="">Все</button>
+                        @foreach ($catalogFilterTags as $tag)
+                            <button type="button" class="portal-tag-filter" data-tag="{{ e($tag) }}">{{ $tag }}</button>
+                        @endforeach
+                    </div>
+                @endif
+                <p class="portal-course-search-status muted" id="portal-course-search-status" aria-live="polite"></p>
+            </div>
+        </div>
+    @else
+        <div class="card page-section welcome-block" style="max-width:1100px;margin:0 auto">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+                <div>
+                    <h1 style="margin:0 0 0.35rem">Образовательный портал</h1>
+                    <p class="muted" style="margin:0;max-width:60rem;line-height:1.5">
+                        Выберите курс и начните обучение. Прогресс и попытки привязаны к вашей корпоративной почте.
+                    </p>
+                </div>
                 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
                     <button type="button" class="btn btn-primary" id="portal-login-open">Войти</button>
                 </div>
-            @else
-                @if (! empty($portalStaffAccess))
-                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
-                        <a class="btn btn-ghost" href="{{ route('admin.panel') }}">Управление</a>
+            </div>
+            <div class="portal-course-search-wrap" role="search" aria-label="Поиск по каталогу курсов">
+                <label class="portal-course-search-label" for="portal-course-search">Поиск курса</label>
+                <div class="portal-course-search-row">
+                    <svg class="portal-course-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7"/>
+                        <path d="M20 20l-3.5-3.5"/>
+                    </svg>
+                    <input type="search"
+                           id="portal-course-search"
+                           class="portal-course-search-input"
+                           placeholder="Название, описание или идентификатор курса…"
+                           autocomplete="off"
+                           spellcheck="false"
+                           enterkeyhint="search">
+                </div>
+                @if ($catalogFilterTags->isNotEmpty())
+                    <div class="portal-tag-filters-wrap" id="portal-tag-filters" role="group" aria-label="Фильтр по темам">
+                        <button type="button" class="portal-tag-filter is-active" data-tag="">Все</button>
+                        @foreach ($catalogFilterTags as $tag)
+                            <button type="button" class="portal-tag-filter" data-tag="{{ e($tag) }}">{{ $tag }}</button>
+                        @endforeach
                     </div>
                 @endif
-            @endif
-        </div>
-        <div class="portal-course-search-wrap" role="search" aria-label="Поиск по каталогу курсов">
-            <label class="portal-course-search-label" for="portal-course-search">Поиск курса</label>
-            <div class="portal-course-search-row">
-                <svg class="portal-course-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-                    <circle cx="11" cy="11" r="7"/>
-                    <path d="M20 20l-3.5-3.5"/>
-                </svg>
-                <input type="search"
-                       id="portal-course-search"
-                       class="portal-course-search-input"
-                       placeholder="Название, описание или идентификатор курса…"
-                       autocomplete="off"
-                       spellcheck="false"
-                       enterkeyhint="search">
+                <p class="portal-course-search-status muted" id="portal-course-search-status" aria-live="polite"></p>
             </div>
-            <p class="portal-course-search-status muted" id="portal-course-search-status" aria-live="polite"></p>
         </div>
-    </div>
+    @endif
 
     @if (! empty($identityDebugRows))
-        <div class="card" style="max-width:1100px;margin:0 auto 1rem;border:2px dashed #94a3b8;background:#f8fafc">
+        <div class="card page-section" style="max-width:1100px;margin:0 auto;border:2px dashed #94a3b8;background:#f8fafc">
             <h2 style="margin:0 0 0.5rem;font-size:1.05rem">Отладка личности (только при <code>?identity_debug=1</code>)</h2>
             <p class="muted" style="margin:0 0 0.75rem;font-size:0.9rem">
                 Сообщите, какие строки заполнены и какое значение подходит под ФИО. Панель только для диагностики.
@@ -322,16 +614,23 @@
         </div>
     @endif
 
-    <div class="card" style="max-width:1100px;margin:0 auto">
-        <h2 style="margin-top:0">Доступные курсы</h2>
-        <div class="module-grid portal-catalog-grid courses-catalog-grid" id="portal-courses-catalog-grid" style="margin-top:0.75rem">
+    <div class="card page-section" style="max-width:1100px;margin:0 auto">
+        <div class="portal-courses-heading">
+            <h2 class="portal-courses-heading__title">Доступные курсы</h2>
+            @if ($courseCount > 0)
+                <span class="portal-courses-badge">{{ $catalogBadgeLabel }}</span>
+            @endif
+        </div>
+        <div class="module-grid portal-catalog-grid courses-catalog-grid" id="portal-courses-catalog-grid">
             @foreach ($courses as $c)
                 @php
                     $enroll = $enrollmentsByCourseId[$c->id] ?? null;
                     $pct = (int) ($progressByCourseId[$c->id] ?? 0);
                     $started = $pct > 0 || ($enroll && ! empty($enroll->started_at));
+                    $mp = $modulesProgressByCourseId[$c->id] ?? ['passed' => 0, 'total' => 0];
+                    $tags = array_values(array_filter(array_map('trim', $c->tags ?? []), fn ($t) => $t !== ''));
                 @endphp
-                <div class="module-card portal-course-card js-course-card"
+                <div class="module-card portal-course-card course-card-active js-course-card"
                      role="button"
                      tabindex="0"
                      data-course-id="{{ (int) $c->id }}"
@@ -339,8 +638,21 @@
                      data-course-slug="{{ e($c->slug) }}"
                      data-course-summary="{{ e($c->summary) }}"
                      data-course-started="{{ $started ? '1' : '0' }}"
-                     data-course-pct="{{ (int) $pct }}">
-                    <div class="tag">Курс</div>
+                     data-course-pct="{{ (int) $pct }}"
+                     data-course-tags="{{ e(json_encode($tags, JSON_UNESCAPED_UNICODE)) }}">
+                    @if ($pct >= 100)
+                        <div class="portal-course-card-status portal-course-card-status--done">
+                            <svg class="portal-status-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+                            Завершён
+                        </div>
+                    @elseif ($pct > 0)
+                        <div class="portal-course-card-status portal-course-card-status--progress">
+                            <svg class="portal-status-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>
+                            В процессе
+                        </div>
+                    @else
+                        <div class="portal-course-card-status portal-course-card-status--neutral">Курс</div>
+                    @endif
                     <div class="portal-course-title" style="font-weight:800;font-size:1.05rem;line-height:1.25">{{ $c->title }}</div>
                     <div class="portal-course-grow">
                         <div class="muted course-card__description" style="font-size:0.92rem;line-height:1.45;margin-top:0.35rem">{{ $c->summary }}</div>
@@ -353,8 +665,13 @@
 
                     @if (session('learner_id') && ($pct > 0 || ($enroll && ! empty($enroll->started_at))))
                         <div style="margin-top:0.85rem">
-                            <div class="muted small" style="margin:0 0 0.35rem">Прогресс по курсу: <strong>{{ $pct }}%</strong></div>
-                            <div class="learner-track-summary__bar" aria-hidden="true" style="height:10px">
+                            <div class="portal-course-progress-head muted small">
+                                <span>Прогресс по курсу: <strong>{{ $pct }}%</strong></span>
+                                @if (($mp['total'] ?? 0) > 0)
+                                    <span>{{ (int) ($mp['passed'] ?? 0) }} из {{ (int) ($mp['total'] ?? 0) }} модулей</span>
+                                @endif
+                            </div>
+                            <div class="learner-track-summary__bar portal-course-progress-bar" aria-hidden="true">
                                 <div class="learner-track-summary__bar-fill" style="width: {{ min(100, max(0, $pct)) }}%"></div>
                             </div>
                             @if ($enroll && $enroll->started_at)
@@ -382,13 +699,16 @@
             <p class="muted portal-catalog-empty portal-search-no-hits" id="portal-search-no-hits" role="status">
                 По запросу ничего не найдено — попробуйте другие слова или сбросьте поиск.
             </p>
-            @for ($i = 0; $i < 8; $i++)
-                <div class="module-card portal-slot-card js-catalog-extra" aria-hidden="true">
+            @foreach ($portalPlaceholderSlots as $slot)
+                <div class="module-card portal-slot-card placeholder-card js-catalog-extra" aria-hidden="true">
                     <div class="portal-slot-card__hover-msg">
-                        🚀 Скоро здесь появится<br>новый курс
+                        <div class="portal-slot-card__hover-inner">
+                            @include('portal.partials.catalog-placeholder-icon', ['variant' => $slot['v']])
+                            <span class="portal-slot-card__lines">{{ $slot['l1'] }}<br>{{ $slot['l2'] }}</span>
+                        </div>
                     </div>
                 </div>
-            @endfor
+            @endforeach
             <div class="module-card portal-contact-card js-catalog-extra">
                 <div class="portal-contact-card__text">
                     Хотите разместить свой курс?<br>
@@ -424,68 +744,100 @@
             var status = document.getElementById('portal-course-search-status');
             var noHits = document.getElementById('portal-search-no-hits');
             var grid = document.getElementById('portal-courses-catalog-grid');
-            if (input && grid) {
-                var cards = grid.querySelectorAll('.js-course-card');
-                var extras = grid.querySelectorAll('.js-catalog-extra');
-                var total = cards.length;
-                function norm(s) {
-                    return String(s || '').toLowerCase();
+            var tagWrap = document.getElementById('portal-tag-filters');
+            if (!input || !grid) return;
+
+            var cards = grid.querySelectorAll('.js-course-card');
+            var extras = grid.querySelectorAll('.js-catalog-extra');
+            var total = cards.length;
+            var activeTag = '';
+
+            function norm(s) {
+                return String(s || '').toLowerCase();
+            }
+            function cardHaystack(card) {
+                return norm(
+                    (card.getAttribute('data-course-title') || '') + ' ' +
+                    (card.getAttribute('data-course-slug') || '') + ' ' +
+                    (card.getAttribute('data-course-summary') || '')
+                );
+            }
+            function cardTags(card) {
+                var raw = card.getAttribute('data-course-tags') || '[]';
+                try {
+                    var arr = JSON.parse(raw);
+                    return Array.isArray(arr) ? arr : [];
+                } catch (e) {
+                    return [];
                 }
-                function cardHaystack(card) {
-                    return norm(
-                        (card.getAttribute('data-course-title') || '') + ' ' +
-                        (card.getAttribute('data-course-slug') || '') + ' ' +
-                        (card.getAttribute('data-course-summary') || '')
-                    );
+            }
+            function tagMatch(card) {
+                if (!activeTag) return true;
+                var tags = cardTags(card);
+                var i;
+                for (i = 0; i < tags.length; i++) {
+                    if (tags[i] === activeTag) return true;
                 }
-                function matches(hay, q) {
-                    if (!q) return true;
-                    var parts = q.split(/\s+/).filter(Boolean);
-                    var i;
-                    for (i = 0; i < parts.length; i++) {
-                        if (hay.indexOf(parts[i]) === -1) return false;
+                return false;
+            }
+            function textMatch(hay, q) {
+                if (!q) return true;
+                var parts = q.split(/\s+/).filter(Boolean);
+                var i;
+                for (i = 0; i < parts.length; i++) {
+                    if (hay.indexOf(parts[i]) === -1) return false;
+                }
+                return true;
+            }
+            function apply() {
+                var q = norm(input.value).trim();
+                var n = 0;
+                var j;
+                for (j = 0; j < cards.length; j++) {
+                    var card = cards[j];
+                    var ok = textMatch(cardHaystack(card), q) && tagMatch(card);
+                    if (ok) n++;
+                    card.classList.toggle('portal-catalog-card--hidden', !ok);
+                }
+                var showExtras = q === '' && !activeTag;
+                extras.forEach(function (el) {
+                    el.classList.toggle('portal-catalog-card--hidden', !showExtras);
+                });
+                if (noHits) {
+                    noHits.classList.toggle('is-visible', (q !== '' || activeTag) && n === 0 && total > 0);
+                }
+                if (status) {
+                    if (total === 0) {
+                        status.textContent = '';
+                    } else if (q === '' && !activeTag) {
+                        status.textContent = '';
+                    } else if (n === 0) {
+                        status.textContent = 'Совпадений нет.';
+                    } else {
+                        status.textContent = n === 1 ? 'Найден 1 курс.' : ('Найдено курсов: ' + n + ' из ' + total + '.');
                     }
-                    return true;
                 }
-                function apply() {
-                    var q = norm(input.value).trim();
-                    var n = 0;
-                    var j;
-                    for (j = 0; j < cards.length; j++) {
-                        var card = cards[j];
-                        var ok = matches(cardHaystack(card), q);
-                        if (ok) n++;
-                        card.classList.toggle('portal-catalog-card--hidden', !ok);
-                    }
-                    var showExtras = q === '';
-                    extras.forEach(function (el) {
-                        el.classList.toggle('portal-catalog-card--hidden', !showExtras);
+            }
+            input.addEventListener('input', apply);
+            input.addEventListener('search', apply);
+            if (tagWrap) {
+                tagWrap.addEventListener('click', function (e) {
+                    var btn = e.target.closest('.portal-tag-filter');
+                    if (!btn) return;
+                    activeTag = btn.getAttribute('data-tag') || '';
+                    tagWrap.querySelectorAll('.portal-tag-filter').forEach(function (b) {
+                        b.classList.toggle('is-active', (b.getAttribute('data-tag') || '') === activeTag);
                     });
-                    if (noHits) {
-                        noHits.classList.toggle('is-visible', q !== '' && n === 0 && total > 0);
-                    }
-                    if (status) {
-                        if (total === 0) {
-                            status.textContent = '';
-                        } else if (q === '') {
-                            status.textContent = total === 1 ? 'В каталоге 1 курс.' : ('В каталоге курсов: ' + total + '.');
-                        } else {
-                            status.textContent = n === 0
-                                ? 'Совпадений нет.'
-                                : (n === 1 ? 'Найден 1 курс.' : ('Найдено курсов: ' + n + ' из ' + total + '.'));
-                        }
-                    }
-                }
-                input.addEventListener('input', apply);
-                input.addEventListener('search', apply);
-                apply();
-                document.addEventListener('keydown', function (e) {
-                    if (e.key === 'Escape' && document.activeElement === input && input.value) {
-                        input.value = '';
-                        apply();
-                    }
+                    apply();
                 });
             }
+            apply();
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && document.activeElement === input && input.value) {
+                    input.value = '';
+                    apply();
+                }
+            });
         })();
 
         (function () {
@@ -495,7 +847,7 @@
                 if (!dlg) return;
                 if (typeof dlg.showModal === 'function') dlg.showModal();
                 var email = document.getElementById('portal-login-email');
-                if (email) setTimeout(function () { try { email.focus(); } catch (e) {} }, 0);
+                if (email) setTimeout(function () { try { email.focus(); } catch (err) {} }, 0);
             }
             if (openBtn) openBtn.addEventListener('click', open);
             var needs = document.querySelectorAll('.portal-start-needs-login');
@@ -598,7 +950,7 @@
             }
             function shouldIgnore(e) {
                 if (!e || !e.target) return false;
-                return !!e.target.closest('button, a, form, input, select, textarea, .portal-start-needs-login');
+                return !!e.target.closest('button, a, form, input, select, textarea, .portal-start-needs-login, .portal-tag-filter');
             }
             document.querySelectorAll('.js-course-card').forEach(function (card) {
                 card.addEventListener('click', function (e) {
@@ -624,4 +976,3 @@
         })();
     </script>
 @endsection
-

@@ -1,4 +1,4 @@
-@extends('layouts.course')
+@extends('layouts.admin-preview')
 
 @php
     $mTitle = is_array($meta) ? ($meta['title'] ?? ('Модуль '.$module)) : ('Модуль '.$module);
@@ -8,9 +8,8 @@
 
 @section('content')
     <div style="max-width: 920px; margin: 0 auto">
-        @include('partials.admin-instructor-nav', ['active' => 'theory'])
         <div class="card">
-        <p class="muted"><a href="{{ route('admin.theory.index') }}">← К сводке курса</a></p>
+        <p class="muted"><a href="{{ route('admin.theory.index', $ap ?? []) }}">← К сводке курса</a></p>
         <h1 style="margin-top: 0">Модуль {{ $module }}: {{ config('course.step_titles.module_exam') }}</h1>
         <p class="muted small" style="margin-top:0">
             Просмотр для администратора: {{ count($questions) }} вопр.
