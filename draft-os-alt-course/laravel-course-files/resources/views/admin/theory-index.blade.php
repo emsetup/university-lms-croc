@@ -1,292 +1,437 @@
-@extends('layouts.course')
+@extends('layouts.admin')
 
 @section('title', 'Админ: содержимое курса')
 
+@push('styles')
+<style>
+    .admin-theory-preview-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.75rem;
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity 0.22s ease, visibility 0.22s ease;
+        pointer-events: none;
+    }
+    .admin-theory-preview-modal.is-open {
+        visibility: visible;
+        opacity: 1;
+        pointer-events: auto;
+    }
+    .admin-theory-preview-modal .course-modal__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.48);
+        backdrop-filter: blur(3px);
+    }
+    .admin-theory-preview-modal .course-modal__panel {
+        position: relative;
+        z-index: 1;
+        max-width: min(980px, 98vw);
+        width: 100%;
+        max-height: 94vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        border-radius: 16px;
+        padding: 1rem 1.1rem 0.85rem;
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2);
+    }
+    .admin-theory-preview-modal .course-modal__close {
+        position: absolute;
+        top: 0.55rem;
+        right: 0.55rem;
+        z-index: 2;
+        border: none;
+        background: transparent;
+        font-size: 1.5rem;
+        line-height: 1;
+        cursor: pointer;
+        color: #64748b;
+        padding: 0.25rem 0.45rem;
+        border-radius: 8px;
+    }
+    .admin-theory-preview-modal .course-modal__close:hover {
+        background: rgba(15, 23, 42, 0.06);
+        color: #0f172a;
+    }
+    .admin-theory-preview-modal__title { margin: 0 0 0.25rem; font-size: 1.15rem; padding-right: 2rem; }
+    .admin-theory-preview-modal__hint { margin: 0 0 0.65rem; }
+    .admin-theory-preview-modal__iframe {
+        flex: 1;
+        width: 100%;
+        min-height: min(72vh, 720px);
+        border: 0;
+        border-radius: 10px;
+        background: #f8fafc;
+    }
+    .admin-theory-preview-modal__footer {
+        margin-top: 0.65rem;
+        padding-top: 0.55rem;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    .admin-theory-content-page {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+    }
+
+    .admin-theory-content-page .admin-theory-content-table.admin-table {
+        min-width: 0;
+    }
+
+    .admin-theory-content-page .admin-theory-content-table.admin-table thead th {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #9ca3af;
+        background: #fff;
+        border-bottom: 1px solid var(--border, #e5e7eb);
+    }
+
+    .admin-theory-content-page .admin-theory-content-table.admin-table tbody tr:nth-child(even) td {
+        background: #fafafa;
+    }
+
+    .admin-theory-content-page .admin-theory-content-table.admin-table tbody tr:hover td {
+        background: #f0fdf4;
+    }
+
+    .admin-theory-content-page .content-table td {
+        vertical-align: middle;
+        padding: 12px 16px;
+        white-space: nowrap;
+    }
+
+    .admin-theory-content-page .content-table .module-name {
+        white-space: normal;
+        max-width: 280px;
+        font-weight: 500;
+    }
+
+    .admin-theory-content-page .docker-tag {
+        font-family: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        background: #f3f4f6;
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: #374151;
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    .admin-theory-content-page .docker-meta {
+        font-size: 11px;
+        color: #9ca3af;
+        margin-top: 2px;
+        white-space: normal;
+    }
+
+    .admin-theory-content-page .content-icon-cell {
+        text-align: center;
+    }
+
+    .admin-theory-content-page .content-icon-cell > span svg {
+        width: 16px;
+        height: 16px;
+        display: block;
+        margin: 0 auto 2px;
+    }
+
+    .admin-theory-content-page .content-icon-cell .cell-meta {
+        font-size: 11px;
+        color: #9ca3af;
+        white-space: normal;
+        max-width: 140px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .admin-theory-content-page .content-icon-ok {
+        color: #16a34a;
+    }
+
+    .admin-theory-content-page .content-icon-muted {
+        color: #9ca3af;
+    }
+
+    .admin-theory-content-page .btn-admin-content-preview {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .admin-theory-content-page .btn-admin-content-preview .ap-icon {
+        flex-shrink: 0;
+    }
+
+    .admin-theory-content-page .btn-admin-content-preview:hover:not(:disabled) {
+        border-color: #22c55e !important;
+    }
+
+    .admin-theory-content-page .content-docker-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-top: 10px;
+    }
+
+    .admin-theory-content-page .content-docker-unset {
+        font-style: italic;
+        color: #9ca3af;
+        font-size: 13px;
+    }
+
+    .admin-theory-content-page .admin-inline-form {
+        display: inline;
+        margin: 0;
+    }
+
+    .admin-theory-final-lab {
+        margin-top: 16px;
+    }
+
+    .admin-theory-final-lab__body {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+    }
+
+    .admin-theory-final-lab__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+    }
+</style>
+@endpush
+
 @section('content')
-    @php($isReadOnly = (bool) ($isReadOnly ?? false))
-    <div style="max-width: 1100px; margin: 0 auto">
-        @if (! $isReadOnly)
-            @include('partials.admin-instructor-nav', ['active' => 'theory'])
-        @endif
-        <div class="card">
-        <h1 style="margin-top: 0">Содержимое курса (админ)</h1>
-        <p class="muted small">Доступ по <code>?key=</code> — ключ преподавателя (<code>TEACHER_REPORT_TOKEN</code>), администратора (<code>COURSE_ADMIN_TOKEN</code>) или отдельный read-only ключ модератора (<code>COURSE_CONTENT_MODERATOR_TOKEN</code>).</p>
-        <p class="muted small">Теория в виде <code>@snippet:module_N_theory.md</code> можно править в редакторе. Тесты и практика здесь только для <strong>просмотра</strong> (редактирование — в <code>config/course.php</code> и файлах в <code>config/snippets/</code>).</p>
-        <p class="muted small">Если в панели выбран курс с модулями в БД, таблица повторяет их порядок; колонка «#» — номер <strong>пакета контента</strong> (файлы и ключи в конфиге), название строки — из настроек курса.</p>
-        @if (! $isReadOnly)
-            <p style="margin: 0.5rem 0 1rem">
-                <a class="btn btn-primary" href="{{ route('admin.theory.zip') }}">Скачать все module_*_theory.md (ZIP)</a>
-            </p>
-        @endif
-        @if (session('err'))
-            <p class="quiz-modal-warn" style="padding:0.65rem 0.85rem;border-radius:6px;margin:0 0 1rem">{{ session('err') }}</p>
-        @endif
-        @if (session('ok'))
-            <p style="padding:0.65rem 0.85rem;border-radius:6px;margin:0 0 1rem;background:rgba(22,101,52,0.1)">{{ session('ok') }}</p>
-        @endif
+    @php
+        $isReadOnly = (bool) ($isReadOnly ?? false);
+        $adminKey = (string) ($adminKey ?? request()->query('key', ''));
+        $rp = array_merge(\App\Support\AdminNavigation::adminCourseRouteParams(), $adminKey !== '' ? ['key' => $adminKey] : []);
+    @endphp
+
+    <div class="admin-theory-content-page">
         @if (empty($rows) || count($rows) === 0)
-            <div class="card" style="margin:0 0 1rem;border-color:#fde68a;background:#fffbeb">
-                <div style="font-weight:800;color:#92400e;margin-bottom:0.25rem">Контент не настроен</div>
-                <div class="muted" style="line-height:1.5">
+            <div class="empty-state" role="status">
+                <p class="empty-state__title">Контент не настроен</p>
+                <p class="empty-state__text">
                     Для этого курса пока нет модулей в базе данных, поэтому «Содержимое курса» не сформировано.
-                    Перейдите в <a href="{{ route('admin.course.settings') }}">«Настройки»</a> и создайте модули курса (и их разделы).
+                    Перейдите в раздел «Модули» и создайте модули курса (и их разделы).
+                </p>
+                <p style="margin-top: 1rem;">
+                    <a class="btn btn-primary btn-sm" href="{{ route('admin.course.settings', \App\Support\AdminNavigation::adminCourseRouteParams()) }}">Открыть модули</a>
+                </p>
+            </div>
+        @else
+            <div class="admin-card admin-card--flush">
+                <div class="admin-table-wrap">
+                    <table class="admin-table content-table admin-theory-content-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Модуль</th>
+                                <th>Теория</th>
+                                <th>Тест</th>
+                                <th>Практика</th>
+                                <th>Итоговый тест</th>
+                                <th>Docker</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($rows as $r)
+                                <tr>
+                                    <td class="mono">{{ $r['module'] }}</td>
+                                    <td class="module-name">{{ $r['title'] }}</td>
+                                    <td class="content-icon-cell">
+                                        @php
+                                            $__theoryChars = (int) ($r['theory_chars'] ?? 0);
+                                        @endphp
+                                        @if ($__theoryChars > 0)
+                                            <span class="content-icon-ok">@include('partials.ap-icon', ['name' => 'check-circle', 'size' => 'sm'])</span>
+                                            <div class="cell-meta">{{ number_format($__theoryChars, 0, ',', ' ') }} симв.</div>
+                                            <div style="margin-top:8px;">
+                                                <button type="button" class="btn btn-secondary btn-sm btn-admin-content-preview js-admin-content-preview" data-preview-title="Просмотр теории" data-preview-url="{{ route('admin.theory.preview-theory', array_merge($rp, ['module' => $r['module']])) }}">
+                                                    @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
+                                                    <span>Просмотр</span>
+                                                </button>
+                                            </div>
+                                        @else
+                                            <span class="content-icon-muted">@include('partials.ap-icon', ['name' => 'minus', 'size' => 'sm'])</span>
+                                            <div class="cell-meta">0 симв.</div>
+                                        @endif
+                                    </td>
+                                    <td class="content-icon-cell">
+                                        @if ($r['theory_quiz_count'] > 0)
+                                            <span class="content-icon-ok">@include('partials.ap-icon', ['name' => 'check-circle', 'size' => 'sm'])</span>
+                                            <div class="cell-meta">
+                                                {{ $r['theory_quiz_count'] }} вопр.@if ($r['theory_quiz_match'] > 0) · {{ $r['theory_quiz_match'] }} сопост.@endif
+                                            </div>
+                                            <div style="margin-top:8px;">
+                                                <button type="button" class="btn btn-secondary btn-sm btn-admin-content-preview js-admin-content-preview" data-preview-title="Просмотр теста по теории" data-preview-url="{{ route('admin.theory.preview-theory-quiz', array_merge($rp, ['module' => $r['module']])) }}">
+                                                    @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
+                                                    <span>Просмотр</span>
+                                                </button>
+                                            </div>
+                                        @else
+                                            <span class="content-icon-muted">@include('partials.ap-icon', ['name' => 'minus', 'size' => 'sm'])</span>
+                                        @endif
+                                    </td>
+                                    <td class="content-icon-cell">
+                                        @if ($r['has_practice'])
+                                            <span class="content-icon-ok">@include('partials.ap-icon', ['name' => 'check-circle', 'size' => 'sm'])</span>
+                                            @if (($r['practice_summary'] ?? '') !== '')
+                                                <div class="cell-meta">{{ $r['practice_summary'] }}</div>
+                                            @endif
+                                            <div style="margin-top:8px;">
+                                                <button type="button" class="btn btn-secondary btn-sm btn-admin-content-preview js-admin-content-preview" data-preview-title="Просмотр практики" data-preview-url="{{ route('admin.theory.preview-practice', array_merge($rp, ['module' => $r['module']])) }}">
+                                                    @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
+                                                    <span>Просмотр</span>
+                                                </button>
+                                            </div>
+                                        @else
+                                            <span class="content-icon-muted">@include('partials.ap-icon', ['name' => 'minus', 'size' => 'sm'])</span>
+                                        @endif
+                                    </td>
+                                    <td class="content-icon-cell">
+                                        @if ($r['exam_count'] > 0)
+                                            <span class="content-icon-ok">@include('partials.ap-icon', ['name' => 'check-circle', 'size' => 'sm'])</span>
+                                            <div class="cell-meta">
+                                                {{ $r['exam_count'] }} вопр. · {{ $r['exam_time_min'] }} мин@if ($r['exam_match'] > 0) · {{ $r['exam_match'] }} сопост.@endif
+                                            </div>
+                                            <div style="margin-top:8px;">
+                                                <button type="button" class="btn btn-secondary btn-sm btn-admin-content-preview js-admin-content-preview" data-preview-title="Просмотр итогового теста" data-preview-url="{{ route('admin.theory.preview-module-exam', array_merge($rp, ['module' => $r['module']])) }}">
+                                                    @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
+                                                    <span>Просмотр</span>
+                                                </button>
+                                            </div>
+                                        @else
+                                            <span class="content-icon-muted">@include('partials.ap-icon', ['name' => 'minus', 'size' => 'sm'])</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if ($r['practice_lab_docker_image'])
+                                            @php
+                                                $ls = $adminLabStates[$r['module']] ?? null;
+                                                $st = is_array($imageStatsByImage[$r['practice_lab_docker_image']] ?? null) ? $imageStatsByImage[$r['practice_lab_docker_image']] : null;
+                                            @endphp
+                                            <span class="docker-tag" title="{{ $r['practice_lab_docker_image'] }}">{{ $r['practice_lab_docker_image'] }}</span>
+                                            @if ($st)
+                                                <div class="docker-meta">
+                                                    {{ $st['size_human'] ?? '—' }}@if (! empty($st['layers_count'])) · {{ (int) $st['layers_count'] }} слоёв@endif
+                                                </div>
+                                            @endif
+                                            @if (! $isReadOnly)
+                                                <div class="content-docker-actions">
+                                                    @if ($ls && ! empty($ls['lab_id']))
+                                                        @if (! empty($ls['terminal_url']))
+                                                            <a class="btn btn-secondary btn-sm" href="{{ $ls['terminal_url'] }}" target="_blank" rel="noopener">Открыть</a>
+                                                        @endif
+                                                        <form method="post" action="{{ route('admin.theory.container.finish', array_merge($rp, ['module' => $r['module']])) }}" class="admin-inline-form">
+                                                            @csrf
+                                                            <button type="submit" class="btn btn-secondary btn-sm">Завершить</button>
+                                                        </form>
+                                                    @else
+                                                        <form method="post" action="{{ route('admin.theory.container.start', array_merge($rp, ['module' => $r['module']])) }}" class="admin-inline-form">
+                                                            @csrf
+                                                            <button type="submit" class="btn btn-primary btn-sm">Запустить</button>
+                                                        </form>
+                                                    @endif
+                                                </div>
+                                            @endif
+                                        @else
+                                            <span class="content-docker-unset">Не задан</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
             </div>
         @endif
-        <style>
-            .theory-admin-table .atc-actions {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 0.35rem;
-                align-items: center;
-                margin: 0 0 0.5rem;
+
+        @php
+            $__showFinalTheoryAdmin = true;
+            if (($selectedCourse ?? null) && \Illuminate\Support\Facades\Schema::hasColumn('courses', 'final_lab_enabled')) {
+                $__showFinalTheoryAdmin = (bool) $selectedCourse->final_lab_enabled;
             }
-            .theory-admin-table .atc-meta {
-                font-size: 0.8rem;
-                line-height: 1.45;
-                color: var(--muted, #5c6b76);
-            }
-            .theory-admin-table .atc-meta strong {
-                color: var(--text, #0f172a);
-                font-weight: 600;
-            }
-        </style>
-        @if (!empty($rows) && count($rows) > 0)
-        <div style="overflow-x:auto">
-            <table class="teacher-report-table theory-admin-table" style="width:100%;min-width:1040px">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Модуль</th>
-                        <th>Теория</th>
-                        <th>Тест по теории</th>
-                        <th>Практика</th>
-                        <th>Итоговый тест</th>
-                        <th>Docker-практика</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($rows as $r)
-                        <tr>
-                            <td class="teacher-report-nowrap">{{ $r['module'] }}</td>
-                            <td>{{ $r['title'] }}</td>
-                            <td style="vertical-align:top;font-size:0.85rem">
-                                <div class="atc-actions">
-                                    @if ($r['theory_chars'] > 0)
-                                        <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр теории" data-preview-url="{{ route('admin.theory.preview-theory', ['module' => $r['module']]) }}">Просмотр</button>
-                                    @endif
-                                    @if (! $isReadOnly && $r['editable'])
-                                        <a class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.85rem" href="{{ route('admin.theory.edit', ['module' => $r['module']]) }}">Редактор MD</a>
-                                    @else
-                                        <span class="muted" style="font-size:0.85rem">{{ $isReadOnly ? 'редактирование отключено' : 'встроено в конфиг' }}</span>
-                                    @endif
+        @endphp
+        @if ($__showFinalTheoryAdmin && ! empty($rows) && count($rows) > 0)
+            <div class="admin-card admin-theory-final-lab">
+                <h2 class="admin-card__title">Финальная лаборатория</h2>
+                <div class="admin-theory-final-lab__body">
+                    <div class="admin-theory-final-lab__docker">
+                        @if (! empty($finalLabDockerImage))
+                            @php
+                                $fst = is_array($imageStatsByImage[$finalLabDockerImage] ?? null) ? $imageStatsByImage[$finalLabDockerImage] : null;
+                            @endphp
+                            <span class="docker-tag" title="{{ $finalLabDockerImage }}">{{ $finalLabDockerImage }}</span>
+                            @if ($fst)
+                                <div class="docker-meta">
+                                    {{ $fst['size_human'] ?? '—' }}@if (! empty($fst['layers_count'])) · {{ (int) $fst['layers_count'] }} слоёв@endif
                                 </div>
-                                <div class="atc-meta">
-                                    <div style="word-break:break-all">{{ \Illuminate\Support\Str::limit($r['ref'], 48) }}</div>
-                                    <div style="margin-top:0.2rem">Текст теории:</div>
-                                    <div><strong>{{ number_format($r['theory_chars'], 0, ',', ' ') }}</strong> симв.</div>
-                                </div>
-                            </td>
-                            <td class="teacher-report-nowrap" style="vertical-align:top;font-size:0.9rem">
-                                @if ($r['theory_quiz_count'] > 0)
-                                    <div class="atc-actions">
-                                        <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр теста по теории" data-preview-url="{{ route('admin.theory.preview-theory-quiz', ['module' => $r['module']]) }}">Просмотр</button>
-                                    </div>
-                                    <div class="atc-meta">
-                                        {{ $r['theory_quiz_count'] }} вопр.
-                                        @if ($r['theory_quiz_match'] > 0)
-                                            <span> ({{ $r['theory_quiz_match'] }} сопост.)</span>
-                                        @endif
-                                    </div>
-                                @else
-                                    <span class="muted">—</span>
-                                @endif
-                            </td>
-                            <td style="vertical-align:top;font-size:0.85rem">
-                                @if ($r['has_practice'])
-                                    <div class="atc-actions">
-                                        <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр практики" data-preview-url="{{ route('admin.theory.preview-practice', ['module' => $r['module']]) }}">Просмотр</button>
-                                    </div>
-                                    <div class="atc-meta">{{ $r['practice_summary'] }}</div>
-                                @else
-                                    <span class="muted">—</span>
-                                @endif
-                            </td>
-                            <td class="teacher-report-nowrap" style="vertical-align:top;font-size:0.9rem">
-                                @if ($r['exam_count'] > 0)
-                                    <div class="atc-actions">
-                                        <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр итогового теста" data-preview-url="{{ route('admin.theory.preview-module-exam', ['module' => $r['module']]) }}">Просмотр</button>
-                                    </div>
-                                    <div class="atc-meta">
-                                        {{ $r['exam_count'] }} вопр.
-                                        <span>· {{ $r['exam_time_min'] }} мин</span>
-                                        @if ($r['exam_match'] > 0)
-                                            <span> ({{ $r['exam_match'] }} сопост.)</span>
-                                        @endif
-                                    </div>
-                                @else
-                                    <span class="muted">—</span>
-                                @endif
-                            </td>
-                            <td style="vertical-align:top;font-size:0.82rem;max-width:14rem">
-                                @if ($r['practice_lab_docker_image'])
-                                    @php($ls = $adminLabStates[$r['module']] ?? null)
-                                    <code style="word-break:break-all;font-size:0.8rem">{{ $r['practice_lab_docker_image'] }}</code>
-                                    @php($st = is_array($imageStatsByImage[$r['practice_lab_docker_image']] ?? null) ? $imageStatsByImage[$r['practice_lab_docker_image']] : null)
-                                    @if ($st)
-                                        <div class="muted small" style="margin-top:0.25rem;line-height:1.35">
-                                            Размер: <strong>{{ $st['size_human'] ?? '—' }}</strong>
-                                            @if (! empty($st['layers_count']))
-                                                <span>· слоёв: <strong>{{ (int) $st['layers_count'] }}</strong></span>
-                                            @endif
-                                        </div>
-                                    @endif
-                                    @if (! $isReadOnly)
-                                        <div class="atc-actions" style="margin-top:0.5rem">
-                                            @if ($ls && ! empty($ls['lab_id']))
-                                                @if (! empty($ls['terminal_url']))
-                                                    <a class="btn btn-ghost" href="{{ $ls['terminal_url'] }}" target="_blank" rel="noopener" style="padding:0.25rem 0.55rem;font-size:0.82rem">Открыть</a>
-                                                @endif
-                                                <form method="post" action="{{ route('admin.theory.container.finish', ['module' => $r['module']]) }}" style="margin:0">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.82rem">Завершить</button>
-                                                </form>
-                                            @else
-                                                <form method="post" action="{{ route('admin.theory.container.start', ['module' => $r['module']]) }}" style="margin:0">
-                                                    @csrf
-                                                    <button type="submit" class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.82rem">Запустить</button>
-                                                </form>
-                                            @endif
-                                        </div>
-                                    @endif
-                                @else
-                                    <span class="muted">Для этого модуля не задан Docker-образ в <code>config/practice_lab.php</code>.</span>
-                                @endif
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-        <div style="margin-top:1rem;padding:0.75rem 0.9rem;border:1px solid var(--line,#e5e7eb);border-radius:10px;background:#fff">
-            <div style="display:flex;flex-wrap:wrap;gap:0.55rem;align-items:center;justify-content:space-between">
-                <div>
-                    <div style="font-weight:700">Финальная лабораторная</div>
-                    <div class="muted small">Практический экзамен по всему курсу (контейнер, чек-лист, итог 100 баллов).</div>
-                </div>
-                <div class="atc-actions" style="margin:0">
-                    <button type="button" class="btn btn-ghost js-admin-content-preview" style="padding:0.25rem 0.55rem;font-size:0.85rem" data-preview-title="Просмотр финальной лабораторной" data-preview-url="{{ route('admin.theory.preview-final-lab') }}">Просмотр</button>
-                    @if (! $isReadOnly && ! empty($finalLabDockerImage))
-                        @if ($finalLabState && ! empty($finalLabState['lab_id']))
-                            @if (! empty($finalLabState['terminal_url']))
-                                <a class="btn btn-ghost" href="{{ $finalLabState['terminal_url'] }}" target="_blank" rel="noopener" style="padding:0.25rem 0.55rem;font-size:0.82rem">Открыть</a>
                             @endif
-                            <form method="post" action="{{ route('admin.theory.container.finish', ['module' => 10]) }}" style="margin:0">
-                                @csrf
-                                <button type="submit" class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.82rem">Завершить</button>
-                            </form>
                         @else
-                            <form method="post" action="{{ route('admin.theory.container.start', ['module' => 10]) }}" style="margin:0">
-                                @csrf
-                                <button type="submit" class="btn btn-ghost" style="padding:0.25rem 0.55rem;font-size:0.82rem">Запустить</button>
-                            </form>
-                        @endif
-                    @endif
-                </div>
-            </div>
-            @if (! empty($finalLabDockerImage))
-                <div class="muted small" style="margin-top:0.45rem">Образ: <code>{{ $finalLabDockerImage }}</code></div>
-                @php($fst = is_array($imageStatsByImage[$finalLabDockerImage] ?? null) ? $imageStatsByImage[$finalLabDockerImage] : null)
-                @if ($fst)
-                    <div class="muted small" style="margin-top:0.25rem;line-height:1.35">
-                        Размер: <strong>{{ $fst['size_human'] ?? '—' }}</strong>
-                        @if (! empty($fst['layers_count']))
-                            <span>· слоёв: <strong>{{ (int) $fst['layers_count'] }}</strong></span>
+                            <span class="content-docker-unset">Не задан</span>
                         @endif
                     </div>
-                @endif
-            @endif
-        </div>
-        <p class="muted small" style="margin-top: 1rem">Прямой адрес списка: <code>/adm/kurs-teoriya?key=…</code> (историческое имя пути сохранено). Общая панель: <code>/adm?key=…</code>.</p>
-        </div>
-    </div>
+                    <div class="admin-theory-final-lab__actions">
+                        <button type="button" class="btn btn-secondary btn-sm btn-admin-content-preview js-admin-content-preview" data-preview-title="Просмотр финальной лабораторной" data-preview-url="{{ route('admin.theory.preview-final-lab', $rp) }}">
+                            @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
+                            <span>Просмотр</span>
+                        </button>
+                        @if (! $isReadOnly && ! empty($finalLabDockerImage))
+                            @if ($finalLabState && ! empty($finalLabState['lab_id']))
+                                @if (! empty($finalLabState['terminal_url']))
+                                    <a class="btn btn-secondary btn-sm" href="{{ $finalLabState['terminal_url'] }}" target="_blank" rel="noopener">Открыть</a>
+                                @endif
+                                <form method="post" action="{{ route('admin.theory.container.finish', array_merge($rp, ['module' => 10])) }}" class="admin-inline-form">
+                                    @csrf
+                                    <button type="submit" class="btn btn-secondary btn-sm">Завершить</button>
+                                </form>
+                            @else
+                                <form method="post" action="{{ route('admin.theory.container.start', array_merge($rp, ['module' => 10])) }}" class="admin-inline-form">
+                                    @csrf
+                                    <button type="submit" class="btn btn-primary btn-sm">Запустить</button>
+                                </form>
+                            @endif
+                        @endif
+                    </div>
+                </div>
+            </div>
         @endif
+    </div>
 
     <div class="course-modal admin-theory-preview-modal" id="admin-theory-preview-modal-root" aria-hidden="true">
         <div class="course-modal__backdrop" data-admin-theory-preview-close tabindex="-1"></div>
         <div class="course-modal__panel admin-theory-preview-modal__panel" id="admin-theory-preview-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-theory-preview-modal-title">
             <button type="button" class="course-modal__close" data-admin-theory-preview-close aria-label="Закрыть">&times;</button>
             <h2 id="admin-theory-preview-modal-title" class="admin-theory-preview-modal__title">Просмотр</h2>
-            <p class="muted small admin-theory-preview-modal__hint">Отображение как у обучающегося (Markdown, Mermaid). Прокрутка внутри окна.</p>
-            <iframe class="admin-theory-preview-modal__iframe" id="admin-theory-preview-iframe" title="Предпросмотр теории" style="width:100%;min-height:min(72vh,720px);border:0;border-radius:10px;background:var(--surface,#f8fafc)"></iframe>
+            <p class="ap-muted small admin-theory-preview-modal__hint">Отображение как у обучающегося (Markdown, Mermaid). Прокрутка внутри окна.</p>
+            <iframe class="admin-theory-preview-modal__iframe" id="admin-theory-preview-iframe" title="Предпросмотр теории"></iframe>
             <div class="admin-theory-preview-modal__footer">
                 <button type="button" class="btn btn-ghost" data-admin-theory-preview-close>Закрыть</button>
             </div>
         </div>
     </div>
 
-    <style>
-        .admin-theory-preview-modal {
-            position: fixed;
-            inset: 0;
-            z-index: 2000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.75rem;
-            visibility: hidden;
-            opacity: 0;
-            transition: opacity 0.22s ease, visibility 0.22s ease;
-            pointer-events: none;
-        }
-        .admin-theory-preview-modal.is-open {
-            visibility: visible;
-            opacity: 1;
-            pointer-events: auto;
-        }
-        .admin-theory-preview-modal .course-modal__backdrop {
-            position: absolute;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.48);
-            backdrop-filter: blur(3px);
-        }
-        .admin-theory-preview-modal .course-modal__panel {
-            position: relative;
-            z-index: 1;
-            max-width: min(980px, 98vw);
-            width: 100%;
-            max-height: 94vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            background: #fff;
-            border-radius: 16px;
-            padding: 1rem 1.1rem 0.85rem;
-            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2);
-        }
-        .admin-theory-preview-modal .course-modal__close {
-            position: absolute;
-            top: 0.55rem;
-            right: 0.55rem;
-            z-index: 2;
-            border: none;
-            background: transparent;
-            font-size: 1.5rem;
-            line-height: 1;
-            cursor: pointer;
-            color: var(--muted, #64748b);
-            padding: 0.25rem 0.45rem;
-            border-radius: 8px;
-        }
-        .admin-theory-preview-modal .course-modal__close:hover {
-            background: rgba(15, 23, 42, 0.06);
-            color: var(--text, #0f172a);
-        }
-        .admin-theory-preview-modal__title { margin: 0 0 0.25rem; font-size: 1.15rem; padding-right: 2rem; }
-        .admin-theory-preview-modal__hint { margin: 0 0 0.65rem; }
-        .admin-theory-preview-modal__iframe { flex: 1; min-height: min(72vh, 720px); }
-        .admin-theory-preview-modal__footer { margin-top: 0.65rem; padding-top: 0.55rem; border-top: 1px solid var(--line, #e5e7eb); }
-    </style>
     <script>
         (function () {
             var root = document.getElementById('admin-theory-preview-modal-root');
