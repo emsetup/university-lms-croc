@@ -9,6 +9,7 @@ use App\Services\CourseContentService;
 use App\Services\PortalStaffAccess;
 use App\Support\AdminCourseContentInspector;
 use App\Support\CourseQuizBankLoader;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,13 +34,17 @@ final class AdminQuizController extends Controller
         if ($useDbModules) {
             foreach (CourseModule::query()->where('course_id', $courseId)->orderBy('sort')->orderBy('id')->get() as $ent) {
                 $m = $ent->effectiveContentIndex();
+                $dbTq = $this->dbQuestionCount($courseId, (int) $ent->id, 'theory_quiz');
+                $dbEx = $this->dbQuestionCount($courseId, (int) $ent->id, 'module_exam');
+                $legacyTq = count(AdminCourseContentInspector::theoryQuizQuestions($m));
+                $legacyEx = count(AdminCourseContentInspector::moduleExamQuestions($m));
                 $rows[] = [
                     'course_module_id' => (int) $ent->id,
                     'module' => $m,
                     'label' => $ent->title.' · пакет №'.$m,
-                    'theory_quiz_count' => $isAltCourse ? count(AdminCourseContentInspector::theoryQuizQuestions($m)) : $this->dbQuestionCount($courseId, (int) $ent->id, 'theory_quiz'),
-                    'module_exam_count' => $isAltCourse ? count(AdminCourseContentInspector::moduleExamQuestions($m)) : $this->dbQuestionCount($courseId, (int) $ent->id, 'module_exam'),
-                    'mode' => $isAltCourse ? 'legacy' : 'db',
+                    'theory_quiz_count' => $dbTq > 0 ? $dbTq : ($isAltCourse ? $legacyTq : 0),
+                    'module_exam_count' => $dbEx > 0 ? $dbEx : ($isAltCourse ? $legacyEx : 0),
+                    'mode' => ($dbTq > 0 || $dbEx > 0) ? 'db' : ($isAltCourse ? 'legacy' : 'db'),
                 ];
             }
         } elseif ($isAltCourse) {
@@ -64,7 +69,7 @@ final class AdminQuizController extends Controller
         ]);
     }
 
-    public function editModule(Request $request, int $module, string $kind): View
+    public function editModule(Request $request, Course $adminCourse, int $module, string $kind): View
     {
         abort_if($module < 1 || $module > 9, 404);
         abort_if(! in_array($kind, ['theory_quiz', 'module_exam'], true), 404);
@@ -73,14 +78,15 @@ final class AdminQuizController extends Controller
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
         $isAlt = $course && $course->isLegacyAltCourse();
 
-        if (! $isAlt) {
-            $cm = CourseModule::query()
-                ->where('course_id', $courseId)
-                ->where('content_source_index', $module)
-                ->orderBy('sort')
-                ->orderBy('id')
-                ->first();
-            abort_unless($cm !== null, 404);
+        $cm = $this->findCourseModuleByContentPackageIndex($courseId, $module);
+        abort_unless($cm !== null, 404);
+
+        $dbCount = Schema::hasTable('course_quiz_banks')
+            ? $this->dbQuestionCount($courseId, (int) $cm->id, $kind)
+            : 0;
+        $useDbEditor = ! $isAlt || $dbCount > 0;
+
+        if ($useDbEditor) {
             $bank = $this->content->quizBankFor($course, $cm, $kind);
             if (! $bank) {
                 $defaults = $kind === 'theory_quiz'
@@ -121,11 +127,49 @@ final class AdminQuizController extends Controller
         ]);
     }
 
-    public function editFinal(Request $request): View
+    public function editFinal(Request $request, Course $adminCourse): View
     {
+        $this->assertFinalLabEnabledForCurrentCourse();
+
+        $courseId = (int) session('admin_course_id', 0);
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        $ro = app(PortalStaffAccess::class)->isReadOnlyCourseContent();
+
+        if ($course && ! $course->isLegacyAltCourse()) {
+            abort_unless(Schema::hasTable('course_quiz_banks'), 503);
+
+            $bank = $this->content->quizBankFor($course, null, 'final_lab');
+            if (! $bank) {
+                $bank = CourseQuizBank::query()->create([
+                    'course_id' => (int) $course->id,
+                    'course_module_id' => null,
+                    'kind' => 'final_lab',
+                    'pass_percent' => 70,
+                    'time_limit_minutes' => null,
+                    'attempt_limit' => null,
+                    'shuffle' => false,
+                    'one_by_one' => true,
+                    'breakdown_visible_minutes' => 15,
+                    'penalties_json' => null,
+                ]);
+            }
+            $questions = $this->content->questionsForBank($bank);
+
+            return view('admin.quiz-edit-db', [
+                'course' => $course,
+                'courseModule' => null,
+                'bank' => $bank,
+                'kind' => 'final_lab',
+                'title' => 'Финальная лабораторная (вопросы страницы)',
+                'questions' => $questions,
+                'isReadOnly' => $ro,
+                'quizDbScope' => 'final',
+                'quizSaveUrl' => route('admin.quiz.save.final', $this->adminCourseRouteParams()),
+            ]);
+        }
+
         $jsonPath = $this->finalJsonPath();
         $questions = CourseQuizBankLoader::loadJsonBank($jsonPath);
-        $ro = app(PortalStaffAccess::class)->isReadOnlyCourseContent();
 
         return view('admin.quiz-edit', [
             'scope' => 'final',
@@ -137,7 +181,7 @@ final class AdminQuizController extends Controller
         ]);
     }
 
-    public function save(Request $request, int $module, string $kind): RedirectResponse|JsonResponse
+    public function save(Request $request, Course $adminCourse, int $module, string $kind): RedirectResponse|JsonResponse
     {
         abort_if($module < 1 || $module > 9, 404);
         abort_if(! in_array($kind, ['theory_quiz', 'module_exam'], true), 404);
@@ -149,11 +193,19 @@ final class AdminQuizController extends Controller
             return $this->saveDbBank($request, $course, $module, $kind);
         }
 
+        $cm = $this->findCourseModuleByContentPackageIndex($courseId, $module);
+        if ($cm !== null && Schema::hasTable('course_quiz_banks')) {
+            $bank = $this->content->quizBankFor($course, $cm, $kind);
+            if ($bank !== null && $this->dbQuestionCount($courseId, (int) $cm->id, $kind) > 0) {
+                return $this->saveDbBank($request, $course, $module, $kind);
+            }
+        }
+
         $items = $request->input('questions', []);
         if (! is_array($items)) {
             return $this->fail($request, 'Неверный формат данных (questions).');
         }
-        $validated = $this->validateBank($items, $kind, true);
+        $validated = $this->validateQuizBankFormat($items, $kind, true);
         if ($validated['ok'] !== true) {
             return $this->fail($request, $validated['message']);
         }
@@ -169,8 +221,25 @@ final class AdminQuizController extends Controller
             return response()->json(['ok' => true]);
         }
         return redirect()
-            ->route('admin.quiz.edit.module', ['module' => $module, 'kind' => $kind])
+            ->route('admin.quiz.edit.module', array_merge($this->adminCourseRouteParams(), ['module' => $module, 'kind' => $kind]))
             ->with('ok', 'Банк вопросов сохранён.');
+    }
+
+    /**
+     * Пакет контента в URL — это {@see CourseModule::effectiveContentIndex()}, а не обязательно значение колонки content_source_index (она может быть NULL).
+     */
+    private function findCourseModuleByContentPackageIndex(int $courseId, int $contentIdx): ?CourseModule
+    {
+        if ($courseId < 1 || $contentIdx < 1) {
+            return null;
+        }
+
+        return CourseModule::query()
+            ->where('course_id', $courseId)
+            ->orderBy('sort')
+            ->orderBy('id')
+            ->get()
+            ->first(fn (CourseModule $cm) => $cm->effectiveContentIndex() === $contentIdx);
     }
 
     private function dbQuestionCount(int $courseId, int $courseModuleId, string $kind): int
@@ -195,12 +264,7 @@ final class AdminQuizController extends Controller
         $courseId = (int) session('admin_course_id', 0);
         abort_unless($course && (int) $course->id === $courseId, 404);
 
-        $cm = CourseModule::query()
-            ->where('course_id', $courseId)
-            ->where('content_source_index', $contentIdx)
-            ->orderBy('sort')
-            ->orderBy('id')
-            ->first();
+        $cm = $this->findCourseModuleByContentPackageIndex($courseId, $contentIdx);
         abort_unless($cm !== null, 404);
 
         if (! Schema::hasTable('course_quiz_banks')) {
@@ -256,14 +320,167 @@ final class AdminQuizController extends Controller
             return $this->fail($request, 'JSON не распарсился. Должен быть массив вопросов.');
         }
 
-        $validated = $this->validateBank($decoded, $kind, true);
+        $validated = $this->validateQuizBankFormat($decoded, $kind, true);
         if ($validated['ok'] !== true) {
             return $this->fail($request, $validated['message']);
         }
         $items = $validated['data'];
 
-        // Перезапись банка (минимально, без тонкой дифф-логики).
-        \Illuminate\Support\Facades\DB::transaction(function () use ($bank, $items): void {
+        $this->persistQuizBankItems($bank, $items);
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
+        return redirect()
+            ->route('admin.quiz.edit.module', array_merge($this->adminCourseRouteParams(), ['module' => $contentIdx, 'kind' => $kind]))
+            ->with('ok', 'Банк вопросов сохранён в БД.');
+    }
+
+    private function saveDbFinalBank(Request $request, Course $course): RedirectResponse|JsonResponse
+    {
+        $courseId = (int) session('admin_course_id', 0);
+        abort_unless((int) $course->id === $courseId, 404);
+
+        if (! Schema::hasTable('course_quiz_banks')) {
+            return $this->fail($request, 'Таблицы банков вопросов не найдены. Выполните миграции.');
+        }
+
+        $bank = $this->content->quizBankFor($course, null, 'final_lab');
+        if (! $bank) {
+            $bank = CourseQuizBank::query()->create([
+                'course_id' => $courseId,
+                'course_module_id' => null,
+                'kind' => 'final_lab',
+                'pass_percent' => 70,
+                'time_limit_minutes' => null,
+                'attempt_limit' => null,
+                'shuffle' => false,
+                'one_by_one' => true,
+                'breakdown_visible_minutes' => 15,
+                'penalties_json' => null,
+            ]);
+        }
+
+        $data = $request->validate([
+            'pass_percent' => 'required|integer|min:1|max:100',
+            'time_limit_minutes' => 'nullable|integer|min:1|max:600',
+            'attempt_limit' => 'nullable|integer|min:1|max:50',
+            'shuffle' => 'sometimes|boolean',
+            'one_by_one' => 'sometimes|boolean',
+            'breakdown_visible_minutes' => 'nullable|integer|min:0|max:10080',
+            'penalty_attempt_2' => 'nullable|integer|min:0|max:100',
+            'penalty_attempt_3' => 'nullable|integer|min:0|max:100',
+            'penalty_attempt_4' => 'nullable|integer|min:0|max:100',
+            'bank_json' => 'required|string|max:8000000',
+        ]);
+
+        $penalties = [];
+        foreach ([2, 3, 4] as $n) {
+            $k = 'penalty_attempt_'.$n;
+            if (isset($data[$k]) && $data[$k] !== null && $data[$k] !== '') {
+                $penalties[(string) $n] = (int) $data[$k];
+            }
+        }
+
+        $bank->pass_percent = (int) $data['pass_percent'];
+        $bank->time_limit_minutes = isset($data['time_limit_minutes']) ? (int) $data['time_limit_minutes'] : null;
+        $bank->attempt_limit = isset($data['attempt_limit']) ? (int) $data['attempt_limit'] : null;
+        $bank->shuffle = $request->boolean('shuffle');
+        $bank->one_by_one = $request->boolean('one_by_one');
+        $bank->breakdown_visible_minutes = isset($data['breakdown_visible_minutes']) ? (int) $data['breakdown_visible_minutes'] : $bank->breakdown_visible_minutes;
+        $bank->penalties_json = $penalties !== [] ? $penalties : null;
+        $bank->save();
+
+        $rawJson = (string) $data['bank_json'];
+        $decoded = json_decode($rawJson, true);
+        if (! is_array($decoded)) {
+            return $this->fail($request, 'JSON не распарсился. Должен быть массив вопросов.');
+        }
+
+        $validated = $this->validateQuizBankFormat($decoded, 'final_lab', false);
+        if ($validated['ok'] !== true) {
+            return $this->fail($request, $validated['message']);
+        }
+        $items = $validated['data'];
+
+        $this->persistQuizBankItems($bank, $items);
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
+        return redirect()
+            ->route('admin.quiz.edit.final', $this->adminCourseRouteParams())
+            ->with('ok', 'Вопросы финальной страницы сохранены в БД.');
+    }
+
+    public function saveFinal(Request $request, Course $adminCourse): RedirectResponse|JsonResponse
+    {
+        $this->assertFinalLabEnabledForCurrentCourse();
+
+        $courseId = (int) session('admin_course_id', 0);
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        if ($course && ! $course->isLegacyAltCourse()) {
+            return $this->saveDbFinalBank($request, $course);
+        }
+
+        $items = $request->input('questions', []);
+        if (! is_array($items)) {
+            return $this->fail($request, 'Неверный формат данных (questions).');
+        }
+        $validated = $this->validateQuizBankFormat($items, 'final_lab', false);
+        if ($validated['ok'] !== true) {
+            return $this->fail($request, $validated['message']);
+        }
+        $out = $validated['data'];
+        $ok = $this->writeJsonAtomically($this->finalJsonPath(), $out);
+        if (! $ok) {
+            return $this->fail($request, 'Не удалось сохранить JSON (проверьте права на каталог config/snippets).');
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+        return redirect()
+            ->route('admin.quiz.edit.final', $this->adminCourseRouteParams())
+            ->with('ok', 'Вопросы финальной страницы сохранены.');
+    }
+
+    private function assertFinalLabEnabledForCurrentCourse(): void
+    {
+        $courseId = (int) session('admin_course_id', 0);
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        if ($course && Schema::hasColumn('courses', 'final_lab_enabled') && ! $course->final_lab_enabled) {
+            abort(404, 'Финальная лабораторная отключена для этого курса.');
+        }
+    }
+
+    /**
+     * @return array{0:string,1:?string}
+     */
+    private function bankPaths(int $module, string $kind): array
+    {
+        $base = sprintf('module_%02d_%s_questions', $module, $kind);
+        $jsonPath = config_path('snippets/'.$base.'.json');
+        $phpPath = config_path('snippets/'.$base.'.php');
+
+        return [$jsonPath, is_file($phpPath) ? $phpPath : null];
+    }
+
+    private function finalJsonPath(): string
+    {
+        return config_path('snippets/final_lab_questions.json');
+    }
+
+    /**
+     * Полная перезапись вопросов банка (в транзакции).
+     *
+     * @param  list<array<string, mixed>>  $items  результат validateQuizBankFormat()['data']
+     */
+    public function persistQuizBankItems(CourseQuizBank $bank, array $items): void
+    {
+        DB::transaction(function () use ($bank, $items): void {
             $qIds = \App\Models\CourseQuizQuestion::query()
                 ->where('quiz_bank_id', (int) $bank->id)
                 ->pluck('id')->map(fn ($v) => (int) $v)->all();
@@ -328,62 +545,13 @@ final class AdminQuizController extends Controller
                 }
             }
         });
-
-        if ($request->expectsJson()) {
-            return response()->json(['ok' => true]);
-        }
-
-        return redirect()
-            ->route('admin.quiz.edit.module', ['module' => $contentIdx, 'kind' => $kind])
-            ->with('ok', 'Банк вопросов сохранён в БД.');
-    }
-
-    public function saveFinal(Request $request): RedirectResponse|JsonResponse
-    {
-        $items = $request->input('questions', []);
-        if (! is_array($items)) {
-            return $this->fail($request, 'Неверный формат данных (questions).');
-        }
-        $validated = $this->validateBank($items, 'final_lab', false);
-        if ($validated['ok'] !== true) {
-            return $this->fail($request, $validated['message']);
-        }
-        $out = $validated['data'];
-        $ok = $this->writeJsonAtomically($this->finalJsonPath(), $out);
-        if (! $ok) {
-            return $this->fail($request, 'Не удалось сохранить JSON (проверьте права на каталог config/snippets).');
-        }
-
-        if ($request->expectsJson()) {
-            return response()->json(['ok' => true]);
-        }
-        return redirect()
-            ->route('admin.quiz.edit.final')
-            ->with('ok', 'Вопросы финальной страницы сохранены.');
-    }
-
-    /**
-     * @return array{0:string,1:?string}
-     */
-    private function bankPaths(int $module, string $kind): array
-    {
-        $base = sprintf('module_%02d_%s_questions', $module, $kind);
-        $jsonPath = config_path('snippets/'.$base.'.json');
-        $phpPath = config_path('snippets/'.$base.'.php');
-
-        return [$jsonPath, is_file($phpPath) ? $phpPath : null];
-    }
-
-    private function finalJsonPath(): string
-    {
-        return config_path('snippets/final_lab_questions.json');
     }
 
     /**
      * @param  array<mixed>  $items
      * @return array{ok:bool,message:string,data:list<array<string,mixed>>}
      */
-    private function validateBank(array $items, string $kind, bool $allowPoints): array
+    public function validateQuizBankFormat(array $items, string $kind, bool $allowPoints): array
     {
         $out = [];
         if (count($items) > 250) {
