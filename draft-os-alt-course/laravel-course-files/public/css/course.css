@@ -19,6 +19,8 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
   --transition: 0.15s ease;
+  --portal-gutter: 24px;
+  --portal-pad: 28px;
 }
 
 *,
@@ -95,17 +97,13 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
 }
 
 .course-header--public {
-  box-sizing: border-box;
   width: 100%;
-  max-width: 1100px;
-  margin-left: auto;
-  margin-right: auto;
-  padding: 16px 24px;
+  max-width: none;
+  margin: 0;
+  padding: 16px var(--portal-pad);
   gap: 1rem;
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-  border-top: 1px solid var(--border);
-  border-radius: 14px 14px 0 0;
+  border: none;
+  border-radius: 0;
 }
 
 .course-header::after {
@@ -224,8 +222,8 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
 
 @media (max-width: 420px) {
   .course-header--public {
-    padding-left: 12px;
-    padding-right: 12px;
+    padding-left: 16px;
+    padding-right: 16px;
     gap: 0.5rem;
   }
 
@@ -247,25 +245,29 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
   }
 }
 
-/* Публичный портал: шапка и контент — одна колонка 1100px по центру */
-body.course-ui:has(.course-header--public) .flash {
-  max-width: 1100px;
+/* Публичный портал: одна колонка 1100px — шапка и карточки с одним выравниванием */
+.portal-site-column {
   box-sizing: border-box;
-}
-
-body.course-ui:has(.course-header--public) .portal-home {
-  margin-top: 0;
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  border-radius: 0 0 14px 14px;
-}
-
-/* Главная портала: отступы и ширина как на эталоне */
-.portal-home {
+  width: 100%;
   max-width: 1100px;
-  margin: 0 auto;
-  padding: 32px 24px 48px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 8px var(--portal-gutter) 48px;
+}
+
+.portal-site-column .flash {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: var(--portal-pad);
+  padding-right: var(--portal-pad);
+}
+
+/* Главная портала */
+.portal-home {
+  max-width: none;
+  margin: 0;
+  padding: 20px 0 0;
   width: 100%;
   box-sizing: border-box;
 }
@@ -280,6 +282,37 @@ body.course-ui:has(.course-header--public) .portal-home {
   max-width: none !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
+}
+
+.portal-home > .card.page-section:not(.welcome-block),
+.portal-home.acc-page > .card.page-section.acc-tabs-card {
+  padding: var(--portal-pad);
+}
+
+.portal-home .portal-catalog-grid.module-grid {
+  margin-top: 20px;
+}
+
+.portal-home .portal-course-card.module-card {
+  padding: 2.35rem 1.15rem 1.15rem;
+}
+
+@media (max-width: 560px) {
+  .portal-site-column {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .course-header--public,
+  .portal-home > .card.page-section:not(.welcome-block) {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .portal-site-column .page-container {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
 }
 
 /* ─── Кнопки и карточки (общие с админкой) ─── */
@@ -442,9 +475,13 @@ body.course-ui:has(.course-header--public) .portal-home {
   transition: width 0.6s ease;
 }
 
-/* ─── Дашборд курса (/courses/{slug}/dashboard) — вёрстка как на эталоне, токены как на главной (портал) ─── */
-.page-container:has(.dashboard-plaques) {
-  max-width: 1100px;
+/* Курс в колонке портала: контент на всю ширину колонки, отступы как у шапки (--portal-pad) */
+.portal-site-column .page-container {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 20px var(--portal-pad) 40px;
+  box-sizing: border-box;
 }
 
 /* Плашки метрик (личный кабинет + дашборд курса) */
@@ -537,8 +574,7 @@ body.course-ui:has(.course-header--public) .portal-home {
   text-transform: none;
 }
 
-.portal-metric__accent,
-.learner-track-summary .stat-value::before {
+.portal-metric__accent {
   display: block;
   width: 2.25rem;
   height: 3px;
@@ -546,7 +582,6 @@ body.course-ui:has(.course-header--public) .portal-home {
   background: linear-gradient(90deg, var(--brand), #34d399);
   margin-bottom: 0.35rem;
   opacity: 0.85;
-  content: "";
 }
 
 .learner-track-summary .stats-row {
@@ -569,68 +604,28 @@ body.course-ui:has(.course-header--public) .portal-home {
   }
 }
 
-/* stat-card: та же сетка, что portal-metric, но иконка через ::before (без правки Blade) */
-.learner-track-summary .stat-card {
-  display: grid;
-  grid-template-columns: 2.75rem minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  column-gap: 0.9rem;
-  row-gap: 0;
-  align-items: center;
-}
-
-.learner-track-summary .stat-card::before {
-  content: "";
-  grid-column: 1;
-  grid-row: 1 / span 2;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 12px;
-  background-color: #e8f9f0;
-  background-image: linear-gradient(145deg, #e8f9f0 0%, #d4f3e2 100%);
-  border: 1px solid rgba(0, 185, 86, 0.2);
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 1.35rem 1.35rem;
-}
-
-.learner-track-summary .stat-card:nth-child(1)::before {
-  background-image:
-    linear-gradient(145deg, #e8f9f0 0%, #d4f3e2 100%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='%2300a84d' stroke-width='1.85' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 11.08V12a10 10 0 1 1-5.93-9.14'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E");
-}
-
-.learner-track-summary .stat-card:nth-child(2)::before {
-  background-image:
-    linear-gradient(145deg, #e8f9f0 0%, #d4f3e2 100%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='%2300a84d' stroke-width='1.85' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E");
-}
-
-.learner-track-summary .stat-card:nth-child(3)::before {
-  background-image:
-    linear-gradient(145deg, #e8f9f0 0%, #d4f3e2 100%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='%2300a84d' stroke-width='1.85' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h12a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2V5a2 2 0 0 1 2-2z'/%3E%3Cpath d='M8 8h8M8 12h8M8 16h5'/%3E%3C/svg%3E");
-}
-
+/* Дашборд: значения «1/9», «91/900» в одну строку */
 .learner-track-summary .stat-value {
-  grid-column: 2;
-  grid-row: 1;
-  display: flex;
-  flex-direction: column;
   margin: 0;
+  white-space: nowrap;
 }
 
-.learner-track-summary .stat-label {
-  grid-column: 2;
-  grid-row: 2;
-  margin: 0;
+.learner-track-summary .stat-value__num,
+.learner-track-summary .stat-value__suffix {
+  display: inline;
+  vertical-align: baseline;
 }
 
-.learner-track-summary .stat-value span {
-  font-size: 0.72em !important;
-  font-weight: 700 !important;
-  color: #64748b !important;
+.learner-track-summary .stat-value__suffix {
+  font-size: 0.72em;
+  font-weight: 700;
+  color: #64748b;
+  margin-left: 0.06em;
   letter-spacing: 0;
+}
+
+.learner-track-summary .portal-metric__label.stat-label {
+  margin-top: 0.3rem;
 }
 
 .learner-track-summary .module-nav {
@@ -1357,9 +1352,9 @@ a.hub-row {
 
 /* ─── Дашборд: плашки ─── */
 .dashboard-plaques {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 24px 24px 0;
+  max-width: none;
+  margin: 0;
+  padding: 0 0 1rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
