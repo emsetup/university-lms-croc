@@ -7,8 +7,9 @@
     <link rel="icon" type="image/png" href="{{ asset('croc-app-icon.png') }}">
     <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('croc-app-icon-512.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('croc-app-icon-512.png') }}">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap"></noscript>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/course.css') }}">
     @if (request()->routeIs('admin.*'))
         <link rel="stylesheet" href="{{ asset('css/admin-panel.css') }}">
@@ -233,20 +234,20 @@
             </span>
         </a>
         @if (session('learner_id'))
-            <nav class="portal-header-nav" aria-label="Навигация портала">
-                <a class="portal-header-nav__link @if ($isPortalUi) is-active @endif" href="{{ route('portal') }}">Курсы</a>
+            <div class="course-header__actions">
+                <a class="btn btn-ghost" href="{{ route('portal') }}">Курсы</a>
                 @if (! empty($portalStaffAccess))
-                    <a class="portal-header-nav__link @if ($isAdminUi) is-active @endif" href="{{ route('admin.panel') }}">Управление</a>
+                    <a class="btn btn-ghost" href="{{ route('admin.panel') }}">Управление</a>
                 @endif
-                <a class="portal-header-nav__link @if (request()->routeIs('account')) is-active @endif" href="{{ route('account') }}">Личный кабинет</a>
+                <a class="btn btn-ghost" href="{{ route('account') }}">Личный кабинет</a>
                 @if (! $isAdminUi && ! $isPortalUi && $hasCourse)
-                    <a class="portal-header-nav__link @if (request()->routeIs('course.dashboard')) is-active @endif" href="{{ route('course.dashboard', ['course' => (int) session('course_id')]) }}">Модули</a>
+                    <a class="btn btn-ghost" href="{{ route('course.dashboard', ['course' => (int) session('course_id')]) }}">Модули</a>
                 @endif
-                <form class="portal-header-nav__logout" method="post" action="{{ route('logout') }}">
+                <form method="post" action="{{ route('logout') }}" style="margin:0">
                     @csrf
-                    <button type="submit" class="portal-header-nav__link portal-header-nav__link--button">Выйти</button>
+                    <button type="submit" class="btn btn-ghost">Выйти</button>
                 </form>
-            </nav>
+            </div>
         @endif
     </header>
     @if (session('ok'))

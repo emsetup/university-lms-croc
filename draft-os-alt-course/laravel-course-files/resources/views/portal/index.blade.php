@@ -3,6 +3,7 @@
 @section('title', 'Образовательный портал')
 
 @section('content')
+<div class="portal-home">
     @php
         $courseCount = count($courses);
         $catalogBadgeLabel = $courseCount === 1 ? '1 курс' : (
@@ -504,7 +505,7 @@
     </style>
 
     @if (session('learner_id') && ! empty($learnerEmail))
-        <div class="card page-section welcome-block" style="max-width:1100px;margin:0 auto">
+        <div class="card page-section welcome-block" >
             <div class="portal-welcome-head">
                 <div class="portal-welcome-main">
                     <div class="portal-welcome-avatar" aria-hidden="true">{{ $portalWelcomeInitials }}</div>
@@ -513,7 +514,7 @@
                         <div class="portal-welcome-email muted">{{ $learnerEmail }}</div>
                     </div>
                 </div>
-                @if (! empty($portalStaffAccess) && $portalStaffAccess->isPortalAdmin())
+                @if (! empty($portalStaffAccess))
                     <a class="btn btn-ghost" href="{{ route('admin.panel') }}">Управление ↗</a>
                 @endif
             </div>
@@ -547,7 +548,7 @@
             </div>
         </div>
     @else
-        <div class="card page-section welcome-block" style="max-width:1100px;margin:0 auto">
+        <div class="card page-section welcome-block" >
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
                 <div>
                     <h1 style="margin:0 0 0.35rem">Образовательный портал</h1>
@@ -614,7 +615,7 @@
         </div>
     @endif
 
-    <div class="card page-section" style="max-width:1100px;margin:0 auto">
+    <div class="card page-section" >
         <div class="portal-courses-heading">
             <h2 class="portal-courses-heading__title">Доступные курсы</h2>
             @if ($courseCount > 0)
@@ -718,6 +719,8 @@
             </div>
         </div>
     </div>
+
+</div>
 
     @include('portal.partials.login-modal', ['domain' => config('course.email_domain')])
     @include('partials.course-audience-modal')
