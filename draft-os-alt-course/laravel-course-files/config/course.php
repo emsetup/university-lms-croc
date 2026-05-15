@@ -5,6 +5,9 @@ use App\Support\CourseQuizBankLoader;
 return [
     'email_domain' => 'croc.ru',
 
+    /** Заглушка «Портал обновляется» для вошедших обучающихся (не staff). Включить: PORTAL_USER_MAINTENANCE=true */
+    'portal_user_maintenance' => filter_var(env('PORTAL_USER_MAINTENANCE', false), FILTER_VALIDATE_BOOL),
+
     'teacher_report_token' => env('TEACHER_REPORT_TOKEN', ''),
 
     'step_titles' => [

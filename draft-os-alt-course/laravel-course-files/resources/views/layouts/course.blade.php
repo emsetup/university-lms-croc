@@ -7,9 +7,8 @@
     <link rel="icon" type="image/png" href="{{ asset('croc-app-icon.png') }}">
     <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('croc-app-icon-512.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('croc-app-icon-512.png') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap"></noscript>
     <link rel="stylesheet" href="{{ asset('css/course.css') }}">
     @if (request()->routeIs('admin.*'))
         <link rel="stylesheet" href="{{ asset('css/admin-panel.css') }}">
