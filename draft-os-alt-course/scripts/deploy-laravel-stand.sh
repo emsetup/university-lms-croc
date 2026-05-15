@@ -55,6 +55,7 @@ for f in \
   app/Http/Controllers/EmailLoginController.php \
   app/Http/Controllers/OidcLoginController.php \
   app/Http/Controllers/AdminPanelController.php \
+  app/Http/Controllers/AdminSettingsController.php \
   app/Http/Controllers/AdminCoursesController.php \
   app/Http/Controllers/AdminCourseSettingsController.php \
   app/Http/Controllers/AdminCourseContentController.php \
@@ -77,6 +78,7 @@ for f in \
   app/Http/Middleware/EnsureAdminCourseSelected.php \
   app/Http/Middleware/EnsureCourseSelected.php \
   app/Http/Middleware/EnsureLearner.php \
+  app/Http/Middleware/MaintenanceForUsers.php \
   app/Http/Middleware/EnsurePortalStaff.php \
   app/Http/Middleware/EnsureStaffAbility.php \
   app/Http/Middleware/DenyCourseTester.php \
@@ -87,7 +89,11 @@ for f in \
   app/Services/CourseModuleService.php \
   app/Services/CourseContentService.php \
   app/Services/LegacyAltCourseContentBootstrap.php \
+  app/Services/LegacyAltPracticeImagesBootstrap.php \
+  app/Support/LegacyAltPracticeImageCatalog.php \
   app/Services/PortalStaffAccess.php \
+  app/Services/PortalMaintenance.php \
+  app/Services/MaintenanceActivityLogger.php \
   app/Services/PracticeLabDaemonClient.php \
   app/Services/PracticeImageRecipeBootstrap.php \
   app/Services/PracticeLabService.php \
@@ -102,6 +108,7 @@ for f in \
   app/Support/CourseModuleMeta.php \
   app/Support/CourseTheoryPaths.php \
   app/Support/AdminNavigation.php \
+  app/Support/StaffImpersonation.php \
   app/Support/OidcIdentityClaims.php \
   app/Support/OidcSignInRedirect.php \
   app/Support/PortalWelcomeInitials.php \
@@ -123,6 +130,7 @@ for f in \
   app/Models/Learner.php \
   app/Models/ModuleProgress.php \
   app/Models/PortalStaff.php \
+  app/Models/PortalActivityEvent.php \
   app/Models/PracticeSession.php \
   app/Models/FinalLabResult.php \
   app/Models/PracticeImage.php
@@ -167,7 +175,9 @@ for mf in \
   database/migrations/2026_05_14_000001_add_tags_to_courses_table.php \
   database/migrations/2026_05_14_000002_add_course_admin_settings_columns.php \
   database/migrations/2026_05_14_000003_add_sso_display_name_to_learners_table.php \
-  database/migrations/2026_05_14_100000_seed_legacy_alt_os_course_content_to_database.php
+  database/migrations/2026_05_14_100000_seed_legacy_alt_os_course_content_to_database.php \
+  database/migrations/2026_05_15_000001_create_portal_activity_events_table.php \
+  database/migrations/2026_05_15_120000_seed_legacy_alt_practice_images.php
 do
   if [[ -f "${LCF}/${mf}" ]]; then
     echo "[deploy-laravel] ${mf}"
@@ -220,6 +230,11 @@ if [[ -f "${LCF}/resources/views/layouts/course.blade.php" ]]; then
   rsync -az "${LCF}/resources/views/layouts/course.blade.php" "${STAND_SSH}:${REMOTE}/resources/views/layouts/course.blade.php"
 fi
 
+if [[ -f "${LCF}/resources/views/maintenance.blade.php" ]]; then
+  echo "[deploy-laravel] resources/views/maintenance.blade.php"
+  rsync -az "${LCF}/resources/views/maintenance.blade.php" "${STAND_SSH}:${REMOTE}/resources/views/maintenance.blade.php"
+fi
+
 if [[ -f "${LCF}/resources/views/layouts/admin.blade.php" ]]; then
   echo "[deploy-laravel] resources/views/layouts/admin.blade.php"
   rsync -az "${LCF}/resources/views/layouts/admin.blade.php" "${STAND_SSH}:${REMOTE}/resources/views/layouts/admin.blade.php"
@@ -234,6 +249,21 @@ if [[ -f "${LCF}/public/css/course.css" ]]; then
   echo "[deploy-laravel] public/css/course.css"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/css'"
   rsync -az "${LCF}/public/css/course.css" "${STAND_SSH}:${REMOTE}/public/css/course.css"
+fi
+
+if [[ -f "${LCF}/public/css/local-fonts.css" ]]; then
+  echo "[deploy-laravel] public/css/local-fonts.css"
+  rsync -az "${LCF}/public/css/local-fonts.css" "${STAND_SSH}:${REMOTE}/public/css/local-fonts.css"
+fi
+
+if [[ -d "${LCF}/public/vendor" ]]; then
+  echo "[deploy-laravel] public/vendor/"
+  rsync -az "${LCF}/public/vendor/" "${STAND_SSH}:${REMOTE}/public/vendor/"
+fi
+
+if [[ -d "${LCF}/public/fonts" ]]; then
+  echo "[deploy-laravel] public/fonts/"
+  rsync -az "${LCF}/public/fonts/" "${STAND_SSH}:${REMOTE}/public/fonts/"
 fi
 
 if [[ -f "${LCF}/public/css/admin-panel.css" ]]; then

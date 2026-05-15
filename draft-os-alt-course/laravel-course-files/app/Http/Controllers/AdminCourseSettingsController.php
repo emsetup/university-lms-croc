@@ -15,6 +15,7 @@ use App\Models\PracticeImage;
 use App\Models\CourseQuizBank;
 use App\Services\CourseContentService;
 use App\Services\CourseSectionService;
+use App\Services\LegacyAltPracticeImagesBootstrap;
 use App\Services\PortalStaffAccess;
 use App\Support\AdminCourseContentInspector;
 use App\Support\CourseModuleMeta;
@@ -37,6 +38,11 @@ final class AdminCourseSettingsController extends Controller
         /** @var Course $course */
         $course = Course::query()->findOrFail($courseId);
         $course->loadMissing('finalLabPracticeImage:id,title,docker_tag');
+
+        if ($course->isLegacyAltCourse()) {
+            LegacyAltPracticeImagesBootstrap::sync();
+            $course->loadMissing('finalLabPracticeImage:id,title,docker_tag');
+        }
 
         $finalQuestionCount = 0;
         if ($course->isLegacyAltCourse()) {
@@ -68,9 +74,12 @@ final class AdminCourseSettingsController extends Controller
 
         $modules = CourseModule::query()
             ->where('course_id', $courseId)
-            ->with(['sections' => static function ($q): void {
-                $q->orderBy('sort')->orderBy('id');
-            }])
+            ->with([
+                'sections' => static function ($q): void {
+                    $q->orderBy('sort')->orderBy('id');
+                },
+                'practiceSetting.practiceImage:id,title,docker_tag',
+            ])
             ->orderBy('sort')
             ->orderBy('id')
             ->get();
@@ -506,6 +515,9 @@ final class AdminCourseSettingsController extends Controller
 
         $course = Course::query()->findOrFail((int) $section->course_id);
         $isLegacy = $course->isLegacyAltCourse();
+        if ($isLegacy) {
+            LegacyAltPracticeImagesBootstrap::sync();
+        }
         $section->loadMissing('sectionSettings');
         $settings = is_array($section->sectionSettings?->settings) ? $section->sectionSettings->settings : self::defaultSettingsForType($section->type);
 

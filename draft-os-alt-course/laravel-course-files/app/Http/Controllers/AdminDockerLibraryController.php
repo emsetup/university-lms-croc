@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\CourseModulePracticeSetting;
 use App\Models\PracticeImage;
+use App\Services\LegacyAltPracticeImagesBootstrap;
 use App\Services\PracticeImageRecipeBootstrap;
 use App\Services\PracticeImageRecipeGenerator;
 use App\Services\PracticeLabDaemonClient;
@@ -22,6 +23,8 @@ final class AdminDockerLibraryController extends Controller
 
     public function index(Request $request): View
     {
+        LegacyAltPracticeImagesBootstrap::sync();
+
         $q = trim((string) $request->query('q', ''));
 
         $items = PracticeImage::query()

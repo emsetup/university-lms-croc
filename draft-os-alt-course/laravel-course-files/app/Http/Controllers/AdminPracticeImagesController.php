@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Models\PracticeImage;
 use App\Models\CourseModulePracticeSetting;
 use App\Services\PracticeImageRecipeBootstrap;
+use App\Support\LegacyAltPracticeImageCatalog;
 use App\Services\PracticeImageRecipeGenerator;
 use App\Services\PracticeLabDaemonClient;
 use Illuminate\Http\RedirectResponse;
@@ -437,38 +438,14 @@ final class AdminPracticeImagesController extends Controller
      */
     private function systemAltImages(): array
     {
-        $images = config('practice_lab.images', []);
-        if (! is_array($images)) {
-            return [];
-        }
-
-        $map = [
-            1 => ['title' => 'Alt · Модуль 1', 'template' => 'lab-m1'],
-            2 => ['title' => 'Alt · Модуль 2', 'template' => 'lab-m2'],
-            3 => ['title' => 'Alt · Модуль 3', 'template' => 'lab-m3'],
-            5 => ['title' => 'Alt · Модуль 5', 'template' => 'lab-m5'],
-            6 => ['title' => 'Alt · Модуль 6', 'template' => 'lab-m6'],
-            7 => ['title' => 'Alt · Модуль 7', 'template' => 'lab-m7'],
-            8 => ['title' => 'Alt · Модуль 8', 'template' => 'lab-m8'],
-            9 => ['title' => 'Alt · Модуль 9', 'template' => 'lab-m9'],
-            10 => ['title' => 'Alt · Финальная', 'template' => 'final-lab'],
-        ];
-
-        $out = [];
-        foreach ($map as $k => $meta) {
-            $tag = isset($images[(string) $k]) ? trim((string) $images[(string) $k]) : '';
-            if ($tag === '') {
-                continue;
-            }
-            $out[] = [
-                'module_key' => (int) $k,
-                'title' => (string) $meta['title'],
-                'template' => (string) $meta['template'],
-                'docker_tag' => $tag,
+        return array_map(static function (array $entry): array {
+            return [
+                'module_key' => (int) $entry['module_key'],
+                'title' => (string) $entry['title'],
+                'template' => (string) $entry['template'],
+                'docker_tag' => (string) $entry['docker_tag'],
             ];
-        }
-
-        return $out;
+        }, LegacyAltPracticeImageCatalog::entries());
     }
 
     private function suggestCopyDockerTag(string $src): string
