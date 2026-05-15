@@ -245,7 +245,7 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
   }
 }
 
-/* Публичный портал: одна колонка 1100px — шапка и карточки с одним выравниванием */
+/* Публичный портал: колонка 1100px; шапка и контент на одну ширину (без «второго» сужения) */
 .portal-site-column {
   box-sizing: border-box;
   width: 100%;
@@ -255,10 +255,25 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
   padding: 8px var(--portal-gutter) 48px;
 }
 
-.portal-site-column .flash {
+/* Растягиваем прямых потомков на всю ширину колонки (компенсация --portal-gutter) */
+.portal-site-column > header.course-header--public,
+.portal-site-column > .flash,
+.portal-site-column > .page-container,
+.portal-site-column > .portal-home,
+.portal-site-column > .acc-page {
+  box-sizing: border-box;
+  width: calc(100% + 2 * var(--portal-gutter));
   max-width: none;
-  margin-left: 0;
-  margin-right: 0;
+  margin-left: calc(-1 * var(--portal-gutter));
+  margin-right: calc(-1 * var(--portal-gutter));
+}
+
+.portal-site-column > header.course-header--public {
+  padding-left: var(--portal-pad);
+  padding-right: var(--portal-pad);
+}
+
+.portal-site-column > .flash {
   padding-left: var(--portal-pad);
   padding-right: var(--portal-pad);
 }
@@ -309,7 +324,12 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
     padding-right: 20px;
   }
 
-  .portal-site-column .page-container {
+  .portal-site-column > header.course-header--public {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .portal-site-column > .flash {
     padding-left: 20px;
     padding-right: 20px;
   }
@@ -475,13 +495,9 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
   transition: width 0.6s ease;
 }
 
-/* Курс в колонке портала: контент на всю ширину колонки, отступы как у шапки (--portal-pad) */
-.portal-site-column .page-container {
-  max-width: none;
-  width: 100%;
-  margin: 0;
-  padding: 20px var(--portal-pad) 40px;
-  box-sizing: border-box;
+/* Контент курса: без дополнительных боковых отступов (ширина задаётся breakout выше) */
+.portal-site-column > .page-container {
+  padding: 20px 0 40px;
 }
 
 /* Плашки метрик (личный кабинет + дашборд курса) */
