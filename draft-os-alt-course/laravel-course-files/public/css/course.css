@@ -95,8 +95,17 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
 }
 
 .course-header--public {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
   padding: 16px 24px;
   gap: 1rem;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  border-radius: 14px 14px 0 0;
 }
 
 .course-header::after {
@@ -236,6 +245,20 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
     padding: 7px 10px;
     font-size: 13px;
   }
+}
+
+/* Публичный портал: шапка и контент — одна колонка 1100px по центру */
+body.course-ui:has(.course-header--public) .flash {
+  max-width: 1100px;
+  box-sizing: border-box;
+}
+
+body.course-ui:has(.course-header--public) .portal-home {
+  margin-top: 0;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 14px 14px;
 }
 
 /* Главная портала: отступы и ширина как на эталоне */
