@@ -91,12 +91,45 @@
         return state.data && state.data.section && state.data.section.type === 'exam';
     }
 
+    function isQuizExamType(t) {
+        return t === 'quiz' || t === 'exam';
+    }
+
+    function currentSectionType() {
+        var sel = $('ap-sec-set-type');
+        if (sel && sel.value) return sel.value;
+        return state.data && state.data.section ? state.data.section.type : 'text';
+    }
+
+    function applyPanelLayout(sectionType) {
+        var panel = $('ap-sec-edit-panel');
+        if (!panel) return;
+        var wide = isQuizExamType(sectionType);
+        panel.classList.toggle('panel-wide', wide);
+        if (!panel.dataset.userResized) {
+            panel.style.width = wide ? '80vw' : '';
+        }
+        var tabQ = $('ap-sec-tab-questions');
+        var tabC = $('ap-sec-tab-content');
+        if (tabQ) tabQ.hidden = !wide;
+        if (tabC) tabC.hidden = wide;
+        var meta = $('ap-sec-panel-meta');
+        if (meta) meta.hidden = !wide;
+        document.querySelectorAll('.ap-sec-settings-quiz-only').forEach(function (el) {
+            el.hidden = !wide;
+        });
+    }
+
+    function defaultTabForType(t) {
+        return isQuizExamType(t) ? 'questions' : 'content';
+    }
+
     function showQuizSavedIndicator() {
         var el = $('ap-sec-quiz-save-indicator');
         if (!el) return;
         el.hidden = false;
         el.classList.add('is-visible');
-        el.textContent = 'Сохранено';
+        el.innerHTML = 'Сохранено <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="vertical-align:-2px"><path d="M20 6L9 17l-5-5"/></svg>';
         window.clearTimeout(showQuizSavedIndicator._t);
         showQuizSavedIndicator._t = window.setTimeout(function () {
             el.textContent = '';
@@ -110,6 +143,7 @@
         quizAutoSaveTimer = window.setTimeout(function () {
             syncActiveQuestionFromEditor();
             renderQuizSidebar();
+            updatePanelMetaInfo();
             showQuizSavedIndicator();
         }, 1500);
     }
@@ -176,17 +210,17 @@
         list.innerHTML = '';
         state.questions.forEach(function (item, idx) {
             var row = document.createElement('div');
-            row.className = 'question-item' + (idx === state.quizActive ? ' active' : '');
+            row.className = 'question-list-item' + (idx === state.quizActive ? ' active' : '');
             row.setAttribute('role', 'listitem');
             row.dataset.questionId = String(idx);
             row.innerHTML =
-                '<div class="question-item-num">' +
+                '<div class="q-item-num">' +
                 (idx + 1) +
                 '</div>' +
-                '<div class="question-item-text">' +
+                '<div class="q-item-text">' +
                 esc(shortQuestionText(item.q)) +
                 '</div>' +
-                '<div class="question-item-type">' +
+                '<div class="q-item-type">' +
                 esc(typeMetaLabel(item.type)) +
                 '</div>';
             row.addEventListener('click', function () {
@@ -257,18 +291,18 @@
         box.innerHTML = '';
         item.options.forEach(function (opt, idx) {
             var row = document.createElement('div');
-            row.className = 'answer-option';
+            row.className = 'answer-row';
             var isCorrect =
                 item.type === 'multi' ? item.correct.indexOf(idx) >= 0 : item.correct === idx;
             if (isCorrect) row.classList.add('correct');
             var mark = document.createElement('div');
-            mark.className = item.type === 'multi' ? 'answer-checkbox' : 'answer-radio';
-            if (isCorrect) mark.classList.add('selected');
+            mark.className = item.type === 'multi' ? 'answer-marker multi' : 'answer-marker';
+            if (isCorrect) mark.classList.add('checked');
             mark.addEventListener('click', function () {
                 selectCorrectAnswer(row, idx, item.type);
             });
             var inp = document.createElement('input');
-            inp.className = 'answer-input';
+            inp.className = 'answer-text-input';
             inp.type = 'text';
             inp.value = String(opt || '');
             inp.placeholder = 'Вариант ответа…';
@@ -278,7 +312,7 @@
             });
             var del = document.createElement('button');
             del.type = 'button';
-            del.className = 'answer-delete';
+            del.className = 'answer-delete-btn';
             del.setAttribute('aria-label', 'Удалить вариант');
             del.innerHTML = ICON_X;
             del.addEventListener('click', function () {
@@ -519,32 +553,47 @@
     }
 
     function updateQuizSummary() {
-        var el = $('ap-sec-quiz-summary');
+        updatePanelMetaInfo();
+    }
+
+    function updatePanelMetaInfo() {
+        var el = $('ap-sec-panel-meta');
         if (!el || !state.data) return;
+        if (!isQuizExamType(currentSectionType())) {
+            el.hidden = true;
+            return;
+        }
+        el.hidden = false;
         var n = state.questions.length;
-        var parts = ['Вопросов: ' + n];
-        if (!readInherit('ap-sec-inherit-att')) {
-            var a = $('ap-sec-own-att').value;
-            parts.push('Попытки: ' + (a ? a : '—'));
-        } else parts.push('Попытки: из курса');
-        if (!readInherit('ap-sec-inherit-time')) {
-            parts.push('Время: ' + ($('ap-sec-own-time').value || '—') + ' мин');
-        } else parts.push('Время: из курса');
-        if (!readInherit('ap-sec-inherit-pass')) {
-            parts.push('Проходной: ' + ($('ap-sec-own-pass').value || '—') + '%');
-        } else parts.push('Проходной: из курса');
-        el.textContent = parts.join(' · ');
+        var att = !readInherit('ap-sec-inherit-att')
+            ? ($('ap-sec-own-att').value || '—')
+            : 'из курса';
+        var time = !readInherit('ap-sec-inherit-time')
+            ? ($('ap-sec-own-time').value || '—') + ' мин'
+            : 'из курса';
+        var pass = !readInherit('ap-sec-inherit-pass')
+            ? ($('ap-sec-own-pass').value || '—') + '%'
+            : 'из курса';
+        el.innerHTML =
+            '<span class="panel-meta-item">Вопросов: <strong>' + esc(String(n)) + '</strong></span>' +
+            '<span class="panel-meta-item">Попытки: <strong>' + esc(String(att)) + '</strong></span>' +
+            '<span class="panel-meta-item">Время: <strong>' + esc(String(time)) + '</strong></span>' +
+            '<span class="panel-meta-item">Проходной: <strong>' + esc(String(pass)) + '</strong></span>';
+        var countEl = $('ap-sec-quiz-count');
+        if (countEl) countEl.textContent = String(n);
     }
 
     function showContentForType(t) {
         var th = $('ap-sec-edit-content-theory');
-        var qz = $('ap-sec-edit-content-quiz');
         var pr = $('ap-sec-edit-content-practice');
         if (th) th.hidden = t !== 'text';
-        if (qz) qz.hidden = t !== 'quiz' && t !== 'exam';
         if (pr) pr.hidden = t !== 'practice';
         var body = document.querySelector('.ap-sec-edit-panel__body');
-        if (body) body.classList.toggle('ap-sec-edit-panel__body--quiz', t === 'quiz' || t === 'exam');
+        if (body) body.classList.toggle('ap-sec-edit-panel__body--quiz', isQuizExamType(t));
+        applyPanelLayout(t);
+        if (state.open) {
+            switchMainTab(defaultTabForType(t));
+        }
     }
 
     function applyLoadedData(d) {
@@ -630,7 +679,7 @@
                 requestAnimationFrame(function () {
                     panel.classList.add('is-open');
                 });
-                switchMainTab('content');
+                switchMainTab(defaultTabForType(d.section.type || 'text'));
             })
             .catch(function () {
                 window.alert('Ошибка сети при загрузке панели.');
@@ -641,6 +690,9 @@
         var panel = $('ap-sec-edit-panel');
         if (!panel) return;
         panel.classList.remove('is-open');
+        panel.classList.remove('panel-wide');
+        delete panel.dataset.userResized;
+        panel.style.width = '';
         state.open = false;
         window.setTimeout(function () {
             panel.hidden = true;
@@ -654,20 +706,31 @@
     }
 
     function switchMainTab(which) {
+        var typ = currentSectionType();
+        if (isQuizExamType(typ) && which === 'content') which = 'questions';
+        if (!isQuizExamType(typ) && which === 'questions') which = 'content';
         var tabs = document.querySelectorAll('[data-ap-sec-tab]');
         var panS = $('ap-sec-edit-panel-pane-settings');
         var panC = $('ap-sec-edit-panel-pane-content');
+        var panQ = $('ap-sec-edit-panel-pane-questions');
         tabs.forEach(function (t) {
+            if (t.hidden) return;
             var on = t.getAttribute('data-ap-sec-tab') === which;
             t.classList.toggle('is-active', on);
             t.setAttribute('aria-selected', on ? 'true' : 'false');
         });
         if (which === 'settings') {
-            panS.hidden = false;
-            panC.hidden = true;
+            if (panS) panS.hidden = false;
+            if (panC) panC.hidden = true;
+            if (panQ) panQ.hidden = true;
+        } else if (isQuizExamType(typ) && which === 'questions') {
+            if (panS) panS.hidden = true;
+            if (panC) panC.hidden = true;
+            if (panQ) panQ.hidden = false;
         } else {
-            panS.hidden = true;
-            panC.hidden = false;
+            if (panS) panS.hidden = true;
+            if (panC) panC.hidden = false;
+            if (panQ) panQ.hidden = true;
         }
     }
 
@@ -820,7 +883,7 @@
         var dragging = false;
         function pxClamp(w) {
             var iw = window.innerWidth;
-            var minW = 480;
+            var minW = panel.classList.contains('panel-wide') ? 800 : 480;
             var maxW = Math.min(Math.floor(iw * 0.9), iw - 8);
             return clamp(w, minW, maxW);
         }
@@ -838,6 +901,7 @@
             if (!dragging) return;
             dragging = false;
             document.body.style.userSelect = '';
+            panel.dataset.userResized = '1';
         });
     }
 
