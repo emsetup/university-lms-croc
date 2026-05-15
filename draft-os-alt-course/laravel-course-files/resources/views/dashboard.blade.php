@@ -35,18 +35,49 @@
     <section class="learner-track-summary card" aria-label="Общий прогресс по курсу">
         <h2 class="learner-track-summary__title">Ваш прогресс по модулям</h2>
         <p class="muted small learner-track-summary__lead">Модули открываются по очереди: следующий доступен после <strong>зачёта</strong> итогового теста предыдущего или после <strong>попытки сдачи с результатом выше 0%</strong> (ноль процентов — как будто экзамен не сдавали). Ползунок на карточке — четыре шага внутри модуля (по 25%).</p>
-        <div class="stats-row" role="group" aria-label="Сводные показатели">
-            <div class="stat-card">
-                <div class="stat-value">{{ $trackModulesPassed }}<span style="font-size:1.1rem;font-weight:700;color:var(--text-muted)">/{{ $courseModuleCount }}</span></div>
-                <div class="stat-label">Модулей закрыто</div>
+        <div class="stats-row portal-welcome-metrics" role="group" aria-label="Сводные показатели">
+            <div class="stat-card portal-metric">
+                <div class="portal-metric__iconWrap" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <path d="m9 12 2 2 4-4"/>
+                    </svg>
+                </div>
+                <div class="portal-metric__text">
+                    <span class="portal-metric__accent" aria-hidden="true"></span>
+                    <div class="portal-metric__value stat-value">
+                        <span class="stat-value__num">{{ $trackModulesPassed }}</span><span class="stat-value__suffix">/{{ $courseModuleCount }}</span>
+                    </div>
+                    <div class="portal-metric__label stat-label">Модулей закрыто</div>
+                </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ $trackAvgPercent }}%</div>
-                <div class="stat-label">Средний прогресс по шагам</div>
+            <div class="stat-card portal-metric">
+                <div class="portal-metric__iconWrap" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="9"/>
+                        <path d="M12 7v5l3 2"/>
+                    </svg>
+                </div>
+                <div class="portal-metric__text">
+                    <span class="portal-metric__accent" aria-hidden="true"></span>
+                    <div class="portal-metric__value stat-value">{{ $trackAvgPercent }}%</div>
+                    <div class="portal-metric__label stat-label">Средний прогресс по шагам</div>
+                </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ $modulePointsTotal }}<span style="font-size:1.1rem;font-weight:700;color:var(--text-muted)">/{{ $modulePointsMax }}</span></div>
-                <div class="stat-label">Баллы по модулям</div>
+            <div class="stat-card portal-metric">
+                <div class="portal-metric__iconWrap" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 3h12a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2V5a2 2 0 0 1 2-2z"/>
+                        <path d="M8 8h8M8 12h8M8 16h5"/>
+                    </svg>
+                </div>
+                <div class="portal-metric__text">
+                    <span class="portal-metric__accent" aria-hidden="true"></span>
+                    <div class="portal-metric__value stat-value">
+                        <span class="stat-value__num">{{ $modulePointsTotal }}</span><span class="stat-value__suffix">/{{ $modulePointsMax }}</span>
+                    </div>
+                    <div class="portal-metric__label stat-label">Баллы по модулям</div>
+                </div>
             </div>
         </div>
         <div class="learner-track-summary__bar-wrap" role="presentation">

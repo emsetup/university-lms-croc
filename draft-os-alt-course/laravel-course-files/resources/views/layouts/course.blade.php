@@ -223,6 +223,9 @@
         data-ap-can-docker="{{ $psaChrome && ! $psaChrome->isCourseTester() ? '1' : '0' }}"
     @endif
 >
+    @if (! $isAdminUi)
+        <div class="portal-site-column">
+    @endif
     <header class="course-header @if ($isAdminUi) course-header--admin @else course-header--public @endif">
         <a class="brand" href="{{ route('portal') }}">
             <span class="brand-mark">
@@ -262,6 +265,9 @@
         </div>
     @endif
     @yield('content')
+    @if (! $isAdminUi)
+        </div>
+    @endif
 </div>
 @if ($isAdminUi)
     @include('partials.admin-shell-tail')

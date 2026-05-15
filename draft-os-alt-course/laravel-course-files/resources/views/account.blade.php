@@ -13,10 +13,7 @@
         $displayName = $portalWelcomeName ?: (string) $learner->email;
     @endphp
     <style>
-        .acc-page { max-width: 1100px; margin: 0 auto; padding: 0 0 2rem; --acc-brand: {{ $brand }}; }
-        @media (max-width: 560px) {
-            .acc-page { padding-left: 0.65rem; padding-right: 0.65rem; }
-        }
+        .acc-page { padding: 0 0 2rem; --acc-brand: {{ $brand }}; }
         .page-section + .page-section { margin-top: 24px; }
         .welcome-block { padding: 28px 32px; }
         @media (max-width: 560px) {
@@ -86,7 +83,7 @@
         @media (max-width: 520px) {
             .portal-welcome-metrics { grid-template-columns: 1fr; }
         }
-        .acc-tabs-card { padding: 1rem 1.25rem 1.35rem; }
+        .acc-tabs-card { padding: var(--portal-pad, 28px); }
         .acc-tabs-card > .acc-panel { margin-top: 1.1rem; }
         .acc-card__footer-actions .btn-primary {
             transition: transform 0.18s ease, box-shadow 0.18s ease;
@@ -152,7 +149,7 @@
             overflow: hidden;
             border-radius: 12px;
             min-height: 220px;
-            padding-top: 2.35rem;
+            padding: 2.35rem 1.15rem 1.15rem;
             transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
         }
         .portal-course-card.course-card-active {
@@ -384,8 +381,8 @@
         .acc-toast.is-on { opacity: 1; transform: translateX(-50%) translateY(0); }
     </style>
 
-    <div class="acc-page">
-        <div class="card page-section welcome-block" style="max-width:1100px;margin:0 auto">
+    <div class="portal-home acc-page">
+        <div class="card page-section welcome-block">
             <p class="acc-welcome-eyebrow">Личный кабинет</p>
             <div class="portal-welcome-head">
                 <div class="portal-welcome-main">
@@ -457,7 +454,7 @@
             </div>
         </div>
 
-        <div class="card page-section acc-tabs-card" style="max-width:1100px;margin:0 auto">
+        <div class="card page-section acc-tabs-card">
             <div class="portal-tag-filters-wrap" role="tablist" aria-label="Разделы личного кабинета">
                 <button type="button" class="portal-tag-filter acc-tab is-active" role="tab" id="acc-tab-courses" aria-controls="acc-panel-courses" aria-selected="true">Мои курсы</button>
                 <button type="button" class="portal-tag-filter acc-tab" role="tab" id="acc-tab-certs" aria-controls="acc-panel-certs" aria-selected="false">Мои сертификаты</button>
@@ -494,7 +491,7 @@
                             @if ($done)
                                 <div class="portal-course-card-status portal-course-card-status--done">Завершён</div>
                             @else
-                                <div class="portal-course-card-status portal-course-card-status--progress">● В процессе</div>
+                                <div class="portal-course-card-status portal-course-card-status--progress">В процессе</div>
                             @endif
                             <div class="portal-course-title" style="font-weight:800;font-size:1.05rem;line-height:1.25">{{ $c->title }}</div>
                             <div class="portal-course-grow">

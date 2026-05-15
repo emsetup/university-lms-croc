@@ -112,7 +112,7 @@
             overflow: hidden;
             border-radius: 12px;
             min-height: 220px;
-            padding-top: 2.35rem;
+            padding: 2.35rem 1.15rem 1.15rem;
             transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
         }
         .portal-course-card.course-card-active {
