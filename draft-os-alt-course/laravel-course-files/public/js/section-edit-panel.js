@@ -20,38 +20,98 @@
         data: null,
         rawSettings: {},
         questions: [],
+        quizActive: -1,
         practiceImageId: null,
         saveUrl: '',
         open: false,
     };
+
+    var quizAutoSaveTimer = null;
+
+    var ICON_X =
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>';
 
     function clamp(n, a, b) {
         return Math.max(a, Math.min(b, n));
     }
 
     function fromServerQuestion(q) {
+        var item;
         if (q.match_drag || (Array.isArray(q.left) && Array.isArray(q.right))) {
-            return {
+            item = {
                 type: 'match',
                 q: q.q || '',
                 left: Array.isArray(q.left) ? q.left.slice() : [],
                 right: Array.isArray(q.right) ? q.right.slice() : [],
             };
+        } else if (Array.isArray(q.c)) {
+            item = { type: 'multi', q: q.q || '', options: (q.a || []).slice(), correct: q.c.slice() };
+        } else {
+            item = {
+                type: 'single',
+                q: q.q || '',
+                options: (q.a || []).slice(),
+                correct: typeof q.c === 'number' ? q.c : 0,
+            };
         }
-        if (Array.isArray(q.c)) {
-            return { type: 'multi', q: q.q || '', options: (q.a || []).slice(), correct: q.c.slice() };
+        if (q.points != null && Number(q.points) > 0) {
+            item.points = Number(q.points);
         }
-        return { type: 'single', q: q.q || '', options: (q.a || []).slice(), correct: typeof q.c === 'number' ? q.c : 0 };
+        return item;
     }
 
     function toBankQuestion(item) {
+        var out;
         if (item.type === 'match') {
-            return { q: item.q, match_drag: true, left: item.left, right: item.right };
+            out = { q: item.q, match_drag: true, left: item.left, right: item.right };
+        } else if (item.type === 'multi') {
+            out = { q: item.q, a: item.options, c: item.correct };
+        } else {
+            out = { q: item.q, a: item.options, c: item.correct };
         }
-        if (item.type === 'multi') {
-            return { q: item.q, a: item.options, c: item.correct };
+        if (item.points != null && Number(item.points) > 0) {
+            out.points = Number(item.points);
         }
-        return { q: item.q, a: item.options, c: item.correct };
+        return out;
+    }
+
+    function shortQuestionText(s) {
+        s = (s || '').replace(/\s+/g, ' ').trim();
+        if (s.length > 80) return s.slice(0, 77) + '…';
+        return s || '(без текста)';
+    }
+
+    function typeMetaLabel(t) {
+        if (t === 'match') return 'match';
+        if (t === 'multi') return 'multi';
+        return 'single';
+    }
+
+    function isExamSection() {
+        return state.data && state.data.section && state.data.section.type === 'exam';
+    }
+
+    function showQuizSavedIndicator() {
+        var el = $('ap-sec-quiz-save-indicator');
+        if (!el) return;
+        el.hidden = false;
+        el.classList.add('is-visible');
+        el.textContent = 'Сохранено';
+        window.clearTimeout(showQuizSavedIndicator._t);
+        showQuizSavedIndicator._t = window.setTimeout(function () {
+            el.textContent = '';
+            el.classList.remove('is-visible');
+            el.hidden = true;
+        }, 2000);
+    }
+
+    function scheduleQuizDraftSave() {
+        window.clearTimeout(quizAutoSaveTimer);
+        quizAutoSaveTimer = window.setTimeout(function () {
+            syncActiveQuestionFromEditor();
+            renderQuizSidebar();
+            showQuizSavedIndicator();
+        }, 1500);
     }
 
     function wrapTextareaSelection(ta, before, after) {
@@ -107,66 +167,273 @@
         el.textContent = n + ' ' + (n === 1 ? 'символ' : n > 1 && n < 5 ? 'символа' : 'символов');
     }
 
-    function renderQuizList() {
-        var ul = $('ap-sec-quiz-list');
-        if (!ul) return;
-        ul.innerHTML = '';
+    function renderQuizSidebar() {
+        var list = $('ap-sec-quiz-list');
+        var countEl = $('ap-sec-quiz-count');
+        if (!list) return;
+        var n = state.questions.length;
+        if (countEl) countEl.textContent = String(n);
+        list.innerHTML = '';
         state.questions.forEach(function (item, idx) {
-            var li = document.createElement('li');
-            li.className = 'ap-sec-quiz-item';
-            var typeL = item.type === 'match' ? 'Сопоставление' : item.type === 'multi' ? 'Несколько' : 'Один ответ';
-            var optsHtml = '';
-            var correctNote = '';
-            if (item.type === 'match') {
-                optsHtml = '<span class="ap-muted small">' + esc(String(item.left.length)) + ' пар</span>';
-                correctNote = '<span class="ap-sec-quiz-correct">пары по строкам</span>';
-            } else {
-                item.options.forEach(function (o, oi) {
-                    var isC = item.type === 'multi' ? item.correct.indexOf(oi) >= 0 : item.correct === oi;
-                    optsHtml += '<div class="ap-sec-quiz-opt' + (isC ? ' ap-sec-quiz-opt--ok' : '') + '">' + esc(o) + '</div>';
-                });
-                if (item.type === 'multi') {
-                    correctNote = '<span class="ap-sec-quiz-correct">ответы: ' + esc(item.correct.join(', ')) + '</span>';
-                } else {
-                    correctNote = '<span class="ap-sec-quiz-correct">верный: #' + esc(String(item.correct)) + '</span>';
-                }
-            }
-            li.innerHTML =
-                '<div class="ap-sec-quiz-item__main">' +
-                '<div class="ap-sec-quiz-item__q">' +
-                esc(item.q) +
+            var row = document.createElement('div');
+            row.className = 'question-item' + (idx === state.quizActive ? ' active' : '');
+            row.setAttribute('role', 'listitem');
+            row.dataset.questionId = String(idx);
+            row.innerHTML =
+                '<div class="question-item-num">' +
+                (idx + 1) +
                 '</div>' +
-                '<div class="ap-muted small">' +
-                esc(typeL) +
+                '<div class="question-item-text">' +
+                esc(shortQuestionText(item.q)) +
                 '</div>' +
-                '<div class="ap-sec-quiz-item__opts">' +
-                optsHtml +
-                '</div>' +
-                correctNote +
-                '</div>' +
-                '<div class="ap-sec-quiz-item__actions">' +
-                '<button type="button" class="btn btn-ghost btn-sm" data-ap-q-edit="' +
-                idx +
-                '" title="Редактировать">✏</button>' +
-                '<button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn--danger" data-ap-q-del="' +
-                idx +
-                '" title="Удалить">🗑</button>' +
+                '<div class="question-item-type">' +
+                esc(typeMetaLabel(item.type)) +
                 '</div>';
-            ul.appendChild(li);
+            row.addEventListener('click', function () {
+                setQuizActive(idx);
+            });
+            list.appendChild(row);
         });
     }
 
-    function fillNewFormFromItem(item) {
-        $('ap-new-q-text').value = item.q;
-        $('ap-new-q-type').value = item.type;
-        if (item.type === 'match') {
-            $('ap-new-q-left').value = item.left.join('\n');
-            $('ap-new-q-right').value = item.right.join('\n');
-        } else {
-            $('ap-new-q-opts').value = item.options.join('\n');
-            $('ap-new-q-correct').value = item.type === 'multi' ? item.correct.join(',') : String(item.correct);
+    function setQuizActive(i) {
+        if (state.quizActive >= 0 && state.quizActive < state.questions.length) {
+            syncActiveQuestionFromEditor();
         }
-        toggleNewQBlocks();
+        state.quizActive = i;
+        renderQuizSidebar();
+        renderQuizEditor();
+    }
+
+    function renderQuizEditor() {
+        var editor = $('ap-sec-q-editor');
+        var empty = $('ap-sec-q-empty');
+        var titleEl = $('ap-sec-q-editor-title');
+        if (state.quizActive < 0 || state.quizActive >= state.questions.length) {
+            if (editor) editor.hidden = true;
+            if (empty) empty.hidden = false;
+            if (titleEl) titleEl.textContent = 'Вопрос';
+            return;
+        }
+        if (editor) editor.hidden = false;
+        if (empty) empty.hidden = true;
+        var item = state.questions[state.quizActive];
+        if (titleEl) titleEl.textContent = 'Вопрос #' + (state.quizActive + 1);
+        var typeSel = $('ap-sec-q-type');
+        var qText = $('ap-sec-q-text');
+        var pointsWrap = $('ap-sec-q-points-label');
+        var pointsInp = $('ap-sec-q-points');
+        var allowPoints = isExamSection();
+        if (pointsWrap) pointsWrap.hidden = !allowPoints;
+        if (pointsInp) pointsInp.hidden = !allowPoints;
+        if (typeSel) typeSel.value = item.type;
+        if (qText) qText.value = item.q || '';
+        if (allowPoints && pointsInp) {
+            pointsInp.value = item.points != null ? String(item.points) : '';
+        }
+        if (item.type === 'match') {
+            $('ap-sec-q-answers-wrap').hidden = true;
+            $('ap-sec-q-match-wrap').hidden = false;
+            renderMatchEditor(item);
+        } else {
+            $('ap-sec-q-answers-wrap').hidden = false;
+            $('ap-sec-q-match-wrap').hidden = true;
+            renderAnswerOptions(item);
+        }
+    }
+
+    function renderAnswerOptions(item) {
+        var box = $('ap-sec-q-answers');
+        var hint = $('ap-sec-q-c-hint');
+        if (!box) return;
+        if (!Array.isArray(item.options)) item.options = [''];
+        if (item.type === 'multi') {
+            if (!Array.isArray(item.correct)) item.correct = [];
+            if (hint) hint.textContent = 'Отметьте все верные варианты.';
+        } else {
+            if (typeof item.correct !== 'number') item.correct = 0;
+            if (hint) hint.textContent = 'Выберите один верный вариант.';
+        }
+        box.innerHTML = '';
+        item.options.forEach(function (opt, idx) {
+            var row = document.createElement('div');
+            row.className = 'answer-option';
+            var isCorrect =
+                item.type === 'multi' ? item.correct.indexOf(idx) >= 0 : item.correct === idx;
+            if (isCorrect) row.classList.add('correct');
+            var mark = document.createElement('div');
+            mark.className = item.type === 'multi' ? 'answer-checkbox' : 'answer-radio';
+            if (isCorrect) mark.classList.add('selected');
+            mark.addEventListener('click', function () {
+                selectCorrectAnswer(row, idx, item.type);
+            });
+            var inp = document.createElement('input');
+            inp.className = 'answer-input';
+            inp.type = 'text';
+            inp.value = String(opt || '');
+            inp.placeholder = 'Вариант ответа…';
+            inp.addEventListener('input', function () {
+                item.options[idx] = inp.value;
+                scheduleQuizDraftSave();
+            });
+            var del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'answer-delete';
+            del.setAttribute('aria-label', 'Удалить вариант');
+            del.innerHTML = ICON_X;
+            del.addEventListener('click', function () {
+                item.options.splice(idx, 1);
+                if (item.type === 'multi') {
+                    item.correct = item.correct
+                        .filter(function (x) {
+                            return x !== idx;
+                        })
+                        .map(function (x) {
+                            return x > idx ? x - 1 : x;
+                        });
+                } else {
+                    if (item.correct === idx) item.correct = 0;
+                    else if (item.correct > idx) item.correct -= 1;
+                }
+                renderQuizEditor();
+                scheduleQuizDraftSave();
+            });
+            row.appendChild(mark);
+            row.appendChild(inp);
+            row.appendChild(del);
+            box.appendChild(row);
+        });
+    }
+
+    function selectCorrectAnswer(optionEl, idx, type) {
+        var item = state.questions[state.quizActive];
+        if (!item) return;
+        if (type === 'multi') {
+            var pos = item.correct.indexOf(idx);
+            if (pos >= 0) item.correct.splice(pos, 1);
+            else item.correct.push(idx);
+            item.correct.sort(function (a, b) {
+                return a - b;
+            });
+        } else {
+            item.correct = idx;
+        }
+        renderAnswerOptions(item);
+        scheduleQuizDraftSave();
+    }
+
+    function renderMatchEditor(item) {
+        var box = $('ap-sec-q-match');
+        if (!box) return;
+        if (!Array.isArray(item.left)) item.left = [''];
+        if (!Array.isArray(item.right)) item.right = [''];
+        var n = Math.max(item.left.length, item.right.length);
+        box.innerHTML = '';
+        for (var i = 0; i < n; i++) {
+            (function (idx) {
+                var row = document.createElement('div');
+                row.className = 'ap-sec-q-match-row';
+                var left = document.createElement('input');
+                left.type = 'text';
+                left.value = String(item.left[idx] || '');
+                left.addEventListener('input', function () {
+                    item.left[idx] = left.value;
+                    scheduleQuizDraftSave();
+                });
+                var right = document.createElement('textarea');
+                right.value = String(item.right[idx] || '');
+                right.addEventListener('input', function () {
+                    item.right[idx] = right.value;
+                    scheduleQuizDraftSave();
+                });
+                var del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'btn btn-ghost btn-sm answer-delete';
+                del.setAttribute('aria-label', 'Удалить пару');
+                del.innerHTML = ICON_X;
+                del.addEventListener('click', function () {
+                    item.left.splice(idx, 1);
+                    item.right.splice(idx, 1);
+                    renderMatchEditor(item);
+                    scheduleQuizDraftSave();
+                });
+                row.appendChild(left);
+                row.appendChild(right);
+                row.appendChild(del);
+                box.appendChild(row);
+            })(i);
+        }
+    }
+
+    function syncActiveQuestionFromEditor() {
+        if (state.quizActive < 0 || state.quizActive >= state.questions.length) return;
+        var item = state.questions[state.quizActive];
+        var typeSel = $('ap-sec-q-type');
+        var qText = $('ap-sec-q-text');
+        var pointsInp = $('ap-sec-q-points');
+        var newType = typeSel ? typeSel.value : item.type;
+        if (newType !== item.type) {
+            if (newType === 'match') {
+                item.type = 'match';
+                item.left = item.left || [''];
+                item.right = item.right || [''];
+                delete item.options;
+                delete item.correct;
+            } else {
+                item.type = newType;
+                item.options = item.options && item.options.length ? item.options : ['', ''];
+                if (newType === 'multi') item.correct = Array.isArray(item.correct) ? item.correct : [];
+                else item.correct = typeof item.correct === 'number' ? item.correct : 0;
+                delete item.left;
+                delete item.right;
+            }
+        }
+        item.q = qText ? qText.value : item.q;
+        if (isExamSection() && pointsInp) {
+            var pts = parseInt(pointsInp.value || '0', 10);
+            if (Number.isFinite(pts) && pts > 0) item.points = pts;
+            else delete item.points;
+        } else {
+            delete item.points;
+        }
+    }
+
+    function addEmptyQuestion() {
+        var q = { type: 'single', q: '', options: [''], correct: 0 };
+        if (isExamSection()) q.points = 5;
+        state.questions.push(q);
+        setQuizActive(state.questions.length - 1);
+        var scroll = $('ap-sec-q-editor-scroll');
+        if (scroll) scroll.scrollTop = 0;
+        if ($('ap-sec-q-text')) $('ap-sec-q-text').focus();
+    }
+
+    function dupActiveQuestion() {
+        if (state.quizActive < 0) return;
+        syncActiveQuestionFromEditor();
+        var copy = JSON.parse(JSON.stringify(state.questions[state.quizActive]));
+        state.questions.splice(state.quizActive + 1, 0, copy);
+        setQuizActive(state.quizActive + 1);
+    }
+
+    function delActiveQuestion() {
+        if (state.quizActive < 0) return;
+        syncActiveQuestionFromEditor();
+        state.questions.splice(state.quizActive, 1);
+        state.quizActive = state.questions.length ? Math.min(state.quizActive, state.questions.length - 1) : -1;
+        renderQuizSidebar();
+        renderQuizEditor();
+        updateQuizSummary();
+    }
+
+    function renderQuizList() {
+        state.quizActive = -1;
+        renderQuizSidebar();
+        if (state.questions.length > 0) {
+            setQuizActive(0);
+        } else {
+            renderQuizEditor();
+        }
     }
 
     function toggleNewQBlocks() {
@@ -199,7 +466,9 @@
                 window.alert('Сопоставление: одинаковое ненулевое число непустых строк слева и справа.');
                 return null;
             }
-            return { type: 'match', q: q, left: left, right: right };
+            var m = { type: 'match', q: q, left: left, right: right };
+            if (isExamSection()) m.points = 5;
+            return m;
         }
         var opts = $('ap-new-q-opts')
             .value.split('\n')
@@ -225,14 +494,18 @@
                 window.alert('Укажите индексы правильных ответов (0 … n−1).');
                 return null;
             }
-            return { type: 'multi', q: q, options: opts, correct: idxs };
+            var mq = { type: 'multi', q: q, options: opts, correct: idxs };
+            if (isExamSection()) mq.points = 5;
+            return mq;
         }
         var c = parseInt(cRaw, 10);
         if (isNaN(c) || c < 0 || c >= opts.length) {
             window.alert('Индекс правильного ответа вне диапазона.');
             return null;
         }
-        return { type: 'single', q: q, options: opts, correct: c };
+        var sq = { type: 'single', q: q, options: opts, correct: c };
+            if (isExamSection()) sq.points = 5;
+            return sq;
     }
 
     function clearNewForm() {
@@ -270,6 +543,8 @@
         if (th) th.hidden = t !== 'text';
         if (qz) qz.hidden = t !== 'quiz' && t !== 'exam';
         if (pr) pr.hidden = t !== 'practice';
+        var body = document.querySelector('.ap-sec-edit-panel__body');
+        if (body) body.classList.toggle('ap-sec-edit-panel__body--quiz', t === 'quiz' || t === 'exam');
     }
 
     function applyLoadedData(d) {
@@ -433,6 +708,7 @@
             p.practice_image_id = state.practiceImageId != null ? state.practiceImageId : null;
         }
         if (typ === 'quiz' || typ === 'exam') {
+            syncActiveQuestionFromEditor();
             p.questions = state.questions.map(toBankQuestion);
         }
         return p;
@@ -475,6 +751,9 @@
                             s.hidden = true;
                         }, 2500);
                     }
+                }
+                if ($('ap-sec-set-type').value === 'quiz' || $('ap-sec-set-type').value === 'exam') {
+                    showQuizSavedIndicator();
                 }
                 state.data.section.title = body.title;
                 state.data.section.type = body.type;
@@ -612,42 +891,83 @@
             updateQuizSummary();
         });
 
-        $('ap-sec-quiz-list').addEventListener('click', function (e) {
-            var del = e.target.closest('[data-ap-q-del]');
-            if (del) {
-                var i = parseInt(del.getAttribute('data-ap-q-del'), 10);
-                state.questions.splice(i, 1);
-                renderQuizList();
-                updateQuizSummary();
-                return;
-            }
-            var ed = e.target.closest('[data-ap-q-edit]');
-            if (ed) {
-                var j = parseInt(ed.getAttribute('data-ap-q-edit'), 10);
-                var item = state.questions[j];
+        var qType = $('ap-sec-q-type');
+        if (qType) {
+            qType.addEventListener('change', function () {
+                syncActiveQuestionFromEditor();
+                var item = state.questions[state.quizActive];
                 if (!item) return;
-                state.questions.splice(j, 1);
-                fillNewFormFromItem(item);
-                renderQuizList();
-                updateQuizSummary();
-                $('ap-new-q-text').focus();
-            }
-        });
+                var t = qType.value;
+                if (t === 'match') {
+                    item.type = 'match';
+                    item.left = [''];
+                    item.right = [''];
+                    delete item.options;
+                    delete item.correct;
+                } else {
+                    item.type = t;
+                    item.options = ['', ''];
+                    item.correct = t === 'multi' ? [] : 0;
+                    delete item.left;
+                    delete item.right;
+                }
+                renderQuizEditor();
+                scheduleQuizDraftSave();
+            });
+        }
+        var qText = $('ap-sec-q-text');
+        if (qText) {
+            qText.addEventListener('input', function () {
+                scheduleQuizDraftSave();
+            });
+        }
+        var qPoints = $('ap-sec-q-points');
+        if (qPoints) {
+            qPoints.addEventListener('input', function () {
+                scheduleQuizDraftSave();
+            });
+        }
+        var qDup = $('ap-sec-q-dup');
+        if (qDup) qDup.addEventListener('click', dupActiveQuestion);
+        var qDel = $('ap-sec-q-del');
+        if (qDel) qDel.addEventListener('click', delActiveQuestion);
+        var qAddOpt = $('ap-sec-q-add-option');
+        if (qAddOpt) {
+            qAddOpt.addEventListener('click', function () {
+                var item = state.questions[state.quizActive];
+                if (!item || item.type === 'match') return;
+                if (!Array.isArray(item.options)) item.options = [];
+                item.options.push('');
+                renderQuizEditor();
+                scheduleQuizDraftSave();
+            });
+        }
+        var qAddPair = $('ap-sec-q-add-pair');
+        if (qAddPair) {
+            qAddPair.addEventListener('click', function () {
+                var item = state.questions[state.quizActive];
+                if (!item || item.type !== 'match') return;
+                if (!Array.isArray(item.left)) item.left = [];
+                if (!Array.isArray(item.right)) item.right = [];
+                item.left.push('');
+                item.right.push('');
+                renderMatchEditor(item);
+                scheduleQuizDraftSave();
+            });
+        }
 
         $('ap-new-q-type').addEventListener('change', toggleNewQBlocks);
         $('ap-new-q-submit').addEventListener('click', function () {
+            if (state.quizActive >= 0) syncActiveQuestionFromEditor();
             var q = readNewQuestionFromForm();
             if (!q) return;
+            if (isExamSection() && !q.points) q.points = 5;
             state.questions.push(q);
             clearNewForm();
-            renderQuizList();
+            setQuizActive(state.questions.length - 1);
             updateQuizSummary();
         });
-        $('ap-sec-quiz-add').addEventListener('click', function () {
-            var block = $('ap-sec-quiz-new');
-            if (block) block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            $('ap-new-q-text').focus();
-        });
+        $('ap-sec-quiz-add').addEventListener('click', addEmptyQuestion);
 
         $('ap-sec-docker-unbind').addEventListener('click', function () {
             state.practiceImageId = null;

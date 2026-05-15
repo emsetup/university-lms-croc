@@ -88,6 +88,9 @@
         @case('minus')
             <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14"/>
             @break
+        @case('x')
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            @break
         @default
             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6z"/>
     @endswitch

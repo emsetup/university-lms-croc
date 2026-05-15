@@ -285,7 +285,7 @@
             <div class="ap-sec-edit-panel__head-row">
                 <span id="ap-sec-edit-panel-chip" class="ap-sec-edit-panel__chip">Теория</span>
                 <h2 id="ap-sec-edit-panel-heading" class="ap-sec-edit-panel__heading">Раздел</h2>
-                <button type="button" id="ap-sec-edit-panel-close" class="btn btn-ghost ap-sec-edit-panel__close" aria-label="Закрыть">✕</button>
+                <button type="button" id="ap-sec-edit-panel-close" class="btn btn-ghost ap-sec-edit-panel__close" aria-label="Закрыть">@include('partials.ap-icon', ['name' => 'x', 'size' => 'sm'])</button>
             </div>
             <p id="ap-sec-edit-panel-sub" class="ap-sec-edit-panel__sub ap-muted"></p>
             <div class="ap-sec-edit-panel__tabs" role="tablist">
@@ -347,33 +347,86 @@
                         <span id="ap-sec-theory-saved" class="ap-sec-edit-panel__saved small" hidden style="display:inline-flex;align-items:center;gap:0.25rem">Сохранено @include('partials.ap-icon', ['name' => 'check', 'size' => 'sm'])</span>
                     </div>
                 </div>
-                <div id="ap-sec-edit-content-quiz" hidden>
-                    <p id="ap-sec-quiz-summary" class="ap-muted small"></p>
-                    <button type="button" class="btn btn-primary btn-sm" id="ap-sec-quiz-add">+ Добавить вопрос</button>
-                    <ul id="ap-sec-quiz-list" class="ap-sec-quiz-list"></ul>
-                    <div id="ap-sec-quiz-new" class="ap-sec-quiz-new">
-                        <h3 class="ap-sec-edit-panel__h3">Новый вопрос</h3>
-                        <label class="ap-settings-label" for="ap-new-q-text">Текст</label>
-                        <textarea id="ap-new-q-text" class="ap-modal__input ap-settings-textarea" rows="2"></textarea>
-                        <label class="ap-settings-label" for="ap-new-q-type">Тип</label>
-                        <select id="ap-new-q-type" class="ap-modal__input">
-                            <option value="single">Один ответ</option>
-                            <option value="multi">Несколько ответов</option>
-                            <option value="match">Сопоставление</option>
-                        </select>
-                        <div id="ap-new-q-block-opts">
-                            <label class="ap-settings-label" for="ap-new-q-opts">Варианты (по одному в строке)</label>
-                            <textarea id="ap-new-q-opts" class="ap-modal__input ap-settings-textarea" rows="4" placeholder="Вариант 1&#10;Вариант 2"></textarea>
-                            <label class="ap-settings-label" for="ap-new-q-correct">Правильный ответ: индекс с 0 или несколько через запятую</label>
-                            <input id="ap-new-q-correct" class="ap-modal__input" type="text" placeholder="0 или 0,2">
+                                <div id="ap-sec-edit-content-quiz" class="ap-sec-edit-panel__pane--quiz" hidden>
+                    <p id="ap-sec-quiz-summary" class="ap-sec-quiz-summary ap-muted small"></p>
+                    <div class="questions-editor">
+                        <aside class="questions-list">
+                            <div class="questions-list-header">
+                                <span class="questions-list-title">Вопросы</span>
+                                <span id="ap-sec-quiz-count" class="questions-count">0</span>
+                            </div>
+                            <div id="ap-sec-quiz-list" class="questions-list-items" role="list"></div>
+                            <div class="questions-list-footer">
+                                <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-quiz-add" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:0.35rem">
+                                    @include('partials.ap-icon', ['name' => 'plus', 'size' => 'sm'])
+                                    Вопрос
+                                </button>
+                            </div>
+                        </aside>
+                        <div class="question-editor">
+                            <div class="question-editor-body" id="ap-sec-q-editor-scroll">
+                                <p id="ap-sec-q-empty" class="ap-muted">Выберите вопрос слева или добавьте новый.</p>
+                                <div id="ap-sec-q-editor" hidden>
+                                    <div class="question-editor-header">
+                                        <span id="ap-sec-q-editor-title" class="question-editor-title">Вопрос #1</span>
+                                        <div class="question-editor-actions">
+                                            <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-q-dup" title="Дублировать">Дублировать</button>
+                                            <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn--danger" id="ap-sec-q-del" title="Удалить">Удалить</button>
+                                        </div>
+                                    </div>
+                                    <label class="ap-settings-label" for="ap-sec-q-type">Тип вопроса</label>
+                                    <select id="ap-sec-q-type" class="ap-modal__input">
+                                        <option value="single">Один ответ</option>
+                                        <option value="multi">Несколько ответов</option>
+                                        <option value="match">Сопоставление (drag)</option>
+                                    </select>
+                                    <label class="ap-settings-label" id="ap-sec-q-points-label" for="ap-sec-q-points" hidden>Баллы (points)</label>
+                                    <input id="ap-sec-q-points" class="ap-modal__input" type="number" min="0" step="1" placeholder="например, 5" hidden>
+                                    <label class="ap-settings-label" for="ap-sec-q-text">Текст вопроса (Markdown)</label>
+                                    <textarea id="ap-sec-q-text" class="ap-modal__input ap-settings-textarea" rows="7"></textarea>
+                                    <div id="ap-sec-q-answers-wrap">
+                                        <div class="ap-sec-q-section-head">
+                                            <span class="ap-settings-label" style="margin:0">Варианты ответов</span>
+                                            <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-q-add-option">+ Вариант</button>
+                                        </div>
+                                        <p id="ap-sec-q-c-hint" class="ap-muted small" style="margin:0.25rem 0 0.5rem"></p>
+                                        <div id="ap-sec-q-answers" class="answer-options"></div>
+                                    </div>
+                                    <div id="ap-sec-q-match-wrap" hidden>
+                                        <div class="ap-sec-q-section-head">
+                                            <span class="ap-settings-label" style="margin:0">Пары для сопоставления</span>
+                                            <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-q-add-pair">+ Пара</button>
+                                        </div>
+                                        <p class="ap-muted small" style="margin:0.25rem 0 0.5rem">Элемент слева соответствует описанию справа в той же строке.</p>
+                                        <div id="ap-sec-q-match" class="ap-sec-q-match-rows"></div>
+                                    </div>
+                                </div>
+                                <div id="ap-sec-quiz-new" class="new-question-section">
+                                    <h3 class="new-question-title">Новый вопрос</h3>
+                                    <label class="ap-settings-label" for="ap-new-q-text">Текст</label>
+                                    <textarea id="ap-new-q-text" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
+                                    <label class="ap-settings-label" for="ap-new-q-type">Тип</label>
+                                    <select id="ap-new-q-type" class="ap-modal__input">
+                                        <option value="single">Один ответ</option>
+                                        <option value="multi">Несколько ответов</option>
+                                        <option value="match">Сопоставление</option>
+                                    </select>
+                                    <div id="ap-new-q-block-opts">
+                                        <label class="ap-settings-label" for="ap-new-q-opts">Варианты (по одному в строке)</label>
+                                        <textarea id="ap-new-q-opts" class="ap-modal__input ap-settings-textarea" rows="4" placeholder="Вариант 1&#10;Вариант 2"></textarea>
+                                        <label class="ap-settings-label" for="ap-new-q-correct">Правильный ответ: индекс с 0 (или несколько через запятую)</label>
+                                        <input id="ap-new-q-correct" class="ap-modal__input" type="text" placeholder="0 или 0,2">
+                                    </div>
+                                    <div id="ap-new-q-block-match" hidden>
+                                        <label class="ap-settings-label" for="ap-new-q-left">Слева (по строке)</label>
+                                        <textarea id="ap-new-q-left" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
+                                        <label class="ap-settings-label" for="ap-new-q-right">Справа (по строке, та же число строк)</label>
+                                        <textarea id="ap-new-q-right" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
+                                    </div>
+                                    <button type="button" class="btn btn-primary btn-sm" id="ap-new-q-submit" style="margin-top:0.65rem">Добавить в список</button>
+                                </div>
+                            </div>
                         </div>
-                        <div id="ap-new-q-block-match" hidden>
-                            <label class="ap-settings-label" for="ap-new-q-left">Слева (по строке)</label>
-                            <textarea id="ap-new-q-left" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
-                            <label class="ap-settings-label" for="ap-new-q-right">Справа (по строке, та же число строк)</label>
-                            <textarea id="ap-new-q-right" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
-                        </div>
-                        <button type="button" class="btn btn-primary btn-sm" id="ap-new-q-submit">Добавить в список</button>
                     </div>
                 </div>
                 <div id="ap-sec-edit-content-practice" hidden>
@@ -395,8 +448,11 @@
             </div>
         </div>
         <footer class="ap-sec-edit-panel__footer">
-            <button type="button" class="btn btn-ghost" id="ap-sec-edit-cancel">Отмена</button>
-            <button type="button" class="btn btn-primary" id="ap-sec-edit-save">Сохранить изменения</button>
+            <span id="ap-sec-quiz-save-indicator" class="save-indicator ap-sec-edit-panel__saved" hidden></span>
+            <div class="ap-sec-edit-panel__footer-actions">
+                <button type="button" class="btn btn-ghost" id="ap-sec-edit-cancel">Отмена</button>
+                <button type="button" class="btn btn-primary" id="ap-sec-edit-save">Сохранить изменения</button>
+            </div>
         </footer>
     </div>
 </aside>
