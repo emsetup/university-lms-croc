@@ -234,20 +234,20 @@
             </span>
         </a>
         @if (session('learner_id'))
-            <div class="course-header__actions">
-                <a class="btn btn-ghost" href="{{ route('portal') }}">Курсы</a>
+            <nav class="portal-header-nav" aria-label="Навигация портала">
+                <a class="portal-header-nav__link @if ($isPortalUi) is-active @endif" href="{{ route('portal') }}">Курсы</a>
                 @if (! empty($portalStaffAccess))
-                    <a class="btn btn-ghost" href="{{ route('admin.panel') }}">Управление</a>
+                    <a class="portal-header-nav__link @if ($isAdminUi) is-active @endif" href="{{ route('admin.panel') }}">Управление</a>
                 @endif
-                <a class="btn btn-ghost" href="{{ route('account') }}">Личный кабинет</a>
+                <a class="portal-header-nav__link @if (request()->routeIs('account')) is-active @endif" href="{{ route('account') }}">Личный кабинет</a>
                 @if (! $isAdminUi && ! $isPortalUi && $hasCourse)
-                    <a class="btn btn-ghost" href="{{ route('course.dashboard', ['course' => (int) session('course_id')]) }}">Модули</a>
+                    <a class="portal-header-nav__link @if (request()->routeIs('course.dashboard')) is-active @endif" href="{{ route('course.dashboard', ['course' => (int) session('course_id')]) }}">Модули</a>
                 @endif
-                <form method="post" action="{{ route('logout') }}" style="margin:0">
+                <form class="portal-header-nav__logout" method="post" action="{{ route('logout') }}">
                     @csrf
-                    <button type="submit" class="btn btn-ghost">Выйти</button>
+                    <button type="submit" class="portal-header-nav__link portal-header-nav__link--button">Выйти</button>
                 </form>
-            </div>
+            </nav>
         @endif
     </header>
     @if (session('ok'))

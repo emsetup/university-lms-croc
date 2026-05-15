@@ -95,8 +95,8 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
 }
 
 .course-header--public {
-  padding: 12px 18px;
-  gap: 0.65rem;
+  padding: 16px 24px;
+  gap: 1rem;
 }
 
 .course-header::after {
@@ -153,9 +153,9 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
 }
 
 .course-header--public .brand-title {
-  font-weight: 700 !important;
-  font-size: clamp(0.95rem, 2.2vw, 1.05rem) !important;
-  line-height: 1.25 !important;
+  font-weight: 800 !important;
+  font-size: clamp(1rem, 2.5vw, 1.2rem) !important;
+  line-height: 1.2 !important;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -177,21 +177,51 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
   color: var(--text-primary);
 }
 
-.course-header__actions {
+/* Портал обучающегося: отдельное меню (не nav-item / btn-ghost админки) */
+.portal-header-nav {
   display: flex;
   align-items: center;
   flex: 0 0 auto;
   flex-shrink: 0;
-  gap: 6px;
   flex-wrap: nowrap;
+  gap: 0.75rem;
   margin-left: auto;
 }
 
-/* Форма выхода — один ряд с ссылками, без «ломания» блочной вёрсткой */
-.course-header__actions form {
+.portal-header-nav__logout {
   display: inline-flex;
   flex-shrink: 0;
   margin: 0;
+}
+
+.portal-header-nav__link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #374151;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.portal-header-nav__link:hover {
+  background: #f3f4f6;
+  color: #111827;
+  text-decoration: none;
+}
+
+.portal-header-nav__link.is-active {
+  color: var(--brand-dark);
+  background: var(--brand-light);
 }
 
 @media (max-width: 420px) {
@@ -201,31 +231,22 @@ body.course-ui:has(.course-header--public) .module-card svg.portal-status-icon {
     gap: 0.5rem;
   }
 
-  .course-header__actions {
-    gap: 4px;
+  .portal-header-nav {
+    gap: 0.5rem;
     overflow-x: auto;
     max-width: min(100%, 72vw);
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
 
-  .course-header__actions::-webkit-scrollbar {
+  .portal-header-nav::-webkit-scrollbar {
     display: none;
   }
 
-  .course-header__actions .btn-ghost {
-    padding: 6px 8px;
-    font-size: 12px;
+  .portal-header-nav__link {
+    padding: 7px 10px;
+    font-size: 13px;
   }
-}
-
-.course-header__actions .btn-ghost {
-  font-weight: 500;
-  font-size: 13px;
-  padding: 6px 10px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  border-radius: var(--radius-sm);
 }
 
 /* ─── Кнопки и карточки (общие с админкой) ─── */
