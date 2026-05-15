@@ -1648,10 +1648,28 @@ a.hub-row {
   font-size: 1.15rem;
 }
 
+.module-step-page-title,
 .theory-quiz-page-title {
-  font-size: 1.2rem;
+  font-size: clamp(1.15rem, 2.4vw, 1.45rem);
   font-weight: 800;
-  margin: 0 0 0.5rem;
+  line-height: 1.25;
+  color: var(--text-primary);
+  margin: 0 0 0.35rem;
+}
+
+.module-step-header {
+  margin-bottom: 1rem;
+  padding: 1.1rem 1.25rem;
+}
+
+.module-step-header__badge {
+  color: var(--brand);
+  margin-bottom: 0.35rem;
+}
+
+.module-step-header__step {
+  margin: 0;
+  font-size: 0.9rem;
 }
 
 .quiz-q {

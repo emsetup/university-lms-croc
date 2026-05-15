@@ -5,14 +5,23 @@
     $tTheory = $st['theory'] ?? 'Теория';
 @endphp
 
-@section('title', 'Модуль '.$module.': '.$tTheory)
+@section('title', 'Модуль '.$module.': '.($meta['title'] ?? $tTheory))
 
 @section('content')
     <div class="page-container">
-        <a class="back-link" href="{{ route('dashboard') }}">
+        <a class="back-link" href="{{ route('modules.hub', $module) }}">
             @include('partials.ap-icon', ['name' => 'arrow-left'])
-            <span>К модулям курса</span>
+            <span>К шагам модуля</span>
         </a>
+
+        <header class="card module-step-header">
+            @if (! empty($meta['letter']))
+                <div class="tag module-step-header__badge">Модуль {{ $meta['letter'] }} — {{ $module }}</div>
+            @endif
+            <h1 class="module-step-page-title">Модуль {{ $module }}: {{ $meta['title'] ?? 'Без названия' }}</h1>
+            <p class="muted module-step-header__step">{{ $tTheory }}</p>
+        </header>
+
         @php
             $theoryRaw = (string) ($meta['theory'] ?? '');
         @endphp
