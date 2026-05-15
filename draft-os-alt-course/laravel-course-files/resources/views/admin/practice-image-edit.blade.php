@@ -5,7 +5,13 @@
 @section('content')
     <div class="ap-wide-page">
         <div class="admin-card">
-        <p class="muted"><a href="{{ route('admin.practice.images.index', ['key' => $adminKey]) }}">← К списку образов</a></p>
+        @php
+            $piScope = ($piRouteScope ?? null) === 'docker' || (($piRouteScope ?? null) !== 'course' && empty($ap ?? [])) ? 'docker' : 'course';
+            $piKey = (string) (($adminKey ?? null) ?: request()->query('key', ''));
+            $piRp = array_merge($ap ?? [], $piKey !== '' ? ['key' => $piKey] : []);
+            $piBack = $piScope === 'docker' ? route('admin.docker.library') : route('admin.practice.images.index', $piRp);
+        @endphp
+        <p class="muted"><a href="{{ $piBack }}">← К библиотеке Docker</a></p>
 
         <div style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-start;justify-content:space-between">
             <div>
@@ -14,17 +20,17 @@
             </div>
             @if (! $isNew)
                 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
-                    <form method="post" action="{{ route('admin.practice.images.build', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin:0">
+                    <form method="post" action="{{ $piScope === 'docker' ? route('admin.docker.library.build', ['id' => $row->id]) : route('admin.practice.images.build', array_merge($piRp, ['id' => $row->id])) }}" style="margin:0">
                         @csrf
                         <button type="submit" class="btn btn-primary">Собрать</button>
                     </form>
-                    <form method="post" action="{{ route('admin.practice.images.stats.refresh', ['key' => $adminKey]) }}" style="margin:0">
+                    <form method="post" action="{{ $piScope === 'docker' ? route('admin.docker.library.stats.refresh') : route('admin.practice.images.stats.refresh', $piRp) }}" style="margin:0">
                         @csrf
                         <input type="hidden" name="tag" value="{{ $row->docker_tag }}">
                         <input type="hidden" name="back" value="{{ request()->getRequestUri() }}">
                         <button type="submit" class="btn btn-ghost">Проверить образ</button>
                     </form>
-                    <form method="post" action="{{ route('admin.practice.images.export', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin:0">
+                    <form method="post" action="{{ $piScope === 'docker' ? route('admin.docker.library.export', ['id' => $row->id]) : route('admin.practice.images.export', array_merge($piRp, ['id' => $row->id])) }}" style="margin:0">
                         @csrf
                         <button type="submit" class="btn btn-ghost">Экспортировать (tar)</button>
                     </form>
@@ -36,7 +42,7 @@
             <div class="muted small" style="margin-top:0.75rem">Последний экспорт: <code>{{ $row->export_path }}</code></div>
         @endif
 
-        <form method="post" action="{{ $isNew ? route('admin.practice.images.store', ['key' => $adminKey]) : route('admin.practice.images.update', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin-top:1rem">
+        <form method="post" action="{{ $isNew ? ($piScope === 'docker' ? route('admin.docker.library.store') : route('admin.practice.images.store', $piRp)) : ($piScope === 'docker' ? route('admin.docker.library.update', ['id' => $row->id]) : route('admin.practice.images.update', array_merge($piRp, ['id' => $row->id]))) }}" style="margin-top:1rem">
             @csrf
 
             <div style="margin:0 0 0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
@@ -187,7 +193,7 @@
         </form>
 
         @if (! $isNew)
-            <form method="post" id="ap-pi-del-form" action="{{ route('admin.practice.images.destroy', ['id' => $row->id, 'key' => $adminKey]) }}" style="margin:0;display:none">
+            <form method="post" id="ap-pi-del-form" action="{{ $piScope === 'docker' ? route('admin.docker.library.destroy', ['id' => $row->id]) : route('admin.practice.images.destroy', array_merge($piRp, ['id' => $row->id])) }}" style="margin:0;display:none">
                 @csrf
             </form>
             <div class="ap-modal" id="ap-pi-del-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="ap-pi-del-title">
@@ -277,7 +283,7 @@
                     var baseInp = document.querySelector('input[name=\"base_image_ref\"]');
                     var os = osSel ? osSel.value : 'alt';
                     var base = baseInp ? (baseInp.value || '') : '';
-                    var url = @json(route('admin.practice.images.pkg.search', ['key' => $adminKey])) + '&os=' + encodeURIComponent(os) + '&q=' + encodeURIComponent(qq) + '&base_image=' + encodeURIComponent(base) + '&limit=20';
+                    var url = @json($piScope === 'docker' ? route('admin.docker.library.pkg.search') : route('admin.practice.images.pkg.search', $piRp)) + '&os=' + encodeURIComponent(os) + '&q=' + encodeURIComponent(qq) + '&base_image=' + encodeURIComponent(base) + '&limit=20';
                     fetch(url, { headers: { 'Accept': 'application/json' } })
                         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
                         .then(function (x) {

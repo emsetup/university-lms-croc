@@ -107,7 +107,7 @@ final class AdminPracticeImagesController extends Controller
         $this->recipeBootstrap->initFromTemplate($row);
 
         return redirect()
-            ->route('admin.practice.images.edit', ['id' => $row->id])
+            ->to($this->practiceImageEditUrl((int) $row->id))
             ->with('ok', 'Создана копия системного (Alt) рецепта. Обновите tag при необходимости и нажмите «Собрать».');
     }
 
@@ -172,6 +172,7 @@ final class AdminPracticeImagesController extends Controller
     public function create(Request $request): View
     {
         return view('admin.practice-image-edit', [
+            'piRouteScope' => $this->practiceImageRouteScope($request),
             'row' => new PracticeImage([
                 'title' => '',
                 'slug' => '',
@@ -244,7 +245,7 @@ final class AdminPracticeImagesController extends Controller
         app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
 
         return redirect()
-            ->route('admin.practice.images.edit', ['id' => $row->id])
+            ->to($this->practiceImageEditUrl((int) $row->id))
             ->with('ok', 'Образ создан. Теперь можно собрать.');
     }
 
@@ -256,6 +257,7 @@ final class AdminPracticeImagesController extends Controller
             'row' => $row,
             'isNew' => false,
             'templates' => $this->templatesList(),
+            'piRouteScope' => $request->routeIs('admin.docker.*') ? 'docker' : 'course',
         ]);
     }
 
@@ -288,7 +290,7 @@ final class AdminPracticeImagesController extends Controller
             ->exists();
         if ($exists) {
             return redirect()
-                ->route('admin.practice.images.edit', ['id' => $row->id])
+                ->to($this->practiceImageEditUrl((int) $row->id))
                 ->with('err', 'Slug уже занят другим образом.');
         }
 
@@ -309,7 +311,7 @@ final class AdminPracticeImagesController extends Controller
         app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
 
         return redirect()
-            ->route('admin.practice.images.edit', ['id' => $row->id])
+            ->to($this->practiceImageEditUrl((int) $row->id, $request))
             ->with('ok', 'Сохранено.');
     }
 
@@ -332,7 +334,7 @@ final class AdminPracticeImagesController extends Controller
         $row->delete();
 
         return redirect()
-            ->route('admin.practice.images.index')
+            ->to($this->practiceImagesListUrl($request))
             ->with('ok', 'Удалено.');
     }
 
@@ -342,7 +344,7 @@ final class AdminPracticeImagesController extends Controller
         $client = PracticeLabDaemonClient::fromConfig();
         if (! $client) {
             return redirect()
-                ->route('admin.practice.images.edit', ['id' => $row->id])
+                ->to($this->practiceImageEditUrl((int) $row->id, $request))
                 ->with('err', 'Lab-daemon не настроен (PRACTICE_LAB_DAEMON_URL / SECRET).');
         }
 
@@ -367,7 +369,7 @@ final class AdminPracticeImagesController extends Controller
             $row->save();
 
             return redirect()
-                ->route('admin.practice.images.edit', ['id' => $row->id])
+                ->to($this->practiceImageEditUrl((int) $row->id, $request))
                 ->with('err', 'Не удалось собрать: '.$e->getMessage());
         }
 
@@ -380,7 +382,7 @@ final class AdminPracticeImagesController extends Controller
         Cache::forget($this->imageStatsCacheKey((string) $row->docker_tag));
 
         return redirect()
-            ->route('admin.practice.images.edit', ['id' => $row->id])
+            ->to($this->practiceImageEditUrl((int) $row->id, $request))
             ->with($ok ? 'ok' : 'err', $ok ? 'Сборка завершена.' : 'Сборка завершилась с ошибкой (см. лог).');
     }
 
@@ -390,7 +392,7 @@ final class AdminPracticeImagesController extends Controller
         $client = PracticeLabDaemonClient::fromConfig();
         if (! $client) {
             return redirect()
-                ->route('admin.practice.images.edit', ['id' => $row->id])
+                ->to($this->practiceImageEditUrl((int) $row->id, $request))
                 ->with('err', 'Lab-daemon не настроен (PRACTICE_LAB_DAEMON_URL / SECRET).');
         }
 
@@ -402,7 +404,7 @@ final class AdminPracticeImagesController extends Controller
             ]);
         } catch (\Throwable $e) {
             return redirect()
-                ->route('admin.practice.images.edit', ['id' => $row->id])
+                ->to($this->practiceImageEditUrl((int) $row->id, $request))
                 ->with('err', 'Не удалось экспортировать: '.$e->getMessage());
         }
 
@@ -413,7 +415,7 @@ final class AdminPracticeImagesController extends Controller
         }
 
         return redirect()
-            ->route('admin.practice.images.edit', ['id' => $row->id])
+            ->to($this->practiceImageEditUrl((int) $row->id, $request))
             ->with($ok ? 'ok' : 'err', $ok ? 'Экспорт выполнен: '.$row->export_path : 'Экспорт завершился с ошибкой (см. лог daemon).');
     }
 
@@ -492,6 +494,33 @@ final class AdminPracticeImagesController extends Controller
         return $ok;
     }
 
+    private function practiceImageRouteScope(?Request $request = null): string
+    {
+        if ($request !== null && $request->routeIs('admin.docker.*')) {
+            return 'docker';
+        }
+
+        return $this->adminCourseRouteParams() !== [] ? 'course' : 'docker';
+    }
+
+    private function practiceImageEditUrl(int $id, ?Request $request = null): string
+    {
+        if ($this->practiceImageRouteScope($request) === 'docker') {
+            return route('admin.docker.library.edit', ['id' => $id]);
+        }
+
+        return $this->adminCourseRoute('admin.practice.images.edit', ['id' => $id]);
+    }
+
+    private function practiceImagesListUrl(?Request $request = null): string
+    {
+        if ($this->practiceImageRouteScope($request) === 'docker') {
+            return route('admin.docker.library');
+        }
+
+        return $this->adminCourseRoute('admin.practice.images.index');
+    }
+
     private function safeBack(string $back): string
     {
         $b = trim($back);
@@ -499,7 +528,7 @@ final class AdminPracticeImagesController extends Controller
             return $b;
         }
 
-        return route('admin.practice.images.index');
+        return $this->practiceImagesListUrl();
     }
 
     /**

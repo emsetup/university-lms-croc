@@ -80,7 +80,7 @@
                         ? (int) \App\Models\Course::query()->where('final_lab_practice_image_id', $row->id)->count()
                         : 0;
                     $blocked = $used + $finalLabCourses;
-                    $editUrl = ! empty($apNav) ? route('admin.practice.images.edit', array_merge($apNav, ['id' => $row->id])) : null;
+                    $editUrl = route('admin.docker.library.edit', ['id' => $row->id]);
                 @endphp
                 <article class="ap-docker-card">
                     <div class="ap-docker-card__top">
@@ -158,11 +158,7 @@
                             <button type="button" class="btn btn-ghost btn-sm" disabled title="Нет lab-daemon">Пересобрать</button>
                         @endif
 
-                        @if ($editUrl)
-                            <a class="btn btn-ghost btn-sm" href="{{ $editUrl }}">Конструктор</a>
-                        @else
-                            <span class="ap-docker-card__hint ap-muted" title="Выберите курс в каталоге, чтобы открыть конструктор образа с привязкой к курсу.">Конструктор</span>
-                        @endif
+                        <a class="btn btn-ghost btn-sm" href="{{ $editUrl }}">Конструктор</a>
 
                         @if ($blocked > 0)
                             <button type="button" class="ap-icon-btn ap-icon-btn--danger" disabled title="Образ используется в практиках или в финальной лабораторной">

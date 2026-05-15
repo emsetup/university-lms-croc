@@ -9,6 +9,7 @@ use App\Http\Controllers\AdminLearnersController;
 use App\Http\Controllers\AdminPracticeImagesController;
 use App\Http\Controllers\AdminDockerLibraryController;
 use App\Http\Controllers\AdminCourseContentController;
+use App\Http\Controllers\AdminSettingsController;
 use App\Http\Controllers\AdminStaffController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AssessmentController;
@@ -28,9 +29,16 @@ use Illuminate\Support\Facades\View;
 
 // Дочерние @section рендерятся до layout: переменная нужна и на `admin.*`, `portal.*`, не только на layouts.course.
 View::composer(['layouts.course', 'admin.*', 'portal.*', 'layouts.admin', 'layouts.admin-preview', 'teacher-course-report'], function ($view) {
+    if (\App\Support\StaffImpersonation::isPreviewRequest(request())) {
+        $view->with('portalStaffAccess', null);
+        $view->with('learnerPreviewActive', true);
+
+        return;
+    }
     $id = (int) session('learner_id', 0);
     $access = $id > 0 ? PortalStaffAccess::fromLearnerId($id) : null;
     $view->with('portalStaffAccess', $access);
+    $view->with('learnerPreviewActive', false);
 });
 
 View::composer('layouts.admin', function ($view) {
@@ -60,11 +68,6 @@ Route::bind('adminCourse', function (string $value) {
     return Course::query()->where('slug', $value)->firstOrFail();
 });
 
-Route::get('/', [PortalController::class, 'index'])->name('portal');
-Route::post('/portal/enroll/{course}', [\App\Http\Controllers\PortalEnrollController::class, 'store'])
-    ->whereNumber('course')
-    ->name('portal.enroll');
-
 Route::get('/login', [EmailLoginController::class, 'show'])->name('login');
 Route::post('/login', [EmailLoginController::class, 'store'])->name('login.store');
 Route::post('/logout', [EmailLoginController::class, 'logout'])->name('logout');
@@ -73,11 +76,20 @@ Route::post('/logout', [EmailLoginController::class, 'logout'])->name('logout');
 Route::get('/oidc/login', [OidcLoginController::class, 'redirect'])->name('oidc.login');
 Route::get('/oidc/callback', [OidcLoginController::class, 'callback'])->name('oidc.callback');
 
-Route::middleware([\App\Http\Middleware\EnsureLearner::class])->group(function () {
-    Route::get('/account', AccountController::class)->name('account');
-});
+Route::middleware([
+    \App\Http\Middleware\ApplyLearnerPreview::class,
+    \App\Http\Middleware\MaintenanceForUsers::class,
+])->group(function () {
+    Route::get('/', [PortalController::class, 'index'])->name('portal');
+    Route::post('/portal/enroll/{course}', [\App\Http\Controllers\PortalEnrollController::class, 'store'])
+        ->whereNumber('course')
+        ->name('portal.enroll');
 
-Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middleware\EnsureCourseSelected::class])->group(function () {
+    Route::middleware([\App\Http\Middleware\EnsureLearner::class])->group(function () {
+        Route::get('/account', AccountController::class)->name('account');
+    });
+
+    Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middleware\EnsureCourseSelected::class])->group(function () {
     // Dashboard is course-scoped; keep legacy /dashboard as redirect.
     Route::get('/dashboard', function () {
         return redirect()->route('course.dashboard', ['course' => (int) session('course_id')]);
@@ -122,6 +134,7 @@ Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middlewa
         Route::post('/exam/submit', [ModuleController::class, 'examSubmit'])->name('modules.exam.submit');
         Route::get('/exam/result', [ModuleController::class, 'examResult'])->name('modules.exam.result');
     });
+    });
 });
 
 Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middleware\EnsurePortalStaff::class])->group(function () {
@@ -129,11 +142,21 @@ Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middlewa
     Route::get('/adm/sobytiya', [AdminPanelController::class, 'activity'])->name('admin.activity');
     Route::get('/adm/paleta/poisk', [AdminPanelController::class, 'commandPaletteSearch'])->name('admin.command-palette.search');
 
+    Route::get('/adm/nastroiki', [AdminSettingsController::class, 'show'])->name('admin.settings');
+    Route::post('/adm/nastroiki/zaglushka', [AdminSettingsController::class, 'updateMaintenance'])->name('admin.settings.maintenance');
+    Route::post('/adm/nastroiki/zaglushka/sbros', [AdminSettingsController::class, 'resetMaintenance'])->name('admin.settings.maintenance.reset');
+    Route::post('/adm/nastroiki/prosmotr', [AdminSettingsController::class, 'impersonate'])->name('admin.settings.impersonate');
+    Route::get('/adm/nastroiki/poisk-obuchayushchihsya', [AdminSettingsController::class, 'learnerSearch'])->name('admin.settings.learner-search');
+
     Route::middleware([\App\Http\Middleware\DenyCourseTester::class])->group(function () {
         Route::get('/adm/docker', [AdminDockerLibraryController::class, 'index'])->name('admin.docker.library');
         Route::post('/adm/docker', [AdminDockerLibraryController::class, 'store'])->name('admin.docker.library.store');
         Route::post('/adm/docker/stats/refresh', [AdminDockerLibraryController::class, 'refreshStats'])->name('admin.docker.library.stats.refresh');
+        Route::get('/adm/docker/pkg-search', [AdminPracticeImagesController::class, 'pkgSearch'])->name('admin.docker.library.pkg.search');
+        Route::get('/adm/docker/{id}', [AdminPracticeImagesController::class, 'edit'])->whereNumber('id')->name('admin.docker.library.edit');
+        Route::post('/adm/docker/{id}', [AdminPracticeImagesController::class, 'update'])->whereNumber('id')->name('admin.docker.library.update');
         Route::post('/adm/docker/{id}/build', [AdminDockerLibraryController::class, 'build'])->whereNumber('id')->name('admin.docker.library.build');
+        Route::post('/adm/docker/{id}/export', [AdminPracticeImagesController::class, 'export'])->whereNumber('id')->name('admin.docker.library.export');
         Route::post('/adm/docker/{id}/udalit', [AdminDockerLibraryController::class, 'destroy'])->whereNumber('id')->name('admin.docker.library.destroy');
     });
 
@@ -327,7 +350,7 @@ Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middlewa
                 return redirect()->route('admin.courses.index')->with('err', 'Сначала выберите курс.');
             }
 
-            return redirect()->route('admin.practice.images.edit', ['adminCourse' => $s, 'id' => $id], 302);
+            return redirect()->route('admin.docker.library.edit', ['id' => $id], 302);
         })->whereNumber('id');
         Route::get('/adm/kurs/nastroyki/modul/{courseModule}', function (int $courseModule) use ($slugOrCourses) {
             $s = $slugOrCourses();
