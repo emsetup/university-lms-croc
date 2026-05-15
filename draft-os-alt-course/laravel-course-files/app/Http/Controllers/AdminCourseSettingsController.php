@@ -29,14 +29,13 @@ use Illuminate\View\View;
 
 final class AdminCourseSettingsController extends Controller
 {
-    public function courseSettings(Request $request): View
+    public function courseSettings(Request $request, Course $adminCourse): View
     {
-        $courseId = (int) session('admin_course_id');
+        $courseId = (int) $adminCourse->id;
         abort_unless($courseId > 0, 404);
         app(PortalStaffAccess::class)->assertCanEditCourseMeta($courseId);
 
-        /** @var Course $course */
-        $course = Course::query()->findOrFail($courseId);
+        $course = $adminCourse;
         $course->loadMissing('finalLabPracticeImage:id,title,docker_tag');
 
         if ($course->isLegacyAltCourse()) {
@@ -249,7 +248,10 @@ final class AdminCourseSettingsController extends Controller
 
     public function reorderModules(Request $request): RedirectResponse
     {
-        $courseId = (int) session('admin_course_id');
+        $routeCourse = $request->route('adminCourse');
+        $courseId = $routeCourse instanceof Course
+            ? (int) $routeCourse->id
+            : (int) session('admin_course_id');
         $data = $request->validate([
             'order' => 'required|array',
             'order.*' => 'integer|distinct',
@@ -390,6 +392,7 @@ final class AdminCourseSettingsController extends Controller
 
     public function reorderSections(Request $request, Course $adminCourse, CourseModule $courseModule): RedirectResponse
     {
+        abort_unless((int) $courseModule->course_id === (int) $adminCourse->id, 403);
         $this->assertModuleCourse($courseModule);
         $data = $request->validate([
             'order' => 'required|array',

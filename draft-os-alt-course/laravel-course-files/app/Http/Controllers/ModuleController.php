@@ -114,6 +114,50 @@ class ModuleController extends Controller
         return (int) session('course_id', 0);
     }
 
+    /**
+     * Разбор для обучающегося: только ошибки/пропуски, ограниченное время после попытки.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{
+     *     result: array<string, mixed>,
+     *     showBreakdown: bool,
+     *     breakdownExpired: bool,
+     *     wrongItems: list<array<string, mixed>>,
+     *     breakdownUntilTs: ?int
+     * }
+     */
+    protected function prepareLearnerQuizBreakdownView(array $data): array
+    {
+        $until = isset($data['breakdown_visible_until']) ? (int) $data['breakdown_visible_until'] : 0;
+        $withinWindow = $until > 0 && $until > now()->getTimestamp();
+        $breakdownExpired = $until > 0 && ! $withinWindow;
+
+        $result = $data;
+        if (! $withinWindow) {
+            unset($result['items'], $result['breakdown_visible_until']);
+        }
+
+        $wrongItems = [];
+        if ($withinWindow && ! empty($data['items']) && is_array($data['items'])) {
+            foreach ($data['items'] as $it) {
+                if (! is_array($it)) {
+                    continue;
+                }
+                if (empty($it['correct']) || ! empty($it['skipped'])) {
+                    $wrongItems[] = $it;
+                }
+            }
+        }
+
+        return [
+            'result' => $result,
+            'showBreakdown' => $withinWindow && $wrongItems !== [],
+            'breakdownExpired' => $breakdownExpired,
+            'wrongItems' => $wrongItems,
+            'breakdownUntilTs' => $withinWindow ? $until : null,
+        ];
+    }
+
     protected function examQuestionIsMulti(array $q): bool
     {
         return isset($q['c']) && is_array($q['c']);
@@ -377,10 +421,14 @@ class ModuleController extends Controller
         // Итог % на хабе = из последнего результата; колонка могла отставать у старых записей — выравниваем.
         $p->syncModuleExamBestScoreFromLastResult();
 
+        $courseId = $this->learnerCourseId();
+        if ($courseId > 0 && $this->sectionService->reconcilePassFlagsFromResults($p, $module)) {
+            $p->save();
+        }
+
         $showBriefing = Schema::hasColumn('module_progress', 'hub_briefing_acknowledged_at')
             && $p->hub_briefing_acknowledged_at === null;
 
-        $courseId = $this->learnerCourseId();
         $hubPresent = null;
         if ($courseId > 0 && Schema::hasTable('course_sections')
             && $this->sectionService->useDbSectionsForModule($module)) {
@@ -415,6 +463,7 @@ class ModuleController extends Controller
                 : CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS,
             'hubPresent' => $hubPresent,
             'showHubBriefing' => $showBriefing,
+            'sectionService' => $this->sectionService,
         ]);
     }
 
@@ -600,10 +649,16 @@ class ModuleController extends Controller
             return redirect()->route('modules.hub', $module)->with('err', 'Нет сохранённого разбора. Сначала завершите тест с отправкой ответов.');
         }
 
+        $breakdownView = $this->prepareLearnerQuizBreakdownView($data);
+
         return view('modules.theory-quiz-result', [
             'module' => $module,
             'meta' => $this->courseModules->displayMeta($cm),
-            'result' => $data,
+            'result' => $breakdownView['result'],
+            'showBreakdown' => $breakdownView['showBreakdown'],
+            'breakdownExpired' => $breakdownView['breakdownExpired'],
+            'wrongItems' => $breakdownView['wrongItems'],
+            'breakdownUntilTs' => $breakdownView['breakdownUntilTs'],
         ]);
     }
 
@@ -656,6 +711,10 @@ class ModuleController extends Controller
             }
         }
 
+        $breakdownMinutes = $cid > 0
+            ? $this->sectionService->theoryQuizBreakdownVisibleMinutes($module)
+            : CourseScoringService::THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES;
+
         $payload = [
             'module' => $module,
             'raw_percent' => $rawPercent,
@@ -667,6 +726,7 @@ class ModuleController extends Controller
             'wrong_count' => $breakdown['wrong_count'],
             'total' => $breakdown['total'],
             'items' => $breakdown['items'],
+            'breakdown_visible_until' => now()->addMinutes($breakdownMinutes)->getTimestamp(),
             'recorded_at' => now()->toIso8601String(),
             'attempt_no' => $attemptsBefore + 1,
         ];
@@ -906,23 +966,17 @@ class ModuleController extends Controller
             return redirect()->route('modules.hub', $module)->with('err', 'Пока нет результата итогового теста. Пройдите тест с шага4.');
         }
 
-        $until = isset($data['breakdown_visible_until']) ? (int) $data['breakdown_visible_until'] : 0;
-        $showExamBreakdown = $until > 0 && $until > now()->getTimestamp();
-        $breakdownExpired = $until > 0 && ! $showExamBreakdown;
-
-        $r = $data;
-        if (! $showExamBreakdown) {
-            unset($r['items'], $r['breakdown_visible_until']);
-        }
+        $breakdownView = $this->prepareLearnerQuizBreakdownView($data);
 
         return view('modules.exam-result', [
             'module' => $module,
             'meta' => $this->courseModules->displayMeta($cm),
-            'r' => $r,
+            'r' => $breakdownView['result'],
             'progress' => $p,
-            'showExamBreakdown' => $showExamBreakdown,
-            'breakdownUntilTs' => $showExamBreakdown ? $until : null,
-            'breakdownExpired' => $breakdownExpired,
+            'showExamBreakdown' => $breakdownView['showBreakdown'],
+            'breakdownUntilTs' => $breakdownView['breakdownUntilTs'],
+            'breakdownExpired' => $breakdownView['breakdownExpired'],
+            'wrongItems' => $breakdownView['wrongItems'],
         ]);
     }
 

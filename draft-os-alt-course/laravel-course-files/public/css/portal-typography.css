@@ -1,0 +1,44 @@
+/* Смягчение типографики: локальный Manrope + снижение «раздутых» font-weight в макете. */
+
+html,
+html.ap-html,
+body.course-ui {
+    font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-weight: 400;
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Заголовки и акценты: в CSS часто 800/700, визуально достаточно 600 */
+.admin-shell .ap-page-title,
+.admin-shell .ap-course-context__title,
+.admin-shell .ap-mod-card__name,
+.admin-shell .ap-mod-card__badge,
+.admin-shell .ap-modal__title,
+.admin-shell .ap-course-settings-subtabs__a.is-active,
+.admin-shell .admin-topbar__logo,
+.admin-shell h1,
+.admin-shell h2,
+.admin-shell h3,
+.course-ui .brand-title,
+.course-ui .course-header--admin .brand-title,
+.course-ui .course-header--public .brand-title,
+.course-ui h1,
+.course-ui h2 {
+    font-weight: 600 !important;
+}
+
+/* Логотип: лёгкий хвост «· Панель» */
+.admin-shell .admin-topbar__logo span {
+    font-weight: 400;
+}
+
+/* Навигация и вторичный текст — не раздувать */
+.admin-shell .nav-item {
+    font-weight: 500;
+}
+
+.admin-shell .nav-item.active {
+    font-weight: 600;
+}

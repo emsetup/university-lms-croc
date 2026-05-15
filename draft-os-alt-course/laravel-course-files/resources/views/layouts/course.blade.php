@@ -7,14 +7,13 @@
     <link rel="icon" type="image/png" href="{{ asset('croc-app-icon.png') }}">
     <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('croc-app-icon-512.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('croc-app-icon-512.png') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('css/local-fonts.css') }}">
     <link rel="stylesheet" href="{{ asset('css/course.css') }}">
     @if (request()->routeIs('admin.*'))
         <link rel="stylesheet" href="{{ asset('css/admin-panel.css') }}">
         <link rel="stylesheet" href="{{ asset('static/admin/admin.css') }}">
     @endif
+    <link rel="stylesheet" href="{{ asset('css/portal-typography.css') }}">
     <style id="quiz-theory-console">
         /* Тесты: переносы и фрагменты конфигурации в тексте вопроса */
         .quiz-q-text,
@@ -111,86 +110,10 @@
             min-width: 0;
         }
     </style>
-    <style id="quiz-dialog-modals">
-        dialog.quiz-modal {
-            border: none;
-            padding: 0;
-            margin: 0;
-            max-width: calc(100vw - 1.5rem);
-            width: min(28rem, 100%);
-            background: transparent;
-            color: #0f172a;
-        }
-        dialog.quiz-modal::backdrop {
-            background: rgba(15, 23, 42, 0.48);
-            backdrop-filter: blur(3px);
-        }
-        dialog.quiz-modal .quiz-modal-inner {
-            background: #fff;
-            border-radius: 14px;
-            padding: 1.2rem 1.35rem 1.15rem;
-            box-shadow: 0 24px 64px rgba(15, 23, 42, 0.2);
-            border: 1px solid #e2e8f0;
-        }
-        dialog.quiz-modal .quiz-modal-heading {
-            margin: 0 0 0.5rem;
-            font-size: 1.15rem;
-            font-weight: 800;
-            line-height: 1.3;
-            color: #0f172a;
-        }
-        dialog.quiz-modal .quiz-modal-badge {
-            display: inline-block;
-            margin: 0 0 0.45rem;
-            padding: 0.15rem 0.5rem;
-            border-radius: 999px;
-            font-size: 0.68rem;
-            font-weight: 800;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            background: #ecfdf5;
-            color: #047857;
-            border: 1px solid #bbf7d0;
-        }
-        dialog.quiz-modal .quiz-modal-form {
-            margin-top: 0.85rem;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            align-items: center;
-        }
-        dialog.quiz-modal .quiz-modal-actions {
-            margin-top: 0.85rem;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            align-items: center;
-            justify-content: flex-end;
-        }
-        dialog.quiz-modal .quiz-modal-list {
-            margin: 0.35rem 0 0;
-            padding-left: 1.1rem;
-            line-height: 1.5;
-            font-size: 0.92rem;
-            color: #334155;
-        }
-        dialog.quiz-modal .quiz-modal-warn {
-            color: #9a3412;
-        }
-        dialog.quiz-modal .quiz-modal-cancel {
-            font-size: 0.88rem;
-            color: #64748b;
-            text-decoration: underline;
-            text-underline-offset: 2px;
-        }
-        dialog.quiz-modal .quiz-modal-cancel:hover {
-            color: #0f172a;
-        }
-    </style>
 </head>
 <body class="course-ui">
 @php
-    $isPortalUi = request()->routeIs('portal') || request()->routeIs('login');
+    $isPortalUi = request()->routeIs('portal') || request()->routeIs('login') || request()->routeIs('account');
     $isAdminUi = request()->routeIs('admin.*');
     $hasCourse = (bool) session('course_id');
     $hasAdminCourse = (bool) session('admin_course_id');
@@ -238,6 +161,9 @@
         </a>
         @if (session('learner_id'))
             <div class="course-header__actions">
+                @if ($isAdminUi && ! empty($portalStaffAccess))
+                    @include('partials.admin-settings-menu')
+                @endif
                 <a class="btn btn-ghost" href="{{ route('portal') }}">Курсы</a>
                 @if (! empty($portalStaffAccess))
                     <a class="btn btn-ghost" href="{{ route('admin.panel') }}">Управление</a>
@@ -253,6 +179,7 @@
             </div>
         @endif
     </header>
+    @include('partials.impersonation-banner')
     @if (session('ok'))
         <div class="flash ok">{{ session('ok') }}</div>
     @endif
@@ -279,11 +206,12 @@
             if (typeof d.showModal !== 'function') {
                 return;
             }
-            d.removeAttribute('open');
-            try {
-                d.showModal();
-            } catch (e) {
-                d.setAttribute('open', '');
+            if (d.open && !d.matches(':modal')) {
+                try {
+                    d.showModal();
+                } catch (e) {
+                    /* остаётся [open] — центрируется через CSS */
+                }
             }
         });
     }

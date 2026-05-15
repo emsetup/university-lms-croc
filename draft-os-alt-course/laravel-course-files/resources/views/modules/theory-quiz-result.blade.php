@@ -21,28 +21,16 @@
                 Штраф за пересдачу: −{{ $result['penalty_points'] }} п.п.
             @endif
         </p>
+        @if (!empty($breakdownExpired))
+            <p class="muted">Окно просмотра разбора по вопросам истекло — вернуться к списку вопросов нельзя.</p>
+        @endif
     </div>
 
-    @if (!empty($result['items']) && is_array($result['items']))
-        <div class="card" style="margin-top:1rem">
-            <h2 style="margin-top:0">Разбор ответов</h2>
-            <ul class="muted" style="padding-left:1.1rem">
-                @foreach ($result['items'] as $it)
-                    <li style="margin-bottom:0.75rem">
-                        <strong>Вопрос {{ $it['n'] ?? '' }}.</strong>
-                        <div class="module-exam-q--md" style="font-weight:600;margin-top:0.2rem">{!! \Illuminate\Support\Str::markdown($it['question'] ?? '') !!}</div>
-                        <br>
-                        @if (!empty($it['correct']))
-                            <span style="color:var(--croc-600)">Верно</span>
-                        @elseif (!empty($it['skipped']))
-                            Пропуск
-                        @else
-                            Ошибка
-                        @endif
-                    </li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
+    @include('partials.learner-quiz-breakdown-wrong', [
+        'showBreakdown' => $showBreakdown ?? false,
+        'wrongItems' => $wrongItems ?? [],
+        'breakdownUntilTs' => $breakdownUntilTs ?? null,
+        'breakdownTitle' => 'Разбор ответов',
+    ])
     </div>
 @endsection

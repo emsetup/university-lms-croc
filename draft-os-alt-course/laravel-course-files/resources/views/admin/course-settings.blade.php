@@ -34,6 +34,7 @@
             @include('admin.partials.course-modules-workbench', [
                 'course' => $course,
                 'modules' => $modules,
+                'ap' => $tp,
                 'adminKey' => $adminKey ?? '',
             ])
         @endif

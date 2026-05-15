@@ -16,6 +16,9 @@
     $th = (int) ($passThreshold ?? 70);
     $tqAtt = (int) ($p->theory_quiz_attempts ?? 0);
     $tqBest = (int) ($p->theory_quiz_best_score ?? 0);
+    $tqPassedEffective = isset($sectionService)
+        ? $sectionService->isTheoryQuizEffectivelyPassed($p, (int) $module)
+        : (bool) $p->theory_quiz_passed;
     $exAtt = (int) ($p->module_exam_attempts ?? 0);
     $exBest = (int) ($p->module_exam_best_score ?? 0);
     $exMax = (int) ($examMaxAttemptsDisplay ?? \App\Services\CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS);
@@ -134,6 +137,7 @@
                             'th' => $th,
                             'thEx' => $thEx,
                             'exMax' => $exMax,
+                            'sectionService' => $sectionService,
                         ])
                     @endforeach
                 @else
@@ -174,7 +178,7 @@
                                     <div class="hub-track__fill{{ $tqBar >= $th ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) $tqBar }}%"></div>
                                 </div>
                                 <span class="hub-pct">{{ $tqAtt > 0 ? $tqBest : '—' }}@if($tqAtt > 0)%@endif</span>
-                                @if ($p->theory_quiz_passed)
+                                @if ($tqPassedEffective)
                                     <span class="hub-badge hub-badge--counted badge-counted">Зачтён</span>
                                 @elseif ($tqAtt > 0)
                                     <span class="hub-badge hub-badge--no badge-fail">Ниже {{ $th }}%</span>

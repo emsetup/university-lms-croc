@@ -13,7 +13,9 @@ class EnsureLearner
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $id = session('learner_id');
+        $previewId = (int) $request->attributes->get('preview_learner_id', 0);
+        $id = $previewId > 0 ? $previewId : session('learner_id');
+
         if (! $id) {
             if (config('oidc.enabled') && config('oidc.required')) {
                 return OidcSignInRedirect::toOidcLogin($request);
@@ -24,6 +26,12 @@ class EnsureLearner
 
         $learner = Learner::find($id);
         if (! $learner) {
+            if ($previewId > 0) {
+                return redirect()
+                    ->route('portal')
+                    ->with('err', 'Обучающийся не найден.');
+            }
+
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
@@ -35,6 +43,9 @@ class EnsureLearner
         }
 
         View::share('currentLearner', $learner);
+        if ($previewId > 0) {
+            View::share('learnerPreviewTarget', $learner);
+        }
 
         return $next($request);
     }

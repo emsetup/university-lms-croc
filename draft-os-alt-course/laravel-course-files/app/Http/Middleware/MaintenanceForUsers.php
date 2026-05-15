@@ -3,7 +3,9 @@
 namespace App\Http\Middleware;
 
 use App\Services\MaintenanceActivityLogger;
+use App\Services\PortalMaintenance;
 use App\Services\PortalStaffAccess;
+use App\Support\StaffImpersonation;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,7 +17,7 @@ final class MaintenanceForUsers
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (! config('course.portal_user_maintenance', false)) {
+        if (! PortalMaintenance::isEnabled()) {
             return $next($request);
         }
 
@@ -40,6 +42,10 @@ final class MaintenanceForUsers
 
     private function isPortalStaff(Request $request): bool
     {
+        if (StaffImpersonation::isPreviewRequest($request)) {
+            return false;
+        }
+
         $learnerId = (int) session('learner_id', 0);
         if ($learnerId <= 0) {
             return false;

@@ -56,7 +56,7 @@
                         <div class="card" style="margin:0;padding:0.9rem;border:1px solid var(--line,#e5e7eb);background:var(--surface,#fff)">
                             <article class="prose-course practice-block" id="cmce-preview" style="max-width:none"></article>
                         </div>
-                        <p class="muted small" style="margin:0.5rem 0 0">Подсказка: Mermaid-блоки рендерятся после обновления предпросмотра.</p>
+                        <p class="muted small" style="margin:0.5rem 0 0">Подсказка: Mermaid-блоки рендерятся после открытия вкладки предпросмотра.</p>
                     </section>
 
                     <div style="display:flex;gap:0.5rem;align-items:center;justify-content:space-between;margin-top:1rem">
@@ -68,108 +68,93 @@
         </div>
     </div>
 
+    <link rel="stylesheet" href="{{ asset('vendor/easymde/2.18.0/easymde.min.css') }}">
     <style>
-        .cmce-split {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.75rem;
-        }
-        @media (max-width: 900px) {
-            .cmce-split { grid-template-columns: 1fr; }
-        }
-        .cmce-editor {
-            border: 1px solid var(--line,#e5e7eb);
-            border-radius: 10px;
-            overflow: hidden;
-            background: #0b1220;
-            color: #e5e7eb;
-        }
-        .cmce-editor .cm-editor { font-size: 14px; }
-        .cmce-editor .cm-scroller { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-        .cmce-editor .cm-gutters { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6); border-right: 1px solid rgba(255,255,255,0.08); }
-        .cmce-editor .cm-activeLineGutter, .cmce-editor .cm-activeLine { background: rgba(255,255,255,0.06); }
+        .theory-mermaid-wrap { margin: 1rem 0 1.25rem; overflow-x: auto; text-align: center; }
+        .theory-mermaid-wrap svg { max-width: 100%; height: auto; }
     </style>
-
+    <script src="{{ asset('vendor/easymde/2.18.0/easymde.min.js') }}"></script>
+    <script src="{{ asset('vendor/marked/12.0.2/marked.min.js') }}"></script>
+    @include('partials.vendor-mermaid-importmap')
     <script type="module">
-        import { EditorView, basicSetup } from 'https://esm.sh/codemirror@6';
-        import { EditorState } from 'https://esm.sh/@codemirror/state@6';
-        import { markdown } from 'https://esm.sh/@codemirror/lang-markdown@6';
-        import { oneDark } from 'https://esm.sh/@codemirror/theme-one-dark@6';
-        import { marked } from 'https://esm.sh/marked@12';
-        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        (async function () {
+            var panels = Array.from(document.querySelectorAll('.js-cmce-panel'));
+            var tabs = Array.from(document.querySelectorAll('.js-cmce-tab'));
+            var previewEl = document.getElementById('cmce-preview');
+            var theoryTa = document.querySelector('textarea[name="theory_markdown"]');
+            var practiceTa = document.querySelector('textarea[name="practice_markdown"]');
+            if (!panels.length || !tabs.length || !previewEl || !theoryTa || !practiceTa || typeof EasyMDE === 'undefined' || typeof marked === 'undefined') {
+                return;
+            }
 
-        (function () {
-            const panels = Array.from(document.querySelectorAll('.js-cmce-panel'));
-            const tabs = Array.from(document.querySelectorAll('.js-cmce-tab'));
-            const previewEl = document.getElementById('cmce-preview');
-            const textareas = Array.from(document.querySelectorAll('textarea.js-cmce-textarea'));
-            if (!panels.length || !tabs.length || !previewEl || !textareas.length) return;
+            var lastEditTab = 'theory';
+            var mdeOpts = {
+                spellChecker: false,
+                autosave: { enabled: false },
+                status: ['lines', 'words'],
+                minHeight: '360px',
+            };
+            var mdeTheory = new EasyMDE(Object.assign({}, mdeOpts, { element: theoryTa }));
+            var mdePractice = new EasyMDE(Object.assign({}, mdeOpts, { element: practiceTa }));
 
-            const views = new Map();
-            function mountEditors() {
-                textareas.forEach((ta) => {
-                    const wrap = document.createElement('div');
-                    wrap.className = 'cmce-editor';
-                    ta.parentNode.insertBefore(wrap, ta);
-                    ta.style.display = 'none';
+            var mermaidMod = null;
 
-                    const state = EditorState.create({
-                        doc: ta.value || '',
-                        extensions: [
-                            basicSetup,
-                            markdown(),
-                            oneDark,
-                            EditorView.updateListener.of((v) => {
-                                if (v.docChanged) ta.value = v.state.doc.toString();
-                            }),
-                        ],
-                    });
-                    const view = new EditorView({ state, parent: wrap });
-                    views.set(ta, view);
-                });
+            function markdownForPreview() {
+                var ta = lastEditTab === 'practice' ? practiceTa : theoryTa;
+                return ta ? (ta.value || '') : '';
             }
 
             function setActive(tab) {
-                tabs.forEach((t) => t.classList.toggle('is-active', t.dataset.tab === tab));
-                panels.forEach((p) => {
+                if (tab === 'theory' || tab === 'practice') {
+                    lastEditTab = tab;
+                }
+                tabs.forEach(function (t) {
+                    t.classList.toggle('is-active', t.dataset.tab === tab);
+                });
+                panels.forEach(function (p) {
                     p.style.display = (p.dataset.panel === tab) ? '' : 'none';
                 });
+                if (tab === 'theory' && mdeTheory.codemirror) {
+                    mdeTheory.codemirror.refresh();
+                }
+                if (tab === 'practice' && mdePractice.codemirror) {
+                    mdePractice.codemirror.refresh();
+                }
                 if (tab === 'preview') {
                     renderPreview();
                 }
             }
 
-            function activeTextareaByTab() {
-                const activePanel = panels.find((p) => p.style.display !== 'none');
-                if (!activePanel) return textareas[0];
-                const ta = activePanel.querySelector('textarea.js-cmce-textarea');
-                return ta || textareas[0];
-            }
-
-            function renderPreview() {
-                const ta = activeTextareaByTab();
-                const md = ta ? (ta.value || '') : '';
-                previewEl.innerHTML = marked.parse(md);
-
-                const codes = previewEl.querySelectorAll('pre code.language-mermaid');
-                if (!codes.length) return;
-                mermaid.initialize({
-                    startOnLoad: false,
-                    theme: 'base',
-                    securityLevel: 'strict',
-                    fontFamily: 'Manrope, system-ui, sans-serif',
-                    flowchart: { curve: 'basis', padding: 12 },
-                });
-                let i = 0;
-                codes.forEach(async (code) => {
-                    const pre = code.parentElement;
-                    if (!pre || pre.tagName !== 'PRE') return;
-                    const graph = (code.textContent || '').trim();
-                    if (!graph) return;
-                    const id = 'cmce-mermaid-' + (i++) + '-' + Math.random().toString(36).slice(2, 8);
+            async function renderPreview() {
+                previewEl.innerHTML = marked.parse(markdownForPreview());
+                var codes = previewEl.querySelectorAll('pre code.language-mermaid');
+                if (!codes.length) {
+                    return;
+                }
+                if (!mermaidMod) {
+                    mermaidMod = (await import('mermaid')).default;
+                    mermaidMod.initialize({
+                        startOnLoad: false,
+                        theme: 'base',
+                        securityLevel: 'strict',
+                        fontFamily: 'Manrope, system-ui, sans-serif',
+                        flowchart: { curve: 'basis', padding: 12 },
+                    });
+                }
+                var i = 0;
+                codes.forEach(async function (code) {
+                    var pre = code.parentElement;
+                    if (!pre || pre.tagName !== 'PRE') {
+                        return;
+                    }
+                    var graph = (code.textContent || '').trim();
+                    if (!graph) {
+                        return;
+                    }
+                    var id = 'cmce-mermaid-' + (i++) + '-' + Math.random().toString(36).slice(2, 8);
                     try {
-                        const out = await mermaid.render(id, graph);
-                        const wrap = document.createElement('div');
+                        var out = await mermaidMod.render(id, graph);
+                        var wrap = document.createElement('div');
                         wrap.className = 'theory-mermaid-wrap';
                         wrap.innerHTML = out.svg;
                         pre.replaceWith(wrap);
@@ -179,11 +164,13 @@
                 });
             }
 
-            tabs.forEach((t) => t.addEventListener('click', () => setActive(t.dataset.tab || 'theory')));
+            tabs.forEach(function (t) {
+                t.addEventListener('click', function () {
+                    setActive(t.dataset.tab || 'theory');
+                });
+            });
 
-            mountEditors();
             setActive('theory');
         })();
     </script>
 @endsection
-

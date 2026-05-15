@@ -128,7 +128,7 @@ final class ModuleAccessGate
                 return redirect()->route('modules.theory', $courseModuleId)
                     ->with('err', 'Сначала отметьте просмотр теории.');
             }
-            if (! $p->theory_quiz_passed) {
+            if (! $this->sections->isTheoryQuizEffectivelyPassed($p, $courseModuleId)) {
                 return redirect()->route('modules.theory-quiz', $courseModuleId)
                     ->with('err', 'Сначала успешно сдайте тест по теории.');
             }
@@ -141,7 +141,7 @@ final class ModuleAccessGate
                 return redirect()->route('modules.theory', $courseModuleId)
                     ->with('err', 'Сначала отметьте просмотр теории.');
             }
-            if (! $p->theory_quiz_passed) {
+            if (! $this->sections->isTheoryQuizEffectivelyPassed($p, $courseModuleId)) {
                 return redirect()->route('modules.theory-quiz', $courseModuleId)
                     ->with('err', 'Сначала успешно сдайте тест по теории.');
             }

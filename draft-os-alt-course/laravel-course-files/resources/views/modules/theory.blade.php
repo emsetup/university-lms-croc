@@ -33,13 +33,14 @@
             .theory-mermaid-wrap { margin: 1rem 0 1.25rem; overflow-x: auto; text-align: center; }
             .theory-mermaid-wrap svg { max-width: 100%; height: auto; }
         </style>
+        @include('partials.vendor-mermaid-importmap')
         <script type="module">
             (async function () {
                 var codes = document.querySelectorAll('.theory-article pre code.language-mermaid');
                 if (!codes.length) {
                     return;
                 }
-                var mer = (await import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs')).default;
+                var mer = (await import('mermaid')).default;
                 mer.initialize({
                     startOnLoad: false,
                     theme: 'base',

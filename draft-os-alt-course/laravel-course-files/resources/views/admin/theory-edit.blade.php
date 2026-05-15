@@ -13,7 +13,7 @@
         <h1 style="margin-top: 0">Модуль {{ $module }}: {{ $mTitle }}</h1>
         <p class="muted small">Файл: <code>config/snippets/{{ $filename }}</code>. Панель вносит разметку Markdown (**жирный**, *курсив*, списки, код). Предпросмотр — вкладка справа в редакторе.</p>
 
-        <form method="post" action="{{ route('admin.theory.update', array_merge($ap ?? [], ['module' => $module])) }}" id="theory-admin-form">
+        <form method="post" action="{{ route('admin.theory.update', ['module' => $module]) }}" id="theory-admin-form">
             @csrf
             <label for="theory-md" class="muted small" style="display: block; margin-bottom: 0.35rem">Содержимое (Markdown)</label>
             <textarea id="theory-md" name="markdown" rows="24" spellcheck="false">{{ old('markdown', $markdown) }}</textarea>
@@ -25,8 +25,8 @@
         </div>
     </div>
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.js"></script>
+    <link rel="stylesheet" href="{{ asset('vendor/easymde/2.18.0/easymde.min.css') }}">
+    <script src="{{ asset('vendor/easymde/2.18.0/easymde.min.js') }}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             var el = document.getElementById('theory-md');

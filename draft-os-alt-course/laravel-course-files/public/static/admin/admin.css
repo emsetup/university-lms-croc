@@ -46,6 +46,7 @@
   flex-shrink: 0;
   position: relative;
   z-index: 100;
+  overflow: visible;
 }
 
 .admin-topbar::after {
@@ -91,6 +92,7 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  overflow: visible;
 }
 
 .nav-item {
@@ -160,6 +162,65 @@
   border-color: var(--brand);
   color: var(--brand);
   background: var(--brand-light);
+}
+
+.admin-settings-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.admin-settings-menu__trigger {
+  cursor: pointer;
+}
+
+.admin-settings-menu__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 500;
+  min-width: 16.5rem;
+  padding: 0.35rem 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+}
+
+.admin-settings-menu__panel[hidden] {
+  display: none !important;
+}
+
+.admin-settings-menu__item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.85rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.admin-settings-menu__item:hover,
+.admin-settings-menu__item--warn:hover {
+  background: #f1f5f9;
+}
+
+.admin-settings-menu__item--warn {
+  color: #b45309;
+}
+
+.admin-settings-menu__hint {
+  padding: 0.35rem 0.85rem 0.5rem;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-top: 1px solid #f3f4f6;
+  margin-top: 0.25rem;
 }
 
 .kbd {
@@ -1553,6 +1614,120 @@ a.dropdown-item--danger:hover {
 
 .admin-final-lab-meta {
   margin-top: 0.5rem;
+}
+
+/* Сводка курса и таблицы отчёта преподавателя (teacher-report-table) */
+.teacher-course-summary {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.tr-hero {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.1rem 1.2rem;
+  background: linear-gradient(160deg, #f6faf8, #fff);
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+}
+
+.tr-hero h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+}
+
+.teacher-report-summary {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.tr-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  -webkit-overflow-scrolling: touch;
+}
+
+.tr-table-wrap table {
+  margin: 0;
+}
+
+.teacher-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  min-width: 920px;
+}
+
+.teacher-report-table th,
+.teacher-report-table td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+
+.teacher-report-table th {
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: #f9fafb;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.teacher-report-table tbody tr:hover td {
+  background: #fafafa;
+}
+
+.teacher-report-table th:first-child,
+.teacher-report-table td:first-child {
+  min-width: 11rem;
+}
+
+.teacher-report-nowrap {
+  white-space: nowrap;
+}
+
+.tr-email {
+  font-weight: 600;
+}
+
+.tr-go {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--brand);
+  white-space: nowrap;
+}
+
+.learner-cell-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 2px;
+}
+
+.learner-cell-email {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.learner-cell-link {
+  font-size: 12px;
+  color: #00b956;
+  text-decoration: none;
+  display: block;
+  margin-top: 2px;
+}
+
+.learner-cell-link:hover {
+  text-decoration: underline;
 }
 
 .mono,

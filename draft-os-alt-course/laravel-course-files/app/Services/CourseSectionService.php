@@ -245,6 +245,14 @@ final class CourseSectionService
         return (bool) ($sec ? ($this->mergedSettings($sec)['shuffle'] ?? false) : false);
     }
 
+    public function theoryQuizBreakdownVisibleMinutes(int $courseModuleId): int
+    {
+        $sec = $this->findSectionByBackendKey($courseModuleId, 'theory_quiz');
+        $v = $sec ? ($this->mergedSettings($sec)['breakdown_visible_minutes'] ?? null) : null;
+
+        return is_numeric($v) && (int) $v >= 0 ? (int) $v : CourseScoringService::THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES;
+    }
+
     public function examTimeLimitMinutes(int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): int
     {
         if ($legacyAlt) {
@@ -385,10 +393,99 @@ final class CourseSectionService
 
         return match ($backendKey) {
             'theory' => (bool) $p->theory_read_at,
-            'theory_quiz' => (bool) $p->theory_quiz_passed,
+            'theory_quiz' => $this->isTheoryQuizEffectivelyPassed($p, $courseModuleId),
             'practice' => (bool) $p->practice_done_at,
-            'module_exam' => (bool) $p->module_exam_passed,
+            'module_exam' => $this->isModuleExamEffectivelyPassed($p, $courseModuleId),
             default => false,
         };
+    }
+
+    /**
+     * Зачёт по тесту теории: флаг в БД или сохранённые результаты (best_score, history).
+     * Нужно при пересдаче: theory_quiz_passed сбрасывается, лучший % остаётся.
+     */
+    public function isTheoryQuizEffectivelyPassed(ModuleProgress $p, int $courseModuleId): bool
+    {
+        if ($p->theory_quiz_passed) {
+            return true;
+        }
+
+        $threshold = $this->passPercentForQuiz($courseModuleId);
+        if ((int) $p->theory_quiz_best_score >= $threshold) {
+            return true;
+        }
+
+        if ($this->quizAttemptIndicatesPass($p->theory_quiz_last_result, $threshold)) {
+            return true;
+        }
+
+        foreach ($p->theory_quiz_history ?? [] as $entry) {
+            if ($this->quizAttemptIndicatesPass($entry, $threshold)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function isModuleExamEffectivelyPassed(ModuleProgress $p, int $courseModuleId): bool
+    {
+        if ($p->module_exam_passed) {
+            return true;
+        }
+
+        $threshold = $this->passPercentForExam($courseModuleId);
+        if ((int) $p->module_exam_best_score >= $threshold) {
+            return true;
+        }
+
+        if ($this->quizAttemptIndicatesPass($p->module_exam_last_result, $threshold)) {
+            return true;
+        }
+
+        foreach ($p->module_exam_history ?? [] as $entry) {
+            if ($this->quizAttemptIndicatesPass($entry, $threshold)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Выровнять флаги зачёта с сохранёнными баллами (старые записи, пересдача). */
+    public function reconcilePassFlagsFromResults(ModuleProgress $p, int $courseModuleId): bool
+    {
+        $dirty = false;
+        if (! $p->theory_quiz_passed && $this->isTheoryQuizEffectivelyPassed($p, $courseModuleId)) {
+            $p->theory_quiz_passed = true;
+            $dirty = true;
+        }
+        if (! $p->module_exam_passed && $this->isModuleExamEffectivelyPassed($p, $courseModuleId)) {
+            $p->module_exam_passed = true;
+            $dirty = true;
+        }
+
+        return $dirty;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $result
+     */
+    private function quizAttemptIndicatesPass(?array $result, int $threshold): bool
+    {
+        if (! is_array($result) || $result === []) {
+            return false;
+        }
+        if (! empty($result['passed'])) {
+            return true;
+        }
+        if (array_key_exists('final_percent', $result)) {
+            return (int) $result['final_percent'] >= $threshold;
+        }
+        if (array_key_exists('raw_percent', $result)) {
+            return (int) $result['raw_percent'] >= $threshold;
+        }
+
+        return false;
     }
 }

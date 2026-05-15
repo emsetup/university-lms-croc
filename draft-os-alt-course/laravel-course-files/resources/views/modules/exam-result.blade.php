@@ -22,30 +22,15 @@
             @endif
         </p>
         @if (!empty($breakdownExpired))
-            <p class="muted">Окно просмотра разбора по вопросам истекло.</p>
+            <p class="muted">Окно просмотра разбора по вопросам истекло — вернуться к списку вопросов нельзя.</p>
         @endif
     </div>
 
-    @if (!empty($showExamBreakdown) && !empty($r['items']) && is_array($r['items']))
-        <div class="card" style="margin-top:1rem">
-            <h2 style="margin-top:0">Где ошиблись — кратко</h2>
-            <p class="muted small">Показаны только вопросы с ошибкой или без ответа.</p>
-            @php $any = false; @endphp
-            <ul class="muted" style="padding-left:1.1rem">
-                @foreach ($r['items'] as $it)
-                    @if (empty($it['correct']) || !empty($it['skipped']))
-                        @php $any = true; @endphp
-                        <li style="margin-bottom:0.75rem">
-                            <strong>Вопрос {{ $it['n'] ?? '' }}.</strong>
-                            <div class="module-exam-q--md" style="font-weight:600;margin-top:0.2rem">{!! \Illuminate\Support\Str::markdown($it['question'] ?? '') !!}</div>
-                        </li>
-                    @endif
-                @endforeach
-            </ul>
-            @if (!$any)
-                <p class="muted">В этой попытке ошибок для разбора нет — все ответы зачтены.</p>
-            @endif
-        </div>
-    @endif
+    @include('partials.learner-quiz-breakdown-wrong', [
+        'showBreakdown' => $showExamBreakdown ?? false,
+        'wrongItems' => $wrongItems ?? [],
+        'breakdownUntilTs' => $breakdownUntilTs ?? null,
+        'breakdownTitle' => 'Где ошиблись — кратко',
+    ])
     </div>
 @endsection

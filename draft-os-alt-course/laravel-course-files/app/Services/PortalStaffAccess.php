@@ -75,6 +75,18 @@ final class PortalStaffAccess
         return $this->isPortalAdmin() || $this->isCourseModerator();
     }
 
+    /** Заглушка портала, сброс переопределения из .env. */
+    public function canManagePortalSettings(): bool
+    {
+        return $this->isPortalAdmin();
+    }
+
+    /** Просмотр портала от лица обучающегося. */
+    public function canImpersonateLearners(): bool
+    {
+        return $this->canViewPortalLearners();
+    }
+
     public function canCreateCourses(): bool
     {
         return $this->isPortalAdmin() || $this->isCourseModerator();

@@ -31,7 +31,9 @@ final class CourseScoringService
 
     public const MODULE_EXAM_RETAKE_PENALTY_POINTS = 10;
 
-    public const MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES = 30;
+    public const THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES = 5;
+
+    public const MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES = 5;
 
     public const MODULE_SCORE_WEIGHT_THEORY_QUIZ = 0.25;
 
@@ -84,13 +86,17 @@ final class CourseScoringService
         if ($p->theory_read_at) {
             $done++;
         }
-        if ($p->theory_quiz_passed) {
+        if ($p->theory_quiz_passed
+            || ($cmId > 0 && $this->courseSections->isTheoryQuizEffectivelyPassed($p, $cmId))
+            || ($cmId < 1 && (int) $p->theory_quiz_best_score >= self::PASS_THRESHOLD)) {
             $done++;
         }
         if (! $skipPractice && $p->practice_done_at) {
             $done++;
         }
-        if ($p->module_exam_passed) {
+        if ($p->module_exam_passed
+            || ($cmId > 0 && $this->courseSections->isModuleExamEffectivelyPassed($p, $cmId))
+            || ($cmId < 1 && (int) $p->module_exam_best_score >= self::PASS_THRESHOLD)) {
             $done++;
         }
         if ($parts === 0) {

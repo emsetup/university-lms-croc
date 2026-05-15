@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'Панель администратора — Трек знаний')</title>
     <link rel="icon" type="image/png" href="{{ asset('croc-app-icon.png') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('css/local-fonts.css') }}">
     <link rel="stylesheet" href="{{ asset('css/course.css') }}">
     <link rel="stylesheet" href="{{ asset('css/admin-panel.css') }}">
     <link rel="stylesheet" href="{{ asset('static/admin/admin.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/portal-typography.css') }}">
     @stack('styles')
+    @stack('head')
 </head>
 <body>
     @php
@@ -52,6 +52,7 @@
             </nav>
             <div class="admin-topbar__spacer" aria-hidden="true"></div>
             <div class="admin-topbar__actions">
+                @include('partials.admin-settings-menu')
                 <button type="button" class="nav-cmd-btn ap-cmd-palette-trigger" id="ap-cmd-palette-trigger" title="Палитра команд">
                     @include('partials.ap-icon', ['name' => 'search', 'size' => 'sm'])
                     <span class="kbd" data-ap-kbd-palette>⌘K</span>
@@ -153,5 +154,6 @@
     </div>
 
     @include('partials.admin-shell-tail')
+    @stack('scripts')
 </body>
 </html>

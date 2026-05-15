@@ -141,7 +141,7 @@
         </div>
     </dialog>
 
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="{{ asset('vendor/html2canvas/1.4.1/html2canvas.min.js') }}"></script>
     <script>
         (function () {
             const previewBtn = document.querySelector('.js-cert-preview');

@@ -104,6 +104,9 @@
                                         <span>{{ $sectionTypeLabels[$sec->type] ?? $sec->type }}</span>
                                     </span>
                                     <span class="ap-sec-row__title">{{ $sec->title }}</span>
+                                    @if ($sec->type === 'practice' && $m->practiceSetting?->practiceImage)
+                                        <span class="ap-sec-row__docker mono" title="Docker-образ практики">{{ $m->practiceSetting->practiceImage->docker_tag }}</span>
+                                    @endif
                                     <span class="ap-sec-row__meta">{{ $sec->is_enabled ? 'Включён' : 'Выключен' }}</span>
                                     <div class="ap-sec-row__actions">
                                         <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn" title="Редактировать раздел" data-ap-open-section-panel
@@ -278,7 +281,7 @@
 </aside>
 
 {{-- Боковая панель редактирования раздела --}}
-<aside id="ap-sec-edit-panel" class="ap-sec-edit-panel side-panel" aria-hidden="true" hidden>
+<aside id="ap-sec-edit-panel" class="ap-sec-edit-panel" aria-hidden="true" hidden>
     <div id="ap-sec-edit-panel-resize" class="ap-sec-edit-panel__resize" role="separator" aria-label="Изменить ширину панели"></div>
     <div class="ap-sec-edit-panel__inner">
         <header class="ap-sec-edit-panel__head">
@@ -289,12 +292,10 @@
             </div>
             <p id="ap-sec-edit-panel-sub" class="ap-sec-edit-panel__sub ap-muted"></p>
             <div class="ap-sec-edit-panel__tabs" role="tablist">
-                <button type="button" id="ap-sec-tab-questions" class="ap-sec-edit-panel__tab" role="tab" data-ap-sec-tab="questions" aria-selected="false" hidden>Вопросы</button>
-                <button type="button" id="ap-sec-tab-content" class="ap-sec-edit-panel__tab is-active" role="tab" data-ap-sec-tab="content" aria-selected="true">Содержимое</button>
-                <button type="button" id="ap-sec-tab-settings" class="ap-sec-edit-panel__tab" role="tab" data-ap-sec-tab="settings" aria-selected="false">Настройки раздела</button>
+                <button type="button" class="ap-sec-edit-panel__tab is-active" role="tab" data-ap-sec-tab="content" aria-selected="true">Содержимое</button>
+                <button type="button" class="ap-sec-edit-panel__tab" role="tab" data-ap-sec-tab="settings" aria-selected="false">Настройки раздела</button>
             </div>
         </header>
-        <div id="ap-sec-panel-meta" class="panel-meta-info" hidden aria-live="polite"></div>
         <div class="ap-sec-edit-panel__body">
             <div id="ap-sec-edit-panel-pane-settings" class="ap-sec-edit-panel__pane" hidden role="tabpanel">
                 <label class="ap-settings-label" for="ap-sec-set-title">Название</label>
@@ -313,110 +314,24 @@
                         <span class="ap-sec-edit-panel__switch-ui" aria-hidden="true"></span>
                     </label>
                 </div>
-                <fieldset class="ap-sec-edit-panel__inherit ap-sec-settings-quiz-only" id="ap-sec-settings-quiz-fields">
+                <fieldset class="ap-sec-edit-panel__inherit">
                     <legend class="ap-settings-label">Попытки</legend>
                     <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-att" value="inherit"> Наследовать от курса (<span id="ap-sec-hint-att"></span>)</label>
                     <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-att" value="own"> Задать своё</label>
                     <input id="ap-sec-own-att" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="1" max="99" placeholder="число попыток" hidden>
                 </fieldset>
-                <fieldset class="ap-sec-edit-panel__inherit ap-sec-settings-quiz-only">
+                <fieldset class="ap-sec-edit-panel__inherit">
                     <legend class="ap-settings-label">Время</legend>
                     <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-time" value="inherit"> Наследовать от курса (<span id="ap-sec-hint-time"></span>)</label>
                     <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-time" value="own"> Задать своё</label>
                     <input id="ap-sec-own-time" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="0" max="10080" placeholder="минуты" hidden>
                 </fieldset>
-                <fieldset class="ap-sec-edit-panel__inherit ap-sec-settings-quiz-only">
+                <fieldset class="ap-sec-edit-panel__inherit">
                     <legend class="ap-settings-label">Проходной балл</legend>
                     <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-pass" value="inherit"> Наследовать от курса (<span id="ap-sec-hint-pass"></span>)</label>
                     <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-pass" value="own"> Задать своё</label>
                     <input id="ap-sec-own-pass" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="1" max="100" placeholder="%" hidden>
                 </fieldset>
-            </div>
-            <div id="ap-sec-edit-panel-pane-questions" class="ap-sec-edit-panel__pane ap-sec-edit-panel__pane--questions" hidden role="tabpanel">
-                <div class="panel-questions-layout">
-                    <aside class="questions-sidebar">
-                        <div class="questions-sidebar-header">
-                            <span class="questions-sidebar-title">Список</span>
-                            <span id="ap-sec-quiz-count" class="questions-count-badge">0</span>
-                        </div>
-                        <div id="ap-sec-quiz-list" class="questions-list-scroll" role="list"></div>
-                        <div class="questions-sidebar-footer">
-                            <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-quiz-add" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:0.35rem">
-                                @include('partials.ap-icon', ['name' => 'plus', 'size' => 'sm'])
-                                Вопрос
-                            </button>
-                        </div>
-                    </aside>
-                    <div class="question-edit-area">
-                        <div class="question-edit-scroll" id="ap-sec-q-editor-scroll">
-                            <p id="ap-sec-q-empty" class="ap-muted">Выберите вопрос слева или добавьте новый.</p>
-                            <div id="ap-sec-q-editor" hidden>
-                                <div class="question-edit-header">
-                                    <span id="ap-sec-q-editor-title" class="question-edit-title">Вопрос #1</span>
-                                    <div class="question-editor-actions">
-                                        <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-q-dup" title="Дублировать">Дублировать</button>
-                                        <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn--danger" id="ap-sec-q-del" title="Удалить">Удалить</button>
-                                    </div>
-                                </div>
-                                <label class="ap-settings-label" for="ap-sec-q-type">Тип вопроса</label>
-                                <select id="ap-sec-q-type" class="ap-modal__input">
-                                    <option value="single">Один ответ</option>
-                                    <option value="multi">Несколько ответов</option>
-                                    <option value="match">Сопоставление (drag)</option>
-                                </select>
-                                <label class="ap-settings-label" id="ap-sec-q-points-label" for="ap-sec-q-points" hidden>Баллы (points)</label>
-                                <input id="ap-sec-q-points" class="ap-modal__input" type="number" min="0" step="1" placeholder="например, 5" hidden>
-                                <label class="ap-settings-label" for="ap-sec-q-text">Текст вопроса</label>
-                                <textarea id="ap-sec-q-text" class="question-text-input" rows="6"></textarea>
-                                <div id="ap-sec-q-answers-wrap">
-                                    <div class="ap-sec-q-section-head">
-                                        <span class="ap-settings-label" style="margin:0">Варианты ответов</span>
-                                        <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-q-add-option">+ Добавить</button>
-                                    </div>
-                                    <p id="ap-sec-q-c-hint" class="ap-muted small"></p>
-                                    <div id="ap-sec-q-answers" class="answer-list"></div>
-                                </div>
-                                <div id="ap-sec-q-match-wrap" hidden>
-                                    <div class="ap-sec-q-section-head">
-                                        <span class="ap-settings-label" style="margin:0">Пары для сопоставления</span>
-                                        <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-q-add-pair">+ Пара</button>
-                                    </div>
-                                    <p class="ap-muted small">Элемент слева соответствует описанию справа в той же строке.</p>
-                                    <div id="ap-sec-q-match" class="ap-sec-q-match-rows"></div>
-                                </div>
-                            </div>
-                            <hr class="new-question-divider">
-                            <div id="ap-sec-quiz-new" class="new-question-block">
-                                <div class="new-question-section-title">Добавить новый вопрос</div>
-                                <label class="ap-settings-label" for="ap-new-q-text">Текст</label>
-                                <textarea id="ap-new-q-text" class="question-text-input" rows="3" placeholder="Текст нового вопроса…"></textarea>
-                                <div class="new-question-row">
-                                    <div>
-                                        <label class="ap-settings-label" for="ap-new-q-type">Тип</label>
-                                        <select id="ap-new-q-type" class="ap-modal__input">
-                                            <option value="single">Один ответ</option>
-                                            <option value="multi">Несколько ответов</option>
-                                            <option value="match">Сопоставление</option>
-                                        </select>
-                                    </div>
-                                    <button type="button" class="btn btn-primary btn-sm" id="ap-new-q-submit">Добавить в список</button>
-                                </div>
-                                <div id="ap-new-q-block-opts">
-                                    <label class="ap-settings-label" for="ap-new-q-opts">Варианты (по одному в строке)</label>
-                                    <textarea id="ap-new-q-opts" class="ap-modal__input ap-settings-textarea" rows="4" placeholder="Вариант 1&#10;Вариант 2"></textarea>
-                                    <label class="ap-settings-label" for="ap-new-q-correct">Правильный ответ: индекс с 0 (или несколько через запятую)</label>
-                                    <input id="ap-new-q-correct" class="ap-modal__input" type="text" placeholder="0 или 0,2">
-                                </div>
-                                <div id="ap-new-q-block-match" hidden>
-                                    <label class="ap-settings-label" for="ap-new-q-left">Слева (по строке)</label>
-                                    <textarea id="ap-new-q-left" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
-                                    <label class="ap-settings-label" for="ap-new-q-right">Справа (по строке)</label>
-                                    <textarea id="ap-new-q-right" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
             <div id="ap-sec-edit-panel-pane-content" class="ap-sec-edit-panel__pane" role="tabpanel">
                 <div id="ap-sec-edit-legacy" class="ap-sec-edit-panel__legacy ap-muted" hidden>Курс в legacy-режиме: откройте классические редакторы через «Содержимое».</div>
@@ -433,6 +348,35 @@
                     <div class="ap-sec-edit-panel__theory-foot">
                         <span id="ap-sec-theory-chars" class="ap-muted small">0 символов</span>
                         <span id="ap-sec-theory-saved" class="ap-sec-edit-panel__saved small" hidden style="display:inline-flex;align-items:center;gap:0.25rem">Сохранено @include('partials.ap-icon', ['name' => 'check', 'size' => 'sm'])</span>
+                    </div>
+                </div>
+                <div id="ap-sec-edit-content-quiz" hidden>
+                    <p id="ap-sec-quiz-summary" class="ap-muted small"></p>
+                    <button type="button" class="btn btn-primary btn-sm" id="ap-sec-quiz-add">+ Добавить вопрос</button>
+                    <ul id="ap-sec-quiz-list" class="ap-sec-quiz-list"></ul>
+                    <div id="ap-sec-quiz-new" class="ap-sec-quiz-new">
+                        <h3 class="ap-sec-edit-panel__h3">Новый вопрос</h3>
+                        <label class="ap-settings-label" for="ap-new-q-text">Текст</label>
+                        <textarea id="ap-new-q-text" class="ap-modal__input ap-settings-textarea" rows="2"></textarea>
+                        <label class="ap-settings-label" for="ap-new-q-type">Тип</label>
+                        <select id="ap-new-q-type" class="ap-modal__input">
+                            <option value="single">Один ответ</option>
+                            <option value="multi">Несколько ответов</option>
+                            <option value="match">Сопоставление</option>
+                        </select>
+                        <div id="ap-new-q-block-opts">
+                            <label class="ap-settings-label" for="ap-new-q-opts">Варианты (по одному в строке)</label>
+                            <textarea id="ap-new-q-opts" class="ap-modal__input ap-settings-textarea" rows="4" placeholder="Вариант 1&#10;Вариант 2"></textarea>
+                            <label class="ap-settings-label" for="ap-new-q-correct">Правильный ответ: индекс с 0 или несколько через запятую</label>
+                            <input id="ap-new-q-correct" class="ap-modal__input" type="text" placeholder="0 или 0,2">
+                        </div>
+                        <div id="ap-new-q-block-match" hidden>
+                            <label class="ap-settings-label" for="ap-new-q-left">Слева (по строке)</label>
+                            <textarea id="ap-new-q-left" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
+                            <label class="ap-settings-label" for="ap-new-q-right">Справа (по строке, та же число строк)</label>
+                            <textarea id="ap-new-q-right" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm" id="ap-new-q-submit">Добавить в список</button>
                     </div>
                 </div>
                 <div id="ap-sec-edit-content-practice" hidden>
@@ -454,15 +398,11 @@
             </div>
         </div>
         <footer class="ap-sec-edit-panel__footer">
-            <span id="ap-sec-quiz-save-indicator" class="save-indicator ap-sec-edit-panel__saved" hidden></span>
-            <div class="ap-sec-edit-panel__footer-actions">
-                <button type="button" class="btn btn-ghost" id="ap-sec-edit-cancel">Отмена</button>
-                <button type="button" class="btn btn-primary" id="ap-sec-edit-save">Сохранить изменения</button>
-            </div>
+            <button type="button" class="btn btn-ghost" id="ap-sec-edit-cancel">Отмена</button>
+            <button type="button" class="btn btn-primary" id="ap-sec-edit-save">Сохранить изменения</button>
         </footer>
     </div>
 </aside>
-
 <div id="ap-sec-docker-modal" class="ap-modal ap-sec-docker-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
     <div class="ap-modal__backdrop" data-ap-sec-docker-modal-close tabindex="-1"></div>
     <div class="ap-modal__panel ap-modal__panel--wide">
@@ -476,7 +416,6 @@
 </div>
 
 <script src="{{ asset('js/section-edit-panel.js') }}"></script>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" crossorigin="anonymous"></script>
 <script>
 (function () {
     var root = document.querySelector('[data-ap-workbench]');
@@ -582,19 +521,55 @@
         if (saveModOrderBtn) saveModOrderBtn.hidden = (s === initialModuleOrder || ids.length === 0);
     }
 
+    function wireReorderList(list, rowSelector, handleSelector, onEnd) {
+        if (!list || list.dataset.reorderReady) {
+            return;
+        }
+        list.dataset.reorderReady = '1';
+        var dragEl = null;
+        list.querySelectorAll(rowSelector).forEach(function (row) {
+            row.setAttribute('draggable', 'true');
+            row.addEventListener('dragstart', function (e) {
+                if (!e.target.closest(handleSelector)) {
+                    e.preventDefault();
+                    return;
+                }
+                dragEl = row;
+                e.dataTransfer.effectAllowed = 'move';
+                try {
+                    e.dataTransfer.setData('text/plain', row.getAttribute('data-module-id') || row.getAttribute('data-section-id') || '');
+                } catch (err) { /* IE11 */ }
+                row.classList.add('is-dragging');
+            });
+            row.addEventListener('dragend', function () {
+                row.classList.remove('is-dragging');
+                dragEl = null;
+                if (onEnd) {
+                    onEnd();
+                }
+            });
+            row.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                if (!dragEl || dragEl === row) {
+                    return;
+                }
+                var rect = row.getBoundingClientRect();
+                var after = (e.clientY - rect.top) > rect.height / 2;
+                list.insertBefore(dragEl, after ? row.nextSibling : row);
+            });
+        });
+    }
+
     if (document.getElementById('ap-modules-sortable')) {
         document.querySelectorAll('#ap-modules-sortable .ap-mod-card[data-module-id]').forEach(function (li) {
             initialModuleOrder += (initialModuleOrder ? ',' : '') + li.getAttribute('data-module-id');
         });
-        if (typeof Sortable !== 'undefined') {
-            new Sortable(document.getElementById('ap-modules-sortable'), {
-                animation: 150,
-                handle: '.ap-mod-drag-handle--module',
-                draggable: '.ap-mod-card',
-                ghostClass: 'ap-sortable-ghost',
-                onEnd: refreshModuleOrderState
-            });
-        }
+        wireReorderList(
+            document.getElementById('ap-modules-sortable'),
+            '.ap-mod-card[data-module-id]',
+            '.ap-mod-drag-handle--module',
+            refreshModuleOrderState
+        );
     }
     if (modOrderForm) modOrderForm.addEventListener('submit', fillModuleOrderFields);
 
@@ -634,15 +609,12 @@
             ids.push(row.getAttribute('data-section-id'));
         });
         ul.setAttribute('data-initial-order', ids.join(','));
-        if (typeof Sortable !== 'undefined') {
-            new Sortable(ul, {
-                animation: 150,
-                handle: '.ap-mod-drag-handle--sec',
-                draggable: '.ap-sec-row',
-                ghostClass: 'ap-sortable-ghost',
-                onEnd: function () { fillSecOrderFields(ul); }
-            });
-        }
+        wireReorderList(
+            ul,
+            '.ap-sec-row[data-section-id]',
+            '.ap-mod-drag-handle--sec',
+            function () { fillSecOrderFields(ul); }
+        );
     });
 
     function setExpanded(card, open) {

@@ -1,5 +1,8 @@
 @php
     $bk = $section->backendStepKey();
+    $tqPassedEffective = ($bk === 'theory_quiz' && isset($sectionService))
+        ? $sectionService->isTheoryQuizEffectivelyPassed($p, (int) $module)
+        : (bool) ($p->theory_quiz_passed ?? false);
     $openTag = ($accessible && ! $waived) ? 'a' : 'div';
     $closeTag = ($accessible && ! $waived) ? 'a' : 'div';
     $href = ($accessible && ! $waived) ? match ($bk) {
@@ -58,7 +61,7 @@
                         <div class="hub-track__fill{{ $tqBar >= $th ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) $tqBar }}%"></div>
                     </div>
                     <span class="hub-pct">{{ $tqAtt > 0 ? $tqBest : '—' }}@if($tqAtt > 0)%@endif</span>
-                    @if ($p->theory_quiz_passed)
+                    @if ($tqPassedEffective)
                         <span class="hub-badge hub-badge--counted badge-counted">Зачтён</span>
                     @elseif ($tqAtt > 0)
                         <span class="hub-badge hub-badge--no badge-fail">Ниже {{ $th }}%</span>

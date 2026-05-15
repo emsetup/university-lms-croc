@@ -181,11 +181,8 @@ final class AccountController extends Controller
         $trackedSeconds = $this->trackedSecondsForCourse($learner, $courseId);
         $courseCompleted = $this->isCourseCompleted($learner, $courseId, $final, $mods->count());
 
-        if ($modulesFromDb) {
-            $progressBarPercent = (int) round(100 * $modulesPassed / max(1, $modulesTotal));
-        } else {
-            $progressBarPercent = (int) min(100, max(0, $this->scoring->certificateCoursePercent($learner, $courseId)));
-        }
+        // Тот же расчёт, что на главной портала (баллы / максимум), а не «сдано модулей / всего».
+        $progressBarPercent = (int) min(100, max(0, $this->scoring->certificateCoursePercent($learner, $courseId)));
 
         $certAvailable = $courseCompleted && (bool) ($final?->passed);
 

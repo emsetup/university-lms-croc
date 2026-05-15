@@ -95,6 +95,21 @@
         return t === 'quiz' || t === 'exam';
     }
 
+    /** Практика: текст задания и Docker, без банка вопросов. */
+    function hideQuizEditorChrome() {
+        var panQ = $('ap-sec-edit-panel-pane-questions');
+        var meta = $('ap-sec-panel-meta');
+        if (panQ) panQ.hidden = true;
+        if (meta) meta.hidden = true;
+        state.quizActive = -1;
+        var list = $('ap-sec-quiz-list');
+        if (list) list.innerHTML = '';
+        var editor = $('ap-sec-q-editor');
+        var empty = $('ap-sec-q-empty');
+        if (editor) editor.hidden = true;
+        if (empty) empty.hidden = false;
+    }
+
     function currentSectionType() {
         var sel = $('ap-sec-set-type');
         if (sel && sel.value) return sel.value;
@@ -139,6 +154,7 @@
     }
 
     function scheduleQuizDraftSave() {
+        if (!isQuizExamType(currentSectionType())) return;
         window.clearTimeout(quizAutoSaveTimer);
         quizAutoSaveTimer = window.setTimeout(function () {
             syncActiveQuestionFromEditor();
@@ -202,6 +218,7 @@
     }
 
     function renderQuizSidebar() {
+        if (!isQuizExamType(currentSectionType())) return;
         var list = $('ap-sec-quiz-list');
         var countEl = $('ap-sec-quiz-count');
         if (!list) return;
@@ -589,8 +606,10 @@
         if (th) th.hidden = t !== 'text';
         if (pr) pr.hidden = t !== 'practice';
         var body = document.querySelector('.ap-sec-edit-panel__body');
-        if (body) body.classList.toggle('ap-sec-edit-panel__body--quiz', isQuizExamType(t));
+        var quizMode = isQuizExamType(t);
+        if (body) body.classList.toggle('ap-sec-edit-panel__body--quiz', quizMode);
         applyPanelLayout(t);
+        if (!quizMode) hideQuizEditorChrome();
         if (state.open) {
             switchMainTab(defaultTabForType(t));
         }
@@ -627,11 +646,16 @@
         $('ap-sec-theory-saved').hidden = true;
 
         renderDockerCard(d);
-        renderQuizList();
-        updateQuizSummary();
 
         var chip = $('ap-sec-edit-panel-chip');
         var typ = d.section.type || 'text';
+        if (isQuizExamType(typ)) {
+            renderQuizList();
+            updateQuizSummary();
+        } else {
+            hideQuizEditorChrome();
+            updatePanelMetaInfo();
+        }
         chip.textContent = TYPE_LABELS[typ] || typ;
         chip.className = 'ap-sec-edit-panel__chip ap-sec-chip ap-sec-chip--' + typ;
         $('ap-sec-edit-panel-heading').textContent = d.section.title || 'Раздел';
@@ -732,6 +756,7 @@
             if (panC) panC.hidden = false;
             if (panQ) panQ.hidden = true;
         }
+        if (!isQuizExamType(typ)) hideQuizEditorChrome();
     }
 
     function buildPayload() {

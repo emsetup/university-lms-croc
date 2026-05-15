@@ -7,6 +7,7 @@ use App\Models\CourseEnrollment;
 use App\Models\CourseModule;
 use App\Models\FinalLabResult;
 use App\Models\Learner;
+use App\Models\PortalActivityEvent;
 use App\Services\CourseScoringService;
 use App\Services\PortalStaffAccess;
 use Illuminate\Http\Request;
@@ -368,6 +369,26 @@ class AdminPanelController extends Controller
                     'email' => (string) ($fl->learner?->email ?? ''),
                     'text' => $text,
                     'active_today' => $at instanceof Carbon && $at->isToday(),
+                ]);
+            }
+        }
+
+        if (Schema::hasTable('portal_activity_events')) {
+            foreach (PortalActivityEvent::query()
+                ->with('learner:id,email')
+                ->where('type', PortalActivityEvent::TYPE_MAINTENANCE_BLOCKED)
+                ->orderByDesc('occurred_at')
+                ->limit(40)
+                ->get() as $ev) {
+                $at = $ev->occurred_at;
+                if ($at === null) {
+                    continue;
+                }
+                $rows->push([
+                    'at' => $at,
+                    'email' => (string) ($ev->learner?->email ?? ''),
+                    'text' => 'Попал на заглушку обновления портала',
+                    'active_today' => $at->isToday(),
                 ]);
             }
         }

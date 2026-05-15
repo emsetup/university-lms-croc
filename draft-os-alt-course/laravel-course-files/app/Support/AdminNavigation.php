@@ -46,6 +46,14 @@ final class AdminNavigation
                 ...$root,
                 ['label' => 'События', 'url' => null],
             ],
+            'admin.settings',
+            'admin.settings.maintenance',
+            'admin.settings.maintenance.reset',
+            'admin.settings.impersonate',
+            'admin.settings.learner-search' => [
+                ...$root,
+                ['label' => 'Настройки', 'url' => null],
+            ],
             'admin.staff.index', 'admin.staff.create', 'admin.staff.store' => [
                 ...$root,
                 ['label' => 'Сотрудники', 'url' => null],

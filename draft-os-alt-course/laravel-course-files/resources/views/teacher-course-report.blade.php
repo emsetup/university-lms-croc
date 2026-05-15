@@ -7,33 +7,7 @@
 @section('title', 'Сводка по обучающимся (преподаватель)')
 
 @section('content')
-    <style>
-        .tr-hero{border:1px solid var(--line,#e1e8ea);border-radius:16px;padding:1.1rem 1.2rem;background:linear-gradient(160deg,#f6faf8,#fff);margin-bottom:1rem;box-shadow:0 2px 10px rgba(15,23,42,.04)}
-        .tr-hero h1{margin:0 0 0.35rem;font-size:1.35rem}
-        .tr-table-wrap{overflow:auto;border-radius:12px;border:1px solid var(--line,#e1e8ea)}
-        .tr-table-wrap table{margin:0}
-        .tr-email{font-weight:600}
-        .tr-go{font-size:0.82rem;font-weight:600;color:var(--accent,#0a7);white-space:nowrap}
-        .learner-cell-name {
-            font-size: 14px;
-            font-weight: 500;
-            color: #111827;
-            margin-bottom: 2px;
-        }
-        .learner-cell-email {
-            font-size: 12px;
-            color: #6b7280;
-        }
-        .learner-cell-link {
-            font-size: 12px;
-            color: #00b956;
-            text-decoration: none;
-            display: block;
-            margin-top: 2px;
-        }
-        .learner-cell-link:hover { text-decoration: underline; }
-    </style>
-
+    <div class="teacher-course-summary">
     <div class="tr-hero">
         <h1>Сводка прохождения курса</h1>
         @if (! empty($courseTitle))
@@ -135,4 +109,5 @@
             })();
         </script>
     @endif
+    </div>
 @endsection

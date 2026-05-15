@@ -78,6 +78,7 @@ for f in \
   app/Http/Middleware/EnsureAdminCourseSelected.php \
   app/Http/Middleware/EnsureCourseSelected.php \
   app/Http/Middleware/EnsureLearner.php \
+  app/Http/Middleware/ApplyLearnerPreview.php \
   app/Http/Middleware/MaintenanceForUsers.php \
   app/Http/Middleware/EnsurePortalStaff.php \
   app/Http/Middleware/EnsureStaffAbility.php \
@@ -256,6 +257,11 @@ if [[ -f "${LCF}/public/css/local-fonts.css" ]]; then
   rsync -az "${LCF}/public/css/local-fonts.css" "${STAND_SSH}:${REMOTE}/public/css/local-fonts.css"
 fi
 
+if [[ -f "${LCF}/public/css/portal-typography.css" ]]; then
+  echo "[deploy-laravel] public/css/portal-typography.css"
+  rsync -az "${LCF}/public/css/portal-typography.css" "${STAND_SSH}:${REMOTE}/public/css/portal-typography.css"
+fi
+
 if [[ -d "${LCF}/public/vendor" ]]; then
   echo "[deploy-laravel] public/vendor/"
   rsync -az "${LCF}/public/vendor/" "${STAND_SSH}:${REMOTE}/public/vendor/"
@@ -293,6 +299,12 @@ if [[ -f "${LCF}/public/js/admin-command-palette.js" ]]; then
   echo "[deploy-laravel] public/js/admin-command-palette.js"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
   rsync -az "${LCF}/public/js/admin-command-palette.js" "${STAND_SSH}:${REMOTE}/public/js/admin-command-palette.js"
+fi
+
+if [[ -f "${LCF}/public/js/admin-settings-menu.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-settings-menu.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-settings-menu.js" "${STAND_SSH}:${REMOTE}/public/js/admin-settings-menu.js"
 fi
 
 if [[ -f "${LCF}/public/static/admin/admin.css" ]]; then
