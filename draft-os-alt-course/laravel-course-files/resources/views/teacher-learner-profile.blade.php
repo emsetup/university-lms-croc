@@ -4,13 +4,14 @@
     use App\Support\DurationFormat;
     use App\Support\LearnerDisplay;
 
-    $modCount = \App\Services\CourseScoringService::moduleCount();
     $maxPtsMod = \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE;
     $enrollment = $learner->courseEnrollments->sortBy('id')->first();
-    $courseModel = $enrollment?->course
+    $courseModel = ($forcedCourse ?? null)
+        ?? $enrollment?->course
         ?? \App\Models\Course::query()->where('slug', 'alt-os-features')->first();
     $tp = $courseModel ? ['adminCourse' => $courseModel->slug] : [];
     $cid = $courseModel ? (int) $courseModel->id : 0;
+    $modCount = \App\Services\CourseScoringService::moduleCount($cid > 0 ? $cid : null);
     $en = $cid > 0 ? (int) \App\Models\CourseEnrollment::query()->where('course_id', $cid)->count() : 0;
     $completed = $cid > 0
         ? (int) \App\Models\FinalLabResult::query()->where('course_id', $cid)->whereNotNull('completed_at')->count()
@@ -63,11 +64,24 @@
                     · {{ $completed }} завершили
                 </p>
             </div>
+            @php
+                $psaTabs = $portalStaffAccess ?? null;
+                $canToolsTabs = $psaTabs && $psaTabs->canUseCourseAdminTools();
+                $canViewLearnersTabs = $psaTabs && $cid > 0 && $psaTabs->canViewCourseLearnerStats($cid);
+            @endphp
             <nav class="ap-course-tabs" aria-label="Разделы курса">
-                <a class="ap-course-tabs__a" href="{{ route('admin.course.settings', $tp) }}">Модули</a>
-                <a class="ap-course-tabs__a" href="{{ route('admin.theory.index', $tp) }}">Содержимое</a>
-                <a class="ap-course-tabs__a ap-course-tabs__a--active" href="{{ route('admin.learners.course', $tp) }}">Обучающиеся</a>
-                <a class="ap-course-tabs__a" href="{{ route('admin.certificates', $tp) }}">Сертификаты</a>
+                @if ($canToolsTabs)
+                    <a class="ap-course-tabs__a" href="{{ route('admin.course.settings', $tp) }}">Модули</a>
+                @endif
+                @if ($canToolsTabs || ($psaTabs && $psaTabs->isCourseTester()))
+                    <a class="ap-course-tabs__a" href="{{ route('admin.theory.index', $tp) }}">Содержимое</a>
+                @endif
+                @if ($canToolsTabs || $canViewLearnersTabs)
+                    <a class="ap-course-tabs__a ap-course-tabs__a--active" href="{{ route('admin.learners.course', $tp) }}">Обучающиеся</a>
+                @endif
+                @if ($canToolsTabs)
+                    <a class="ap-course-tabs__a" href="{{ route('admin.certificates', $tp) }}">Сертификаты</a>
+                @endif
             </nav>
         @endif
         <div class="admin-breadcrumb-wrap ap-report-breadcrumb-below-tabs">
@@ -158,12 +172,16 @@
                             : 0;
                         $idle = $pts === 0 && $tq === 0 && ($skipPr || $prc === 0) && $ex === 0 && $sec === 0;
                         $mid = (int) $pn['module_id'];
-                        $modUrl = route('teacher.course-report.learner.module', ['learner' => $learner->id, 'module' => $mid]);
+                        $modUrl = $tp !== []
+                            ? route('admin.learners.course.learner.module', array_merge($tp, ['learner' => $learner->id, 'courseModule' => $mid]))
+                            : route('teacher.course-report.learner.module', ['learner' => $learner->id, 'module' => $mid]);
                         $idxPanel = (int) ($pn['content_source_index'] ?? 1);
                         $skipPractice = \App\Support\CourseModuleMeta::shouldSkipPractice($idxPanel);
                         $exHistR = $pn['module_exam_history'] ?? [];
+                        $canResetProgress = ($portalStaffAccess ?? null)?->canResetLearnerProgress() ?? false;
                         $canResetEx =
-                            $pr
+                            $canResetProgress
+                            && $pr
                             && ((int) $pr->module_exam_attempts >= 1
                                 || is_array($pr->module_exam_last_result)
                                 || (is_array($exHistR) && count($exHistR) > 0));

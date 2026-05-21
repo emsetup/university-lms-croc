@@ -7,8 +7,8 @@ use App\Models\CourseEnrollment;
 use App\Models\CourseModule;
 use App\Models\FinalLabResult;
 use App\Models\Learner;
-use App\Models\PortalActivityEvent;
 use App\Services\CourseScoringService;
+use App\Services\PortalActivityFeedService;
 use App\Services\PortalStaffAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -33,16 +33,35 @@ class AdminPanelController extends Controller
         return view('admin.panel', $data);
     }
 
-    public function activity(Request $request): View
+    public function activity(Request $request, PortalActivityFeedService $feedService): View
     {
         session()->forget(['admin_course_id', 'admin_course_title', 'admin_course_slug']);
 
         $gate = app(PortalStaffAccess::class);
         $scopedIds = $this->scopedCourseIds($gate);
-        $data = $this->buildDashboardPayload($gate, $scopedIds, 120);
+        $filters = $this->activityFiltersFromRequest($request);
 
         return view('admin.activity', [
-            'dashActivity' => $data['dashActivity'],
+            'activityFilters' => $filters,
+            'activityKinds' => PortalActivityFeedService::KIND_LABELS,
+            'activityEmails' => $feedService->suggestEmails($scopedIds),
+            'activityFeedUrl' => route('admin.activity.feed'),
+        ]);
+    }
+
+    public function activityFeed(Request $request, PortalActivityFeedService $feedService): JsonResponse
+    {
+        $gate = app(PortalStaffAccess::class);
+        $scopedIds = $this->scopedCourseIds($gate);
+        $filters = $this->activityFiltersFromRequest($request);
+        $limit = min(500, max(1, (int) $request->query('limit', 120)));
+
+        $items = $feedService->feed($scopedIds, $filters, $limit);
+
+        return response()->json([
+            'items' => $feedService->serializeForJson($items),
+            'generated_at' => now()->toIso8601String(),
+            'total' => $items->count(),
         ]);
     }
 
@@ -292,7 +311,7 @@ class AdminPanelController extends Controller
         }
 
         if (! $emptyScope) {
-            $activity = $this->buildActivityFeed($scopedIds, $activityLimit);
+            $activity = app(PortalActivityFeedService::class)->feed($scopedIds, [], $activityLimit);
         }
 
         $editableCourseIds = ($gate->isPortalAdmin() || $gate->isCourseModerator())
@@ -308,92 +327,23 @@ class AdminPanelController extends Controller
         ];
     }
 
-    /**
-     * @param  array<int, int>|null  $scopedIds
-     */
-    private function buildActivityFeed(?array $scopedIds, int $limit): Collection
+    /** @return array{date_from: string, date_to: string, user: string, kinds: list<string>} */
+    private function activityFiltersFromRequest(Request $request): array
     {
-        $rows = collect();
-
-        if (Schema::hasTable('course_enrollments')) {
-            $q = CourseEnrollment::query()
-                ->with(['learner:id,email', 'course:id,title,slug']);
-            if (is_array($scopedIds)) {
-                $q->whereIn('course_id', $scopedIds);
-            }
-            foreach ($q->orderByDesc(DB::raw('COALESCE(last_seen_at, started_at, updated_at)'))->limit(40)->get() as $en) {
-                $at = $en->last_seen_at ?? $en->started_at ?? $en->updated_at;
-                if ($at === null) {
-                    continue;
-                }
-                $title = (string) ($en->course?->title ?? 'курс');
-                if ($en->last_seen_at !== null) {
-                    $text = 'Заходил в курс «'.$title.'»';
-                } elseif ($en->started_at !== null) {
-                    $text = 'Начал курс «'.$title.'»';
-                } else {
-                    $text = 'Активность в курсе «'.$title.'»';
-                }
-                $activeToday = $en->last_seen_at !== null && $en->last_seen_at->isToday();
-                $rows->push([
-                    'at' => $at,
-                    'email' => (string) ($en->learner?->email ?? ''),
-                    'text' => $text,
-                    'active_today' => $activeToday,
-                ]);
-            }
+        $kinds = $request->query('kinds', $request->query('kind', []));
+        if (is_string($kinds)) {
+            $kinds = array_filter(array_map('trim', explode(',', $kinds)));
         }
 
-        if (Schema::hasTable('final_lab_results')) {
-            $q = FinalLabResult::query()
-                ->with(['learner:id,email', 'course:id,title,slug']);
-            if (is_array($scopedIds)) {
-                $q->whereIn('course_id', $scopedIds);
-            }
-            foreach ($q->orderByDesc(DB::raw('COALESCE(certificate_issued_at, completed_at, updated_at)'))->limit(40)->get() as $fl) {
-                $at = $fl->certificate_issued_at ?? $fl->completed_at ?? $fl->updated_at;
-                if ($at === null) {
-                    continue;
-                }
-                $title = (string) ($fl->course?->title ?? 'курс');
-                $hasCert = filled($fl->certificate_full_name) && filled($fl->certificate_serial);
-                if ($hasCert) {
-                    $text = 'Получил сертификат по курсу «'.$title.'»';
-                } elseif ($fl->passed) {
-                    $text = 'Прошёл итоговую лабораторную по курсу «'.$title.'»';
-                } else {
-                    continue;
-                }
-                $rows->push([
-                    'at' => $at,
-                    'email' => (string) ($fl->learner?->email ?? ''),
-                    'text' => $text,
-                    'active_today' => $at instanceof Carbon && $at->isToday(),
-                ]);
-            }
-        }
-
-        if (Schema::hasTable('portal_activity_events')) {
-            foreach (PortalActivityEvent::query()
-                ->with('learner:id,email')
-                ->where('type', PortalActivityEvent::TYPE_MAINTENANCE_BLOCKED)
-                ->orderByDesc('occurred_at')
-                ->limit(40)
-                ->get() as $ev) {
-                $at = $ev->occurred_at;
-                if ($at === null) {
-                    continue;
-                }
-                $rows->push([
-                    'at' => $at,
-                    'email' => (string) ($ev->learner?->email ?? ''),
-                    'text' => 'Попал на заглушку обновления портала',
-                    'active_today' => $at->isToday(),
-                ]);
-            }
-        }
-
-        return $rows->sortByDesc(fn (array $r) => $r['at']->timestamp)->values()->take($limit);
+        return [
+            'date_from' => trim((string) $request->query('date_from', '')),
+            'date_to' => trim((string) $request->query('date_to', '')),
+            'user' => trim((string) $request->query('user', '')),
+            'kinds' => array_values(array_intersect(
+                array_keys(PortalActivityFeedService::KIND_LABELS),
+                (array) $kinds
+            )),
+        ];
     }
 
     private function courseParticipantCount(int $courseId): int

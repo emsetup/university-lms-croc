@@ -1,0 +1,410 @@
+/* Тестовый стенд — библиотека Docker (изолированные стили, v3) */
+
+.ap-docker-sandbox-modal.is-open {
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.ap-modal__panel.ap-docker-sandbox-panel {
+  display: flex !important;
+  flex-direction: column;
+  width: min(1180px, 96vw) !important;
+  max-width: min(1180px, 96vw) !important;
+  max-height: min(92vh, 900px) !important;
+  padding: 0 !important;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.ap-docker-sandbox-panel > .ap-modal__close {
+  top: 0.85rem;
+  right: 0.85rem;
+  z-index: 5;
+}
+
+.ap-docker-sandbox__head {
+  flex-shrink: 0;
+  padding: 1.15rem 3rem 0.75rem 1.35rem;
+  border-bottom: 1px solid var(--ap-border, #e5e7eb);
+  background: #fff;
+}
+
+.ap-docker-sandbox__title {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.ap-docker-sandbox__lead {
+  margin: 0.4rem 0 0;
+  font-size: 0.92rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.ap-docker-sandbox__image-row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding: 0.6rem 1.35rem;
+  background: #f1f5f9;
+  border-bottom: 1px solid var(--ap-border, #e5e7eb);
+}
+
+.ap-docker-sandbox__image-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+.ap-docker-sandbox__tag {
+  margin: 0;
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0f172a;
+  word-break: break-all;
+}
+
+.ap-docker-sandbox__warn {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.65rem 1.35rem;
+  background: #fff7ed;
+  border-bottom: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 0.88rem;
+}
+
+.ap-docker-sandbox__layout {
+  flex: 1;
+  min-height: 0;
+  display: grid !important;
+  grid-template-columns: 300px minmax(0, 1fr) !important;
+  overflow: hidden;
+}
+
+.ap-docker-sandbox__rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem 1.1rem 1.1rem;
+  overflow-y: auto;
+  border-right: 1px solid var(--ap-border, #e5e7eb);
+  background: #f8fafc;
+}
+
+.ap-docker-sandbox__steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: sbstep;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.ap-docker-sandbox__step {
+  display: grid;
+  grid-template-columns: 1.75rem 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.6rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.ap-docker-sandbox__step::before {
+  counter-increment: sbstep;
+  content: counter(sbstep);
+  grid-column: 1;
+  grid-row: 1;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.ap-docker-sandbox__step-text {
+  grid-column: 2;
+  grid-row: 1;
+  padding-top: 0.2rem;
+}
+
+.ap-docker-sandbox__step.is-current {
+  background: #fff;
+  border-color: #86efac;
+  color: #0f172a;
+  box-shadow: 0 2px 8px rgba(0, 185, 86, 0.1);
+}
+
+.ap-docker-sandbox__step.is-current::before {
+  background: #00b956;
+  color: #fff;
+}
+
+.ap-docker-sandbox__step.is-done {
+  color: #166534;
+}
+
+.ap-docker-sandbox__step.is-done::before {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.ap-docker-sandbox__status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--ap-border, #e5e7eb);
+  font-size: 0.84rem;
+}
+
+.ap-docker-sandbox__status-card--run {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.ap-docker-sandbox__status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.ap-docker-sandbox__status-row dt {
+  margin: 0;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.ap-docker-sandbox__status-row dd {
+  margin: 0;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: right;
+}
+
+.ap-docker-sandbox__status-row dd.is-ok {
+  color: #166534;
+}
+
+.ap-docker-sandbox__status-row dd.is-fail {
+  color: #b91c1c;
+}
+
+.ap-docker-sandbox__statusline {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.ap-docker-sandbox__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ap-docker-sandbox__actions .btn {
+  width: 100%;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.9rem;
+  box-sizing: border-box;
+}
+
+.ap-docker-sandbox__btn-stop:not(:disabled) {
+  color: #b91c1c !important;
+  border: 1px solid #fecaca !important;
+}
+
+.ap-docker-sandbox__log-panel {
+  border: 1px solid #334155;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0f172a;
+}
+
+.ap-docker-sandbox__log-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.45rem 0.7rem;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ap-docker-sandbox__score {
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  background: #475569;
+  color: #fff;
+  text-transform: none;
+}
+
+.ap-docker-sandbox__score.is-ok { background: #166534; }
+.ap-docker-sandbox__score.is-warn { background: #854d0e; }
+.ap-docker-sandbox__score.is-fail { background: #b91c1c; }
+
+.ap-docker-sandbox__log {
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  padding: 0.75rem;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #cbd5e1;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ap-docker-sandbox__log .log-fail { color: #fca5a5; font-weight: 600; }
+.ap-docker-sandbox__log .log-hint { color: #93c5fd; }
+.ap-docker-sandbox__log .log-result,
+.ap-docker-sandbox__log .log-total { color: #fde68a; font-weight: 700; }
+.ap-docker-sandbox__log .log-json { color: #86efac; }
+
+.ap-docker-sandbox__tip {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.ap-docker-sandbox__stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: #0b1220;
+}
+
+.ap-docker-sandbox__stage-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 1rem;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+.ap-docker-sandbox__stage-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.ap-docker-sandbox__stage-link {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4ade80;
+  text-decoration: none;
+}
+
+.ap-docker-sandbox__stage-body {
+  flex: 1;
+  min-height: 420px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.ap-docker-sandbox__placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 2rem;
+  text-align: center;
+  color: #94a3b8;
+}
+
+.ap-docker-sandbox__placeholder-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.ap-docker-sandbox__placeholder-sub {
+  margin: 0;
+  max-width: 22rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.ap-docker-sandbox__iframe {
+  flex: 1;
+  width: 100% !important;
+  min-height: 420px !important;
+  height: 100% !important;
+  border: 0;
+  display: block;
+}
+
+.ap-docker-sandbox__iframe[hidden] {
+  display: none !important;
+}
+
+.ap-docker-sandbox__foot {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.65rem 1.15rem;
+  border-top: 1px solid var(--ap-border, #e5e7eb);
+  background: #fff;
+}
+
+@media (max-width: 800px) {
+  .ap-docker-sandbox__layout {
+    grid-template-columns: 1fr !important;
+    overflow-y: auto;
+  }
+
+  .ap-docker-sandbox__rail {
+    border-right: none;
+    border-bottom: 1px solid var(--ap-border, #e5e7eb);
+  }
+
+  .ap-docker-sandbox__stage-body {
+    min-height: 320px;
+  }
+}

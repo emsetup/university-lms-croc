@@ -12,6 +12,7 @@
     $completed = $cid > 0
         ? (int) \App\Models\FinalLabResult::query()->where('course_id', $cid)->whereNotNull('completed_at')->count()
         : 0;
+    $canResetProgress = ($portalStaffAccess ?? null)?->canResetLearnerProgress() ?? false;
     $learnersListUrl = $tp !== [] ? route('admin.learners.course', $tp) : route('teacher.course-report');
     $learnerCardUrl = route('teacher.course-report.learner', $learner->id);
     $p = $panel['progress'];
@@ -78,11 +79,24 @@
                     · {{ $completed }} завершили
                 </p>
             </div>
+            @php
+                $psaTabs = $portalStaffAccess ?? null;
+                $canToolsTabs = $psaTabs && $psaTabs->canUseCourseAdminTools();
+                $canViewLearnersTabs = $psaTabs && $cid > 0 && $psaTabs->canViewCourseLearnerStats($cid);
+            @endphp
             <nav class="ap-course-tabs" aria-label="Разделы курса">
-                <a class="ap-course-tabs__a" href="{{ route('admin.course.settings', $tp) }}">Модули</a>
-                <a class="ap-course-tabs__a" href="{{ route('admin.theory.index', $tp) }}">Содержимое</a>
-                <a class="ap-course-tabs__a ap-course-tabs__a--active" href="{{ route('admin.learners.course', $tp) }}">Обучающиеся</a>
-                <a class="ap-course-tabs__a" href="{{ route('admin.certificates', $tp) }}">Сертификаты</a>
+                @if ($canToolsTabs)
+                    <a class="ap-course-tabs__a" href="{{ route('admin.course.settings', $tp) }}">Модули</a>
+                @endif
+                @if ($canToolsTabs || ($psaTabs && $psaTabs->isCourseTester()))
+                    <a class="ap-course-tabs__a" href="{{ route('admin.theory.index', $tp) }}">Содержимое</a>
+                @endif
+                @if ($canToolsTabs || $canViewLearnersTabs)
+                    <a class="ap-course-tabs__a ap-course-tabs__a--active" href="{{ route('admin.learners.course', $tp) }}">Обучающиеся</a>
+                @endif
+                @if ($canToolsTabs)
+                    <a class="ap-course-tabs__a" href="{{ route('admin.certificates', $tp) }}">Сертификаты</a>
+                @endif
             </nav>
         @endif
         <div class="admin-breadcrumb-wrap ap-report-breadcrumb-below-tabs">
@@ -183,7 +197,8 @@
                     @php
                         $tqHistMenu = $panel['theory_quiz_history'] ?? [];
                         $canResetTqMenu =
-                            $p
+                            $canResetProgress
+                            && $p
                             && ((int) $p->theory_quiz_attempts >= 1
                                 || is_array($p->theory_quiz_last_result)
                                 || (is_array($tqHistMenu) && count($tqHistMenu) > 0));
@@ -237,7 +252,8 @@
             @php
                 $tqHist = $panel['theory_quiz_history'] ?? [];
                 $canResetTq =
-                    $p
+                    $canResetProgress
+                    && $p
                     && ((int) $p->theory_quiz_attempts >= 1
                         || is_array($p->theory_quiz_last_result)
                         || (is_array($tqHist) && count($tqHist) > 0));
@@ -263,7 +279,7 @@
                         <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
                         <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
                             <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
-                            @php $canResetPrMenu = $p && ($p->practice_done_at || $ps); @endphp
+                            @php $canResetPrMenu = $canResetProgress && $p && ($p->practice_done_at || $ps); @endphp
                             @if ($canResetPrMenu)
                                 <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#ta-reset-pr">Сброс попытки…</a>
                             @endif
@@ -322,7 +338,7 @@
             </div>
             @if (! $skipPractice)
                 @php
-                    $canResetPr = $p && ($p->practice_done_at || $ps);
+                    $canResetPr = $canResetProgress && $p && ($p->practice_done_at || $ps);
                 @endphp
                 @if ($canResetPr)
                     <div class="ap-report-reset-block" id="ta-reset-pr">
@@ -348,7 +364,8 @@
                         @php
                             $exHistMenu = $panel['module_exam_history'] ?? [];
                             $canResetExMenu =
-                                $p
+                                $canResetProgress
+                                && $p
                                 && ((int) $p->module_exam_attempts >= 1
                                     || is_array($p->module_exam_last_result)
                                     || (is_array($exHistMenu) && count($exHistMenu) > 0));
@@ -405,7 +422,8 @@
             @php
                 $exHistR = $panel['module_exam_history'] ?? [];
                 $canResetEx =
-                    $p
+                    $canResetProgress
+                    && $p
                     && ((int) $p->module_exam_attempts >= 1
                         || is_array($p->module_exam_last_result)
                         || (is_array($exHistR) && count($exHistR) > 0));

@@ -50,7 +50,10 @@ final class AdminNavigation
             'admin.settings.maintenance',
             'admin.settings.maintenance.reset',
             'admin.settings.impersonate',
-            'admin.settings.learner-search' => [
+            'admin.settings.learner-search',
+            'admin.settings.staff-preview',
+            'admin.settings.staff-preview.end',
+            'admin.settings.staff-search' => [
                 ...$root,
                 ['label' => 'Настройки', 'url' => null],
             ],
@@ -237,15 +240,20 @@ final class AdminNavigation
 
     public static function canSeeStaff(): bool
     {
-        $access = PortalStaffAccess::fromLearnerId((int) session('learner_id', 0));
-
-        return $access?->canManageStaff() ?? false;
+        return self::effectiveAccess()?->canManageStaff() ?? false;
     }
 
     public static function canSeePortalLearners(): bool
     {
-        $access = PortalStaffAccess::fromLearnerId((int) session('learner_id', 0));
+        return self::effectiveAccess()?->canViewPortalLearners() ?? false;
+    }
 
-        return $access?->canViewPortalLearners() ?? false;
+    private static function effectiveAccess(): ?PortalStaffAccess
+    {
+        if (app()->bound(PortalStaffAccess::class)) {
+            return app(PortalStaffAccess::class);
+        }
+
+        return PortalStaffAccess::fromLearnerId((int) session('learner_id', 0));
     }
 }

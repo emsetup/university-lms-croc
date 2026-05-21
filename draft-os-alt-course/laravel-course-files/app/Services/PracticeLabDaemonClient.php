@@ -98,7 +98,9 @@ final class PracticeLabDaemonClient
      */
     public function imageBuild(array $payload): array
     {
-        $r = $this->post('/internal/v1/image-build', $payload);
+        $r = Http::withHeaders($this->headers())
+            ->timeout(600)
+            ->post($this->baseUrl.'/internal/v1/image-build', $payload);
         $r->throw();
 
         return $r->json();

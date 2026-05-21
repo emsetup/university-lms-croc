@@ -282,13 +282,15 @@
         if (allowPoints && pointsInp) {
             pointsInp.value = item.points != null ? String(item.points) : '';
         }
+        var answersWrap = $('ap-sec-q-answers-wrap');
+        var matchWrap = $('ap-sec-q-match-wrap');
         if (item.type === 'match') {
-            $('ap-sec-q-answers-wrap').hidden = true;
-            $('ap-sec-q-match-wrap').hidden = false;
+            if (answersWrap) answersWrap.hidden = true;
+            if (matchWrap) matchWrap.hidden = false;
             renderMatchEditor(item);
         } else {
-            $('ap-sec-q-answers-wrap').hidden = false;
-            $('ap-sec-q-match-wrap').hidden = true;
+            if (answersWrap) answersWrap.hidden = false;
+            if (matchWrap) matchWrap.hidden = true;
             renderAnswerOptions(item);
         }
     }
@@ -705,7 +707,10 @@
                 });
                 switchMainTab(defaultTabForType(d.section.type || 'text'));
             })
-            .catch(function () {
+            .catch(function (err) {
+                if (typeof console !== 'undefined' && console.error) {
+                    console.error('section panel load failed', err);
+                }
                 window.alert('Ошибка сети при загрузке панели.');
             });
     }

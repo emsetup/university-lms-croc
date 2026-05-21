@@ -9,6 +9,14 @@ class PortalActivityEvent extends Model
 {
     public const TYPE_MAINTENANCE_BLOCKED = 'maintenance_blocked';
 
+    public const TYPE_ADMIN_PANEL = 'admin_panel';
+
+    /** @var array<string, string> */
+    public const TYPE_LABELS = [
+        self::TYPE_MAINTENANCE_BLOCKED => 'Заглушка обновления',
+        self::TYPE_ADMIN_PANEL => 'Админ-панель',
+    ];
+
     public $timestamps = false;
 
     protected $fillable = [

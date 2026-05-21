@@ -7,8 +7,11 @@ use App\Models\CourseModulePracticeSetting;
 use App\Models\PracticeImage;
 use App\Services\LegacyAltPracticeImagesBootstrap;
 use App\Services\PracticeImageRecipeBootstrap;
+use App\Services\PracticeImageBuildService;
 use App\Services\PracticeImageRecipeGenerator;
+use App\Services\PracticeImageSandboxService;
 use App\Services\PracticeLabDaemonClient;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -21,8 +24,12 @@ final class AdminDockerLibraryController extends Controller
 
     public function __construct(private PracticeImageRecipeBootstrap $recipeBootstrap) {}
 
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
+        if ($request->query('create')) {
+            return redirect()->route('admin.docker.library.create');
+        }
+
         LegacyAltPracticeImagesBootstrap::sync();
 
         $q = trim((string) $request->query('q', ''));
@@ -58,11 +65,19 @@ final class AdminDockerLibraryController extends Controller
             }
         }
 
+        $sandbox = PracticeImageSandboxService::make();
+        $sandboxById = [];
+        foreach ($items as $row) {
+            $sandboxById[(int) $row->id] = $sandbox->getState((int) $row->id);
+        }
+
         return view('admin.docker-library', [
             'items' => $items,
             'q' => $q,
             'statsByTag' => $statsByTag,
+            'sandboxById' => $sandboxById,
             'daemonConfigured' => $client !== null,
+            'practiceLabEnabled' => (bool) config('practice_lab.enabled'),
         ]);
     }
 
@@ -138,52 +153,94 @@ final class AdminDockerLibraryController extends Controller
             ->with($ok ? 'ok' : 'err', $ok ? 'Статус образа обновлён: '.$tag : 'Не удалось обновить статус образа.');
     }
 
-    public function build(Request $request, int $id): RedirectResponse
+    public function build(Request $request, int $id): RedirectResponse|JsonResponse
     {
         $row = PracticeImage::query()->findOrFail($id);
         $client = PracticeLabDaemonClient::fromConfig();
         if (! $client) {
+            if ($request->wantsJson()) {
+                return response()->json(['ok' => false, 'error' => 'Lab-daemon не настроен (PRACTICE_LAB_DAEMON_URL / SECRET).'], 503);
+            }
+
             return redirect()
                 ->route('admin.docker.library')
                 ->with('err', 'Lab-daemon не настроен (PRACTICE_LAB_DAEMON_URL / SECRET).');
         }
 
-        app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
-
-        $row->last_build_status = 'running';
-        $row->last_build_log = null;
-        $row->save();
-
-        $contextDir = $this->recipeBootstrap->contextDirRel($row);
-        $dockerfileRel = 'Dockerfile';
-        try {
-            $resp = $client->imageBuild([
-                'context_dir' => $contextDir,
-                'dockerfile_rel' => $dockerfileRel,
-                'tags' => [(string) $row->docker_tag],
-                'build_args' => null,
-            ]);
-        } catch (\Throwable $e) {
-            $row->last_build_status = 'fail';
-            $row->last_build_log = 'Ошибка связи с lab-daemon: '.$e->getMessage();
-            $row->save();
-
-            return redirect()
-                ->route('admin.docker.library')
-                ->with('err', 'Не удалось собрать: '.$e->getMessage());
-        }
-
-        $ok = (bool) ($resp['ok'] ?? false);
-        $row->is_built = $ok;
-        $row->last_build_status = $ok ? 'ok' : 'fail';
-        $row->last_build_log = is_string($resp['log'] ?? null) ? (string) $resp['log'] : null;
-        $row->last_built_at = now();
-        $row->save();
+        $result = app(PracticeImageBuildService::class)->build($row, $client);
         Cache::forget($this->imageStatsCacheKey((string) $row->docker_tag));
+
+        if ($request->wantsJson()) {
+            return response()->json(array_merge($result, [
+                'id' => $row->id,
+                'redirect' => route('admin.docker.library.edit', ['id' => $row->id]).'#step-review',
+            ]), $result['ok'] ? 200 : 422);
+        }
 
         return redirect()
             ->route('admin.docker.library')
-            ->with($ok ? 'ok' : 'err', $ok ? 'Сборка завершена.' : 'Сборка завершилась с ошибкой (см. лог в конструкторе образа).');
+            ->with($result['ok'] ? 'ok' : 'err', $result['ok'] ? 'Сборка завершена.' : 'Сборка завершилась с ошибкой (см. лог в конструкторе образа).');
+    }
+
+    public function sandboxStatus(int $id): JsonResponse
+    {
+        $row = PracticeImage::query()->findOrFail($id);
+        $state = PracticeImageSandboxService::make()->getState((int) $row->id);
+
+        return response()->json([
+            'ok' => true,
+            'image_id' => $row->id,
+            'docker_tag' => (string) $row->docker_tag,
+            'is_built' => (bool) $row->is_built,
+            'daemon_module_key' => PracticeImageSandboxService::daemonModuleKeyForImage($row),
+            'state' => $state,
+        ]);
+    }
+
+    public function sandboxStart(Request $request, int $id): JsonResponse
+    {
+        if ($this->isReadOnlyAccess($request)) {
+            return response()->json(['ok' => false, 'error' => 'Режим модератора: запуск стенда недоступен.'], 403);
+        }
+
+        $row = PracticeImage::query()->findOrFail($id);
+        $svc = PracticeImageSandboxService::make();
+        if (! $svc->isDaemonReady()) {
+            return response()->json(['ok' => false, 'error' => 'Lab-daemon не настроен.'], 503);
+        }
+
+        $result = $svc->start($row);
+
+        return response()->json($result, ($result['ok'] ?? false) ? 200 : 422);
+    }
+
+    public function sandboxCheck(Request $request, int $id): JsonResponse
+    {
+        if ($this->isReadOnlyAccess($request)) {
+            return response()->json(['ok' => false, 'error' => 'Режим модератора: проверка недоступна.'], 403);
+        }
+
+        $row = PracticeImage::query()->findOrFail($id);
+        $svc = PracticeImageSandboxService::make();
+        if (! $svc->isDaemonReady()) {
+            return response()->json(['ok' => false, 'error' => 'Lab-daemon не настроен.'], 503);
+        }
+
+        $result = $svc->runCheck((int) $row->id);
+
+        return response()->json($result, ($result['ok'] ?? false) ? 200 : 422);
+    }
+
+    public function sandboxStop(Request $request, int $id): JsonResponse
+    {
+        if ($this->isReadOnlyAccess($request)) {
+            return response()->json(['ok' => false, 'error' => 'Режим модератора: остановка недоступна.'], 403);
+        }
+
+        PracticeImage::query()->findOrFail($id);
+        $result = PracticeImageSandboxService::make()->stop($id);
+
+        return response()->json($result);
     }
 
     public function destroy(int $id): RedirectResponse
@@ -207,6 +264,11 @@ final class AdminDockerLibraryController extends Controller
         return redirect()
             ->route('admin.docker.library')
             ->with('ok', 'Образ удалён.');
+    }
+
+    private function isReadOnlyAccess(Request $request): bool
+    {
+        return (bool) $request->attributes->get('course_admin_readonly', false);
     }
 
     private function imageStatsCacheKey(string $image): string

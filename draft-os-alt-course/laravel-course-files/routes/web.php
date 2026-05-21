@@ -24,14 +24,22 @@ use App\Http\Controllers\PracticeLabController;
 use App\Http\Controllers\TeacherCourseReportController;
 use App\Models\Course;
 use App\Services\PortalStaffAccess;
+use App\Support\StaffAdminPreview;
+use App\Support\StaffImpersonation;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 
 // Дочерние @section рендерятся до layout: переменная нужна и на `admin.*`, `portal.*`, не только на layouts.course.
 View::composer(['layouts.course', 'admin.*', 'portal.*', 'layouts.admin', 'layouts.admin-preview', 'teacher-course-report'], function ($view) {
-    if (\App\Support\StaffImpersonation::isPreviewRequest(request())) {
+    if (StaffImpersonation::isPreviewRequest(request())) {
         $view->with('portalStaffAccess', null);
         $view->with('learnerPreviewActive', true);
+
+        return;
+    }
+    if (StaffAdminPreview::isPreviewRequest(request()) && app()->bound(PortalStaffAccess::class)) {
+        $view->with('portalStaffAccess', app(PortalStaffAccess::class));
+        $view->with('learnerPreviewActive', false);
 
         return;
     }
@@ -137,9 +145,16 @@ Route::middleware([
     });
 });
 
-Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middleware\EnsurePortalStaff::class])->group(function () {
+Route::middleware([
+    \App\Http\Middleware\EnsureLearner::class,
+    \App\Http\Middleware\EnsurePortalStaff::class,
+    \App\Http\Middleware\ApplyStaffAdminPreview::class,
+    \App\Http\Middleware\DenyStaffAdminPreviewWrites::class,
+    \App\Http\Middleware\LogAdminActivity::class,
+])->group(function () {
     Route::get('/adm', [AdminPanelController::class, 'show'])->name('admin.panel');
     Route::get('/adm/sobytiya', [AdminPanelController::class, 'activity'])->name('admin.activity');
+    Route::get('/adm/sobytiya/lenta', [AdminPanelController::class, 'activityFeed'])->name('admin.activity.feed');
     Route::get('/adm/paleta/poisk', [AdminPanelController::class, 'commandPaletteSearch'])->name('admin.command-palette.search');
 
     Route::get('/adm/nastroiki', [AdminSettingsController::class, 'show'])->name('admin.settings');
@@ -147,15 +162,26 @@ Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middlewa
     Route::post('/adm/nastroiki/zaglushka/sbros', [AdminSettingsController::class, 'resetMaintenance'])->name('admin.settings.maintenance.reset');
     Route::post('/adm/nastroiki/prosmotr', [AdminSettingsController::class, 'impersonate'])->name('admin.settings.impersonate');
     Route::get('/adm/nastroiki/poisk-obuchayushchihsya', [AdminSettingsController::class, 'learnerSearch'])->name('admin.settings.learner-search');
+    Route::post('/adm/nastroiki/prosmotr-sotrudnika', [AdminSettingsController::class, 'staffPreview'])->name('admin.settings.staff-preview');
+    Route::get('/adm/nastroiki/prosmotr-sotrudnika/zavershit', [AdminSettingsController::class, 'endStaffPreview'])->name('admin.settings.staff-preview.end');
+    Route::get('/adm/nastroiki/poisk-sotrudnikov', [AdminSettingsController::class, 'staffSearch'])->name('admin.settings.staff-search');
 
     Route::middleware([\App\Http\Middleware\DenyCourseTester::class])->group(function () {
         Route::get('/adm/docker', [AdminDockerLibraryController::class, 'index'])->name('admin.docker.library');
-        Route::post('/adm/docker', [AdminDockerLibraryController::class, 'store'])->name('admin.docker.library.store');
+        Route::get('/adm/docker/create', [AdminPracticeImagesController::class, 'create'])->name('admin.docker.library.create');
+        Route::post('/adm/docker', [AdminPracticeImagesController::class, 'store'])->name('admin.docker.library.store');
+        Route::post('/adm/docker/clone', [AdminPracticeImagesController::class, 'cloneFrom'])->name('admin.docker.library.clone');
+        Route::post('/adm/docker/recipe-preview', [AdminPracticeImagesController::class, 'recipePreview'])->name('admin.docker.library.recipe.preview');
         Route::post('/adm/docker/stats/refresh', [AdminDockerLibraryController::class, 'refreshStats'])->name('admin.docker.library.stats.refresh');
         Route::get('/adm/docker/pkg-search', [AdminPracticeImagesController::class, 'pkgSearch'])->name('admin.docker.library.pkg.search');
         Route::get('/adm/docker/{id}', [AdminPracticeImagesController::class, 'edit'])->whereNumber('id')->name('admin.docker.library.edit');
+        Route::post('/adm/docker/{id}/reimport-template', [AdminPracticeImagesController::class, 'reimportTemplate'])->whereNumber('id')->name('admin.docker.library.reimport');
         Route::post('/adm/docker/{id}', [AdminPracticeImagesController::class, 'update'])->whereNumber('id')->name('admin.docker.library.update');
         Route::post('/adm/docker/{id}/build', [AdminDockerLibraryController::class, 'build'])->whereNumber('id')->name('admin.docker.library.build');
+        Route::get('/adm/docker/{id}/sandbox/status', [AdminDockerLibraryController::class, 'sandboxStatus'])->whereNumber('id')->name('admin.docker.library.sandbox.status');
+        Route::post('/adm/docker/{id}/sandbox/start', [AdminDockerLibraryController::class, 'sandboxStart'])->whereNumber('id')->name('admin.docker.library.sandbox.start');
+        Route::post('/adm/docker/{id}/sandbox/check', [AdminDockerLibraryController::class, 'sandboxCheck'])->whereNumber('id')->name('admin.docker.library.sandbox.check');
+        Route::post('/adm/docker/{id}/sandbox/stop', [AdminDockerLibraryController::class, 'sandboxStop'])->whereNumber('id')->name('admin.docker.library.sandbox.stop');
         Route::post('/adm/docker/{id}/export', [AdminPracticeImagesController::class, 'export'])->whereNumber('id')->name('admin.docker.library.export');
         Route::post('/adm/docker/{id}/udalit', [AdminDockerLibraryController::class, 'destroy'])->whereNumber('id')->name('admin.docker.library.destroy');
     });
@@ -422,6 +448,7 @@ Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middlewa
         ->middleware([
             \App\Http\Middleware\SyncAdminCourseFromSlug::class,
             \App\Http\Middleware\EnsureAdminCourseSelected::class,
+            \App\Http\Middleware\RestrictInstructorCourseAccess::class,
         ])
         ->group(function () {
             Route::get('/soderzhimoe', [AdminTheoryController::class, 'index'])->name('admin.theory.index');
@@ -459,6 +486,8 @@ Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middlewa
                 Route::get('/praktiki/obraza', [AdminPracticeImagesController::class, 'index'])->name('admin.practice.images.index');
                 Route::get('/praktiki/obraza/create', [AdminPracticeImagesController::class, 'create'])->name('admin.practice.images.create');
                 Route::post('/praktiki/obraza', [AdminPracticeImagesController::class, 'store'])->name('admin.practice.images.store');
+                Route::post('/praktiki/obraza/clone', [AdminPracticeImagesController::class, 'cloneFrom'])->name('admin.practice.images.clone');
+                Route::post('/praktiki/obraza/recipe-preview', [AdminPracticeImagesController::class, 'recipePreview'])->name('admin.practice.images.recipe.preview');
                 Route::post('/praktiki/obraza/system/copy', [AdminPracticeImagesController::class, 'copySystem'])->name('admin.practice.images.system.copy');
                 Route::post('/praktiki/obraza/stats/refresh', [AdminPracticeImagesController::class, 'refreshStats'])->name('admin.practice.images.stats.refresh');
                 Route::get('/praktiki/obraza/pkg-search', [AdminPracticeImagesController::class, 'pkgSearch'])->name('admin.practice.images.pkg.search');
@@ -466,6 +495,7 @@ Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middlewa
                 Route::post('/praktiki/obraza/{id}', [AdminPracticeImagesController::class, 'update'])->whereNumber('id')->name('admin.practice.images.update');
                 Route::post('/praktiki/obraza/{id}/udalit', [AdminPracticeImagesController::class, 'destroy'])->whereNumber('id')->name('admin.practice.images.destroy');
                 Route::post('/praktiki/obraza/{id}/build', [AdminPracticeImagesController::class, 'build'])->whereNumber('id')->name('admin.practice.images.build');
+                Route::post('/praktiki/obraza/{id}/reimport-template', [AdminPracticeImagesController::class, 'reimportTemplate'])->whereNumber('id')->name('admin.practice.images.reimport');
                 Route::post('/praktiki/obraza/{id}/export', [AdminPracticeImagesController::class, 'export'])->whereNumber('id')->name('admin.practice.images.export');
                 Route::post('/nastroyki/modul/dobavit', [AdminCourseSettingsController::class, 'storeModule'])->name('admin.course.settings.module.store');
                 Route::post('/nastroyki/modul/{courseModule}', [AdminCourseSettingsController::class, 'updateModule'])
@@ -516,6 +546,9 @@ Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middlewa
                     ->whereNumber('section')
                     ->name('admin.course.section.panel.save');
                 Route::get('/obuchayushiesya', [AdminLearnersController::class, 'indexCourse'])->name('admin.learners.course');
+                Route::get('/obuchayushiesya/learner/{learner}', [AdminLearnersController::class, 'courseLearnerShow'])
+                    ->whereNumber('learner')
+                    ->name('admin.learners.course.learner');
                 Route::get('/obuchayushiesya/detail/{learner}', [AdminLearnersController::class, 'courseLearnerDetailJson'])
                     ->whereNumber('learner')
                     ->name('admin.learners.course.detail');

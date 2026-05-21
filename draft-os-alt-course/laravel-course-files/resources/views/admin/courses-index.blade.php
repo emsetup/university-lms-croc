@@ -43,6 +43,8 @@
                     $cid = (int) $c['id'];
                     $editable = ($editableCourseIds ?? null) === null || isset($editableCourseIds[$cid]);
                     $canTools = $portalStaffAccess && $portalStaffAccess->canUseCourseAdminTools();
+                    $canViewStats = $portalStaffAccess && $portalStaffAccess->canViewCourseLearnerStats($cid);
+                    $isInstructor = $portalStaffAccess && $portalStaffAccess->isInstructor();
                     $canPublish = $editable && $portalStaffAccess && ! $portalStaffAccess->isCourseTester()
                         && empty($c['is_published']) && empty($c['is_archived']);
                     $bucket = ! empty($c['is_archived']) ? 'archive' : (! empty($c['is_published']) ? 'published' : 'draft');
@@ -86,15 +88,11 @@
                         <div class="ap-mini-progress__bar" style="width: {{ $avgPct }}%"></div>
                     </div>
                     <div class="ap-catalog-card__actions">
-                        @if ($canTools)
-                            <form method="post" action="{{ route('admin.courses.select', ['course' => $cid]) }}" style="margin:0">
-                                @csrf
-                                <input type="hidden" name="next" value="learners">
-                                <button type="submit" class="btn btn-ghost ap-catalog-card__btn-ghost">Обучающиеся</button>
-                            </form>
-                        @endif
-                        <a class="btn btn-primary ap-catalog-card__btn-primary" href="{{ route('admin.courses.enter', ['course' => $cid]) }}">
-                            Управлять курсом
+                        <a
+                            class="btn btn-primary ap-catalog-card__btn-primary"
+                            href="{{ route('admin.courses.enter', ['course' => $cid, 'next' => $isInstructor ? 'learners' : 'content']) }}"
+                        >
+                            {{ $isInstructor ? 'Обучающиеся' : 'Управлять курсом' }}
                             @include('partials.ap-icon', ['name' => 'chevron-right', 'size' => 'sm'])
                         </a>
                         @if ($canPublish)

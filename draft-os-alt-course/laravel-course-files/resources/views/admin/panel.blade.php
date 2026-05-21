@@ -2,6 +2,10 @@
 
 @section('title', 'Панель администратора — Трек знаний')
 
+@push('scripts')
+    <script src="{{ asset('js/admin-activity-panel.js') }}" defer></script>
+@endpush
+
 @section('content')
     @php
         $m = $dashMetrics ?? [];
@@ -67,27 +71,11 @@
                         @include('partials.ap-icon', ['name' => 'chevron-right', 'size' => 'sm'])
                     </a>
                 </div>
-                @if (($dashActivity ?? collect())->isEmpty())
-                    <p class="ap-muted">Пока нет событий по записям на курсы и сертификатам.</p>
-                @else
-                    <ul class="ap-activity-feed" aria-label="Последние события">
-                        @foreach ($dashActivity as $ev)
-                            <li class="ap-activity-feed__item">
-                                <span class="ap-activity-feed__dot @if(!empty($ev['active_today'])) ap-activity-feed__dot--live @endif"
-                                      aria-hidden="true"></span>
-                                <div class="ap-activity-feed__body">
-                                    <p class="ap-activity-feed__text">
-                                        <span class="ap-activity-feed__email">{{ $ev['email'] !== '' ? $ev['email'] : '—' }}</span>
-                                        — {{ $ev['text'] }}
-                                    </p>
-                                    <time class="ap-activity-feed__time" datetime="{{ $ev['at']->toIso8601String() }}">
-                                        {{ $ev['at']->timezone(config('app.timezone'))->format('d.m.Y H:i') }}
-                                    </time>
-                                </div>
-                            </li>
-                        @endforeach
-                    </ul>
-                @endif
+                @include('admin.partials.activity-panel', [
+                    'panelMode' => 'compact',
+                    'activityFeedUrl' => route('admin.activity.feed'),
+                    'initialItems' => ($dashActivity ?? collect())->all(),
+                ])
             </section>
 
             <section class="ap-card ap-dash-card">

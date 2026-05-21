@@ -7,6 +7,8 @@ use App\Models\PracticeImage;
 use App\Models\CourseModulePracticeSetting;
 use App\Services\PracticeImageRecipeBootstrap;
 use App\Support\LegacyAltPracticeImageCatalog;
+use App\Support\PracticeImageWizardCatalog;
+use App\Services\PracticeImageBuildService;
 use App\Services\PracticeImageRecipeGenerator;
 use App\Services\PracticeLabDaemonClient;
 use Illuminate\Http\RedirectResponse;
@@ -171,9 +173,10 @@ final class AdminPracticeImagesController extends Controller
 
     public function create(Request $request): View
     {
-        return view('admin.practice-image-edit', [
-            'piRouteScope' => $this->practiceImageRouteScope($request),
-            'row' => new PracticeImage([
+        $preset = trim((string) $request->query('preset', ''));
+
+        return view('admin.practice-image-edit', array_merge(
+            $this->wizardViewData($request, new PracticeImage([
                 'title' => '',
                 'slug' => '',
                 'docker_tag' => '',
@@ -186,13 +189,116 @@ final class AdminPracticeImagesController extends Controller
                 'startup_script_text' => '',
                 'dockerfile_text' => '',
                 'check_script_text' => '',
-            ]),
-            'isNew' => true,
-            'templates' => $this->templatesList(),
+            ]), true),
+            ['wizardPreset' => $preset]
+        ));
+    }
+
+    public function cloneFrom(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'source_id' => 'required|integer|exists:practice_images,id',
+            'title' => 'required|string|max:200',
+            'docker_tag' => 'required|string|max:200',
+        ]);
+
+        $src = PracticeImage::query()->findOrFail((int) $data['source_id']);
+
+        $slug = Str::slug((string) $data['title']);
+        if ($slug === '') {
+            $slug = 'copy-'.Str::lower(Str::random(6));
+        }
+        if (PracticeImage::query()->where('slug', $slug)->exists()) {
+            $slug = $slug.'-'.Str::lower(Str::random(4));
+        }
+
+        $row = PracticeImage::query()->create([
+            'title' => (string) $data['title'],
+            'slug' => $slug,
+            'docker_tag' => $this->suggestCopyDockerTag((string) $data['docker_tag']),
+            'description' => $src->description,
+            'base_template' => (string) $src->base_template,
+            'base_os' => (string) ($src->base_os ?? 'alt'),
+            'base_image_ref' => (string) ($src->base_image_ref ?? ''),
+            'package_add' => is_array($src->package_add) ? $src->package_add : [],
+            'package_remove' => is_array($src->package_remove) ? $src->package_remove : [],
+            'features' => is_array($src->features) ? $src->features : [],
+            'startup_script_text' => (string) ($src->startup_script_text ?? ''),
+            'dockerfile_text' => (string) ($src->dockerfile_text ?? ''),
+            'check_script_text' => (string) ($src->check_script_text ?? ''),
+            'is_built' => false,
+            'last_build_status' => null,
+            'last_build_log' => null,
+        ]);
+
+        app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
+        $recipeRoot = $this->recipeBootstrap->recipeRootAbs($src);
+        $destRoot = $this->recipeBootstrap->recipeRootAbs($row);
+        if (is_dir($recipeRoot) && $recipeRoot !== $destRoot) {
+            try {
+                \Illuminate\Support\Facades\File::copyDirectory($recipeRoot, $destRoot);
+            } catch (\Throwable) {
+                // рецепт уже синхронизирован из полей БД
+            }
+        }
+
+        return redirect()
+            ->to($this->practiceImageEditUrl((int) $row->id, $request).'#step-review')
+            ->with('ok', 'Копия создана из «'.$src->title.'». Проверьте тег и соберите образ.');
+    }
+
+    public function reimportTemplate(Request $request, int $id): RedirectResponse
+    {
+        $row = PracticeImage::query()->findOrFail($id);
+        $this->recipeBootstrap->initFromTemplate($row);
+        $row->refresh();
+        app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
+
+        return redirect()
+            ->to($this->practiceImageEditUrl((int) $row->id, $request))
+            ->with('ok', 'Скрипты и Dockerfile снова загружены из шаблона '.$row->base_template.'.');
+    }
+
+    public function recipePreview(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'base_os' => 'required|in:alt,redos,astra,centos,alma',
+            'base_image_ref' => 'nullable|string|max:200',
+            'package_add_text' => 'nullable|string|max:200000',
+            'package_remove_text' => 'nullable|string|max:200000',
+            'startup_script_text' => 'nullable|string|max:200000',
+            'features' => 'nullable|array',
+        ]);
+
+        $row = new PracticeImage([
+            'base_os' => (string) $data['base_os'],
+            'base_image_ref' => (string) ($data['base_image_ref'] ?? ''),
+            'package_add' => $this->linesToList((string) ($data['package_add_text'] ?? '')),
+            'package_remove' => $this->linesToList((string) ($data['package_remove_text'] ?? '')),
+            'startup_script_text' => (string) ($data['startup_script_text'] ?? ''),
+            'features' => $this->sanitizeFeatures($data['features'] ?? null),
+        ]);
+
+        $gen = app(PracticeImageRecipeGenerator::class);
+        $dockerfile = $gen->previewDockerfile($row);
+        $startup = trim((string) ($row->startup_script_text ?? ''));
+        if ($startup === '') {
+            $startup = "#!/usr/bin/env bash\nset -euo pipefail\n\n# TODO: prepare lab state here\n";
+        }
+        $check = trim((string) ($request->input('check_script_text') ?? ''));
+        if ($check === '') {
+            $check = "#!/bin/bash\nset -uo pipefail\n\necho \"===PRACTICE_RESULT_JSON===\"\necho '{\"score\":0,\"max\":100}'\nexit 1\n";
+        }
+
+        return response()->json([
+            'ok' => true,
+            'dockerfile' => $dockerfile,
+            'startup' => $startup,
+            'check' => $check,
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'title' => 'required|string|max:200',
@@ -242,10 +348,29 @@ final class AdminPracticeImagesController extends Controller
             $this->recipeBootstrap->initFromTemplate($row);
             $row->refresh();
         }
-        app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
+        try {
+            app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
+        } catch (\Throwable $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['ok' => false, 'error' => $e->getMessage()], 500);
+            }
+            throw $e;
+        }
+
+        if ($request->wantsJson()) {
+            $buildUrl = $this->practiceImageBuildUrl((int) $row->id, $request);
+
+            return response()->json([
+                'ok' => true,
+                'id' => $row->id,
+                'edit_url' => $this->practiceImageEditUrl((int) $row->id, $request).'#step-review',
+                'build_url' => $buildUrl,
+                'daemon_configured' => PracticeLabDaemonClient::fromConfig() !== null,
+            ]);
+        }
 
         return redirect()
-            ->to($this->practiceImageEditUrl((int) $row->id))
+            ->to($this->practiceImageEditUrl((int) $row->id, $request))
             ->with('ok', 'Образ создан. Теперь можно собрать.');
     }
 
@@ -253,12 +378,12 @@ final class AdminPracticeImagesController extends Controller
     {
         $row = PracticeImage::query()->findOrFail($id);
 
-        return view('admin.practice-image-edit', [
-            'row' => $row,
-            'isNew' => false,
-            'templates' => $this->templatesList(),
-            'piRouteScope' => $request->routeIs('admin.docker.*') ? 'docker' : 'course',
-        ]);
+        return view('admin.practice-image-edit', $this->wizardViewData(
+            $request,
+            $row,
+            false,
+            ['wizardPreset' => '']
+        ));
     }
 
     public function update(Request $request, int $id): RedirectResponse
@@ -338,52 +463,33 @@ final class AdminPracticeImagesController extends Controller
             ->with('ok', 'Удалено.');
     }
 
-    public function build(Request $request, int $id): RedirectResponse
+    public function build(Request $request, int $id): RedirectResponse|JsonResponse
     {
         $row = PracticeImage::query()->findOrFail($id);
         $client = PracticeLabDaemonClient::fromConfig();
         if (! $client) {
+            if ($request->wantsJson()) {
+                return response()->json(['ok' => false, 'error' => 'Lab-daemon не настроен (PRACTICE_LAB_DAEMON_URL / SECRET).'], 503);
+            }
+
             return redirect()
                 ->to($this->practiceImageEditUrl((int) $row->id, $request))
                 ->with('err', 'Lab-daemon не настроен (PRACTICE_LAB_DAEMON_URL / SECRET).');
         }
 
-        app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
-
-        $row->last_build_status = 'running';
-        $row->last_build_log = null;
-        $row->save();
-
-        $contextDir = $this->recipeBootstrap->contextDirRel($row);
-        $dockerfileRel = 'Dockerfile';
-        try {
-            $resp = $client->imageBuild([
-                'context_dir' => $contextDir,
-                'dockerfile_rel' => $dockerfileRel,
-                'tags' => [(string) $row->docker_tag],
-                'build_args' => null,
-            ]);
-        } catch (\Throwable $e) {
-            $row->last_build_status = 'fail';
-            $row->last_build_log = 'Ошибка связи с lab-daemon: '.$e->getMessage();
-            $row->save();
-
-            return redirect()
-                ->to($this->practiceImageEditUrl((int) $row->id, $request))
-                ->with('err', 'Не удалось собрать: '.$e->getMessage());
-        }
-
-        $ok = (bool) ($resp['ok'] ?? false);
-        $row->is_built = $ok;
-        $row->last_build_status = $ok ? 'ok' : 'fail';
-        $row->last_build_log = is_string($resp['log'] ?? null) ? (string) $resp['log'] : null;
-        $row->last_built_at = now();
-        $row->save();
+        $result = app(PracticeImageBuildService::class)->build($row, $client);
         Cache::forget($this->imageStatsCacheKey((string) $row->docker_tag));
+
+        if ($request->wantsJson()) {
+            return response()->json(array_merge($result, [
+                'id' => $row->id,
+                'redirect' => $this->practiceImageEditUrl((int) $row->id, $request).'#step-review',
+            ]), $result['ok'] ? 200 : 422);
+        }
 
         return redirect()
             ->to($this->practiceImageEditUrl((int) $row->id, $request))
-            ->with($ok ? 'ok' : 'err', $ok ? 'Сборка завершена.' : 'Сборка завершилась с ошибкой (см. лог).');
+            ->with($result['ok'] ? 'ok' : 'err', $result['ok'] ? 'Сборка завершена.' : 'Сборка завершилась с ошибкой (см. лог).');
     }
 
     public function export(Request $request, int $id): RedirectResponse
@@ -417,6 +523,42 @@ final class AdminPracticeImagesController extends Controller
         return redirect()
             ->to($this->practiceImageEditUrl((int) $row->id, $request))
             ->with($ok ? 'ok' : 'err', $ok ? 'Экспорт выполнен: '.$row->export_path : 'Экспорт завершился с ошибкой (см. лог daemon).');
+    }
+
+    /**
+     * @param  array<string, mixed>  $extra
+     * @return array<string, mixed>
+     */
+    private function wizardViewData(Request $request, PracticeImage $row, bool $isNew = true, array $extra = []): array
+    {
+        $libraryImages = PracticeImage::query()
+            ->when($row->exists, fn ($q) => $q->where('id', '!=', (int) $row->id))
+            ->orderByDesc('updated_at')
+            ->limit(36)
+            ->get(['id', 'title', 'docker_tag', 'base_template', 'base_os', 'is_built', 'slug']);
+
+        return array_merge([
+            'piRouteScope' => $this->practiceImageRouteScope($request),
+            'row' => $row,
+            'isNew' => $isNew,
+            'templates' => $this->templatesList(),
+            'wizardSteps' => PracticeImageWizardCatalog::wizardSteps(),
+            'wizardHelp' => PracticeImageWizardCatalog::wizardHelp(),
+            'builtinTemplates' => PracticeImageWizardCatalog::builtinTemplates(),
+            'osChoices' => PracticeImageWizardCatalog::osChoices(),
+            'packageGroups' => PracticeImageWizardCatalog::packageGroups(),
+            'featureToggles' => PracticeImageWizardCatalog::featureToggles(),
+            'startupPresets' => PracticeImageWizardCatalog::startupPresets(),
+            'startupCategories' => PracticeImageWizardCatalog::startupPresetCategories(),
+            'checkPresets' => PracticeImageWizardCatalog::checkPresets(),
+            'checkCategories' => PracticeImageWizardCatalog::checkPresetCategories(),
+            'checkTaskTypes' => PracticeImageWizardCatalog::checkTaskTypes(),
+            'checkExampleGrids' => PracticeImageWizardCatalog::checkExampleGrids(),
+            'checkCommonServices' => PracticeImageWizardCatalog::checkCommonServices(),
+            'checkServiceStates' => PracticeImageWizardCatalog::checkServiceStates(),
+            'libraryImages' => $libraryImages,
+            'daemonConfigured' => PracticeLabDaemonClient::fromConfig() !== null,
+        ], $extra);
     }
 
     private function templatesList(): array
@@ -510,6 +652,15 @@ final class AdminPracticeImagesController extends Controller
         }
 
         return $this->adminCourseRoute('admin.practice.images.edit', ['id' => $id]);
+    }
+
+    private function practiceImageBuildUrl(int $id, ?Request $request = null): string
+    {
+        if ($this->practiceImageRouteScope($request) === 'docker') {
+            return route('admin.docker.library.build', ['id' => $id]);
+        }
+
+        return $this->adminCourseRoute('admin.practice.images.build', ['id' => $id]);
     }
 
     private function practiceImagesListUrl(?Request $request = null): string

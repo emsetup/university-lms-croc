@@ -79,12 +79,16 @@ for f in \
   app/Http/Middleware/EnsureCourseSelected.php \
   app/Http/Middleware/EnsureLearner.php \
   app/Http/Middleware/ApplyLearnerPreview.php \
+  app/Http/Middleware/ApplyStaffAdminPreview.php \
+  app/Http/Middleware/DenyStaffAdminPreviewWrites.php \
+  app/Http/Middleware/RestrictInstructorCourseAccess.php \
   app/Http/Middleware/MaintenanceForUsers.php \
   app/Http/Middleware/EnsurePortalStaff.php \
   app/Http/Middleware/EnsureStaffAbility.php \
   app/Http/Middleware/DenyCourseTester.php \
   app/Http/Middleware/ValidateTeacherReportToken.php \
   app/Http/Middleware/SyncAdminCourseFromSlug.php \
+  app/Http/Middleware/LogAdminActivity.php \
   app/Services/CourseScoringService.php \
   app/Services/CourseSectionService.php \
   app/Services/CourseModuleService.php \
@@ -92,12 +96,18 @@ for f in \
   app/Services/LegacyAltCourseContentBootstrap.php \
   app/Services/LegacyAltPracticeImagesBootstrap.php \
   app/Support/LegacyAltPracticeImageCatalog.php \
+  app/Support/PracticeImageWizardCatalog.php \
   app/Services/PortalStaffAccess.php \
   app/Services/PortalMaintenance.php \
   app/Services/MaintenanceActivityLogger.php \
+  app/Services/PortalActivityLogger.php \
+  app/Services/PortalActivityFeedService.php \
   app/Services/PracticeLabDaemonClient.php \
   app/Services/PracticeImageRecipeBootstrap.php \
+  app/Services/PracticeImageRecipeGenerator.php \
+  app/Services/PracticeImageBuildService.php \
   app/Services/PracticeLabService.php \
+  app/Services/PracticeImageSandboxService.php \
   app/Services/TeacherCourseAnalyticsService.php \
   app/Services/ModuleAccessGate.php \
   app/Services/InstructorProgressResetService.php \
@@ -110,6 +120,7 @@ for f in \
   app/Support/CourseTheoryPaths.php \
   app/Support/AdminNavigation.php \
   app/Support/StaffImpersonation.php \
+  app/Support/StaffAdminPreview.php \
   app/Support/OidcIdentityClaims.php \
   app/Support/OidcSignInRedirect.php \
   app/Support/PortalWelcomeInitials.php \
@@ -277,6 +288,22 @@ if [[ -f "${LCF}/public/css/admin-panel.css" ]]; then
   rsync -az "${LCF}/public/css/admin-panel.css" "${STAND_SSH}:${REMOTE}/public/css/admin-panel.css"
 fi
 
+if [[ -f "${LCF}/public/css/docker-sandbox.css" ]]; then
+  echo "[deploy-laravel] public/css/docker-sandbox.css"
+  rsync -az "${LCF}/public/css/docker-sandbox.css" "${STAND_SSH}:${REMOTE}/public/css/docker-sandbox.css"
+fi
+
+if [[ -f "${LCF}/public/css/practice-image-wizard.css" ]]; then
+  echo "[deploy-laravel] public/css/practice-image-wizard.css"
+  rsync -az "${LCF}/public/css/practice-image-wizard.css" "${STAND_SSH}:${REMOTE}/public/css/practice-image-wizard.css"
+fi
+
+if [[ -f "${LCF}/public/js/practice-image-check-wizard.js" ]]; then
+  echo "[deploy-laravel] public/js/practice-image-check-wizard.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/practice-image-check-wizard.js" "${STAND_SSH}:${REMOTE}/public/js/practice-image-check-wizard.js"
+fi
+
 if [[ -f "${LCF}/public/js/section-edit-panel.js" ]]; then
   echo "[deploy-laravel] public/js/section-edit-panel.js"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
@@ -301,10 +328,27 @@ if [[ -f "${LCF}/public/js/admin-command-palette.js" ]]; then
   rsync -az "${LCF}/public/js/admin-command-palette.js" "${STAND_SSH}:${REMOTE}/public/js/admin-command-palette.js"
 fi
 
+if [[ -f "${LCF}/public/js/admin-activity-panel.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-activity-panel.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-activity-panel.js" "${STAND_SSH}:${REMOTE}/public/js/admin-activity-panel.js"
+fi
+
 if [[ -f "${LCF}/public/js/admin-settings-menu.js" ]]; then
   echo "[deploy-laravel] public/js/admin-settings-menu.js"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
   rsync -az "${LCF}/public/js/admin-settings-menu.js" "${STAND_SSH}:${REMOTE}/public/js/admin-settings-menu.js"
+fi
+
+if [[ -f "${LCF}/public/js/admin-settings-impersonate.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-settings-impersonate.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-settings-impersonate.js" "${STAND_SSH}:${REMOTE}/public/js/admin-settings-impersonate.js"
+fi
+if [[ -f "${LCF}/public/js/admin-settings-staff-preview.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-settings-staff-preview.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-settings-staff-preview.js" "${STAND_SSH}:${REMOTE}/public/js/admin-settings-staff-preview.js"
 fi
 
 if [[ -f "${LCF}/public/static/admin/admin.css" ]]; then
@@ -315,5 +359,8 @@ fi
 
 echo "[deploy-laravel] remote: php artisan config:clear cache:clear view:clear migrate"
 ssh -o BatchMode=yes "$STAND_SSH" "set -e; cd '${REMOTE}' && php artisan config:clear && php artisan cache:clear && php artisan view:clear && php artisan migrate --force --no-interaction"
+
+echo "[deploy-laravel] remote: права storage/app/practice-images для php-fpm"
+ssh -o BatchMode=yes "$STAND_SSH" "set -e; cd '${REMOTE}' && mkdir -p storage/app/practice-images && chgrp -R _webserver storage/app/practice-images 2>/dev/null || true && chmod -R g+rws storage/app/practice-images 2>/dev/null || true && (command -v chown >/dev/null && chown -R _php_fpm:_webserver storage/app/practice-images 2>/dev/null || chown -R www-data:www-data storage/app/practice-images 2>/dev/null || true)"
 
 echo "[deploy-laravel] готово. Обновите страницу практики в браузере (лучше с принудительным сбросом кэша)."

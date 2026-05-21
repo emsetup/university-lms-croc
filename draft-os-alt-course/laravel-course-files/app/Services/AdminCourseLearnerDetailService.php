@@ -59,6 +59,8 @@ final class AdminCourseLearnerDetailService
             $sessions = $q->get()->keyBy('module_id');
         }
 
+        $allowReset = app(PortalStaffAccess::class)->canResetLearnerProgress();
+
         $ordinal = 0;
         foreach ($mods as $mod) {
             $ordinal++;
@@ -82,7 +84,7 @@ final class AdminCourseLearnerDetailService
                     : 0;
             }
 
-            $sections = $this->buildSectionsForModule($learner, $course, $courseId, $mod, $p, $idx, $legacyAlt, $sessions);
+            $sections = $this->buildSectionsForModule($learner, $course, $courseId, $mod, $p, $idx, $legacyAlt, $sessions, $allowReset);
 
             $modulesOut[] = [
                 'id' => $mid,
@@ -137,7 +139,8 @@ final class AdminCourseLearnerDetailService
         ?ModuleProgress $p,
         int $contentIdx,
         bool $legacyAlt,
-        $sessionsByModuleId
+        $sessionsByModuleId,
+        bool $allowReset = true
     ): array {
         $mid = (int) $mod->id;
         $out = [];
@@ -156,7 +159,7 @@ final class AdminCourseLearnerDetailService
                 $pct = $complete ? 100 : 0;
                 $resetStep = $this->resetStepForBackendKey($bk);
                 $started = $this->sectionStarted($p, $bk, $mid, $courseId, $contentIdx, $legacyAlt, $sessionsByModuleId);
-                $showReset = $resetStep !== null && $started;
+                $showReset = $allowReset && $resetStep !== null && $started;
 
                 $hash = $this->anchorForBackendKey($bk);
                 $viewUrl = route('admin.learners.course.learner.module', [
@@ -196,7 +199,7 @@ final class AdminCourseLearnerDetailService
             $pct = $complete ? 100 : 0;
             $resetStep = $this->resetStepForBackendKey($bk);
             $started = $this->sectionStarted($p, $bk, $mid, $courseId, $contentIdx, $legacyAlt, $sessionsByModuleId);
-            $showReset = $resetStep !== null && $started;
+            $showReset = $allowReset && $resetStep !== null && $started;
 
             $hash = $this->anchorForBackendKey($bk);
             $viewUrl = route('admin.learners.course.learner.module', [

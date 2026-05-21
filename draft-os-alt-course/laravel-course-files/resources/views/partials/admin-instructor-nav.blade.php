@@ -11,6 +11,8 @@
         || request()->routeIs('admin.course.module.*')
         || request()->routeIs('admin.course.settings*');
     $canTools = $portalStaffAccess && $portalStaffAccess->canUseCourseAdminTools();
+    $courseIdNav = (int) session('admin_course_id', 0);
+    $canViewLearners = $portalStaffAccess && $courseIdNav > 0 && $portalStaffAccess->canViewCourseLearnerStats($courseIdNav);
     $canStaff = $portalStaffAccess && $portalStaffAccess->canManageStaff();
     $canPortalLearners = $portalStaffAccess && $portalStaffAccess->canViewPortalLearners();
 
@@ -85,6 +87,9 @@
                    class="ai-nav__a @if ($active === 'learners_course') ai-nav__a--active @endif">Обучающиеся курса</a>
                 <a href="{{ route('admin.certificates', $apNav) }}"
                    class="ai-nav__a @if ($active === 'certificates') ai-nav__a--active @endif">Сертификаты</a>
+            @elseif ($hasAdminCourse && ! $isPortalPanel && $canViewLearners && ! empty($apNav))
+                <a href="{{ route('admin.learners.course', $apNav) }}"
+                   class="ai-nav__a @if ($active === 'learners_course') ai-nav__a--active @endif">Обучающиеся курса</a>
             @elseif ($hasAdminCourse && ! $isPortalPanel && ! empty($apNav))
                 <a href="{{ route('admin.theory.index', $apNav) }}"
                    class="ai-nav__a @if ($active === 'theory') ai-nav__a--active @endif">Содержимое курса</a>

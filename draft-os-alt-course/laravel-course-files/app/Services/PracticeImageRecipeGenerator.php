@@ -17,6 +17,11 @@ final class PracticeImageRecipeGenerator
         return 'practice-images/'.$img->id;
     }
 
+    public function previewDockerfile(PracticeImage $img): string
+    {
+        return $this->dockerfileFor($img);
+    }
+
     public function syncRecipeFiles(PracticeImage $img): void
     {
         $root = self::recipeRootAbs($img);

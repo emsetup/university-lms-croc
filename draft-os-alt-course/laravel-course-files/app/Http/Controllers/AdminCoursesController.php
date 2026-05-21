@@ -90,7 +90,7 @@ final class AdminCoursesController extends Controller
 
         $editableCourseIds = ($gate->isPortalAdmin() || $gate->isCourseModerator())
             ? null
-            : $gate->assignedCourseIds()->flip()->all();
+            : ($gate->isInstructor() ? [] : $gate->assignedCourseIds()->flip()->all());
 
         return view('admin.courses-index', [
             'courses' => $courses,
@@ -104,7 +104,7 @@ final class AdminCoursesController extends Controller
     {
         $gate = app(PortalStaffAccess::class);
         $gate->assertCanAccessCourseInAdmin($course);
-        $next = (string) $request->input('next', 'content');
+        $next = (string) $request->input('next', $gate->isInstructor() ? 'learners' : 'content');
         $gate->assertTesterSelectNext($next);
 
         $c = Course::query()->findOrFail($course);
@@ -139,7 +139,7 @@ final class AdminCoursesController extends Controller
             'admin_course_slug' => $c->slug,
         ]);
 
-        $next = (string) $request->query('next', 'content');
+        $next = (string) $request->query('next', $gate->isInstructor() ? 'learners' : 'content');
         $gate->assertTesterSelectNext($next);
 
         if ($next === 'quiz') {

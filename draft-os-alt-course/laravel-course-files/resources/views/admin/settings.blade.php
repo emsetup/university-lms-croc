@@ -6,7 +6,7 @@
     <div class="ap-page ap-fade">
         <h1 class="ap-page-title">Настройки портала</h1>
         <p class="ap-page-lead">
-            Заглушка обновления и просмотр интерфейса от лица обучающегося.
+            Заглушка обновления, просмотр портала от лица обучающегося и просмотр админки с правами сотрудника.
         </p>
 
         @if ($canMaintenance)
@@ -62,7 +62,7 @@
                     action="{{ route('admin.settings.impersonate') }}"
                     class="ap-settings-impersonate-form"
                     target="_blank"
-                    rel="noopener"
+                    data-search-url="{{ route('admin.settings.learner-search') }}"
                 >
                     @csrf
                     <input type="hidden" name="learner_id" id="ap-settings-learner-id" value="">
@@ -73,12 +73,48 @@
                         class="ap-input"
                         placeholder="Почта или имя (минимум 2 символа)"
                         autocomplete="off"
-                        data-search-url="{{ route('admin.settings.learner-search') }}"
                     >
                     <ul id="ap-settings-learner-results" class="ap-settings-learner-results" hidden></ul>
+                    <p id="ap-settings-learner-hint" class="ap-settings-learner-hint muted small" hidden></p>
                     <p id="ap-settings-learner-picked" class="muted small" style="margin:0.5rem 0 0" hidden></p>
-                    <button type="submit" class="btn btn-primary" id="ap-settings-impersonate-submit" disabled style="margin-top:0.75rem">
+                    <button type="submit" class="btn btn-primary" id="ap-settings-impersonate-submit" style="margin-top:0.75rem">
                         Открыть портал в новой вкладке
+                    </button>
+                </form>
+            </section>
+        @endif
+
+        @if ($canPreviewStaffAdmin ?? false)
+            <section class="ap-card" id="prosmotr-sotrudnik" style="margin-top:1.25rem">
+                <h2 class="ap-card__title" style="margin:0 0 0.5rem">Просмотр админки от лица сотрудника</h2>
+                <p class="muted" style="margin:0 0 1rem;line-height:1.5">
+                    Откроется <strong>новая вкладка</strong> с панелью администратора так, как её видит выбранный сотрудник
+                    (меню, курсы, доступные разделы). Ваша учётная запись не меняется; сохранение изменений в режиме просмотра отключено.
+                    В списке только сотрудники портала.
+                </p>
+                <form
+                    id="ap-settings-staff-preview-form"
+                    method="post"
+                    action="{{ route('admin.settings.staff-preview') }}"
+                    class="ap-settings-impersonate-form"
+                    target="_blank"
+                    data-search-url="{{ route('admin.settings.staff-search') }}"
+                >
+                    @csrf
+                    <input type="hidden" name="staff_learner_id" id="ap-settings-staff-learner-id" value="">
+                    <label class="ap-field-label" for="ap-settings-staff-q">Сотрудник</label>
+                    <input
+                        type="search"
+                        id="ap-settings-staff-q"
+                        class="ap-input"
+                        placeholder="Почта или имя (минимум 2 символа)"
+                        autocomplete="off"
+                    >
+                    <ul id="ap-settings-staff-results" class="ap-settings-learner-results" hidden></ul>
+                    <p id="ap-settings-staff-hint" class="ap-settings-learner-hint muted small" hidden></p>
+                    <p id="ap-settings-staff-picked" class="muted small" style="margin:0.5rem 0 0" hidden></p>
+                    <button type="submit" class="btn btn-primary" style="margin-top:0.75rem">
+                        Открыть админку в новой вкладке
                     </button>
                 </form>
             </section>
@@ -110,6 +146,7 @@
     cursor: pointer;
 }
 .ap-settings-learner-results li button:hover { background: #f1f5f9; }
+.ap-settings-learner-hint--err { color: #b45309; }
 .ap-settings-impersonation-active {
     padding: 0.85rem 1rem;
     border-radius: 8px;
@@ -120,57 +157,8 @@
 @endpush
 
 @push('scripts')
-<script>
-(function () {
-    var form = document.getElementById('ap-settings-impersonate-form');
-    if (!form) return;
-    var input = document.getElementById('ap-settings-learner-q');
-    var hidden = document.getElementById('ap-settings-learner-id');
-    var list = document.getElementById('ap-settings-learner-results');
-    var picked = document.getElementById('ap-settings-learner-picked');
-    var submit = document.getElementById('ap-settings-impersonate-submit');
-    var url = input.getAttribute('data-search-url');
-    var timer = null;
-
-    function clearPick() {
-        hidden.value = '';
-        picked.hidden = true;
-        submit.disabled = true;
-    }
-
-    input.addEventListener('input', function () {
-        clearPick();
-        var q = input.value.trim();
-        if (q.length < 2) {
-            list.hidden = true;
-            list.innerHTML = '';
-            return;
-        }
-        clearTimeout(timer);
-        timer = setTimeout(function () {
-            fetch(url + '?q=' + encodeURIComponent(q), { headers: { Accept: 'application/json' } })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    list.innerHTML = '';
-                    (data.items || []).forEach(function (item) {
-                        var li = document.createElement('li');
-                        var btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.textContent = item.label;
-                        btn.addEventListener('click', function () {
-                            hidden.value = String(item.id);
-                            picked.textContent = 'Выбран: ' + item.label;
-                            picked.hidden = false;
-                            list.hidden = true;
-                            submit.disabled = false;
-                        });
-                        li.appendChild(btn);
-                        list.appendChild(li);
-                    });
-                    list.hidden = list.children.length === 0;
-                });
-        }, 250);
-    });
-})();
-</script>
+<script src="{{ asset('js/admin-settings-impersonate.js') }}" defer></script>
+@if ($canPreviewStaffAdmin ?? false)
+<script src="{{ asset('js/admin-settings-staff-preview.js') }}" defer></script>
+@endif
 @endpush

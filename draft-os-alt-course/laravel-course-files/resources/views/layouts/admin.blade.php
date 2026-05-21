@@ -36,7 +36,7 @@
         data-ap-can-portal-learners="{{ $psa && $psa->canViewPortalLearners() ? '1' : '0' }}"
         data-ap-can-create-course="{{ $psa && $psa->canCreateCourses() ? '1' : '0' }}"
         data-ap-can-staff="{{ $psa && $psa->canManageStaff() ? '1' : '0' }}"
-        data-ap-can-docker="{{ $psa && ! $psa->isCourseTester() ? '1' : '0' }}"
+        data-ap-can-docker="{{ $psa && $psa->canUseCourseAdminTools() ? '1' : '0' }}"
     >
         <header class="admin-topbar" aria-label="Верхняя панель администратора">
             <a class="admin-topbar__logo" href="{{ route('admin.panel') }}">КРОК<span>· Панель администратора</span></a>
@@ -48,7 +48,9 @@
                 @if (\App\Support\AdminNavigation::canSeeStaff())
                     <a class="nav-item @if($navStaff) active @endif" href="{{ route('admin.staff.index') }}">Сотрудники</a>
                 @endif
-                <a class="nav-item @if($navDocker) active @endif" href="{{ $dockerHref }}">Docker</a>
+                @if ($psa && $psa->canUseCourseAdminTools())
+                    <a class="nav-item @if($navDocker) active @endif" href="{{ $dockerHref }}">Docker</a>
+                @endif
             </nav>
             <div class="admin-topbar__spacer" aria-hidden="true"></div>
             <div class="admin-topbar__actions">
@@ -66,6 +68,7 @@
         </header>
 
         <div class="admin-body">
+            @include('partials.staff-admin-preview-banner')
             @if (session('ok') || session('err'))
                 <div class="admin-flash-stack">
                     @if (session('ok'))
@@ -96,6 +99,7 @@
                     $psa = $portalStaffAccess ?? null;
                     $canTools = $psa && $psa->canUseCourseAdminTools();
                     $cid = (int) $adminCurrentCourse->id;
+                    $canViewLearners = $psa && $psa->canViewCourseLearnerStats($cid);
                     $en = (int) \App\Models\CourseEnrollment::query()->where('course_id', $cid)->count();
                     $completed = (int) \App\Models\FinalLabResult::query()
                         ->where('course_id', $cid)
@@ -129,11 +133,15 @@
                             <a class="ap-course-tabs__a @if($tab === 'course_modules') ap-course-tabs__a--active @endif"
                                href="{{ route('admin.course.settings', $tp) }}">Модули</a>
                         @endif
-                        <a class="ap-course-tabs__a @if($tab === 'course_content') ap-course-tabs__a--active @endif"
-                           href="{{ route('admin.theory.index', $tp) }}">Содержимое</a>
-                        @if ($canTools)
+                        @if ($canTools || ($psa && $psa->isCourseTester()))
+                            <a class="ap-course-tabs__a @if($tab === 'course_content') ap-course-tabs__a--active @endif"
+                               href="{{ route('admin.theory.index', $tp) }}">Содержимое</a>
+                        @endif
+                        @if ($canTools || $canViewLearners)
                             <a class="ap-course-tabs__a @if($tab === 'learners') ap-course-tabs__a--active @endif"
                                href="{{ route('admin.learners.course', $tp) }}">Обучающиеся</a>
+                        @endif
+                        @if ($canTools)
                             <a class="ap-course-tabs__a @if($tab === 'certificates') ap-course-tabs__a--active @endif"
                                href="{{ route('admin.certificates', $tp) }}">Сертификаты</a>
                         @endif

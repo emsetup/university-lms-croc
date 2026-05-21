@@ -21,8 +21,23 @@ final class TeacherCourseAnalyticsService
      */
     public function learnerRows(int $courseId): array
     {
-        $rows = [];
+        return $this->learnerRowsForCourse($courseId);
+    }
+
+    /**
+     * Строки отчёта только по обучающимся, связанным с курсом (зачисление, прогресс или ИЛР).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function learnerRowsForCourse(int $courseId): array
+    {
+        $ids = $this->learnerIdsTouchingCourse($courseId);
+        if ($ids === []) {
+            return [];
+        }
+
         $learners = Learner::query()
+            ->whereIn('id', $ids)
             ->with([
                 'moduleProgresses' => fn ($q) => $q->where('course_id', $courseId),
                 'finalLabResults' => fn ($q) => $q->where('course_id', $courseId),
@@ -30,9 +45,9 @@ final class TeacherCourseAnalyticsService
             ->orderBy('email')
             ->get();
 
-        $ids = $learners->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
         $nameByLearner = LearnerDisplay::portalDisplayNamesByLearnerIds($ids);
 
+        $rows = [];
         foreach ($learners as $learner) {
             $row = $this->rowForLearner($learner, $courseId);
             $row['full_name'] = $nameByLearner[(int) $learner->id] ?? '';

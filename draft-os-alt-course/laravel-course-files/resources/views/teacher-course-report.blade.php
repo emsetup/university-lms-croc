@@ -31,8 +31,13 @@
                 Завершили: <strong>{{ (int) $courseCounters['completed'] }}</strong>
             </p>
         @endif
+        @php
+            $reportModuleCount = (int) ($courseModuleCount ?? \App\Services\CourseScoringService::moduleCount());
+            $reportMaxCoursePoints = (int) ($maxCoursePoints ?? ($reportModuleCount * \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE + \App\Services\CourseScoringService::MAX_FINAL_LAB_POINTS));
+            $reportMaxModulePoints = $reportModuleCount * \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE;
+        @endphp
         <p class="muted small" style="margin:0.5rem 0 0">
-            <strong>Баллы за модуль:</strong> взвешенное среднее процентов теста по теории, практики и итогового теста (веса {{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_THEORY_QUIZ * 100) }}/{{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_PRACTICE * 100) }}/{{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_EXAM * 100) }}), максимум {{ \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE }} за модуль; сумма по курсу — до {{ \App\Services\CourseScoringService::moduleCount() * \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE }}; финальная лаба — до {{ \App\Services\CourseScoringService::MAX_FINAL_LAB_POINTS }}. «Итого курс» — модули + финал (макс. {{ \App\Services\CourseScoringService::moduleCount() * \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE + \App\Services\CourseScoringService::MAX_FINAL_LAB_POINTS }}).
+            <strong>Баллы за модуль:</strong> взвешенное среднее процентов теста по теории, практики и итогового теста (веса {{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_THEORY_QUIZ * 100) }}/{{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_PRACTICE * 100) }}/{{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_EXAM * 100) }}), максимум {{ \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE }} за модуль; сумма по курсу — до {{ $reportMaxModulePoints }}; финальная лаба — до {{ \App\Services\CourseScoringService::MAX_FINAL_LAB_POINTS }}. «Итого курс» — модули + финал (макс. {{ $reportMaxCoursePoints }}).
         </p>
     </div>
 
@@ -62,9 +67,14 @@
                             @else
                                 <div class="learner-cell-name">{{ $row['email'] }}</div>
                             @endif
-                            <a class="learner-cell-link" href="{{ route('teacher.course-report.learner', $row['id']) }}">Карточка →</a>
+                            @php
+                                $learnerCardUrl = ! empty($adminCourseSlug)
+                                    ? route('admin.learners.course.learner', ['adminCourse' => $adminCourseSlug, 'learner' => $row['id']])
+                                    : route('teacher.course-report.learner', $row['id']);
+                            @endphp
+                            <a class="learner-cell-link" href="{{ $learnerCardUrl }}">Карточка →</a>
                         </td>
-                        <td>{{ $row['modules_passed_count'] }} / {{ \App\Services\CourseScoringService::moduleCount() }}</td>
+                        <td>{{ $row['modules_passed_count'] }} / {{ (int) ($row['module_count'] ?? $reportModuleCount) }}</td>
                         <td>
                             {{ $row['total_module_points'] }} / {{ $row['max_module_points'] }}
                             <span class="muted small">({{ $row['module_points_percent'] }}%)</span>

@@ -1,8 +1,9 @@
 @php
     /** @var \App\Services\PortalStaffAccess|null $portalStaffAccess */
     $psa = $portalStaffAccess ?? null;
-    $showSettings = $psa && ($psa->canManagePortalSettings() || $psa->canImpersonateLearners());
-    $maintenanceOn = $showSettings && $psa->canManagePortalSettings()
+    $viewerPsa = \App\Services\PortalStaffAccess::fromLearnerId((int) session('learner_id', 0));
+    $showSettings = $viewerPsa && ($viewerPsa->canManagePortalSettings() || $viewerPsa->canImpersonateLearners() || $viewerPsa->canPreviewStaffAdmin());
+    $maintenanceOn = $showSettings && $viewerPsa->canManagePortalSettings()
         ? \App\Services\PortalMaintenance::isEnabled()
         : null;
 @endphp
@@ -23,7 +24,7 @@
             <a class="admin-settings-menu__item" href="{{ route('admin.settings') }}" role="menuitem">
                 Все настройки
             </a>
-            @if ($psa->canManagePortalSettings())
+            @if ($viewerPsa->canManagePortalSettings())
                 <div class="admin-settings-menu__hint" role="none">
                     Заглушка:
                     @if ($maintenanceOn)
@@ -33,9 +34,14 @@
                     @endif
                 </div>
             @endif
-            @if ($psa->canImpersonateLearners())
+            @if ($viewerPsa->canImpersonateLearners())
                 <a class="admin-settings-menu__item" href="{{ route('admin.settings') }}#prosmotr" role="menuitem">
-                    Смотреть от лица пользователя…
+                    Смотреть портал от лица обучающегося…
+                </a>
+            @endif
+            @if ($viewerPsa->canPreviewStaffAdmin())
+                <a class="admin-settings-menu__item" href="{{ route('admin.settings') }}#prosmotr-sotrudnik" role="menuitem">
+                    Смотреть админку от лица сотрудника…
                 </a>
             @endif
         </div>

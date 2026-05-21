@@ -54,15 +54,39 @@ final class PortalStaffAccess
         return $this->staff->isCourseTester();
     }
 
-    /** Полный доступ к настройкам курса, образам, обучающимся, сертификатам (не тестировщик). */
+    /** Редактирование курса: модули, практики, сертификаты, метаданные (не преподаватель и не тестировщик). */
     public function canUseCourseAdminTools(): bool
     {
-        return $this->isPortalAdmin() || $this->isCourseModerator() || $this->isInstructor();
+        return $this->isPortalAdmin() || $this->isCourseModerator();
+    }
+
+    /** Просмотр статистики обучающихся по курсу в админке. */
+    public function canViewCourseLearnerStats(int $courseId): bool
+    {
+        if ($this->isPortalAdmin() || $this->isCourseModerator()) {
+            return true;
+        }
+        if ($this->isInstructor()) {
+            return $this->assignedCourseIds()->containsStrict($courseId);
+        }
+
+        return false;
+    }
+
+    public function assertCanViewCourseLearnerStats(int $courseId): void
+    {
+        abort_unless($this->canViewCourseLearnerStats($courseId), 403);
+    }
+
+    /** Сброс попыток обучающего (не преподаватель). */
+    public function canResetLearnerProgress(): bool
+    {
+        return $this->isPortalAdmin() || $this->isCourseModerator();
     }
 
     public function isReadOnlyCourseContent(): bool
     {
-        return $this->isCourseTester();
+        return $this->isCourseTester() || $this->isInstructor();
     }
 
     public function canManageStaff(): bool
@@ -85,6 +109,12 @@ final class PortalStaffAccess
     public function canImpersonateLearners(): bool
     {
         return $this->canViewPortalLearners();
+    }
+
+    /** Просмотр админки с правами другого сотрудника (только чтение). */
+    public function canPreviewStaffAdmin(): bool
+    {
+        return $this->canManageStaff();
     }
 
     public function canCreateCourses(): bool
@@ -122,14 +152,7 @@ final class PortalStaffAccess
 
     public function canEditCourseMeta(int $courseId): bool
     {
-        if ($this->isPortalAdmin() || $this->isCourseModerator()) {
-            return true;
-        }
-        if ($this->isInstructor()) {
-            return $this->assignedCourseIds()->containsStrict($courseId);
-        }
-
-        return false;
+        return $this->isPortalAdmin() || $this->isCourseModerator();
     }
 
     public function assertCanEditCourseMeta(int $courseId): void

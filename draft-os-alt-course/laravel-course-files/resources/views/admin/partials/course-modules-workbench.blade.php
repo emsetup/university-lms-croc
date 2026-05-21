@@ -292,7 +292,8 @@
             </div>
             <p id="ap-sec-edit-panel-sub" class="ap-sec-edit-panel__sub ap-muted"></p>
             <div class="ap-sec-edit-panel__tabs" role="tablist">
-                <button type="button" class="ap-sec-edit-panel__tab is-active" role="tab" data-ap-sec-tab="content" aria-selected="true">Содержимое</button>
+                <button type="button" class="ap-sec-edit-panel__tab is-active" role="tab" id="ap-sec-tab-content" data-ap-sec-tab="content" aria-selected="true">Содержимое</button>
+                <button type="button" class="ap-sec-edit-panel__tab" role="tab" id="ap-sec-tab-questions" data-ap-sec-tab="questions" aria-selected="false" hidden>Вопросы</button>
                 <button type="button" class="ap-sec-edit-panel__tab" role="tab" data-ap-sec-tab="settings" aria-selected="false">Настройки раздела</button>
             </div>
         </header>
@@ -527,36 +528,68 @@
         }
         list.dataset.reorderReady = '1';
         var dragEl = null;
+
+        function finishDrag() {
+            if (dragEl) {
+                dragEl.classList.remove('is-dragging');
+            }
+            dragEl = null;
+            if (onEnd) {
+                onEnd();
+            }
+        }
+
+        function moveDragEl(beforeNode) {
+            if (!dragEl || !beforeNode || !list.contains(beforeNode)) {
+                return;
+            }
+            list.insertBefore(dragEl, beforeNode);
+        }
+
+        list.addEventListener('dragover', function (e) {
+            if (!dragEl) {
+                return;
+            }
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            var row = e.target.closest(rowSelector);
+            if (!row || row === dragEl || !list.contains(row)) {
+                return;
+            }
+            var rect = row.getBoundingClientRect();
+            var after = (e.clientY - rect.top) > rect.height / 2;
+            moveDragEl(after ? row.nextSibling : row);
+        });
+
+        list.addEventListener('drop', function (e) {
+            e.preventDefault();
+            finishDrag();
+        });
+
         list.querySelectorAll(rowSelector).forEach(function (row) {
-            row.setAttribute('draggable', 'true');
-            row.addEventListener('dragstart', function (e) {
-                if (!e.target.closest(handleSelector)) {
-                    e.preventDefault();
-                    return;
-                }
+            row.removeAttribute('draggable');
+            var handle = row.querySelector(handleSelector);
+            if (!handle) {
+                return;
+            }
+            handle.setAttribute('draggable', 'true');
+            handle.addEventListener('dragstart', function (e) {
                 dragEl = row;
                 e.dataTransfer.effectAllowed = 'move';
                 try {
-                    e.dataTransfer.setData('text/plain', row.getAttribute('data-module-id') || row.getAttribute('data-section-id') || '');
+                    e.dataTransfer.setData(
+                        'text/plain',
+                        row.getAttribute('data-module-id') || row.getAttribute('data-section-id') || ''
+                    );
                 } catch (err) { /* IE11 */ }
+                if (e.dataTransfer.setDragImage) {
+                    try {
+                        e.dataTransfer.setDragImage(row, 48, 24);
+                    } catch (err2) { /* ignore */ }
+                }
                 row.classList.add('is-dragging');
             });
-            row.addEventListener('dragend', function () {
-                row.classList.remove('is-dragging');
-                dragEl = null;
-                if (onEnd) {
-                    onEnd();
-                }
-            });
-            row.addEventListener('dragover', function (e) {
-                e.preventDefault();
-                if (!dragEl || dragEl === row) {
-                    return;
-                }
-                var rect = row.getBoundingClientRect();
-                var after = (e.clientY - rect.top) > rect.height / 2;
-                list.insertBefore(dragEl, after ? row.nextSibling : row);
-            });
+            handle.addEventListener('dragend', finishDrag);
         });
     }
 

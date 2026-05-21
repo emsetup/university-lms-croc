@@ -128,56 +128,44 @@ final class AdminLearnersController extends Controller
     public function indexCourse(Request $request): View
     {
         $courseId = (int) session('admin_course_id');
+        app(PortalStaffAccess::class)->assertCanViewCourseLearnerStats($courseId);
         $course = Course::query()->findOrFail($courseId);
+        $moduleCount = CourseScoringService::moduleCount($courseId);
+        $maxCoursePoints = $moduleCount * CourseScoringService::MAX_POINTS_PER_MODULE + CourseScoringService::MAX_FINAL_LAB_POINTS;
 
-        if ($course->slug === 'alt-os-features') {
-            return view('teacher-course-report', [
-                'layout' => 'layouts.admin',
-                'courseTitle' => $course->title,
-                'courseCounters' => $this->analytics->courseCounters($courseId),
-                'learnerRows' => $this->analytics->learnerRows($courseId),
-            ]);
-        }
+        return view('teacher-course-report', [
+            'layout' => 'layouts.admin',
+            'courseTitle' => $course->title,
+            'courseCounters' => $this->analytics->courseCounters($courseId),
+            'learnerRows' => $this->analytics->learnerRowsForCourse($courseId),
+            'adminCourseSlug' => $course->slug,
+            'courseModuleCount' => $moduleCount,
+            'maxCoursePoints' => $maxCoursePoints,
+        ]);
+    }
 
-        $ids = $this->analytics->learnerIdsTouchingCourse($courseId);
-        $learners = $ids === []
-            ? collect()
-            : Learner::query()->whereIn('id', $ids)->orderBy('email')->get();
+    public function courseLearnerShow(Request $request, Course $adminCourse, Learner $learner): View
+    {
+        $this->assertAdminCourseMatches($adminCourse);
+        app(PortalStaffAccess::class)->assertCanViewCourseLearnerStats((int) $adminCourse->id);
+        $this->assertLearnerTouchesCourse($learner, (int) $adminCourse->id);
+        $courseId = (int) $adminCourse->id;
 
-        $nameByLearner = LearnerDisplay::portalDisplayNamesByLearnerIds($ids);
+        $learner->loadMissing(['moduleProgresses', 'finalLabResults', 'courseEnrollments']);
 
-        $learnersJson = [];
-        foreach ($learners as $learner) {
-            $row = $this->analytics->rowForLearner($learner, $courseId);
-            $modsPassed = (int) ($row['modules_passed_count'] ?? 0);
-            $modsTotal = max(1, (int) ($row['module_count'] ?? 1));
-            $spanDays = $row['time']['span_days'] ?? null;
-            $timePart = is_numeric($spanDays) && (int) $spanDays > 0 ? ((int) $spanDays).'д' : '—';
-
-            $q = ['adminCourse' => $course->slug, 'learner' => $learner->id];
-
-            $email = (string) ($learner->email ?? '');
-            $fullName = $nameByLearner[(int) $learner->id] ?? '';
-
-            $learnersJson[] = [
-                'id' => (int) $learner->id,
-                'email' => $email,
-                'full_name' => $fullName,
-                'initials' => LearnerDisplay::initials($email, $fullName),
-                'meta' => $modsPassed.'/'.$modsTotal.' · '.$timePart,
-                'detail_url' => route('admin.learners.course.detail', $q),
-            ];
-        }
-
-        return view('admin.learners-course', [
-            'course' => $course,
-            'learnersJson' => $learnersJson,
+        return view('teacher-learner-profile', [
+            'learner' => $learner,
+            'forcedCourse' => $adminCourse,
+            'summaryRow' => $this->analytics->rowForLearner($learner, $courseId),
+            'moduleReport' => $this->scoring->moduleReport($learner, $courseId),
+            'modulePanels' => $this->learnerDetail->modulePanels($learner, $courseId),
         ]);
     }
 
     public function courseLearnerDetailJson(Request $request, Course $adminCourse, Learner $learner): JsonResponse
     {
         $this->assertAdminCourseMatches($adminCourse);
+        app(PortalStaffAccess::class)->assertCanViewCourseLearnerStats((int) $adminCourse->id);
         $this->assertLearnerTouchesCourse($learner, (int) $adminCourse->id);
 
         $data = $this->courseLearnerDetail->buildDetail($learner, $adminCourse);
@@ -188,6 +176,7 @@ final class AdminLearnersController extends Controller
     public function courseLearnerModuleShow(Request $request, Course $adminCourse, Learner $learner, CourseModule $courseModule): View
     {
         $this->assertAdminCourseMatches($adminCourse);
+        app(PortalStaffAccess::class)->assertCanViewCourseLearnerStats((int) $adminCourse->id);
         $this->assertLearnerTouchesCourse($learner, (int) $adminCourse->id);
         abort_unless((int) $courseModule->course_id === (int) $adminCourse->id, 404);
 
@@ -209,6 +198,7 @@ final class AdminLearnersController extends Controller
         $this->assertAdminCourseMatches($adminCourse);
         $this->assertLearnerTouchesCourse($learner, (int) $adminCourse->id);
         abort_unless((int) $courseModule->course_id === (int) $adminCourse->id, 404);
+        abort_unless(app(PortalStaffAccess::class)->canResetLearnerProgress(), 403);
 
         $request->validate([
             'step' => 'required|in:theory_quiz,module_exam,practice',

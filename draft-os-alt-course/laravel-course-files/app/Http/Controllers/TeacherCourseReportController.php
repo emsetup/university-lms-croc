@@ -8,6 +8,7 @@ use App\Models\PracticeSession;
 use App\Support\CourseModuleMeta;
 use App\Services\CourseScoringService;
 use App\Services\InstructorProgressResetService;
+use App\Services\PortalStaffAccess;
 use App\Services\TeacherCourseAnalyticsService;
 use App\Services\TeacherLearnerProfileDetailService;
 use Illuminate\Http\RedirectResponse;
@@ -67,6 +68,8 @@ class TeacherCourseReportController extends Controller
 
     public function resetAttempt(Request $request, int $learner, int $module): RedirectResponse
     {
+        abort_unless(app(PortalStaffAccess::class)->canResetLearnerProgress(), 403);
+
         $request->validate([
             'step' => 'required|in:theory_quiz,module_exam,practice',
             'confirm' => 'accepted',

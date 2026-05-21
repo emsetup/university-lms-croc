@@ -7,6 +7,7 @@ use App\Models\PortalStaff;
 use App\Services\PortalMaintenance;
 use App\Services\PortalStaffAccess;
 use App\Support\LearnerDisplay;
+use App\Support\StaffAdminPreview;
 use App\Support\StaffImpersonation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -17,12 +18,16 @@ final class AdminSettingsController extends Controller
 {
     public function show(): View
     {
-        $gate = $this->gate();
-        abort_unless($gate->canManagePortalSettings() || $gate->canImpersonateLearners(), 403);
+        $viewer = $this->viewerGate();
+        abort_unless(
+            $viewer !== null && ($viewer->canManagePortalSettings() || $viewer->canImpersonateLearners() || $viewer->canPreviewStaffAdmin()),
+            403
+        );
 
         return view('admin.settings', [
-            'canMaintenance' => $gate->canManagePortalSettings(),
-            'canImpersonate' => $gate->canImpersonateLearners(),
+            'canMaintenance' => $viewer->canManagePortalSettings(),
+            'canImpersonate' => $viewer->canImpersonateLearners(),
+            'canPreviewStaffAdmin' => $viewer->canPreviewStaffAdmin(),
             'maintenanceEnabled' => PortalMaintenance::isEnabled(),
             'maintenanceSource' => PortalMaintenance::effectiveSource(),
             'maintenanceEnvDefault' => PortalMaintenance::envDefaultEnabled(),
@@ -31,8 +36,8 @@ final class AdminSettingsController extends Controller
 
     public function updateMaintenance(Request $request): RedirectResponse
     {
-        $gate = $this->gate();
-        abort_unless($gate->canManagePortalSettings(), 403);
+        $gate = $this->viewerGate();
+        abort_unless($gate !== null && $gate->canManagePortalSettings(), 403);
 
         $enabled = $request->boolean('enabled');
         PortalMaintenance::setEnabled($enabled);
@@ -46,8 +51,8 @@ final class AdminSettingsController extends Controller
 
     public function resetMaintenance(): RedirectResponse
     {
-        $gate = $this->gate();
-        abort_unless($gate->canManagePortalSettings(), 403);
+        $gate = $this->viewerGate();
+        abort_unless($gate !== null && $gate->canManagePortalSettings(), 403);
 
         PortalMaintenance::clearRuntimeOverride();
         $def = PortalMaintenance::envDefaultEnabled();
@@ -61,8 +66,8 @@ final class AdminSettingsController extends Controller
     /** Открывается в новой вкладке (target="_blank"); сессия сотрудника не меняется. */
     public function impersonate(Request $request): RedirectResponse
     {
-        $gate = $this->gate();
-        abort_unless($gate->canImpersonateLearners(), 403);
+        $gate = $this->viewerGate();
+        abort_unless($gate !== null && $gate->canImpersonateLearners(), 403);
 
         $request->validate([
             'learner_id' => ['required', 'integer', 'min:1'],
@@ -81,8 +86,8 @@ final class AdminSettingsController extends Controller
 
     public function learnerSearch(Request $request): JsonResponse
     {
-        $gate = $this->gate();
-        abort_unless($gate->canImpersonateLearners(), 403);
+        $gate = $this->viewerGate();
+        abort_unless($gate !== null && $gate->canImpersonateLearners(), 403);
 
         $q = trim((string) $request->query('q', ''));
         if (mb_strlen($q) < 2) {
@@ -116,8 +121,81 @@ final class AdminSettingsController extends Controller
         return response()->json(['items' => $items]);
     }
 
-    private function gate(): PortalStaffAccess
+    /** Открывается в новой вкладке; сессия не меняется, права — как у выбранного сотрудника. */
+    public function staffPreview(Request $request): RedirectResponse
     {
-        return app(PortalStaffAccess::class);
+        $gate = $this->viewerGate();
+        abort_unless($gate !== null && $gate->canPreviewStaffAdmin(), 403);
+
+        $request->validate([
+            'staff_learner_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $viewerId = (int) session('learner_id', 0);
+        abort_if($viewerId <= 0, 403);
+
+        $targetId = (int) $request->input('staff_learner_id');
+        StaffAdminPreview::assertCanPreview($targetId, $viewerId);
+
+        $token = StaffAdminPreview::createPreviewToken($viewerId, $targetId);
+
+        return redirect()->route('admin.panel', [StaffAdminPreview::QUERY_PARAM => $token]);
+    }
+
+    public function endStaffPreview(): RedirectResponse
+    {
+        StaffAdminPreview::clearSession();
+
+        return redirect()
+            ->route('admin.settings', [], 302)
+            ->with('ok', 'Просмотр админки от лица сотрудника завершён.');
+    }
+
+    public function staffSearch(Request $request): JsonResponse
+    {
+        $gate = $this->viewerGate();
+        abort_unless($gate !== null && $gate->canPreviewStaffAdmin(), 403);
+
+        $q = trim((string) $request->query('q', ''));
+        if (mb_strlen($q) < 2) {
+            return response()->json(['items' => []]);
+        }
+
+        $like = '%'.addcslashes($q, '%_\\').'%';
+
+        $rows = PortalStaff::query()
+            ->with('learner')
+            ->whereHas('learner', function ($w) use ($like) {
+                $w->where('email', 'like', $like)
+                    ->orWhere('sso_display_name', 'like', $like);
+            })
+            ->orderBy('role')
+            ->limit(20)
+            ->get();
+
+        $items = [];
+        foreach ($rows as $staff) {
+            $learner = $staff->learner;
+            if ($learner === null) {
+                continue;
+            }
+            $access = new PortalStaffAccess($staff);
+            $name = LearnerDisplay::portalDisplayName($learner);
+            $role = $access->roleLabel();
+            $items[] = [
+                'id' => (int) $learner->id,
+                'email' => (string) $learner->email,
+                'name' => $name,
+                'role' => $role,
+                'label' => ($name !== '' ? $name.' · ' : '').$learner->email.' — '.$role,
+            ];
+        }
+
+        return response()->json(['items' => $items]);
+    }
+
+    private function viewerGate(): ?PortalStaffAccess
+    {
+        return PortalStaffAccess::fromLearnerId((int) session('learner_id', 0));
     }
 }
