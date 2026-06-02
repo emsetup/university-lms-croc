@@ -7,6 +7,7 @@ use App\Models\PortalStaff;
 use App\Models\PracticeImage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -17,6 +18,10 @@ final class PortalStaffAccess
     private ?Collection $assignedCourseIds = null;
 
     private ?Collection $ownedCourseIds = null;
+
+    private ?Collection $editableCourseIds = null;
+
+    private ?Collection $practiceImageIdsForEditableCourses = null;
 
     public function __construct(private PortalStaff $staff) {}
 
@@ -55,6 +60,11 @@ final class PortalStaffAccess
         return $this->staff->isCourseCreator();
     }
 
+    public function isCourseEditor(): bool
+    {
+        return $this->staff->isCourseEditor();
+    }
+
     public function isInstructor(): bool
     {
         return $this->staff->isInstructor();
@@ -70,7 +80,8 @@ final class PortalStaffAccess
     {
         return $this->isPortalAdmin()
             || $this->isCourseModerator()
-            || $this->isCourseCreator();
+            || $this->isCourseCreator()
+            || $this->isCourseEditor();
     }
 
     /** Просмотр статистики обучающихся по курсу в админке. */
@@ -81,6 +92,9 @@ final class PortalStaffAccess
         }
         if ($this->isCourseCreator()) {
             return $this->ownedCourseIds()->containsStrict($courseId);
+        }
+        if ($this->isCourseEditor()) {
+            return $this->editableCourseIds()->containsStrict($courseId);
         }
         if ($this->isInstructor()) {
             return $this->assignedCourseIds()->containsStrict($courseId);
@@ -100,14 +114,22 @@ final class PortalStaffAccess
         return $this->isPortalAdmin() || $this->isCourseModerator();
     }
 
-    /** Сброс попыток по конкретному курсу (создатель — только свои курсы). */
+    /** Сброс попыток по конкретному курсу. */
     public function canResetLearnerProgressForCourse(int $courseId): bool
     {
         if ($this->canResetLearnerProgress()) {
             return true;
         }
 
-        return $this->isCourseCreator() && $this->ownedCourseIds()->containsStrict($courseId);
+        if ($this->isCourseCreator()) {
+            return $this->ownedCourseIds()->containsStrict($courseId);
+        }
+
+        if ($this->isCourseEditor()) {
+            return $this->editableCourseIds()->containsStrict($courseId);
+        }
+
+        return false;
     }
 
     public function isReadOnlyCourseContent(): bool
@@ -147,7 +169,8 @@ final class PortalStaffAccess
     {
         return $this->isPortalAdmin()
             || $this->isCourseModerator()
-            || $this->isCourseCreator();
+            || $this->isCourseCreator()
+            || $this->isCourseEditor();
     }
 
     public function assignedCourseIds(): Collection
@@ -155,7 +178,7 @@ final class PortalStaffAccess
         if ($this->assignedCourseIds !== null) {
             return $this->assignedCourseIds;
         }
-        if ($this->isInstructor() || $this->isCourseTester()) {
+        if ($this->isInstructor() || $this->isCourseTester() || $this->isCourseEditor()) {
             $this->staff->loadMissing('courses');
 
             return $this->assignedCourseIds = $this->staff->courses->pluck('id');
@@ -166,14 +189,13 @@ final class PortalStaffAccess
 
     /**
      * Курсы, созданные этим сотрудником (владение).
-     * Для роли «Создатель курсов» — единственный источник доступа к редактированию.
      */
     public function ownedCourseIds(): Collection
     {
         if ($this->ownedCourseIds !== null) {
             return $this->ownedCourseIds;
         }
-        if (! $this->isCourseCreator()) {
+        if (! $this->isCourseCreator() && ! $this->isCourseEditor()) {
             return $this->ownedCourseIds = collect();
         }
         if (! Schema::hasColumn('courses', 'created_by_portal_staff_id')) {
@@ -185,6 +207,22 @@ final class PortalStaffAccess
             ->pluck('id');
     }
 
+    /** Назначенные + свои (для роли «Редактор курсов»). */
+    public function editableCourseIds(): Collection
+    {
+        if ($this->editableCourseIds !== null) {
+            return $this->editableCourseIds;
+        }
+        if ($this->isCourseEditor()) {
+            return $this->editableCourseIds = $this->assignedCourseIds()
+                ->merge($this->ownedCourseIds())
+                ->unique()
+                ->values();
+        }
+
+        return $this->editableCourseIds = collect();
+    }
+
     public function canAccessCourseInAdmin(int $courseId): bool
     {
         if ($this->isPortalAdmin() || $this->isCourseModerator()) {
@@ -192,6 +230,9 @@ final class PortalStaffAccess
         }
         if ($this->isCourseCreator()) {
             return $this->ownedCourseIds()->containsStrict($courseId);
+        }
+        if ($this->isCourseEditor()) {
+            return $this->editableCourseIds()->containsStrict($courseId);
         }
 
         return $this->assignedCourseIds()->containsStrict($courseId);
@@ -209,6 +250,9 @@ final class PortalStaffAccess
         }
         if ($this->isCourseCreator()) {
             return $this->ownedCourseIds()->containsStrict($courseId);
+        }
+        if ($this->isCourseEditor()) {
+            return $this->editableCourseIds()->containsStrict($courseId);
         }
 
         return false;
@@ -231,7 +275,7 @@ final class PortalStaffAccess
         if ($this->isPortalAdmin() || $this->isCourseModerator()) {
             return true;
         }
-        if (! $this->isCourseCreator()) {
+        if (! $this->isCourseCreator() && ! $this->isCourseEditor()) {
             return false;
         }
         if (! Schema::hasColumn('practice_images', 'created_by_portal_staff_id')) {
@@ -250,7 +294,24 @@ final class PortalStaffAccess
         abort_unless($this->canEditPracticeImage($id), 403);
     }
 
-    /** Использовать собранный образ в настройках своего курса (только свои образы). */
+    /** Создать копию образа (редактор может клонировать образы, уже привязанные к его курсам). */
+    public function canDuplicatePracticeImageFrom(int $practiceImageId): bool
+    {
+        if ($this->canEditPracticeImage($practiceImageId)) {
+            return true;
+        }
+
+        return $this->isCourseEditor()
+            && $this->practiceImageIdsLinkedToEditableCourses()->containsStrict($practiceImageId);
+    }
+
+    public function assertCanDuplicatePracticeImageFrom(PracticeImage|int $image): void
+    {
+        $id = $image instanceof PracticeImage ? (int) $image->id : $image;
+        abort_unless($this->canDuplicatePracticeImageFrom($id), 403);
+    }
+
+    /** Привязать собранный образ к курсу, который сотрудник может редактировать. */
     public function canAssignPracticeImageToCourse(int $practiceImageId, int $courseId): bool
     {
         if ($this->isPortalAdmin() || $this->isCourseModerator()) {
@@ -262,6 +323,16 @@ final class PortalStaffAccess
             }
 
             return $this->canEditPracticeImage($practiceImageId);
+        }
+        if ($this->isCourseEditor()) {
+            if (! $this->editableCourseIds()->containsStrict($courseId)) {
+                return false;
+            }
+            if ($this->canEditPracticeImage($practiceImageId)) {
+                return true;
+            }
+
+            return $this->practiceImageIdsLinkedToEditableCourses()->containsStrict($practiceImageId);
         }
 
         return false;
@@ -281,11 +352,67 @@ final class PortalStaffAccess
         if ($this->isPortalAdmin() || $this->isCourseModerator()) {
             return $query;
         }
-        if ($this->isCourseCreator() && Schema::hasColumn('practice_images', 'created_by_portal_staff_id')) {
-            return $query->where('created_by_portal_staff_id', (int) $this->staff->id);
+        if (($this->isCourseCreator() || $this->isCourseEditor())
+            && Schema::hasColumn('practice_images', 'created_by_portal_staff_id')) {
+            $staffId = (int) $this->staff->id;
+
+            return $query->where(function (Builder $q) use ($staffId): void {
+                $q->where('created_by_portal_staff_id', $staffId);
+                if ($this->isCourseEditor()) {
+                    $linked = $this->practiceImageIdsLinkedToEditableCourses();
+                    if ($linked->isNotEmpty()) {
+                        $q->orWhereIn('id', $linked->all());
+                    }
+                }
+            });
         }
 
         return $query;
+    }
+
+    /** Образы, уже используемые в назначенных/своих курсах редактора (для выбора в практике). */
+    public function practiceImageIdsLinkedToEditableCourses(): Collection
+    {
+        if ($this->practiceImageIdsForEditableCourses !== null) {
+            return $this->practiceImageIdsForEditableCourses;
+        }
+        if (! $this->isCourseEditor()) {
+            return $this->practiceImageIdsForEditableCourses = collect();
+        }
+
+        $courseIds = $this->editableCourseIds()->map(fn ($id) => (int) $id)->all();
+        if ($courseIds === []) {
+            return $this->practiceImageIdsForEditableCourses = collect();
+        }
+
+        $ids = collect();
+
+        if (Schema::hasTable('course_module_practice_settings') && Schema::hasTable('course_modules')) {
+            $moduleIds = DB::table('course_modules')->whereIn('course_id', $courseIds)->pluck('id');
+            if ($moduleIds->isNotEmpty()) {
+                $ids = $ids->merge(
+                    DB::table('course_module_practice_settings')
+                        ->whereIn('course_module_id', $moduleIds)
+                        ->whereNotNull('practice_image_id')
+                        ->pluck('practice_image_id')
+                );
+            }
+        }
+
+        if (Schema::hasColumn('courses', 'final_lab_practice_image_id')) {
+            $ids = $ids->merge(
+                DB::table('courses')
+                    ->whereIn('id', $courseIds)
+                    ->whereNotNull('final_lab_practice_image_id')
+                    ->pluck('final_lab_practice_image_id')
+            );
+        }
+
+        return $this->practiceImageIdsForEditableCourses = $ids
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values();
     }
 
     public function assertCanCreateCourses(): void
@@ -322,6 +449,7 @@ final class PortalStaffAccess
             PortalStaff::ROLE_PORTAL_ADMIN => 'Администратор портала',
             PortalStaff::ROLE_COURSE_MODERATOR => 'Модератор курсов',
             PortalStaff::ROLE_COURSE_CREATOR => 'Создатель курсов',
+            PortalStaff::ROLE_COURSE_EDITOR => 'Редактор курсов',
             PortalStaff::ROLE_INSTRUCTOR => 'Инструктор',
             PortalStaff::ROLE_COURSE_TESTER => 'Тестировщик курса',
             default => $this->staff->role,

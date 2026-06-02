@@ -129,7 +129,7 @@ final class AdminStaffController extends Controller
 
         if (in_array($role, [PortalStaff::ROLE_INSTRUCTOR, PortalStaff::ROLE_COURSE_TESTER], true)) {
             abort_if($courseIds === [], 422, 'Для роли «инструктор» или «тестировщик» выберите хотя бы один курс.');
-        } else {
+        } elseif ($role !== PortalStaff::ROLE_COURSE_EDITOR) {
             $courseIds = [];
         }
 
@@ -157,7 +157,7 @@ final class AdminStaffController extends Controller
      */
     private function syncCourses(PortalStaff $staff, string $role, array $courseIds): void
     {
-        if (in_array($role, [PortalStaff::ROLE_INSTRUCTOR, PortalStaff::ROLE_COURSE_TESTER], true)) {
+        if (in_array($role, [PortalStaff::ROLE_INSTRUCTOR, PortalStaff::ROLE_COURSE_TESTER, PortalStaff::ROLE_COURSE_EDITOR], true)) {
             $staff->courses()->sync($courseIds);
         } else {
             $staff->courses()->sync([]);

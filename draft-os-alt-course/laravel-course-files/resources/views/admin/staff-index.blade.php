@@ -74,6 +74,7 @@
                                 PortalStaff::ROLE_PORTAL_ADMIN => 'Администратор портала',
                                 PortalStaff::ROLE_COURSE_MODERATOR => 'Модератор',
                                 PortalStaff::ROLE_COURSE_CREATOR => 'Создатель курсов',
+                                PortalStaff::ROLE_COURSE_EDITOR => 'Редактор курсов',
                                 PortalStaff::ROLE_INSTRUCTOR => 'Преподаватель курса',
                                 PortalStaff::ROLE_COURSE_TESTER => 'Тестировщик курса',
                                 default => $row->role,
@@ -83,6 +84,7 @@
                                 PortalStaff::ROLE_INSTRUCTOR => 'ap-staff-badge ap-staff-badge--instructor',
                                 PortalStaff::ROLE_COURSE_MODERATOR => 'ap-staff-badge ap-staff-badge--moderator',
                                 PortalStaff::ROLE_COURSE_CREATOR => 'ap-staff-badge ap-staff-badge--creator',
+                                PortalStaff::ROLE_COURSE_EDITOR => 'ap-staff-badge ap-staff-badge--editor',
                                 PortalStaff::ROLE_COURSE_TESTER => 'ap-staff-badge ap-staff-badge--tester',
                                 default => 'ap-staff-badge ap-staff-badge--muted',
                             };
@@ -153,6 +155,7 @@
                         <option value="{{ PortalStaff::ROLE_PORTAL_ADMIN }}" @if ($r === PortalStaff::ROLE_PORTAL_ADMIN) selected @endif>Администратор портала</option>
                         <option value="{{ PortalStaff::ROLE_COURSE_MODERATOR }}" @if ($r === PortalStaff::ROLE_COURSE_MODERATOR) selected @endif>Модератор</option>
                         <option value="{{ PortalStaff::ROLE_COURSE_CREATOR }}" @if ($r === PortalStaff::ROLE_COURSE_CREATOR) selected @endif>Создатель курсов</option>
+                        <option value="{{ PortalStaff::ROLE_COURSE_EDITOR }}" @if ($r === PortalStaff::ROLE_COURSE_EDITOR) selected @endif>Редактор курсов</option>
                         <option value="{{ PortalStaff::ROLE_INSTRUCTOR }}" @if ($r === PortalStaff::ROLE_INSTRUCTOR) selected @endif>Преподаватель курса</option>
                         <option value="{{ PortalStaff::ROLE_COURSE_TESTER }}" @if ($r === PortalStaff::ROLE_COURSE_TESTER) selected @endif>Тестировщик курса</option>
                     </select>
@@ -160,6 +163,7 @@
                 @include('partials.admin-staff-role-guide')
                 <div class="ap-modal__field is-hidden" id="ap-staff-courses-wrap">
                     <span class="ap-modal__label">Курсы</span>
+                    <p class="ap-staff-courses-hint ap-muted" id="ap-staff-courses-hint"></p>
                     <div class="ap-staff-courses-box">
                         @foreach ($courses as $c)
                             <label class="ap-staff-course-line">
@@ -200,6 +204,7 @@
             var emailIn = document.getElementById('ap-staff-email');
             var roleSel = document.getElementById('ap-staff-role');
             var coursesWrap = document.getElementById('ap-staff-courses-wrap');
+            var coursesHint = document.getElementById('ap-staff-courses-hint');
             var formTitle = document.getElementById('ap-staff-form-title');
             var formSubmit = document.getElementById('ap-staff-form-submit');
             var storeUrl = @json(route('admin.staff.store'));
@@ -302,8 +307,17 @@
             function syncCoursesVisibility() {
                 if (!roleSel || !coursesWrap) return;
                 var v = roleSel.value;
-                var show = v === 'instructor' || v === 'course_tester';
+                var show = v === 'instructor' || v === 'course_tester' || v === 'course_editor';
                 coursesWrap.classList.toggle('is-hidden', !show);
+                if (coursesHint) {
+                    if (v === 'course_editor') {
+                        coursesHint.textContent = 'Отметьте курсы, которые редактор может править. Свои новые курсы он создаёт сам — их список дополняется автоматически.';
+                    } else if (v === 'instructor' || v === 'course_tester') {
+                        coursesHint.textContent = 'Выберите хотя бы один курс, к которому привязан сотрудник.';
+                    } else {
+                        coursesHint.textContent = '';
+                    }
+                }
             }
 
             function uncheckAllCourses() {

@@ -86,6 +86,22 @@ final class StaffRoleGuide
                     settings: ['no', '—'],
                 ),
             ],
+            PortalStaff::ROLE_COURSE_EDITOR => [
+                'label' => 'Редактор курсов',
+                'badge' => 'editor',
+                'summary' => 'Редактирует назначенные курсы и создаёт свои. В списке «Курсы» отметьте, к каким курсам дать доступ.',
+                'admin_note' => 'Доступ к /adm: назначенные + свои курсы',
+                'capabilities' => self::cells(
+                    admin: ['yes', 'Да'],
+                    courses: ['assigned', 'Назнач. + свои'],
+                    content: ['assigned', 'Назнач. + свои'],
+                    learners: ['assigned', 'Назнач. + свои'],
+                    people: ['no', '—'],
+                    docker: ['partial', 'Свои + в курсах'],
+                    staff: ['no', '—'],
+                    settings: ['no', '—'],
+                ),
+            ],
             PortalStaff::ROLE_INSTRUCTOR => [
                 'label' => 'Преподаватель курса',
                 'badge' => 'instructor',

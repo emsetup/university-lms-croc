@@ -91,10 +91,15 @@ final class AdminCoursesController extends Controller
             $owned = $gate->ownedCourseIds()->flip()->all();
             $courses = $courses->filter(fn (array $row) => isset($owned[(int) $row['id']]))->values();
         }
+        if ($gate->isCourseEditor()) {
+            $allowed = $gate->editableCourseIds()->flip()->all();
+            $courses = $courses->filter(fn (array $row) => isset($allowed[(int) $row['id']]))->values();
+        }
 
         $editableCourseIds = match (true) {
             $gate->isPortalAdmin(), $gate->isCourseModerator() => null,
             $gate->isCourseCreator() => $gate->ownedCourseIds()->flip()->all(),
+            $gate->isCourseEditor() => $gate->editableCourseIds()->flip()->all(),
             $gate->isInstructor() => [],
             default => $gate->assignedCourseIds()->flip()->all(),
         };

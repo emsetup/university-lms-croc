@@ -1813,6 +1813,12 @@ body.ap-modal-open {
   border-color: #fdba74;
 }
 
+.ap-staff-badge--editor {
+  background: #ccfbf1;
+  color: #115e59;
+  border-color: #99f6e4;
+}
+
 .ap-staff-badge--tester {
   background: #ede9fe;
   color: #5b21b6;
@@ -1879,6 +1885,12 @@ body.ap-modal-open {
   border: 1px solid var(--ap-border);
   border-radius: 10px;
   background: #fafafa;
+}
+
+.ap-staff-courses-hint {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .ap-staff-course-line {

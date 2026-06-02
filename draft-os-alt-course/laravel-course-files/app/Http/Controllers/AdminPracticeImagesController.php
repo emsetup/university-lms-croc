@@ -11,6 +11,7 @@ use App\Support\LegacyAltPracticeImageCatalog;
 use App\Support\PracticeImageWizardCatalog;
 use App\Services\PracticeImageBuildService;
 use App\Services\PracticeImageRecipeGenerator;
+use App\Services\PortalStaffAccess;
 use App\Services\PracticeLabDaemonClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -206,7 +207,7 @@ final class AdminPracticeImagesController extends Controller
         ]);
 
         $src = PracticeImage::query()->findOrFail((int) $data['source_id']);
-        $this->assertCanEditPracticeImage($src);
+        app(PortalStaffAccess::class)->assertCanDuplicatePracticeImageFrom($src);
 
         $slug = Str::slug((string) $data['title']);
         if ($slug === '') {

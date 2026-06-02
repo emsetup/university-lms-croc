@@ -318,6 +318,7 @@ class AdminPanelController extends Controller
         $editableCourseIds = match (true) {
             $gate->isPortalAdmin(), $gate->isCourseModerator() => null,
             $gate->isCourseCreator() => $gate->ownedCourseIds()->flip()->all(),
+            $gate->isCourseEditor() => $gate->editableCourseIds()->flip()->all(),
             default => $gate->assignedCourseIds()->flip()->all(),
         };
 
@@ -389,6 +390,9 @@ class AdminPanelController extends Controller
         }
         if ($gate->isCourseCreator()) {
             return $gate->ownedCourseIds()->map(fn ($id) => (int) $id)->values()->all();
+        }
+        if ($gate->isCourseEditor()) {
+            return $gate->editableCourseIds()->map(fn ($id) => (int) $id)->values()->all();
         }
 
         return null;
