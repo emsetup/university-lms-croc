@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Course;
 use App\Models\Learner;
 use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
@@ -27,6 +28,9 @@ class DashboardController extends Controller
         LearnerSsoDisplayNamePersistence::syncIfPossible($learner);
 
         $courseId = (int) session('course_id', 0);
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        $finalLabEnabled = $course ? (bool) ($course->final_lab_enabled ?? true) : true;
+        $certificateEnabled = $course ? (bool) ($course->certificate_enabled ?? true) : true;
         $modules = [];
         $sumPercent = 0;
         $modulesPassed = 0;
@@ -79,6 +83,8 @@ class DashboardController extends Controller
         $finalResult = $learner->finalLabResult;
         $finalBest = (int) ($finalResult->best_score ?? 0);
         $finalAttempts = (int) ($finalResult->attempts ?? 0);
+        $allDone = $this->scoring->allModulesComplete($learner, $courseId > 0 ? $courseId : null);
+        $finalDone = $finalLabEnabled ? (bool) optional($learner->finalLabResult)->passed : true;
 
         return view('dashboard', [
             'modules' => $modules,
@@ -87,8 +93,10 @@ class DashboardController extends Controller
             'trackAvgPercent' => $trackAvgPercent,
             'modulePointsTotal' => $this->scoring->totalModulePointsSafe($learner),
             'modulePointsMax' => $this->scoring->maxTotalModulePoints(),
-            'allDone' => $this->scoring->allModulesComplete($learner),
-            'finalDone' => (bool) optional($learner->finalLabResult)->passed,
+            'allDone' => $allDone,
+            'finalDone' => $finalDone,
+            'finalLabEnabled' => $finalLabEnabled,
+            'certificateEnabled' => $certificateEnabled,
             'finalLabBestScore' => $finalBest,
             'finalLabAttempts' => $finalAttempts,
             'assessmentSnapshot' => $this->scoring->learnerAssessmentSnapshot($learner),

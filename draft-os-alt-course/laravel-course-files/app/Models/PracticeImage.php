@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class PracticeImage extends Model
@@ -10,6 +11,7 @@ final class PracticeImage extends Model
     protected $table = 'practice_images';
 
     protected $fillable = [
+        'created_by_portal_staff_id',
         'title',
         'description',
         'slug',
@@ -39,6 +41,11 @@ final class PracticeImage extends Model
             'package_remove' => 'array',
             'features' => 'array',
         ];
+    }
+
+    public function createdByPortalStaff(): BelongsTo
+    {
+        return $this->belongsTo(PortalStaff::class, 'created_by_portal_staff_id');
     }
 
     public function modulePracticeSettings(): HasMany

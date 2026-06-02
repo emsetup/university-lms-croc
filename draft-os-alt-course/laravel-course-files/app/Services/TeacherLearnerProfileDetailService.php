@@ -16,6 +16,7 @@ final class TeacherLearnerProfileDetailService
     public function __construct(
         private CourseScoringService $scoring,
         private CourseModuleService $courseModules,
+        private CourseSectionService $courseSections,
     ) {}
 
     private function resolveCourseId(Learner $learner): int
@@ -64,18 +65,26 @@ final class TeacherLearnerProfileDetailService
 
         $reportById = collect($this->scoring->moduleReport($learner, $courseId))->keyBy('module_id');
 
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        $legacyAlt = $course?->isLegacyAltCourse() ?? false;
+        $stepTitles = config('course.step_titles', []);
+
         $panels = [];
         if ($courseId > 0 && Schema::hasTable('course_modules')) {
+            $sequence = 0;
             foreach ($this->courseModules->orderedModulesForCourse($courseId) as $mod) {
+                $sequence++;
                 $mid = (int) $mod->id;
                 $idx = $mod->effectiveContentIndex();
                 $p = $learner->progressExisting($mid, $courseId);
                 $meta = $this->courseModules->displayMeta($mod);
                 $panels[] = [
                     'module_id' => $mid,
+                    'sequence' => $sequence,
                     'content_source_index' => $idx,
                     'title' => (string) ($meta['title'] ?? ''),
                     'letter' => (string) ($meta['letter'] ?? ''),
+                    'section_rows' => $this->sectionRowsForPanel($p, $mid, $idx, $legacyAlt, $stepTitles),
                     'report' => $reportById->get($mid),
                     'progress' => $p,
                     'theory_questions' => config('course.module_quizzes.'.$idx.'.theory_quiz', []) ?: [],
@@ -103,5 +112,58 @@ final class TeacherLearnerProfileDetailService
         }
 
         return null;
+    }
+
+    /**
+     * @param  array<string, string>  $stepTitles
+     * @return list<array{label: string, percent: int, waived: bool, backend_key: string}>
+     */
+    private function sectionRowsForPanel(?\App\Models\ModuleProgress $p, int $mid, int $idx, bool $legacyAlt, array $stepTitles): array
+    {
+        $defaultLabels = [
+            'theory' => (string) ($stepTitles['theory'] ?? 'Теория'),
+            'theory_quiz' => (string) ($stepTitles['theory_quiz'] ?? 'Тест по теории'),
+            'practice' => (string) ($stepTitles['practice'] ?? 'Практика'),
+            'module_exam' => (string) ($stepTitles['module_exam'] ?? 'Экзамен'),
+        ];
+
+        $rows = [];
+        if ($this->courseSections->useDbSectionsForModule($mid)) {
+            foreach ($this->courseSections->enabledSectionsForCourseModule($mid) as $sec) {
+                $bk = $sec->backendStepKey();
+                $waived = $bk === 'practice' && $this->courseSections->isPracticeWaived($mid, $idx, $legacyAlt);
+                if ($waived) {
+                    continue;
+                }
+                $pct = $p !== null
+                    ? $this->courseSections->displayProgressPercentForBackendKey($p, $bk, $mid, $idx, $legacyAlt)
+                    : 0;
+                $rows[] = [
+                    'label' => (string) ($sec->title !== '' ? $sec->title : ($defaultLabels[$bk] ?? $bk)),
+                    'percent' => $pct,
+                    'waived' => false,
+                    'backend_key' => $bk,
+                ];
+            }
+
+            return $rows;
+        }
+
+        foreach (['theory', 'theory_quiz', 'practice', 'module_exam'] as $bk) {
+            if ($bk === 'practice' && $this->courseSections->isPracticeWaived($mid, $idx, $legacyAlt)) {
+                continue;
+            }
+            $pct = $p !== null
+                ? $this->courseSections->displayProgressPercentForBackendKey($p, $bk, $mid, $idx, $legacyAlt)
+                : 0;
+            $rows[] = [
+                'label' => $defaultLabels[$bk] ?? $bk,
+                'percent' => $pct,
+                'waived' => false,
+                'backend_key' => $bk,
+            ];
+        }
+
+        return $rows;
     }
 }

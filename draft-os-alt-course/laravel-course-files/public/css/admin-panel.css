@@ -1692,6 +1692,10 @@ body.ap-modal-open {
   max-width: 520px;
 }
 
+.ap-modal__panel--staff-guide {
+  max-width: min(92vw, 780px);
+}
+
 .is-hidden {
   display: none !important;
 }
@@ -1803,6 +1807,12 @@ body.ap-modal-open {
   border-color: #fde047;
 }
 
+.ap-staff-badge--creator {
+  background: #ffedd5;
+  color: #9a3412;
+  border-color: #fdba74;
+}
+
 .ap-staff-badge--tester {
   background: #ede9fe;
   color: #5b21b6;
@@ -1899,6 +1909,243 @@ body.ap-modal-open {
   margin-top: 0;
   padding-top: 0;
   border-top: none;
+}
+
+/* Справочник ролей в модалке сотрудника */
+.ap-staff-role-guide {
+  margin: 0.15rem 0 1rem;
+}
+
+.ap-staff-role-guide__detail {
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: linear-gradient(145deg, #fafafa 0%, #f3f4f6 100%);
+  margin-bottom: 0.75rem;
+}
+
+.ap-staff-role-guide__detail-kicker {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ap-text-secondary);
+}
+
+.ap-staff-role-guide__detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
+.ap-staff-role-guide__detail-admin {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ap-text-primary);
+}
+
+.ap-staff-role-guide__detail-summary {
+  margin: 0 0 0.65rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ap-text-secondary);
+}
+
+.ap-staff-role-guide__perm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+  gap: 0.35rem 0.75rem;
+}
+
+.ap-staff-role-guide__perm-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+}
+
+.ap-staff-role-guide__perm-section {
+  font-weight: 600;
+  color: var(--ap-text-primary);
+}
+
+.ap-staff-access {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.ap-staff-access__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.ap-staff-access--yes .ap-staff-access__icon {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.ap-staff-access--yes .ap-staff-access__icon::before {
+  content: "✓";
+}
+
+.ap-staff-access--no .ap-staff-access__icon {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+
+.ap-staff-access--no .ap-staff-access__icon::before {
+  content: "—";
+}
+
+.ap-staff-access--partial .ap-staff-access__icon {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.ap-staff-access--partial .ap-staff-access__icon::before {
+  content: "◐";
+}
+
+.ap-staff-access--own .ap-staff-access__icon {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.ap-staff-access--own .ap-staff-access__icon::before {
+  content: "◆";
+}
+
+.ap-staff-access--assigned .ap-staff-access__icon {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.ap-staff-access--assigned .ap-staff-access__icon::before {
+  content: "◎";
+}
+
+.ap-staff-access--yes .ap-staff-access__text {
+  color: #166534;
+}
+
+.ap-staff-access--no .ap-staff-access__text {
+  color: #9ca3af;
+}
+
+.ap-staff-role-guide__compare {
+  border: 1px solid var(--ap-border);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.ap-staff-role-guide__compare-summary {
+  cursor: pointer;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--ap-text-primary);
+  list-style: none;
+  user-select: none;
+}
+
+.ap-staff-role-guide__compare-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ap-staff-role-guide__compare-summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 0.35rem;
+  transition: transform 0.15s ease;
+  color: var(--ap-text-secondary);
+}
+
+.ap-staff-role-guide__compare[open] .ap-staff-role-guide__compare-summary::before {
+  transform: rotate(90deg);
+}
+
+.ap-staff-role-guide__table-wrap {
+  overflow-x: auto;
+  border-top: 1px solid var(--ap-border);
+}
+
+.ap-staff-role-guide__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+}
+
+.ap-staff-role-guide__table th,
+.ap-staff-role-guide__table td {
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.ap-staff-role-guide__table thead th {
+  background: #f9fafb;
+  font-weight: 700;
+  color: var(--ap-text-secondary);
+  white-space: nowrap;
+}
+
+.ap-staff-role-guide__th-role,
+.ap-staff-role-guide__row-label {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #fff;
+  min-width: 9.5rem;
+}
+
+.ap-staff-role-guide__table thead .ap-staff-role-guide__th-role {
+  background: #f9fafb;
+}
+
+.ap-staff-role-guide__table tbody tr.is-selected {
+  background: #f0fdf4;
+}
+
+.ap-staff-role-guide__table tbody tr.is-selected .ap-staff-role-guide__row-label {
+  background: #f0fdf4;
+}
+
+.ap-staff-role-guide__table .ap-staff-badge {
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.ap-staff-role-guide__table .ap-staff-access {
+  flex-direction: column;
+  gap: 0.1rem;
+  align-items: center;
+}
+
+.ap-staff-role-guide__table .ap-staff-access__text {
+  font-size: 0.68rem;
+  font-weight: 600;
+  max-width: 5.5rem;
+  line-height: 1.2;
 }
 
 /* /adm/lyudi — все обучающиеся */
@@ -3281,6 +3528,208 @@ body.ap-modal-open {
   border-radius: 12px;
   background: rgba(15, 23, 42, 0.04);
   border: 1px solid var(--ap-border);
+}
+
+.ap-cert-details[hidden] {
+  display: none !important;
+}
+
+.ap-cert-tiers {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ap-cert-tier {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--ap-border);
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.ap-cert-tier__grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.65rem 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .ap-cert-tier {
+    grid-template-columns: 1fr;
+  }
+  .ap-cert-tier__actions {
+    justify-content: flex-start;
+  }
+  .ap-cert-tier__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ap-cert-tier__actions {
+  display: flex;
+  gap: 0.35rem;
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.ap-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  border: 1px solid var(--ap-border);
+  background: #fff;
+  color: var(--ap-text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: help;
+  user-select: none;
+}
+
+.ap-cert-tier__head {
+  padding-bottom: 0.35rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px dashed rgba(15, 23, 42, 0.12);
+}
+
+.ap-cert-tier__title {
+  font-weight: 800;
+  font-size: 0.92rem;
+}
+
+.ap-cert-tier__hint {
+  margin-top: 0.1rem;
+  font-size: 0.82rem;
+}
+
+.ap-cert-preview {
+  margin-top: 0.85rem;
+  padding: 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--ap-border);
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.06);
+}
+
+.ap-cert-preview__title {
+  font-weight: 800;
+  margin-bottom: 0.6rem;
+}
+
+.ap-cert-preview__row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.ap-cert-preview__controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ap-cert-preview__range {
+  width: min(320px, 100%);
+}
+
+.ap-cert-preview__result {
+  margin-top: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.03);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.ap-cert-preview__ok {
+  color: var(--ap-text-secondary);
+}
+
+.ap-cert-preview__no {
+  color: #b91c1c;
+  font-weight: 800;
+}
+
+.ap-cert-preview-panel {
+  margin-top: 1.25rem;
+  grid-column: 1 / -1;
+}
+
+.ap-cert-preview__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.ap-cert-preview__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.ap-cert-preview__chip {
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--ap-border);
+  background: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ap-text-primary);
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.ap-cert-preview__chip:hover {
+  border-color: rgba(0, 185, 86, 0.45);
+  box-shadow: 0 0 0 1px rgba(0, 185, 86, 0.12);
+}
+
+.ap-cert-preview__chip--muted {
+  color: var(--ap-text-secondary);
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.ap-cert-paper-viewport {
+  margin-top: 0.5rem;
+  width: 100%;
+  border-radius: 12px;
+  background: #f1f5f9;
+  border: 1px solid var(--ap-border);
+  overflow: hidden;
+  position: relative;
+  min-height: 200px;
+}
+
+.ap-cert-paper-viewport__scale {
+  transform-origin: top left;
+  width: 1240px;
+}
+
+.ap-cert-paper-viewport__empty {
+  padding: 2rem 1.25rem;
+  text-align: center;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .ap-cert-preview__row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ap-course-settings-subtabs__a {

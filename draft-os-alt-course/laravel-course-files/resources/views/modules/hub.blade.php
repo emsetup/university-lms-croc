@@ -6,7 +6,10 @@
     $tTq = $st['theory_quiz'] ?? 'Тест по теории';
     $tPr = $st['practice'] ?? 'Практика';
     $tEx = $st['module_exam'] ?? 'Итоговый тест';
-    $skipPractice = \App\Support\CourseModuleMeta::shouldSkipPractice((int) $module);
+    $mid = (int) ($moduleSequence ?? $module);
+    $skipPractice = ! empty($hubPresent)
+        ? ! collect($hubPresent)->contains(fn ($hp) => ($hp['section']->backendStepKey() ?? '') === 'practice' && empty($hp['waived']))
+        : \App\Support\CourseModuleMeta::shouldSkipPractice((int) $module);
     $p = $progress;
     $tqLast = is_array($p->theory_quiz_last_result ?? null) ? $p->theory_quiz_last_result : [];
     $exLast = is_array($p->module_exam_last_result ?? null) ? $p->module_exam_last_result : [];
@@ -68,7 +71,7 @@
     $exLine2 = $exAtt > 0 ? implode(' · ', $exParts) : 'Порог '.$thEx.'% · до '.$exMax.' попыток';
 @endphp
 
-@section('title', 'Модуль '.$module.': '.$meta['title'])
+@section('title', 'Модуль '.$mid.': '.$meta['title'])
 
 @section('content')
     <div class="page-container">
@@ -79,8 +82,8 @@
         </a>
         <div class="module-header-card">
             <header class="module-hub__head">
-                <p class="module-badge">Модуль {{ $meta['letter'] ?? $module }}</p>
-                <h1 class="module-hub__h1">Модуль {{ $module }}: {{ $meta['title'] ?? 'Без названия' }}</h1>
+                <p class="module-badge">Модуль {{ $meta['letter'] !== '' ? $meta['letter'] : $mid }}</p>
+                <h1 class="module-hub__h1">Модуль {{ $mid }}: {{ $meta['title'] ?? 'Без названия' }}</h1>
                 @if (! empty($meta['summary']))
                     <p class="muted module-hub__lead">{{ $meta['summary'] }}</p>
                 @endif
@@ -100,7 +103,17 @@
                 <div class="progress-fill" style="width: {{ min(100, max(0, (int) $percent)) }}%"></div>
             </div>
             <p class="module-hub__legend muted small">
-                @if ($skipPractice)
+                @if (! empty($scoreWeightLegend))
+                    @if (count($scoreWeightLegend) > 0)
+                        Веса в баллах:
+                        @foreach ($scoreWeightLegend as $wl)
+                            {{ $wl['label'] }} {{ $wl['pct'] }}%@if (! $loop->last) · @endif
+                        @endforeach
+                        . Порог тестов <strong>{{ $th }}%</strong>.
+                    @else
+                        Баллы за модуль начисляются по итоговым тестам с порогом <strong>{{ $th }}%</strong>.
+                    @endif
+                @elseif ($skipPractice)
                     Баллы: без практики веса пересчитываются. Тесты — порог <strong>{{ $th }}%</strong>.
                 @else
                     Веса в баллах: {{ $tTq }} {{ $wTq }}% · {{ $tPr }} {{ $wPr }}% · {{ $tEx }} {{ $wEx }}%. Порог тестов <strong>{{ $th }}%</strong>.
@@ -113,7 +126,13 @@
             <div class="hub-briefing card" id="hub-briefing" role="region" aria-labelledby="hub-briefing-title" style="margin-bottom:1rem;border-color:#b8dcc8;background:linear-gradient(160deg,#f0faf7,#fff)">
                 <div class="card-inner" style="padding:0.85rem 1rem">
                     <h2 id="hub-briefing-title" style="margin:0 0 0.35rem;font-size:1rem">Перед началом</h2>
-                    <p class="muted small" style="margin:0 0 0.75rem">Пройдите этапы по порядку: теория → тест → практика (если есть) → итоговый тест.</p>
+                    <p class="muted small" style="margin:0 0 0.75rem">
+                        @if (! empty($hubPresent))
+                            Пройдите этапы модуля по порядку — от первого к последнему в списке ниже.
+                        @else
+                            Пройдите этапы по порядку: теория → тест → практика (если есть) → итоговый тест.
+                        @endif
+                    </p>
                     <form method="post" action="{{ route('modules.hub.ack', $module) }}" style="margin:0">
                         @csrf
                         <button type="submit" class="btn btn-primary">Понятно, продолжить</button>
@@ -268,23 +287,29 @@
             </ul>
         </nav>
 
-        <section class="module-hub__diff card">
-            <h2 class="module-hub__diff-h">Сложности по этапам</h2>
-            <form method="post" action="{{ route('modules.difficulties', $module) }}">
-                @csrf
-                <div class="module-hub__diff-grid">
-                    <label><input type="checkbox" name="d_theory" value="1" @if (old('d_theory', (bool) data_get($p->difficulty_flags, 'theory'))) checked @endif> {{ $tTheory }}</label>
-                    <label><input type="checkbox" name="d_theory_quiz" value="1" @if (old('d_theory_quiz', (bool) data_get($p->difficulty_flags, 'theory_quiz'))) checked @endif> {{ $tTq }}</label>
-                    @if (! $skipPractice)
-                        <label><input type="checkbox" name="d_practice" value="1" @if (old('d_practice', (bool) data_get($p->difficulty_flags, 'practice'))) checked @endif> {{ $tPr }}</label>
-                    @endif
-                    <label><input type="checkbox" name="d_module_exam" value="1" @if (old('d_module_exam', (bool) data_get($p->difficulty_flags, 'module_exam'))) checked @endif> {{ $tEx }}</label>
-                </div>
-                <div style="margin-top: 0.65rem">
-                    <button type="submit" class="btn btn-primary">Сохранить</button>
-                </div>
-            </form>
-        </section>
+        @if (! empty($difficultyEnabled) && ! empty($difficultyOptions))
+            <section class="module-hub__diff card">
+                <h2 class="module-hub__diff-h">Сложности по этапам</h2>
+                <form method="post" action="{{ route('modules.difficulties', $module) }}">
+                    @csrf
+                    <div class="module-hub__diff-grid">
+                        @foreach ($difficultyOptions as $opt)
+                            @php $k = (string) ($opt['key'] ?? ''); @endphp
+                            @if ($k !== '')
+                                <label>
+                                    <input type="checkbox" name="d_{{ $k }}" value="1"
+                                        @if (old('d_'.$k, (bool) data_get($p->difficulty_flags, $k))) checked @endif>
+                                    {{ $opt['title'] ?? $k }}
+                                </label>
+                            @endif
+                        @endforeach
+                    </div>
+                    <div style="margin-top: 0.65rem">
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </form>
+            </section>
+        @endif
     </div>
     </div>
 @endsection

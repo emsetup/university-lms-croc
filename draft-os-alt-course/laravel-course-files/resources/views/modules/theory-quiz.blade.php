@@ -1,7 +1,11 @@
 @extends('layouts.course')
 
+@php
+    $mid = (int) ($moduleSequence ?? $module);
+@endphp
+
 @section('title')
-Модуль {{ $module }}: {{ config('course.step_titles.theory_quiz') }}
+Модуль {{ $mid }}: {{ config('course.step_titles.theory_quiz') }}
 @endsection
 
 @section('content')
@@ -36,7 +40,7 @@
         </dialog>
 
         <div class="card theory-quiz-idle-card">
-            <h1 class="theory-quiz-page-title">Модуль {{ $module }}: {{ config('course.step_titles.theory_quiz') }}</h1>
+            <h1 class="theory-quiz-page-title">Модуль {{ $mid }}: {{ config('course.step_titles.theory_quiz') }}</h1>
             <p class="muted" style="margin:0">Ознакомьтесь с условиями в окне выше и нажмите «Начать тестирование», когда будете готовы.</p>
         </div>
     @else
@@ -46,7 +50,7 @@
         </div>
 
         <div class="card content-protect" data-integrity-protect>
-            <h1 class="theory-quiz-page-title" style="margin-top:0">Модуль {{ $module }}: {{ config('course.step_titles.theory_quiz') }}</h1>
+            <h1 class="theory-quiz-page-title" style="margin-top:0">Модуль {{ $mid }}: {{ config('course.step_titles.theory_quiz') }}</h1>
             <p class="muted">Порог успеха: {{ $passThreshold ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%. Ответьте на все вопросы и при необходимости проверьте формулировки в теории модуля.</p>
             <p class="muted small content-protect-hint">Текст заданий нельзя копировать; при переключении на другую вкладку формулировки скрываются. Скриншот средствами ОС технически не блокируется.</p>
 

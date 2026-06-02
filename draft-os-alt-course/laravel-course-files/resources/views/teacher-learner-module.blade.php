@@ -12,7 +12,7 @@
     $completed = $cid > 0
         ? (int) \App\Models\FinalLabResult::query()->where('course_id', $cid)->whereNotNull('completed_at')->count()
         : 0;
-    $canResetProgress = ($portalStaffAccess ?? null)?->canResetLearnerProgress() ?? false;
+    $canResetProgress = $cid > 0 && (($portalStaffAccess ?? null)?->canResetLearnerProgressForCourse($cid) ?? false);
     $learnersListUrl = $tp !== [] ? route('admin.learners.course', $tp) : route('teacher.course-report');
     $learnerCardUrl = route('teacher.course-report.learner', $learner->id);
     $p = $panel['progress'];

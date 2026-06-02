@@ -3,9 +3,10 @@
 @php
     $st = config('course.step_titles', []);
     $tTheory = $st['theory'] ?? 'Теория';
+    $mid = (int) ($moduleSequence ?? $module);
 @endphp
 
-@section('title', 'Модуль '.$module.': '.($meta['title'] ?? $tTheory))
+@section('title', 'Модуль '.$mid.': '.($meta['title'] ?? $tTheory))
 
 @section('content')
     <div class="page-container">
@@ -16,9 +17,9 @@
 
         <header class="card module-step-header">
             @if (! empty($meta['letter']))
-                <div class="tag module-step-header__badge">Модуль {{ $meta['letter'] }} — {{ $module }}</div>
+                <div class="tag module-step-header__badge">Модуль {{ $meta['letter'] }} — {{ $mid }}</div>
             @endif
-            <h1 class="module-step-page-title">Модуль {{ $module }}: {{ $meta['title'] ?? 'Без названия' }}</h1>
+            <h1 class="module-step-page-title">Модуль {{ $mid }}: {{ $meta['title'] ?? 'Без названия' }}</h1>
             <p class="muted module-step-header__step">{{ $tTheory }}</p>
         </header>
 

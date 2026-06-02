@@ -14,6 +14,7 @@
         <link rel="stylesheet" href="{{ asset('static/admin/admin.css') }}">
     @endif
     <link rel="stylesheet" href="{{ asset('css/portal-typography.css') }}">
+    @stack('head')
     <style id="quiz-theory-console">
         /* Тесты: переносы и фрагменты конфигурации в тексте вопроса */
         .quiz-q-text,
@@ -111,9 +112,10 @@
         }
     </style>
 </head>
-<body class="course-ui">
+<body class="course-ui @if (request()->routeIs('documentation.*')) course-ui--docs @endif">
 @php
-    $isPortalUi = request()->routeIs('portal') || request()->routeIs('login') || request()->routeIs('account');
+    $isPortalUi = request()->routeIs('portal') || request()->routeIs('login') || request()->routeIs('account')
+        || request()->routeIs('documentation.*');
     $isAdminUi = request()->routeIs('admin.*');
     $hasCourse = (bool) session('course_id');
     $hasAdminCourse = (bool) session('admin_course_id');
@@ -165,6 +167,7 @@
                     @include('partials.admin-settings-menu')
                 @endif
                 <a class="btn btn-ghost" href="{{ route('portal') }}">Курсы</a>
+                <a class="btn btn-ghost" href="{{ route('documentation.index') }}">Документация</a>
                 @if (! empty($portalStaffAccess))
                     <a class="btn btn-ghost" href="{{ route('admin.panel') }}">Управление</a>
                 @endif

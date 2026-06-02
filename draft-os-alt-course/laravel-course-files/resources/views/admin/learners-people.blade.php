@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Люди — Трек знаний')
+@section('title', 'Обучающиеся — Трек знаний')
 
 @section('content')
     @php

@@ -21,47 +21,62 @@
     @include('partials.certificate-design-css')
 
     <p class="muted" style="max-width:1240px;margin:0 auto 0.75rem;font-size:0.9rem">
-        Для администратора: сводный процент курса <strong>{{ $certCoursePercent }}%</strong>, уровень на бланке — как у слушателя. Финальная лаба (лучший результат): <strong>{{ (int) $row->best_score }}/100</strong>.
+        Для администратора: сводный процент курса <strong>{{ $certCoursePercent }}%</strong>.
+        @if ($certTier)
+            Уровень на бланке — как у слушателя.
+        @else
+            Сертификат не выдаётся (недостаточно результата).
+        @endif
+        Финальная лаба (лучший результат): <strong>{{ (int) $row->best_score }}/100</strong>.
     </p>
 
-    <div class="cert-preview-wrap" style="max-width:1240px;margin:0 auto;background:#f1f5f9;padding:1rem;border-radius:12px">
-        @include('partials.certificate-paper', [
-            'serial' => $row->certificate_serial,
-            'issueDate' => $row->certificateDisplayIssueDate()->format('d.m.Y'),
-            'recipientName' => $row->certificate_full_name ?: 'Фамилия Имя Отчество',
-            'nameExtraClass' => '',
-            'certTier' => $certTier,
-        ])
-    </div>
+    @if ($certTier)
+        <div class="cert-preview-wrap" style="max-width:1240px;margin:0 auto;background:#f1f5f9;padding:1rem;border-radius:12px">
+            @include('partials.certificate-paper', [
+                'serial' => $row->certificate_serial,
+                'issueDate' => $row->certificateDisplayIssueDate()->format('d.m.Y'),
+                'recipientName' => $row->certificate_full_name ?: 'Фамилия Имя Отчество',
+                'nameExtraClass' => '',
+                'certTier' => $certTier,
+            ])
+        </div>
+    @else
+        <div class="card" style="max-width:1240px;margin:0 auto;background:#fff;padding:1rem;border-radius:12px;border:1px solid #e2e8f0">
+            <strong>Сертификат не выдаётся.</strong>
+            <div class="muted" style="margin-top:0.35rem">Порог для сертификата задаётся уровнем с минимальным процентом во вкладке «Сертификат» у курса.</div>
+        </div>
+    @endif
 
-    <script src="{{ asset('vendor/html2canvas/1.4.1/html2canvas.min.js') }}"></script>
-    <script src="{{ asset('vendor/jspdf/2.5.1/jspdf.umd.min.js') }}"></script>
-    <script>
-        (function () {
-            var btn = document.querySelector('.js-admin-cert-pdf');
-            var wrap = document.querySelector('.cert-preview-wrap');
-            var paper = wrap ? wrap.querySelector('.cert-paper') : null;
-            if (!btn || !paper || !window.html2canvas || !window.jspdf) return;
+    @if ($certTier)
+        <script src="{{ asset('vendor/html2canvas/1.4.1/html2canvas.min.js') }}"></script>
+        <script src="{{ asset('vendor/jspdf/2.5.1/jspdf.umd.min.js') }}"></script>
+        <script>
+            (function () {
+                var btn = document.querySelector('.js-admin-cert-pdf');
+                var wrap = document.querySelector('.cert-preview-wrap');
+                var paper = wrap ? wrap.querySelector('.cert-paper') : null;
+                if (!btn || !paper || !window.html2canvas || !window.jspdf) return;
 
-            btn.addEventListener('click', function () {
-                var base = (btn.getAttribute('data-cert-basename') || 'certificate').replace(/_+/g, '_');
-                window.html2canvas(paper, {
-                    scale: 2,
-                    useCORS: true,
-                    backgroundColor: '#f0fdf9'
-                }).then(function (canvas) {
-                    var imgData = canvas.toDataURL('image/png');
-                    var pdf = new window.jspdf.jsPDF({
-                        orientation: 'landscape',
-                        unit: 'pt',
-                        format: 'a4'
-                    });
-                    var pageWidth = pdf.internal.pageSize.getWidth();
-                    var pageHeight = pdf.internal.pageSize.getHeight();
-                    pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
-                    pdf.save('certificate_' + base + '.pdf');
-                }).catch(function () {});
-            });
-        })();
-    </script>
+                btn.addEventListener('click', function () {
+                    var base = (btn.getAttribute('data-cert-basename') || 'certificate').replace(/_+/g, '_');
+                    window.html2canvas(paper, {
+                        scale: 2,
+                        useCORS: true,
+                        backgroundColor: '#f0fdf9'
+                    }).then(function (canvas) {
+                        var imgData = canvas.toDataURL('image/png');
+                        var pdf = new window.jspdf.jsPDF({
+                            orientation: 'landscape',
+                            unit: 'pt',
+                            format: 'a4'
+                        });
+                        var pageWidth = pdf.internal.pageSize.getWidth();
+                        var pageHeight = pdf.internal.pageSize.getHeight();
+                        pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
+                        pdf.save('certificate_' + base + '.pdf');
+                    }).catch(function () {});
+                });
+            })();
+        </script>
+    @endif
 @endsection

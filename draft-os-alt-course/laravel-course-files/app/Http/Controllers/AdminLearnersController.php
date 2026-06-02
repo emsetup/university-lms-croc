@@ -198,7 +198,7 @@ final class AdminLearnersController extends Controller
         $this->assertAdminCourseMatches($adminCourse);
         $this->assertLearnerTouchesCourse($learner, (int) $adminCourse->id);
         abort_unless((int) $courseModule->course_id === (int) $adminCourse->id, 404);
-        abort_unless(app(PortalStaffAccess::class)->canResetLearnerProgress(), 403);
+        abort_unless(app(PortalStaffAccess::class)->canResetLearnerProgressForCourse((int) $adminCourse->id), 403);
 
         $request->validate([
             'step' => 'required|in:theory_quiz,module_exam,practice',

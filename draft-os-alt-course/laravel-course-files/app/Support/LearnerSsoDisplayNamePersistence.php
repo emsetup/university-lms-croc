@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Запись в learners.sso_display_name того же ФИО, что видно на портале из OIDC (сессия + probe claims).
- * Вызывается при входе SSO и при открытии портала/ЛК — чтобы списки «Люди» в админке читали имя из БД.
+ * Вызывается при входе SSO и при открытии портала/ЛК — чтобы списки обучающихся в админке читали имя из БД.
  */
 final class LearnerSsoDisplayNamePersistence
 {

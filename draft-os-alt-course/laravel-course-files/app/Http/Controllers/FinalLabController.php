@@ -28,6 +28,11 @@ class FinalLabController extends Controller
     public function show(): View|RedirectResponse
     {
         $learner = Learner::findOrFail(session('learner_id'));
+        $courseId = (int) session('course_id', 0);
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        if ($course && Schema::hasColumn('courses', 'final_lab_enabled') && ! $course->final_lab_enabled) {
+            return redirect()->route('dashboard')->with('err', 'Финальная лабораторная отключена для этого курса.');
+        }
         if (! $this->scoring->allModulesComplete($learner)) {
             return redirect()->route('dashboard')->with('err', 'Финальная лабораторная доступна после прохождения всех модулей.');
         }
@@ -44,8 +49,6 @@ class FinalLabController extends Controller
         }
         $lab = PracticeLabService::make();
         $result = $this->resultModel($learner);
-        $courseId = (int) session('course_id', 0);
-        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
         $finalLabEnabled = $this->finalLabEnabledForCourse($course);
         $practiceSession = PracticeSession::query()
             ->where('learner_id', $learner->id)

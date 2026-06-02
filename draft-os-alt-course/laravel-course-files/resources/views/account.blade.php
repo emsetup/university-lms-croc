@@ -486,9 +486,12 @@
                             $next = (string) ($r['continue_next'] ?? 'default');
                             $mid = (int) ($r['continue_module_id'] ?? 0);
                             $curTitle = $r['current_module_title'] ?? null;
+                            $archived = ! empty($r['is_archived']);
                         @endphp
                         <article class="acc-card module-card portal-course-card {{ $done ? 'acc-card--done' : 'course-card-active' }}" style="animation-delay: {{ min(20, (int) $idx) * 50 }}ms" data-acc-card>
-                            @if ($done)
+                            @if ($archived)
+                                <div class="portal-course-card-status portal-course-card-status--archive">Архив</div>
+                            @elseif ($done)
                                 <div class="portal-course-card-status portal-course-card-status--done">Завершён</div>
                             @else
                                 <div class="portal-course-card-status portal-course-card-status--progress">В процессе</div>
@@ -527,7 +530,17 @@
                                     </div>
                                 </div>
                                 <div class="acc-card__footer-actions">
-                                    @if ($done)
+                                    @if ($archived)
+                                        @if (! empty($r['certificate_available']))
+                                            <form method="post" action="{{ route('portal.enroll', ['course' => $c->id]) }}" style="margin:0">
+                                                @csrf
+                                                <input type="hidden" name="next" value="certificate">
+                                                <button type="submit" class="btn btn-primary">Смотреть сертификат</button>
+                                            </form>
+                                        @else
+                                            <p class="muted small acc-card__archived-note" style="margin:0">Курс снят с обучения. Прогресс сохранён.</p>
+                                        @endif
+                                    @elseif ($done)
                                         <div class="acc-done-row">
                                             <span class="acc-done-txt">
                                                 <svg class="acc-svg-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00b956" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 12 2 2 4-4"/></svg>

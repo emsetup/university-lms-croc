@@ -1,6 +1,7 @@
 {{-- Форма «О курсе» (вкладка ?tab=kurs). Ожидает: $course, $courseStatus, $builtImages, $finalQuestionCount, $tp, $dockerLibraryUrl, $finalEditUrl --}}
 <form id="course-settings-form" method="post" action="{{ route('admin.course.settings.save', $tp) }}" class="ap-course-settings-form">
     @csrf
+    <input type="hidden" name="redirect_tab" value="kurs">
 
     <div class="ap-course-settings-grid">
         <div class="ap-settings-col">
@@ -67,6 +68,25 @@
                         <span class="ap-settings-suffix">%</span>
                     </div>
                 </div>
+
+                @php
+                    $diffOn = true;
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'difficulty_flags_enabled')) {
+                        $diffOn = (string) old('difficulty_flags_enabled', ($course->difficulty_flags_enabled ?? true) ? '1' : '0') === '1';
+                    }
+                @endphp
+                @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'difficulty_flags_enabled'))
+                    <div class="ap-settings-field" style="margin-top:1rem">
+                        <span class="ap-settings-label">Блок «Сложности по этапам»</span>
+                        <div class="ap-toggle-row">
+                            <label class="ap-toggle">
+                                <input type="checkbox" name="difficulty_flags_enabled" value="1" class="ap-toggle__input" id="difficulty-flags-enabled" @if ($diffOn) checked @endif>
+                                <span class="ap-toggle__track" aria-hidden="true"></span>
+                                <span class="ap-toggle__label">Показывать обучающимся</span>
+                            </label>
+                        </div>
+                    </div>
+                @endif
             </section>
 
             <section class="ap-settings-card" aria-labelledby="ap-settings-final-h">

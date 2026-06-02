@@ -2,9 +2,10 @@
 
 @php
     $total = count($questions);
+    $mid = (int) ($moduleSequence ?? $module);
 @endphp
 
-@section('title', 'Модуль '.$module.': '.config('course.step_titles.module_exam'))
+@section('title', 'Модуль '.$mid.': '.config('course.step_titles.module_exam'))
 
 @section('content')
     <div class="page-container">
@@ -62,7 +63,7 @@
         </dialog>
 
         <div class="card theory-quiz-idle-card">
-            <h1 class="theory-quiz-page-title">Модуль {{ $module }}: {{ config('course.step_titles.module_exam') }}</h1>
+            <h1 class="theory-quiz-page-title">Модуль {{ $mid }}: {{ config('course.step_titles.module_exam') }}</h1>
             <p class="muted" style="margin:0">
                 @if ($needsRetakeAck)
                     Сначала подтвердите условия пересдачи в первом окне, затем — общие условия теста и запуск таймера.
@@ -95,8 +96,8 @@
         @endif
     @else
         <div class="card module-exam-card content-protect" data-integrity-protect>
-            <h1 style="margin-top:0">Модуль {{ $module }}: {{ config('course.step_titles.module_exam') }}</h1>
-            @if ($module === 3)
+            <h1 style="margin-top:0">Модуль {{ $mid }}: {{ config('course.step_titles.module_exam') }}</h1>
+            @if ($mid === 3)
                 <div class="module-exam-m3-rubric muted" style="margin:0 0 1rem;line-height:1.5">
                     <p style="margin:0 0 0.35rem"><strong>Экзамен: Модуль 3 — ЦУС, Alterator и модули администрирования</strong></p>
                     <p style="margin:0">20 вопросов · 4 типа · максимум <strong>100</strong> баллов (в зачёт идёт процент от суммы баллов).</p>
@@ -108,7 +109,7 @@
                     </ul>
                     <p style="margin:0.5rem 0 0">Порог зачёта: <strong>{{ $passThreshold }}%</strong> от максимума баллов этой попытки.</p>
                 </div>
-            @elseif ($module === 4)
+            @elseif ($mid === 4)
                 <div class="module-exam-m4-rubric muted" style="margin:0 0 1rem;line-height:1.5">
                     <p style="margin:0 0 0.35rem"><strong>Экзамен: Модуль 4 — Установка ОС «Альт», инсталлятор и профили</strong></p>
                     <p style="margin:0">20 вопросов · 4 типа · <strong>100</strong> баллов · порог сдачи: <strong>{{ $passThreshold }}</strong> баллов (процент от суммы набранных баллов).</p>
@@ -120,7 +121,7 @@
                     </ul>
                     <p style="margin:0.5rem 0 0">На прохождение отводится <strong>{{ $timeLimitMinutes }} минут</strong> (таймер после «Запустить отсчёт»).</p>
                 </div>
-            @elseif ($module === 5)
+            @elseif ($mid === 5)
                 <div class="module-exam-m5-rubric muted" style="margin:0 0 1rem;line-height:1.5">
                     <p style="margin:0 0 0.35rem"><strong>Экзамен: Модуль 5 — Сеть: три менеджера и контексты</strong></p>
                     <p style="margin:0">20 вопросов · 4 типа · <strong>100</strong> баллов. Сопоставление (вопросы 14–16) оформлено как «отметьте все верные пары».</p>

@@ -15,6 +15,7 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AssessmentController;
 use App\Http\Controllers\CertificateController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\EmailLoginController;
 use App\Http\Controllers\FinalLabController;
 use App\Http\Controllers\ModuleController;
@@ -30,7 +31,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 
 // Дочерние @section рендерятся до layout: переменная нужна и на `admin.*`, `portal.*`, не только на layouts.course.
-View::composer(['layouts.course', 'admin.*', 'portal.*', 'layouts.admin', 'layouts.admin-preview', 'teacher-course-report'], function ($view) {
+View::composer(['layouts.course', 'admin.*', 'portal.*', 'docs.*', 'layouts.admin', 'layouts.admin-preview', 'teacher-course-report'], function ($view) {
     if (StaffImpersonation::isPreviewRequest(request())) {
         $view->with('portalStaffAccess', null);
         $view->with('learnerPreviewActive', true);
@@ -95,9 +96,26 @@ Route::middleware([
 
     Route::middleware([\App\Http\Middleware\EnsureLearner::class])->group(function () {
         Route::get('/account', AccountController::class)->name('account');
+        Route::get('/docs', [DocumentationController::class, 'index'])->name('documentation.index');
+        Route::get('/docs/{slug}', [DocumentationController::class, 'show'])
+            ->where('slug', '[a-z0-9\-\/]+')
+            ->name('documentation.show');
     });
 
-    Route::middleware([\App\Http\Middleware\EnsureLearner::class, \App\Http\Middleware\EnsureCourseSelected::class])->group(function () {
+    Route::middleware([
+        \App\Http\Middleware\EnsureLearner::class,
+        \App\Http\Middleware\EnsureCourseSelected::class,
+        \App\Http\Middleware\EnsureLearnerCertificateCourse::class,
+    ])->group(function () {
+        Route::get('/certificate', CertificateController::class)->name('certificate');
+        Route::post('/certificate/recipient', [CertificateController::class, 'saveRecipient'])->name('certificate.recipient');
+    });
+
+    Route::middleware([
+        \App\Http\Middleware\EnsureLearner::class,
+        \App\Http\Middleware\EnsureCourseSelected::class,
+        \App\Http\Middleware\EnsureLearnerCourseActive::class,
+    ])->group(function () {
     // Dashboard is course-scoped; keep legacy /dashboard as redirect.
     Route::get('/dashboard', function () {
         return redirect()->route('course.dashboard', ['course' => (int) session('course_id')]);
@@ -113,8 +131,6 @@ Route::middleware([
     Route::post('/final-lab/check', [FinalLabController::class, 'checkLab'])->name('final-lab.check');
     Route::post('/final-lab/accept', [FinalLabController::class, 'acceptLab'])->name('final-lab.accept');
     Route::post('/final-lab/finish', [FinalLabController::class, 'finishLab'])->name('final-lab.finish');
-    Route::get('/certificate', CertificateController::class)->name('certificate');
-    Route::post('/certificate/recipient', [CertificateController::class, 'saveRecipient'])->name('certificate.recipient');
 
     Route::prefix('module/{module}')->whereNumber('module')->group(function () {
         Route::get('/', [ModuleController::class, 'hub'])->name('modules.hub');

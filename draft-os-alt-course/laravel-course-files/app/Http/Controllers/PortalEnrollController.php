@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Models\CourseModule;
+use App\Models\Learner;
+use App\Services\LearnerCourseAvailability;
 use App\Support\OidcSignInRedirect;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,12 +24,27 @@ final class PortalEnrollController extends Controller
         }
 
         $c = Course::query()->findOrFail($course);
-        if (! $c->is_published || $c->is_archived) {
-            return redirect()->route('portal')->with('err', 'Этот курс недоступен для обучения.');
+        $learner = Learner::query()->findOrFail((int) session('learner_id'));
+        $next = (string) $request->input('next', '');
+        $certificateOnly = $next === 'certificate';
+
+        if (! LearnerCourseAvailability::isOpenForLearning($c)) {
+            if ($certificateOnly && LearnerCourseAvailability::learnerHasIssuedCertificate($learner, (int) $c->id)) {
+                session([
+                    'course_id' => $c->id,
+                    'course_title' => $c->title,
+                ]);
+
+                return redirect()->route('certificate')->with('ok', 'Сертификат по архивному курсу.');
+            }
+
+            return redirect()
+                ->route('account')
+                ->with('err', 'Этот курс снят с обучения. Прогресс и сертификаты сохранены в личном кабинете.');
         }
 
         $enroll = CourseEnrollment::query()->firstOrCreate(
-            ['course_id' => $c->id, 'learner_id' => (int) session('learner_id')],
+            ['course_id' => $c->id, 'learner_id' => $learner->id],
             []
         );
         if ($enroll->started_at === null) {
@@ -41,8 +58,7 @@ final class PortalEnrollController extends Controller
             'course_title' => $c->title,
         ]);
 
-        $next = (string) $request->input('next', '');
-        if ($next === 'certificate') {
+        if ($certificateOnly) {
             return redirect()->route('certificate')->with('ok', 'Курс выбран.');
         }
         if ($next === 'account') {

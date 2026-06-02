@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CourseModule;
+use App\Models\Course;
 use App\Models\FinalLabResult;
 use App\Models\Learner;
 use App\Models\ModuleProgress;
@@ -65,6 +66,25 @@ final class CourseScoringService
     public function maxTotalModulePoints(?int $courseId = null): int
     {
         return self::moduleCount($courseId) * self::MAX_POINTS_PER_MODULE;
+    }
+
+    private function finalLabEnabledForCourseId(?int $courseId): bool
+    {
+        if ($courseId === null || $courseId < 1 || ! Schema::hasTable('courses')) {
+            return true;
+        }
+        if (! Schema::hasColumn('courses', 'final_lab_enabled')) {
+            return true;
+        }
+
+        $v = Course::query()->whereKey($courseId)->value('final_lab_enabled');
+
+        return (bool) $v;
+    }
+
+    public function maxFinalLabPoints(?int $courseId = null): int
+    {
+        return $this->finalLabEnabledForCourseId($courseId) ? self::MAX_FINAL_LAB_POINTS : 0;
     }
 
     public function moduleProgressPercent(ModuleProgress $p): int
@@ -139,14 +159,16 @@ final class CourseScoringService
         foreach ($this->courseModules->orderedModulesForCourse($courseId) as $mod) {
             $p = $learner->progressExisting((int) $mod->id, $courseId);
             $idx = $mod->effectiveContentIndex();
-            $skipPractice = CourseModuleMeta::shouldSkipPractice($idx);
+            $mid = (int) $mod->id;
+            $legacyAlt = $mod->loadMissing('course:id,slug')->course?->isLegacyAltCourse() ?? false;
+            $skipPractice = $this->courseSections->isPracticeWaived($mid, $idx, $legacyAlt);
             $out[] = [
                 'module_id' => (int) $mod->id,
                 'course_module_id' => (int) $mod->id,
                 'title' => (string) $mod->title,
                 'letter' => (string) ($mod->letter ?? ''),
                 'content_source_index' => $idx,
-                'points' => $this->modulePointsRow($idx, $p),
+                'points' => $this->modulePointsRow($idx, $p, $mid, $legacyAlt),
                 'theory_quiz_pct' => $p ? (int) $p->theory_quiz_best_score : 0,
                 'practice_pct' => $skipPractice ? null : ($p ? (int) ($p->practice_lab_percent ?? 0) : 0),
                 'exam_pct' => $p ? (int) $p->module_exam_best_score : 0,
@@ -164,15 +186,23 @@ final class CourseScoringService
         $courseId = (int) $p->course_id;
         $cm = $this->courseModules->findForCourse($courseId, $cmId);
         $contentIdx = $cm?->effectiveContentIndex() ?? 1;
+        $legacyAlt = $cm
+            ? ($cm->relationLoaded('course') ? ($cm->course?->isLegacyAltCourse() ?? false) : ($cm->loadMissing('course:id,slug')->course?->isLegacyAltCourse() ?? false))
+            : false;
 
-        return $this->modulePointsRow($contentIdx, $p);
+        return $this->modulePointsRow($contentIdx, $p, $cmId > 0 ? $cmId : null, $legacyAlt);
     }
 
-    private function modulePointsRow(int $contentSourceIndex, ?ModuleProgress $p): int
+    private function modulePointsRow(int $contentSourceIndex, ?ModuleProgress $p, ?int $courseModuleId = null, bool $legacyAlt = true): int
     {
         if ($p === null) {
             return 0;
         }
+        $cmId = $courseModuleId ?? (int) $p->course_module_id;
+        if ($cmId > 0 && $this->courseSections->useDbSectionsForModule($cmId)) {
+            return $this->courseSections->modulePointsFromProgress($p, $cmId, $contentSourceIndex, $legacyAlt);
+        }
+
         $skipPractice = CourseModuleMeta::shouldSkipPractice($contentSourceIndex);
         $tq = (int) $p->theory_quiz_best_score;
         $pr = $skipPractice ? 100 : (int) ($p->practice_lab_percent ?? 0);
@@ -212,20 +242,22 @@ final class CourseScoringService
     {
         $final = $finalForPoints ?? $learner->finalLabResult;
 
-        return $this->totalModulePoints($learner, $courseIdOverride) + $this->finalLabPoints($final);
+        $finalPts = $this->finalLabEnabledForCourseId($courseIdOverride) ? $this->finalLabPoints($final) : 0;
+
+        return $this->totalModulePoints($learner, $courseIdOverride) + $finalPts;
     }
 
     public function grandTotalSafe(Learner $learner, ?int $courseIdOverride = null, ?FinalLabResult $finalForPoints = null): int
     {
         return min(
-            $this->maxTotalModulePoints($courseIdOverride) + self::MAX_FINAL_LAB_POINTS,
+            $this->maxTotalModulePoints($courseIdOverride) + $this->maxFinalLabPoints($courseIdOverride),
             max(0, $this->grandTotal($learner, $courseIdOverride, $finalForPoints))
         );
     }
 
     public function certificateCoursePercent(Learner $learner, ?int $courseIdOverride = null, ?FinalLabResult $finalForPoints = null): int
     {
-        $max = $this->maxTotalModulePoints($courseIdOverride) + self::MAX_FINAL_LAB_POINTS;
+        $max = $this->maxTotalModulePoints($courseIdOverride) + $this->maxFinalLabPoints($courseIdOverride);
         if ($max <= 0) {
             return 0;
         }
@@ -235,10 +267,39 @@ final class CourseScoringService
     }
 
     /**
-     * @return array{key: string, label: string}
+     * Возвращает уровень сертификата. Если уровень не найден (результат ниже минимального),
+     * сертификат не выдаётся и возвращается null.
+     *
+     * @return array{key: string, label: string}|null
      */
-    public function certificateTier(int $coursePercent): array
+    public function certificateTier(int $coursePercent, ?int $courseIdOverride = null): ?array
     {
+        // Персональная градация по курсу (если задана)
+        if ($courseIdOverride !== null && $courseIdOverride > 0 && \Illuminate\Support\Facades\Schema::hasTable('courses')) {
+            $course = \App\Models\Course::query()->find($courseIdOverride);
+            if ($course && $course->certificate_enabled && is_array($course->certificate_tiers) && $course->certificate_tiers !== []) {
+                $tiers = array_values(array_filter($course->certificate_tiers, static function ($row) {
+                    return is_array($row)
+                        && isset($row['min_percent'], $row['label'])
+                        && is_numeric($row['min_percent'])
+                        && trim((string) $row['label']) !== '';
+                }));
+                usort($tiers, static fn ($a, $b) => ((int) $b['min_percent']) <=> ((int) $a['min_percent']));
+                foreach ($tiers as $t) {
+                    if ($coursePercent >= (int) $t['min_percent']) {
+                        $k = strtolower(preg_replace('/[^a-z0-9\-_]/', '', (string) ($t['key'] ?? '')));
+                        if ($k === '') {
+                            $k = 'tier';
+                        }
+                        return ['key' => $k, 'label' => trim((string) $t['label'])];
+                    }
+                }
+                // Ни один уровень не подошёл — сертификат не выдаётся.
+                return null;
+            }
+        }
+
+        // Fallback (как было раньше)
         if ($coursePercent >= 90) {
             return ['key' => 'expert', 'label' => 'ALT Linux Administrator — Expert'];
         }
@@ -246,7 +307,7 @@ final class CourseScoringService
             return ['key' => 'administrator', 'label' => 'ALT Linux Administrator'];
         }
 
-        return ['key' => 'retake', 'label' => 'Пересдача'];
+        return null;
     }
 
     public function finalLabPoints(?FinalLabResult $final): int
@@ -287,7 +348,8 @@ final class CourseScoringService
                 $meta = $this->courseModules->displayMeta($mod);
                 $p = $learner->progressExisting($id, $courseId);
                 $idx = $mod->effectiveContentIndex();
-                $skipPractice = CourseModuleMeta::shouldSkipPractice($idx);
+                $legacyAlt = $mod->loadMissing('course:id,slug')->course?->isLegacyAltCourse() ?? false;
+                $skipPractice = $this->courseSections->isPracticeWaived($id, $idx, $legacyAlt);
                 $tq = $p ? (int) $p->theory_quiz_best_score : 0;
                 $pr = $skipPractice ? null : ($p ? (int) ($p->practice_lab_percent ?? 0) : 0);
                 $ex = $p ? (int) $p->module_exam_best_score : 0;
@@ -328,7 +390,7 @@ final class CourseScoringService
                     'theory_quiz_pct' => $tq,
                     'practice_pct' => $pr,
                     'exam_pct' => $ex,
-                    'points' => $this->modulePointsRow($idx, $p),
+                    'points' => $this->modulePointsRow($idx, $p, $id, $legacyAlt),
                     'weak_key' => $weakKey,
                     'any_below_pass' => $anyBelowPass,
                     'tq_attempts' => $p ? (int) $p->theory_quiz_attempts : 0,

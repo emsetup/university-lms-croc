@@ -6,11 +6,12 @@
     <div class="page-container">
     @php
         $isNameLocked = ! empty($final->certificate_full_name);
-        $grandMax = (int) $modulePointsMax + 100;
+        $grandMax = (int) $modulePointsMax + (int) ($finalLabMax ?? 100);
+        $courseTitle = (string) (($course?->certificate_title) ?: ($course?->title) ?: 'курсу');
     @endphp
     <div class="cert-hero" style="margin-bottom:1rem">
         <div class="tag" style="margin-bottom:0.75rem">Итоговая страница</div>
-        <h1 style="margin:0 0 0.5rem">Сертификат по курсу "Особенности ОС Альт"</h1>
+        <h1 style="margin:0 0 0.5rem">{{ $courseTitle }}</h1>
         <p class="muted" style="margin:0">Корпоративная почта</p>
         <div style="font-size:1.1rem;font-weight:700;margin:0.35rem 0 1rem">{{ $learner->email }}</div>
         <div style="text-align:center;margin:0.35rem 0 0">
@@ -60,7 +61,7 @@
 
     <div class="card" style="margin-top:1rem">
         <h2 style="margin-top:0">Разбивка</h2>
-        <p class="muted">Модули: <strong>{{ $modulePoints }}</strong> из {{ $modulePointsMax }}. Финальная лаба: <strong>{{ $finalPoints }}</strong> из 100. Попыток финальной: <strong>{{ $final->attempts }}</strong>.</p>
+        <p class="muted">Модули: <strong>{{ $modulePoints }}</strong> из {{ $modulePointsMax }}. Финальная лаба: <strong>{{ $finalPoints }}</strong> из {{ (int) ($finalLabMax ?? 100) }}. Попыток финальной: <strong>{{ (int) ($final->attempts ?? 0) }}</strong>.</p>
     </div>
 
     <div class="card" style="margin-top:1rem">

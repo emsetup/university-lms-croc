@@ -15,6 +15,7 @@ final class Course extends Model
     }
 
     protected $fillable = [
+        'created_by_portal_staff_id',
         'slug',
         'title',
         'summary',
@@ -27,6 +28,11 @@ final class Course extends Model
         'default_pass_percent',
         'final_lab_enabled',
         'final_lab_practice_image_id',
+        'difficulty_flags_enabled',
+        'certificate_enabled',
+        'certificate_title',
+        'certificate_body',
+        'certificate_tiers',
     ];
 
     protected $casts = [
@@ -39,7 +45,17 @@ final class Course extends Model
         'default_pass_percent' => 'integer',
         'final_lab_enabled' => 'bool',
         'final_lab_practice_image_id' => 'integer',
+        'difficulty_flags_enabled' => 'bool',
+        'certificate_enabled' => 'bool',
+        'certificate_title' => 'string',
+        'certificate_body' => 'string',
+        'certificate_tiers' => 'array',
     ];
+
+    public function createdByPortalStaff(): BelongsTo
+    {
+        return $this->belongsTo(PortalStaff::class, 'created_by_portal_staff_id');
+    }
 
     public function enrollments(): HasMany
     {

@@ -488,4 +488,140 @@ final class CourseSectionService
 
         return false;
     }
+
+    /** @var array<string, float> */
+    private const DEFAULT_SCORE_WEIGHTS = [
+        'theory_quiz' => CourseScoringService::MODULE_SCORE_WEIGHT_THEORY_QUIZ,
+        'practice' => CourseScoringService::MODULE_SCORE_WEIGHT_PRACTICE,
+        'module_exam' => CourseScoringService::MODULE_SCORE_WEIGHT_EXAM,
+    ];
+
+    /**
+     * Ключи этапов, участвующих в баллах модуля (теория без % не входит).
+     *
+     * @return list<string>
+     */
+    public function scorableBackendKeys(int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): array
+    {
+        if ($courseModuleId > 0 && $this->useDbSectionsForModule($courseModuleId)) {
+            $out = [];
+            foreach ($this->orderedBackendKeys($courseModuleId, $contentSourceIndex, $legacyAlt) as $bk) {
+                if (isset(self::DEFAULT_SCORE_WEIGHTS[$bk])) {
+                    $out[] = $bk;
+                }
+            }
+
+            return $out;
+        }
+
+        $keys = ['theory_quiz', 'module_exam'];
+        if (! CourseModuleMeta::shouldSkipPractice($contentSourceIndex)) {
+            array_splice($keys, 1, 0, ['practice']);
+        }
+
+        return $keys;
+    }
+
+    /**
+     * Нормализованные доли веса (сумма = 1) только по включённым этапам с баллами.
+     *
+     * @return array<string, float>
+     */
+    public function moduleScoreWeights(int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): array
+    {
+        $keys = $this->scorableBackendKeys($courseModuleId, $contentSourceIndex, $legacyAlt);
+        if ($keys === []) {
+            return [];
+        }
+
+        $sum = 0.0;
+        $raw = [];
+        foreach ($keys as $k) {
+            $w = self::DEFAULT_SCORE_WEIGHTS[$k];
+            $raw[$k] = $w;
+            $sum += $w;
+        }
+
+        $out = [];
+        foreach ($raw as $k => $w) {
+            $out[$k] = $sum > 0 ? $w / $sum : 0.0;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Подписи весов для легенды на хабе: «Тест 50% · Экзамен 50%».
+     *
+     * @return list<array{label: string, pct: int}>
+     */
+    public function moduleScoreWeightLegend(int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): array
+    {
+        $titles = config('course.step_titles', []);
+        $labels = [
+            'theory_quiz' => (string) ($titles['theory_quiz'] ?? 'Тест по теории'),
+            'practice' => (string) ($titles['practice'] ?? 'Практика'),
+            'module_exam' => (string) ($titles['module_exam'] ?? 'Итоговый тест'),
+        ];
+
+        $out = [];
+        foreach ($this->moduleScoreWeights($courseModuleId, $contentSourceIndex, $legacyAlt) as $bk => $w) {
+            $out[] = [
+                'label' => $labels[$bk] ?? $bk,
+                'pct' => (int) round($w * 100),
+            ];
+        }
+
+        return $out;
+    }
+
+    public function scorePercentForBackendKey(ModuleProgress $p, string $backendKey, int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): int
+    {
+        if ($backendKey === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)) {
+            return 100;
+        }
+
+        return match ($backendKey) {
+            'theory_quiz' => min(100, max(0, (int) $p->theory_quiz_best_score)),
+            'practice' => min(100, max(0, (int) ($p->practice_lab_percent ?? ($p->practice_done_at ? 100 : 0)))),
+            'module_exam' => min(100, max(0, (int) $p->module_exam_best_score)),
+            default => 0,
+        };
+    }
+
+    public function modulePointsFromProgress(ModuleProgress $p, int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): int
+    {
+        $weights = $this->moduleScoreWeights($courseModuleId, $contentSourceIndex, $legacyAlt);
+        if ($weights === []) {
+            return 0;
+        }
+
+        $raw = 0.0;
+        foreach ($weights as $bk => $w) {
+            $raw += $w * $this->scorePercentForBackendKey($p, $bk, $courseModuleId, $contentSourceIndex, $legacyAlt);
+        }
+
+        return (int) round(CourseScoringService::MAX_POINTS_PER_MODULE * $raw / 100);
+    }
+
+    /**
+     * % для строки прогресса в отчёте преподавателя (теория — по просмотру, тесты — по best_score).
+     */
+    public function displayProgressPercentForBackendKey(
+        ModuleProgress $p,
+        string $backendKey,
+        int $courseModuleId,
+        int $contentSourceIndex,
+        bool $legacyAlt = true
+    ): int {
+        if ($backendKey === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)) {
+            return 0;
+        }
+
+        return match ($backendKey) {
+            'theory' => $p->theory_read_at ? 100 : 0,
+            'theory_quiz', 'practice', 'module_exam' => $this->scorePercentForBackendKey($p, $backendKey, $courseModuleId, $contentSourceIndex, $legacyAlt),
+            default => 0,
+        };
+    }
 }

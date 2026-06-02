@@ -43,7 +43,7 @@
             <nav class="admin-topbar__nav" aria-label="Основные разделы">
                 <a class="nav-item @if($navCourses) active @endif" href="{{ route('admin.courses.index') }}">Курсы</a>
                 @if (\App\Support\AdminNavigation::canSeePortalLearners())
-                    <a class="nav-item @if($navPeople) active @endif" href="{{ route('admin.learners.portal') }}">Люди</a>
+                    <a class="nav-item @if($navPeople) active @endif" href="{{ route('admin.learners.portal') }}">Обучающиеся</a>
                 @endif
                 @if (\App\Support\AdminNavigation::canSeeStaff())
                     <a class="nav-item @if($navStaff) active @endif" href="{{ route('admin.staff.index') }}">Сотрудники</a>
@@ -59,6 +59,7 @@
                     @include('partials.ap-icon', ['name' => 'search', 'size' => 'sm'])
                     <span class="kbd" data-ap-kbd-palette>⌘K</span>
                 </button>
+                <a class="nav-cmd-btn" href="{{ route('documentation.index') }}">Документация</a>
                 <a class="nav-cmd-btn" href="{{ route('portal') }}">→ Портал</a>
                 <form method="post" action="{{ route('logout') }}" style="margin:0;display:inline">
                     @csrf

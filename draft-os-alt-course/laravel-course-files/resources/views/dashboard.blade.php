@@ -99,11 +99,11 @@
                     }
                 @endphp
                 @if (!empty($m['unlocked']))
-                    <a href="{{ route('modules.hub', $m['id']) }}" class="{{ $cellClass }}" role="listitem" title="Модуль {{ $m['id'] }}: {{ $m['title'] }}">
-                        {{ $m['id'] }}
+                    <a href="{{ route('modules.hub', $m['id']) }}" class="{{ $cellClass }}" role="listitem" title="Модуль {{ (int) ($m['sequence'] ?? 1) }}: {{ $m['title'] }}">
+                        {{ (int) ($m['sequence'] ?? 1) }}
                     </a>
                 @else
-                    <span class="{{ $cellClass }}" role="listitem" title="Сначала зачтите итоговый тест предыдущего модуля (№{{ max(1, (int) ($m['sequence'] ?? 1) - 1) }}) или сдайте попытку с результатом выше 0%">{{ $m['id'] }}</span>
+                    <span class="{{ $cellClass }}" role="listitem" title="Сначала зачтите итоговый тест предыдущего модуля (№{{ max(1, (int) ($m['sequence'] ?? 1) - 1) }}) или сдайте попытку с результатом выше 0%">{{ (int) ($m['sequence'] ?? 1) }}</span>
                 @endif
             @endforeach
         </div>
@@ -148,38 +148,42 @@
                 <button type="button" class="btn btn-primary" id="dash-assessment-open" aria-haspopup="dialog" aria-controls="dash-assessment-modal-dialog">Перейти к оценке</button>
             </div>
 
-            <div class="module-card {{ ! $allDone ? 'module-card--locked locked' : '' }}">
-                <div class="tag">Финальная лаба</div>
-                <div style="font-weight:700">Практический экзамен</div>
-                <div class="muted" style="font-size:0.9rem">Итоговый кейс по всем темам курса: реальная настройка системы по ТЗ. Можно возвращаться и улучшать результат.</div>
-                <div>
-                    <span class="muted small" style="display:block;margin-bottom:4px">Прогресс</span>
-                    <div class="progress-track" aria-hidden="true">
-                        <div class="progress-fill" style="width: {{ min(100, max(0, (int) ($finalLabBestScore ?? 0))) }}%"></div>
+            @if (($finalLabEnabled ?? true) === true)
+                <div class="module-card {{ ! $allDone ? 'module-card--locked locked' : '' }}">
+                    <div class="tag">Финальная лаба</div>
+                    <div style="font-weight:700">Практический экзамен</div>
+                    <div class="muted" style="font-size:0.9rem">Итоговый кейс по всем темам курса: реальная настройка системы по ТЗ. Можно возвращаться и улучшать результат.</div>
+                    <div>
+                        <span class="muted small" style="display:block;margin-bottom:4px">Прогресс</span>
+                        <div class="progress-track" aria-hidden="true">
+                            <div class="progress-fill" style="width: {{ min(100, max(0, (int) ($finalLabBestScore ?? 0))) }}%"></div>
+                        </div>
                     </div>
+                    @if (($finalLabAttempts ?? 0) > 0)
+                        <p class="module-card-lock-note muted small" style="margin:0">Попыток: {{ (int) $finalLabAttempts }} · лучший результат: {{ (int) ($finalLabBestScore ?? 0) }}%.</p>
+                    @endif
+                    @if ($allDone)
+                        <a class="btn btn-primary" href="{{ route('final-lab') }}">Открыть финальную лабу</a>
+                    @else
+                        <p class="module-card-lock-note muted small" style="margin:0">Станет доступна после завершения всех модулей.</p>
+                        <span class="btn btn-module-locked" aria-disabled="true">Недоступно</span>
+                    @endif
                 </div>
-                @if (($finalLabAttempts ?? 0) > 0)
-                    <p class="module-card-lock-note muted small" style="margin:0">Попыток: {{ (int) $finalLabAttempts }} · лучший результат: {{ (int) ($finalLabBestScore ?? 0) }}%.</p>
-                @endif
-                @if ($allDone)
-                    <a class="btn btn-primary" href="{{ route('final-lab') }}">Открыть финальную лабу</a>
-                @else
-                    <p class="module-card-lock-note muted small" style="margin:0">Станет доступна после завершения всех модулей.</p>
-                    <span class="btn btn-module-locked" aria-disabled="true">Недоступно</span>
-                @endif
-            </div>
+            @endif
 
-            <div class="module-card {{ ! $finalDone ? 'module-card--locked locked' : '' }}">
-                <div class="tag">Итог</div>
-                <div style="font-weight:700">Итоговая страница и сертификат</div>
-                <div class="muted" style="font-size:0.9rem">Финальная страница завершения обучения. После полного прохождения курса здесь доступен сертификат.</div>
-                @if ($finalDone)
-                    <a class="btn btn-primary" href="{{ route('certificate') }}">Открыть итоговую страницу</a>
-                @else
-                    <p class="module-card-lock-note muted small" style="margin:0">Откроется после успешной сдачи финальной лабораторной.</p>
-                    <span class="btn btn-module-locked" aria-disabled="true">Недоступно</span>
-                @endif
-            </div>
+            @if (($certificateEnabled ?? true) === true)
+                <div class="module-card {{ ! $finalDone ? 'module-card--locked locked' : '' }}">
+                    <div class="tag">Итог</div>
+                    <div style="font-weight:700">Итоговая страница и сертификат</div>
+                    <div class="muted" style="font-size:0.9rem">Финальная страница завершения обучения. После полного прохождения курса здесь доступен сертификат.</div>
+                    @if ($finalDone)
+                        <a class="btn btn-primary" href="{{ route('certificate') }}">Открыть итоговую страницу</a>
+                    @else
+                        <p class="module-card-lock-note muted small" style="margin:0">Откроется после успешной сдачи финальной лабораторной.</p>
+                        <span class="btn btn-module-locked" aria-disabled="true">Недоступно</span>
+                    @endif
+                </div>
+            @endif
         </div>
     </div>
 

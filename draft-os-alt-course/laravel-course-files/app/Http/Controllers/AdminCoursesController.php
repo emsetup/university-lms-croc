@@ -87,10 +87,17 @@ final class AdminCoursesController extends Controller
             $allowed = $gate->assignedCourseIds()->flip()->all();
             $courses = $courses->filter(fn (array $row) => isset($allowed[(int) $row['id']]))->values();
         }
+        if ($gate->isCourseCreator()) {
+            $owned = $gate->ownedCourseIds()->flip()->all();
+            $courses = $courses->filter(fn (array $row) => isset($owned[(int) $row['id']]))->values();
+        }
 
-        $editableCourseIds = ($gate->isPortalAdmin() || $gate->isCourseModerator())
-            ? null
-            : ($gate->isInstructor() ? [] : $gate->assignedCourseIds()->flip()->all());
+        $editableCourseIds = match (true) {
+            $gate->isPortalAdmin(), $gate->isCourseModerator() => null,
+            $gate->isCourseCreator() => $gate->ownedCourseIds()->flip()->all(),
+            $gate->isInstructor() => [],
+            default => $gate->assignedCourseIds()->flip()->all(),
+        };
 
         return view('admin.courses-index', [
             'courses' => $courses,
@@ -175,7 +182,11 @@ final class AdminCoursesController extends Controller
             'slug.regex' => 'Slug: только латиница/цифры и дефис (например: alt-os-features).',
         ]);
 
+        $gate = app(PortalStaffAccess::class);
+        $staffId = (int) $gate->staff()->id;
+
         $course = Course::query()->create([
+            'created_by_portal_staff_id' => $staffId > 0 ? $staffId : null,
             'slug' => strtolower((string) $data['slug']),
             'title' => (string) $data['title'],
             'summary' => (string) ($data['summary'] ?? ''),

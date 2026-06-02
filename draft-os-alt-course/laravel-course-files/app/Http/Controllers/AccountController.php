@@ -49,8 +49,12 @@ final class AccountController extends Controller
             ->values();
 
         $coursesQuery = Course::query()
-            ->where('is_published', true)
-            ->where('is_archived', false)
+            ->where(function ($q): void {
+                $q->where(function ($q2): void {
+                    $q2->where('is_published', true)->where('is_archived', false);
+                })->orWhere('is_archived', true);
+            })
+            ->orderBy('is_archived')
             ->orderBy('sort')
             ->orderBy('id');
         if ($visibleCourseIds->isEmpty()) {
@@ -188,6 +192,7 @@ final class AccountController extends Controller
 
         return [
             'course' => $course,
+            'is_archived' => (bool) $course->is_archived,
             'modules_passed' => $modulesPassed,
             'modules_total' => $modulesTotal,
             'modules_from_db' => $modulesFromDb,
@@ -239,11 +244,7 @@ final class AccountController extends Controller
             if ($cid < 1) {
                 continue;
             }
-            $course = Course::query()
-                ->where('id', $cid)
-                ->where('is_published', true)
-                ->where('is_archived', false)
-                ->first();
+            $course = Course::query()->where('id', $cid)->first();
             if ($course === null) {
                 continue;
             }

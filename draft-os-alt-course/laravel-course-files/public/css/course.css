@@ -2025,6 +2025,12 @@ body.course-ui .portal-course-card .portal-course-card-status--done {
   border: 1px solid #00b956;
 }
 
+body.course-ui .portal-course-card .portal-course-card-status--archive {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
 /* ─── ap-icon (портал и прохождение курса; атрибуты width/height — в partials/ap-icon) ─── */
 .ap-icon {
   width: 20px;

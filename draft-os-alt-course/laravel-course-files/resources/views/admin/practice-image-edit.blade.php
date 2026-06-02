@@ -596,6 +596,30 @@
                 if (overlayClose) overlayClose.hidden = true;
             }
 
+            function buildOverlayUrlKey(url) {
+                if (!url) return '';
+                try {
+                    var a = document.createElement('a');
+                    a.href = url;
+                    return (a.pathname || '') + (a.search || '') + (a.hash || '');
+                } catch (e) {
+                    return String(url);
+                }
+            }
+
+            function dismissBuildOverlay(redirectUrl) {
+                if (overlay) overlay.hidden = true;
+                document.body.style.overflow = '';
+                if (!redirectUrl) return;
+                var targetKey = buildOverlayUrlKey(redirectUrl);
+                var hereKey = buildOverlayUrlKey(window.location.href);
+                if (targetKey && targetKey !== hereKey) {
+                    window.location.href = redirectUrl;
+                    return;
+                }
+                window.location.reload();
+            }
+
             function finishBuildOverlay(ok, log, redirectUrl) {
                 if (overlaySpinner) overlaySpinner.hidden = true;
                 if (overlayLog && log) {
@@ -611,15 +635,14 @@
                     overlayClose.hidden = false;
                     overlayClose.onclick = function () {
                         if (ok && redirectUrl) {
-                            window.location.href = redirectUrl;
+                            dismissBuildOverlay(redirectUrl);
                         } else {
-                            overlay.hidden = true;
-                            document.body.style.overflow = '';
+                            dismissBuildOverlay(null);
                         }
                     };
                 }
                 if (ok && redirectUrl) {
-                    setTimeout(function () { window.location.href = redirectUrl; }, 1800);
+                    setTimeout(function () { dismissBuildOverlay(redirectUrl); }, 1800);
                 }
                 releaseSaveBtn();
             }

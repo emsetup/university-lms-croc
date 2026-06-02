@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Course;
+use App\Models\FinalLabResult;
 use App\Models\Learner;
 use App\Services\CourseScoringService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
+use Illuminate\Support\Facades\Schema;
 
 class CertificateController extends Controller
 {
@@ -18,25 +21,36 @@ class CertificateController extends Controller
     {
         $learner = Learner::findOrFail(session('learner_id'));
         $courseId = (int) session('course_id', 0);
-        $final = $courseId > 0
-            ? $learner->finalLabResults()->where('course_id', $courseId)->first()
-            : $learner->finalLabResult;
-        if (! $final || ! $final->passed) {
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        if ($course && ! $course->certificate_enabled) {
+            return redirect()->route('dashboard')->with('err', 'Сертификат для этого курса отключён.');
+        }
+        $finalLabEnabled = $course ? (bool) ($course->final_lab_enabled ?? true) : true;
+        $final = $this->resolveCertificateFinalRow($learner, $courseId, $finalLabEnabled);
+        if ($finalLabEnabled && ! $final->passed) {
             return redirect()->route('final-lab')->with('err', 'Сначала сдайте финальную лабораторную работу.');
         }
 
         $certCoursePercent = $this->scoring->certificateCoursePercent($learner, $courseId > 0 ? $courseId : null, $final);
+        $certTier = $this->scoring->certificateTier($certCoursePercent, $courseId > 0 ? $courseId : null);
+        if ($certTier === null) {
+            return redirect()->route('dashboard')->with('err', 'Сертификат не выдаётся: недостаточно результата по курсу.');
+        }
+
+        $finalLabMax = $this->scoring->maxFinalLabPoints($courseId > 0 ? $courseId : null);
 
         return view('certificate', [
+            'course' => $course,
             'learner' => $learner,
             'grand' => $this->scoring->grandTotal($learner, $courseId > 0 ? $courseId : null, $final),
             'certCoursePercent' => $certCoursePercent,
-            'certTier' => $this->scoring->certificateTier($certCoursePercent),
+            'certTier' => $certTier,
             'modulePoints' => $this->scoring->totalModulePoints($learner, $courseId > 0 ? $courseId : null),
             'modulePointsMax' => $this->scoring->maxTotalModulePoints($courseId > 0 ? $courseId : null),
             'finalPoints' => $this->scoring->finalLabPoints($final),
             'moduleReport' => $this->scoring->moduleReport($learner, $courseId > 0 ? $courseId : null),
             'final' => $final,
+            'finalLabMax' => $finalLabMax,
         ]);
     }
 
@@ -44,10 +58,13 @@ class CertificateController extends Controller
     {
         $learner = Learner::findOrFail(session('learner_id'));
         $courseId = (int) session('course_id', 0);
-        $final = $courseId > 0
-            ? $learner->finalLabResults()->where('course_id', $courseId)->first()
-            : $learner->finalLabResult;
-        if (! $final || ! $final->passed) {
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        if ($course && ! $course->certificate_enabled) {
+            return redirect()->route('dashboard')->with('err', 'Сертификат для этого курса отключён.');
+        }
+        $finalLabEnabled = $course ? (bool) ($course->final_lab_enabled ?? true) : true;
+        $final = $this->resolveCertificateFinalRow($learner, $courseId, $finalLabEnabled);
+        if ($finalLabEnabled && ! $final->passed) {
             return redirect()->route('final-lab')->with('err', 'Сначала сдайте финальную лабораторную работу.');
         }
         if (! empty($final->certificate_full_name)) {
@@ -80,5 +97,32 @@ class CertificateController extends Controller
         $suffix = str_pad((string) max(1, $resultId), 5, '0', STR_PAD_LEFT);
 
         return sprintf('CROC-ALT-%s-%s-L%04d', $date, $suffix, $learnerId);
+    }
+
+    private function resolveCertificateFinalRow(Learner $learner, int $courseId, bool $finalLabEnabled): FinalLabResult
+    {
+        // Если финальная лабораторная выключена, сертификат живёт "сам по себе" и хранит поля в final_lab_results
+        // (ФИО/номер/дата) без обязательного прохождения финальной лабы.
+        if (! $finalLabEnabled && $courseId > 0 && Schema::hasTable('final_lab_results')) {
+            /** @var FinalLabResult $row */
+            $row = FinalLabResult::query()->firstOrCreate(
+                ['learner_id' => $learner->id, 'course_id' => $courseId],
+                ['attempts' => 0, 'passed' => true, 'best_score' => 0, 'completed_at' => now()]
+            );
+            if (! $row->passed) {
+                $row->passed = true;
+                $row->save();
+            }
+
+            return $row;
+        }
+
+        $row = $courseId > 0
+            ? $learner->finalLabResults()->where('course_id', $courseId)->first()
+            : $learner->finalLabResult;
+
+        return $row instanceof FinalLabResult
+            ? $row
+            : new FinalLabResult(['learner_id' => $learner->id, 'course_id' => $courseId, 'attempts' => 0, 'passed' => false, 'best_score' => 0]);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ScopesPracticeImagesForStaff;
 use App\Models\Course;
 use App\Models\PracticeImage;
 use App\Models\CourseModulePracticeSetting;
@@ -21,6 +22,8 @@ use Illuminate\View\View;
 
 final class AdminPracticeImagesController extends Controller
 {
+    use ScopesPracticeImagesForStaff;
+
     private const IMAGE_STATS_TTL_MINUTES = 10;
 
     public function __construct(private PracticeImageRecipeBootstrap $recipeBootstrap) {}
@@ -35,7 +38,7 @@ final class AdminPracticeImagesController extends Controller
         $q = trim((string) $request->query('q', ''));
         $built = $request->query('built');
 
-        $items = PracticeImage::query()
+        $items = $this->scopePracticeImagesForStaff(PracticeImage::query())
             ->when($q !== '', function ($qb) use ($q) {
                 $qb->where(function ($w) use ($q) {
                     $w->where('title', 'like', '%'.$q.'%')
@@ -97,7 +100,7 @@ final class AdminPracticeImagesController extends Controller
 
         $dockerTag = $this->suggestCopyDockerTag((string) $data['docker_tag']);
 
-        $row = PracticeImage::query()->create([
+        $row = PracticeImage::query()->create($this->withPracticeImageOwner([
             'title' => (string) $data['title'],
             'slug' => $slug,
             'docker_tag' => $dockerTag,
@@ -105,7 +108,7 @@ final class AdminPracticeImagesController extends Controller
             'dockerfile_text' => '',
             'check_script_text' => '',
             'is_built' => false,
-        ]);
+        ]));
         $this->recipeBootstrap->initFromTemplate($row);
 
         return redirect()
@@ -203,6 +206,7 @@ final class AdminPracticeImagesController extends Controller
         ]);
 
         $src = PracticeImage::query()->findOrFail((int) $data['source_id']);
+        $this->assertCanEditPracticeImage($src);
 
         $slug = Str::slug((string) $data['title']);
         if ($slug === '') {
@@ -212,7 +216,7 @@ final class AdminPracticeImagesController extends Controller
             $slug = $slug.'-'.Str::lower(Str::random(4));
         }
 
-        $row = PracticeImage::query()->create([
+        $row = PracticeImage::query()->create($this->withPracticeImageOwner([
             'title' => (string) $data['title'],
             'slug' => $slug,
             'docker_tag' => $this->suggestCopyDockerTag((string) $data['docker_tag']),
@@ -229,7 +233,7 @@ final class AdminPracticeImagesController extends Controller
             'is_built' => false,
             'last_build_status' => null,
             'last_build_log' => null,
-        ]);
+        ]));
 
         app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
         $recipeRoot = $this->recipeBootstrap->recipeRootAbs($src);
@@ -250,6 +254,7 @@ final class AdminPracticeImagesController extends Controller
     public function reimportTemplate(Request $request, int $id): RedirectResponse
     {
         $row = PracticeImage::query()->findOrFail($id);
+        $this->assertCanEditPracticeImage($row);
         $this->recipeBootstrap->initFromTemplate($row);
         $row->refresh();
         app(PracticeImageRecipeGenerator::class)->syncRecipeFiles($row);
@@ -327,7 +332,7 @@ final class AdminPracticeImagesController extends Controller
             $slug = $slug.'-'.Str::lower(Str::random(4));
         }
 
-        $row = PracticeImage::query()->create([
+        $row = PracticeImage::query()->create($this->withPracticeImageOwner([
             'title' => $data['title'],
             'slug' => $slug,
             'docker_tag' => (string) $data['docker_tag'],
@@ -341,7 +346,7 @@ final class AdminPracticeImagesController extends Controller
             'dockerfile_text' => (string) ($data['dockerfile_text'] ?? ''),
             'check_script_text' => (string) ($data['check_script_text'] ?? ''),
             'is_built' => false,
-        ]);
+        ]));
 
         $init = ((string) ($data['init_from_template'] ?? '1')) === '1';
         if ($init) {
@@ -377,6 +382,7 @@ final class AdminPracticeImagesController extends Controller
     public function edit(Request $request, int $id): View
     {
         $row = PracticeImage::query()->findOrFail($id);
+        $this->assertCanEditPracticeImage($row);
 
         return view('admin.practice-image-edit', $this->wizardViewData(
             $request,
@@ -389,6 +395,7 @@ final class AdminPracticeImagesController extends Controller
     public function update(Request $request, int $id): RedirectResponse
     {
         $row = PracticeImage::query()->findOrFail($id);
+        $this->assertCanEditPracticeImage($row);
 
         $data = $request->validate([
             'title' => 'required|string|max:200',
@@ -443,6 +450,7 @@ final class AdminPracticeImagesController extends Controller
     public function destroy(Request $request, int $id): RedirectResponse
     {
         $row = PracticeImage::query()->findOrFail($id);
+        $this->assertCanEditPracticeImage($row);
         $usage = CourseModulePracticeSetting::query()->where('practice_image_id', $row->id)->count();
         $finalLabCourses = 0;
         if (Schema::hasColumn('courses', 'final_lab_practice_image_id')) {
@@ -466,6 +474,7 @@ final class AdminPracticeImagesController extends Controller
     public function build(Request $request, int $id): RedirectResponse|JsonResponse
     {
         $row = PracticeImage::query()->findOrFail($id);
+        $this->assertCanEditPracticeImage($row);
         $client = PracticeLabDaemonClient::fromConfig();
         if (! $client) {
             if ($request->wantsJson()) {
@@ -495,6 +504,7 @@ final class AdminPracticeImagesController extends Controller
     public function export(Request $request, int $id): RedirectResponse
     {
         $row = PracticeImage::query()->findOrFail($id);
+        $this->assertCanEditPracticeImage($row);
         $client = PracticeLabDaemonClient::fromConfig();
         if (! $client) {
             return redirect()
@@ -531,7 +541,7 @@ final class AdminPracticeImagesController extends Controller
      */
     private function wizardViewData(Request $request, PracticeImage $row, bool $isNew = true, array $extra = []): array
     {
-        $libraryImages = PracticeImage::query()
+        $libraryImages = $this->scopePracticeImagesForStaff(PracticeImage::query())
             ->when($row->exists, fn ($q) => $q->where('id', '!=', (int) $row->id))
             ->orderByDesc('updated_at')
             ->limit(36)

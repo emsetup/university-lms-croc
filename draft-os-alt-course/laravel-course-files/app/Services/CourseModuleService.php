@@ -60,6 +60,37 @@ final class CourseModuleService
     }
 
     /**
+     * Порядковый номер модуля внутри курса (1..N), по sort/id.
+     *
+     * Важно: id модуля — глобальный auto-increment и не годится для UI нумерации.
+     */
+    public function sequenceForModule(CourseModule $module): int
+    {
+        if (! Schema::hasTable('course_modules')) {
+            return 1;
+        }
+
+        $courseId = (int) $module->course_id;
+        $sort = (int) ($module->sort ?? 0);
+        $id = (int) ($module->id ?? 0);
+        if ($courseId < 1 || $id < 1) {
+            return 1;
+        }
+
+        $before = CourseModule::query()
+            ->where('course_id', $courseId)
+            ->where(function ($q) use ($sort, $id): void {
+                $q->where('sort', '<', $sort)
+                    ->orWhere(function ($q2) use ($sort, $id): void {
+                        $q2->where('sort', '=', $sort)->where('id', '<', $id);
+                    });
+            })
+            ->count();
+
+        return max(1, (int) $before + 1);
+    }
+
+    /**
      * Метаданные для UI: заголовок/описание из БД, теория и прочее из конфига по content_source_index.
      *
      * @return array<string, mixed>

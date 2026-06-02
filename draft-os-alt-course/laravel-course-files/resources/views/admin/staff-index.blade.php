@@ -73,6 +73,7 @@
                             $roleLabel = match ($row->role) {
                                 PortalStaff::ROLE_PORTAL_ADMIN => 'Администратор портала',
                                 PortalStaff::ROLE_COURSE_MODERATOR => 'Модератор',
+                                PortalStaff::ROLE_COURSE_CREATOR => 'Создатель курсов',
                                 PortalStaff::ROLE_INSTRUCTOR => 'Преподаватель курса',
                                 PortalStaff::ROLE_COURSE_TESTER => 'Тестировщик курса',
                                 default => $row->role,
@@ -81,6 +82,7 @@
                                 PortalStaff::ROLE_PORTAL_ADMIN => 'ap-staff-badge ap-staff-badge--admin',
                                 PortalStaff::ROLE_INSTRUCTOR => 'ap-staff-badge ap-staff-badge--instructor',
                                 PortalStaff::ROLE_COURSE_MODERATOR => 'ap-staff-badge ap-staff-badge--moderator',
+                                PortalStaff::ROLE_COURSE_CREATOR => 'ap-staff-badge ap-staff-badge--creator',
                                 PortalStaff::ROLE_COURSE_TESTER => 'ap-staff-badge ap-staff-badge--tester',
                                 default => 'ap-staff-badge ap-staff-badge--muted',
                             };
@@ -134,7 +136,7 @@
     {{-- Модалка: добавить / изменить --}}
     <div class="ap-modal" id="ap-staff-form-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="ap-staff-form-title">
         <div class="ap-modal__backdrop" data-ap-staff-modal-close tabindex="-1"></div>
-        <div class="ap-modal__panel ap-modal__panel--wide">
+        <div class="ap-modal__panel ap-modal__panel--wide ap-modal__panel--staff-guide">
             <button type="button" class="ap-modal__close" data-ap-staff-modal-close aria-label="Закрыть">&times;</button>
             <h2 id="ap-staff-form-title" class="ap-modal__title">Сотрудник</h2>
             <form method="post" action="{{ route('admin.staff.store') }}" class="ap-modal__form" id="ap-staff-form">
@@ -150,10 +152,12 @@
                         @php $r = old('role', PortalStaff::ROLE_PORTAL_ADMIN); @endphp
                         <option value="{{ PortalStaff::ROLE_PORTAL_ADMIN }}" @if ($r === PortalStaff::ROLE_PORTAL_ADMIN) selected @endif>Администратор портала</option>
                         <option value="{{ PortalStaff::ROLE_COURSE_MODERATOR }}" @if ($r === PortalStaff::ROLE_COURSE_MODERATOR) selected @endif>Модератор</option>
+                        <option value="{{ PortalStaff::ROLE_COURSE_CREATOR }}" @if ($r === PortalStaff::ROLE_COURSE_CREATOR) selected @endif>Создатель курсов</option>
                         <option value="{{ PortalStaff::ROLE_INSTRUCTOR }}" @if ($r === PortalStaff::ROLE_INSTRUCTOR) selected @endif>Преподаватель курса</option>
                         <option value="{{ PortalStaff::ROLE_COURSE_TESTER }}" @if ($r === PortalStaff::ROLE_COURSE_TESTER) selected @endif>Тестировщик курса</option>
                     </select>
                 </div>
+                @include('partials.admin-staff-role-guide')
                 <div class="ap-modal__field is-hidden" id="ap-staff-courses-wrap">
                     <span class="ap-modal__label">Курсы</span>
                     <div class="ap-staff-courses-box">
@@ -203,6 +207,70 @@
             var destroyUrlTpl = @json($staffDestroyUrlTpl);
             var deleteText = document.getElementById('ap-staff-delete-text');
             var deleteForm = document.getElementById('ap-staff-delete-form');
+            var roleGuideData = {};
+            var roleGuideEl = document.getElementById('ap-staff-role-guide-data');
+            if (roleGuideEl) {
+                try { roleGuideData = JSON.parse(roleGuideEl.textContent || '{}'); } catch (e) { roleGuideData = {}; }
+            }
+            var roleDetail = document.getElementById('ap-staff-role-detail');
+            var roleDetailBadge = document.getElementById('ap-staff-role-detail-badge');
+            var roleDetailAdmin = document.getElementById('ap-staff-role-detail-admin');
+            var roleDetailSummary = document.getElementById('ap-staff-role-detail-summary');
+            var roleDetailPerms = document.getElementById('ap-staff-role-detail-perms');
+            var permSectionLabels = {
+                admin: 'Админка /adm',
+                courses: 'Курсы',
+                content: 'Контент курса',
+                learners: 'Обучающиеся',
+                people: 'Люди (портал)',
+                docker: 'Docker',
+                staff: 'Сотрудники',
+                settings: 'Настройки портала'
+            };
+            var permOrder = ['admin', 'courses', 'content', 'learners', 'people', 'docker', 'staff', 'settings'];
+
+            function syncRoleGuide() {
+                if (!roleSel) return;
+                var role = roleSel.value;
+                var info = roleGuideData[role];
+                document.querySelectorAll('[data-ap-staff-role-row]').forEach(function (tr) {
+                    tr.classList.toggle('is-selected', tr.getAttribute('data-ap-staff-role-row') === role);
+                });
+                if (!info || !roleDetail) return;
+                roleDetail.hidden = false;
+                if (roleDetailBadge) {
+                    roleDetailBadge.className = 'ap-staff-badge ap-staff-badge--' + (info.badge || 'muted');
+                    roleDetailBadge.textContent = info.label || role;
+                }
+                if (roleDetailAdmin) roleDetailAdmin.textContent = info.admin_note || '';
+                if (roleDetailSummary) roleDetailSummary.textContent = info.summary || '';
+                if (roleDetailPerms) {
+                    roleDetailPerms.innerHTML = '';
+                    permOrder.forEach(function (key) {
+                        var cap = info.capabilities && info.capabilities[key];
+                        if (!cap) return;
+                        var li = document.createElement('li');
+                        li.className = 'ap-staff-role-guide__perm-item';
+                        var access = document.createElement('span');
+                        access.className = 'ap-staff-access ap-staff-access--' + (cap.level || 'no');
+                        access.title = cap.label || '';
+                        var icon = document.createElement('span');
+                        icon.className = 'ap-staff-access__icon';
+                        icon.setAttribute('aria-hidden', 'true');
+                        var text = document.createElement('span');
+                        text.className = 'ap-staff-access__text';
+                        text.textContent = cap.label || '—';
+                        access.appendChild(icon);
+                        access.appendChild(text);
+                        var section = document.createElement('span');
+                        section.className = 'ap-staff-role-guide__perm-section';
+                        section.textContent = permSectionLabels[key] || key;
+                        li.appendChild(section);
+                        li.appendChild(access);
+                        roleDetailPerms.appendChild(li);
+                    });
+                }
+            }
 
             function openFormModal() {
                 if (!formModal) return;
@@ -260,6 +328,7 @@
                 roleSel.value = 'portal_admin';
                 uncheckAllCourses();
                 syncCoursesVisibility();
+                syncRoleGuide();
                 openFormModal();
                 setTimeout(function () { emailIn.focus(); }, 50);
             }
@@ -274,6 +343,7 @@
                 roleSel.value = tr.getAttribute('data-role') || 'portal_admin';
                 setCourseSelection(tr.getAttribute('data-course-ids') || '');
                 syncCoursesVisibility();
+                syncRoleGuide();
                 openFormModal();
                 setTimeout(function () { emailIn.focus(); }, 50);
             }
@@ -312,7 +382,12 @@
                 });
             });
 
-            if (roleSel) roleSel.addEventListener('change', syncCoursesVisibility);
+            if (roleSel) {
+                roleSel.addEventListener('change', function () {
+                    syncCoursesVisibility();
+                    syncRoleGuide();
+                });
+            }
 
             document.addEventListener('keydown', function (e) {
                 if (e.key === 'Escape') {
@@ -346,6 +421,7 @@
                 if (emailIn) emailIn.value = want;
                 if (roleSel) roleSel.value = @json(old('role', 'portal_admin'));
                 syncCoursesVisibility();
+                syncRoleGuide();
                 @foreach ($pickedOldCourses as $pid)
                 (function () {
                     var cb = document.querySelector('.ap-staff-course-cb[value="{{ (int) $pid }}"]');

@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\Schema;
 final class TeacherCourseAnalyticsService
 {
     public function __construct(
-        private CourseScoringService $scoring
+        private CourseScoringService $scoring,
+        private CourseModuleService $courseModules,
     ) {}
 
     /**
@@ -83,7 +84,14 @@ final class TeacherCourseAnalyticsService
         $firstStarted = null;
         $lastTouched = null;
 
+        $activeModuleIds = $courseId > 0 && Schema::hasTable('course_modules')
+            ? $this->courseModules->orderedModuleIdsForCourse($courseId)
+            : [];
+
         foreach ($learner->moduleProgresses as $progress) {
+            if ($activeModuleIds !== [] && ! in_array((int) $progress->course_module_id, $activeModuleIds, true)) {
+                continue;
+            }
             if ($progress->module_exam_passed) {
                 $modulesPassed++;
             }

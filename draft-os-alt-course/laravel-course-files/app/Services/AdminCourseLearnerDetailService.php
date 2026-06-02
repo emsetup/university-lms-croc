@@ -59,7 +59,7 @@ final class AdminCourseLearnerDetailService
             $sessions = $q->get()->keyBy('module_id');
         }
 
-        $allowReset = app(PortalStaffAccess::class)->canResetLearnerProgress();
+        $allowReset = app(PortalStaffAccess::class)->canResetLearnerProgressForCourse($courseId);
 
         $ordinal = 0;
         foreach ($mods as $mod) {

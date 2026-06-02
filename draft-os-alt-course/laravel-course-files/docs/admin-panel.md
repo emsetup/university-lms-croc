@@ -64,7 +64,7 @@
 | Docker-библиотека | `admin.docker.library` | `admin/docker-library.blade.php` |
 | Сотрудники | `admin.staff.index`, `admin.staff.create`, `admin.staff.edit` | `staff-index`, `staff-edit` |
 | Каталог курсов | `admin.courses.index`, `admin.courses.create`, `admin.courses.edit` | `courses-index`, `course-edit` |
-| Люди портала | `admin.learners.portal`, `admin.learners.people.detail` | `learners-portal`, `learners-people` |
+| Обучающиеся портала | `admin.learners.portal`, `admin.learners.people.detail` | `learners-portal`, `learners-people` |
 | Курс (`{adminCourse}`) | | |
 | Настройки / модули | `admin.course.settings`, `admin.course.modules` | `course-settings`, `course-modules-index` |
 | Разделы модуля | `admin.course.module.sections` | `course-module-sections` |

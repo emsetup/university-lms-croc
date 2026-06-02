@@ -56,8 +56,10 @@ final class AdminCourseSettingsController extends Controller
             }
         }
 
-        $builtImages = PracticeImage::query()
-            ->where('is_built', true)
+        $builtImages = app(PortalStaffAccess::class)
+            ->scopePracticeImagesForStaff(
+                PracticeImage::query()->where('is_built', true)
+            )
             ->orderBy('title')
             ->orderBy('id')
             ->get();
@@ -69,7 +71,12 @@ final class AdminCourseSettingsController extends Controller
             $status = 'published';
         }
 
-        $settingsTab = $request->query('tab') === 'kurs' ? 'kurs' : 'moduli';
+        $t = (string) $request->query('tab', '');
+        $settingsTab = match ($t) {
+            'kurs' => 'kurs',
+            'sertifikat' => 'sertifikat',
+            default => 'moduli',
+        };
 
         $modules = CourseModule::query()
             ->where('course_id', $courseId)
@@ -112,7 +119,13 @@ final class AdminCourseSettingsController extends Controller
             'default_quiz_time_minutes' => ['nullable', 'integer', 'min:1', 'max:600'],
             'default_pass_percent' => ['nullable', 'integer', 'min:1', 'max:100'],
             'final_lab_enabled' => ['sometimes', 'boolean'],
+            'difficulty_flags_enabled' => ['sometimes', 'boolean'],
             'final_lab_practice_image_id' => ['nullable', 'integer', 'min:1'],
+            'certificate_enabled' => ['sometimes', 'boolean'],
+            'certificate_title' => ['nullable', 'string', 'max:200'],
+            'certificate_body' => ['nullable', 'string', 'max:500'],
+            'certificate_tiers' => ['nullable', 'string', 'max:20000'],
+            'redirect_tab' => ['nullable', 'string', 'in:kurs,sertifikat'],
         ], [
             'slug.regex' => 'Slug: только латиница/цифры и дефис.',
         ]);
@@ -131,15 +144,27 @@ final class AdminCourseSettingsController extends Controller
         $course->default_pass_percent = isset($data['default_pass_percent']) ? (int) $data['default_pass_percent'] : null;
 
         $course->final_lab_enabled = $request->boolean('final_lab_enabled');
+        if (Schema::hasColumn('courses', 'difficulty_flags_enabled')) {
+            $course->difficulty_flags_enabled = $request->boolean('difficulty_flags_enabled');
+        }
 
         $imgId = isset($data['final_lab_practice_image_id']) ? (int) $data['final_lab_practice_image_id'] : null;
         if ($imgId !== null && $imgId > 0) {
             if (! PracticeImage::query()->where('id', $imgId)->where('is_built', true)->exists()) {
                 return back()->withInput()->with('err', 'Выбранный Docker-образ не найден или ещё не собран.');
             }
+            app(PortalStaffAccess::class)->assertCanAssignPracticeImageToCourse($imgId, (int) $course->id);
             $course->final_lab_practice_image_id = $imgId;
         } else {
             $course->final_lab_practice_image_id = null;
+        }
+
+        if (Schema::hasColumn('courses', 'certificate_enabled')
+            && ($request->has('certificate_tiers') || $request->has('certificate_enabled'))) {
+            $certErr = $this->applyCertificateSettingsFromRequest($course, $request, $data);
+            if ($certErr !== null) {
+                return $certErr;
+            }
         }
 
         $course->save();
@@ -151,8 +176,9 @@ final class AdminCourseSettingsController extends Controller
             ]);
         }
 
+        $redirTab = (string) ($data['redirect_tab'] ?? 'kurs');
         return redirect()
-            ->route('admin.course.settings', array_merge($this->adminCourseRouteParams(), ['tab' => 'kurs']))
+            ->route('admin.course.settings', array_merge($this->adminCourseRouteParams(), ['tab' => $redirTab]))
             ->with('ok', 'Настройки курса сохранены.');
     }
 
@@ -287,8 +313,10 @@ final class AdminCourseSettingsController extends Controller
         $this->assertModuleCourse($courseModule);
         $adminKey = (string) $request->query('key', '');
         $setting = CourseModulePracticeSetting::query()->firstOrNew(['course_module_id' => $courseModule->id]);
-        $images = PracticeImage::query()
-            ->where('is_built', true)
+        $images = app(PortalStaffAccess::class)
+            ->scopePracticeImagesForStaff(
+                PracticeImage::query()->where('is_built', true)
+            )
             ->orderBy('title')
             ->orderBy('id')
             ->get();
@@ -315,6 +343,12 @@ final class AdminCourseSettingsController extends Controller
             return redirect()
                 ->route('admin.course.module.practice', array_merge($this->adminCourseRouteParams(), ['courseModule' => $courseModule->id, 'key' => $adminKey]))
                 ->with('err', 'Выбранный образ не найден.');
+        }
+        if ($practiceImageId !== null && $practiceImageId > 0) {
+            app(PortalStaffAccess::class)->assertCanAssignPracticeImageToCourse(
+                $practiceImageId,
+                (int) $courseModule->course_id
+            );
         }
 
         CourseModulePracticeSetting::query()->updateOrCreate(
@@ -587,7 +621,13 @@ final class AdminCourseSettingsController extends Controller
         }
 
         $dockerImages = Schema::hasTable('practice_images')
-            ? PracticeImage::query()->where('is_built', true)->orderBy('title')->orderBy('id')->get(['id', 'title', 'docker_tag'])
+            ? app(PortalStaffAccess::class)
+                ->scopePracticeImagesForStaff(
+                    PracticeImage::query()->where('is_built', true)
+                )
+                ->orderBy('title')
+                ->orderBy('id')
+                ->get(['id', 'title', 'docker_tag'])
                 ->map(fn (PracticeImage $p) => [
                     'id' => (int) $p->id,
                     'title' => (string) $p->title,
@@ -689,7 +729,7 @@ final class AdminCourseSettingsController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($course, $courseModule, $section, $p): void {
+            DB::transaction(function () use ($course, $courseModule, $section, $p, $payload): void {
                 $section->title = (string) $p['title'];
                 $section->type = (string) $p['type'];
                 $section->is_enabled = (bool) $p['is_enabled'];
@@ -774,6 +814,9 @@ final class AdminCourseSettingsController extends Controller
                     }
                     if ($imgId !== null && ! PracticeImage::query()->whereKey($imgId)->where('is_built', true)->exists()) {
                         throw new \InvalidArgumentException('Docker-образ не найден или не собран.');
+                    }
+                    if ($imgId !== null && $imgId > 0) {
+                        app(PortalStaffAccess::class)->assertCanAssignPracticeImageToCourse($imgId, (int) $course->id);
                     }
                     $row = CourseModulePracticeSetting::query()->firstOrNew(['course_module_id' => $courseModule->id]);
                     $row->practice_image_id = $imgId;
@@ -930,5 +973,52 @@ final class AdminCourseSettingsController extends Controller
             ],
             default => [],
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function applyCertificateSettingsFromRequest(Course $course, Request $request, array $data): ?RedirectResponse
+    {
+        $course->certificate_enabled = $request->boolean('certificate_enabled');
+        $course->certificate_title = isset($data['certificate_title']) ? (string) $data['certificate_title'] : null;
+        $course->certificate_body = isset($data['certificate_body']) ? (string) $data['certificate_body'] : null;
+        $tiersJson = isset($data['certificate_tiers']) ? trim((string) $data['certificate_tiers']) : '';
+        if ($tiersJson !== '') {
+            $decoded = json_decode($tiersJson, true);
+            if (! is_array($decoded)) {
+                return back()->withInput()->with('err', 'Сертификат: уровни должны быть корректным JSON.');
+            }
+            $tiers = [];
+            foreach ($decoded as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $min = isset($row['min_percent']) ? (int) $row['min_percent'] : 0;
+                $min = max(0, min(100, $min));
+                $label = trim((string) ($row['label'] ?? ''));
+                if ($label === '') {
+                    continue;
+                }
+                $key = strtolower(preg_replace('/[^a-z0-9\-_]/', '', (string) ($row['key'] ?? '')));
+                if (strlen($key) > 40) {
+                    $key = substr($key, 0, 40);
+                }
+                $tiers[] = [
+                    'key' => $key,
+                    'min_percent' => $min,
+                    'label' => mb_substr($label, 0, 120, 'UTF-8'),
+                ];
+            }
+            if ($tiers === []) {
+                return back()->withInput()->with('err', 'Сертификат: добавьте хотя бы один уровень с текстом.');
+            }
+            usort($tiers, static fn ($a, $b) => ((int) $b['min_percent']) <=> ((int) $a['min_percent']));
+            $course->certificate_tiers = $tiers;
+        } else {
+            $course->certificate_tiers = null;
+        }
+
+        return null;
     }
 }

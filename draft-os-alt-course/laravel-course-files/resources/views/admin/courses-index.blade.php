@@ -134,7 +134,8 @@
 
             function cardMatchesFilter(card, filter) {
                 var b = card.getAttribute('data-ap-bucket');
-                if (filter === 'all') return true;
+                // "Все" = все активные (без архива), чтобы архивные курсы не мешали.
+                if (filter === 'all') return b !== 'archive';
                 if (filter === 'published') return b === 'published';
                 if (filter === 'draft') return b === 'draft';
                 if (filter === 'archive') return b === 'archive';

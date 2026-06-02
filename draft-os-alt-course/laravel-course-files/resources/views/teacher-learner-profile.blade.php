@@ -150,7 +150,7 @@
         <nav class="quick-nav" id="tl-jump" aria-label="Быстрый переход к модулю">
             <span class="quick-nav-label">К модулю</span>
             @foreach ($modulePanels as $pn)
-                <a class="quick-nav-btn" href="#module-{{ $pn['module_id'] }}">М{{ $pn['module_id'] }}</a>
+                <a class="quick-nav-btn" href="#module-{{ $pn['module_id'] }}">М{{ (int) ($pn['sequence'] ?? $pn['module_id']) }}</a>
             @endforeach
         </nav>
 
@@ -162,23 +162,29 @@
                         $r = $pn['report'];
                         $pr = $pn['progress'];
                         $pts = is_array($r) ? (int) ($r['points'] ?? 0) : 0;
-                        $tq = is_array($r) ? (int) ($r['theory_quiz_pct'] ?? 0) : 0;
-                        $skipPr = is_array($r) && ! empty($r['skip_practice']);
-                        $prc = is_array($r) && ! $skipPr ? (int) ($r['practice_pct'] ?? 0) : null;
-                        $ex = is_array($r) ? (int) ($r['exam_pct'] ?? 0) : 0;
+                        $sectionRows = is_array($pn['section_rows'] ?? null) ? $pn['section_rows'] : [];
                         $sec = $pr
                             ? (int) ($pr->seconds_theory ?? 0) + (int) ($pr->seconds_theory_quiz ?? 0)
                                 + (int) ($pr->seconds_practice ?? 0) + (int) ($pr->seconds_module_exam ?? 0)
                             : 0;
-                        $idle = $pts === 0 && $tq === 0 && ($skipPr || $prc === 0) && $ex === 0 && $sec === 0;
+                        $idle = $pts === 0 && $sec === 0;
+                        if (! $idle && $sectionRows !== []) {
+                            $idle = true;
+                            foreach ($sectionRows as $sr) {
+                                if ((int) ($sr['percent'] ?? 0) > 0) {
+                                    $idle = false;
+                                    break;
+                                }
+                            }
+                        }
                         $mid = (int) $pn['module_id'];
+                        $modSeq = (int) ($pn['sequence'] ?? $mid);
                         $modUrl = $tp !== []
                             ? route('admin.learners.course.learner.module', array_merge($tp, ['learner' => $learner->id, 'courseModule' => $mid]))
                             : route('teacher.course-report.learner.module', ['learner' => $learner->id, 'module' => $mid]);
-                        $idxPanel = (int) ($pn['content_source_index'] ?? 1);
-                        $skipPractice = \App\Support\CourseModuleMeta::shouldSkipPractice($idxPanel);
+                        $ex = is_array($r) ? (int) ($r['exam_pct'] ?? 0) : 0;
                         $exHistR = $pn['module_exam_history'] ?? [];
-                        $canResetProgress = ($portalStaffAccess ?? null)?->canResetLearnerProgress() ?? false;
+                        $canResetProgress = $cid > 0 && (($portalStaffAccess ?? null)?->canResetLearnerProgressForCourse($cid) ?? false);
                         $canResetEx =
                             $canResetProgress
                             && $pr
@@ -191,7 +197,7 @@
                             <div class="module-card-header module-card-header--idle">
                                 <div class="module-card-header__left">
                                     <div class="ap-report-mod-badges">
-                                        <span class="module-num">{{ $mid }}</span>
+                                        <span class="module-num">{{ $modSeq }}</span>
                                         @if ($pn['letter'] !== '')
                                             <span class="module-letter">{{ mb_substr($pn['letter'], 0, 1) }}</span>
                                         @endif
@@ -209,7 +215,7 @@
                             <div class="module-card-header">
                                 <div class="module-card-header__left">
                                     <div class="ap-report-mod-badges">
-                                        <span class="module-num">{{ $mid }}</span>
+                                        <span class="module-num">{{ $modSeq }}</span>
                                         @if ($pn['letter'] !== '')
                                             <span class="module-letter">{{ mb_substr($pn['letter'], 0, 1) }}</span>
                                         @endif
@@ -221,46 +227,23 @@
                                 <div class="module-card-time">{{ DurationFormat::fromSeconds($sec) }}</div>
                             </div>
                             <div class="module-card-body">
-                                <div class="section-row">
-                                    <span class="section-label">Теория</span>
-                                    <div class="section-bar">
-                                        <div class="progress-track-xs" aria-hidden="true">
-                                            <div class="progress-fill-xs" data-value="{{ $tq }}"></div>
-                                        </div>
-                                    </div>
-                                    <span class="section-pct">{{ $tq }}%</span>
-                                    <div class="section-actions"></div>
-                                </div>
-                                <div class="section-row">
-                                    <span class="section-label">Практика</span>
-                                    @if ($skipPractice)
-                                        <div class="section-bar muted" style="font-size:13px">Не предусмотрена</div>
-                                        <span class="section-pct">—</span>
-                                        <div class="section-actions"></div>
-                                    @else
+                                @foreach ($sectionRows as $sr)
+                                    @php($srPct = (int) ($sr['percent'] ?? 0))
+                                    <div class="section-row">
+                                        <span class="section-label">{{ $sr['label'] ?? 'Этап' }}</span>
                                         <div class="section-bar">
                                             <div class="progress-track-xs" aria-hidden="true">
-                                                <div class="progress-fill-xs" data-value="{{ (int) $prc }}"></div>
+                                                <div class="progress-fill-xs" data-value="{{ $srPct }}"></div>
                                             </div>
                                         </div>
-                                        <span class="section-pct">{{ (int) $prc }}%</span>
-                                        <div class="section-actions"></div>
-                                    @endif
-                                </div>
-                                <div class="section-row">
-                                    <span class="section-label">Экзамен</span>
-                                    <div class="section-bar">
-                                        <div class="progress-track-xs" aria-hidden="true">
-                                            <div class="progress-fill-xs" data-value="{{ $ex }}"></div>
+                                        <span class="section-pct">{{ $srPct }}%</span>
+                                        <div class="section-actions">
+                                            @if ($canResetEx && ($sr['backend_key'] ?? '') === 'module_exam')
+                                                <a class="btn-reset" href="{{ $modUrl }}#ta-reset-ex">Сброс</a>
+                                            @endif
                                         </div>
                                     </div>
-                                    <span class="section-pct">{{ $ex }}%</span>
-                                    <div class="section-actions">
-                                        @if ($canResetEx)
-                                            <a class="btn-reset" href="{{ $modUrl }}#ta-reset-ex">Сброс</a>
-                                        @endif
-                                    </div>
-                                </div>
+                                @endforeach
                             </div>
                             <div class="module-card-footer module-card-footer--with-action">
                                 <span>Итог модуля: {{ $pts }} / {{ $maxPtsMod }}</span>

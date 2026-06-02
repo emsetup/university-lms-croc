@@ -4,12 +4,13 @@
 
 @section('content')
     <div class="page-container">
+    @php $mid = (int) ($moduleSequence ?? $module); @endphp
     <a class="back-link" href="{{ route('modules.hub', $module) }}">
         @include('partials.ap-icon', ['name' => 'arrow-left'])
         <span>К шагам модуля</span>
     </a>
     <div class="card">
-        <h1 style="margin-top:0">Модуль {{ $module }}: итоговый тест</h1>
+        <h1 style="margin-top:0">Модуль {{ $mid }}: итоговый тест</h1>
         <p>Результат попытки: <strong>{{ $r['final_percent'] ?? '—' }}%</strong>
             (порог {{ $r['threshold'] ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%)
             @if (!empty($r['passed']))

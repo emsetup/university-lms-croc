@@ -20,6 +20,8 @@ if ! command -v rsync &>/dev/null; then
   exit 1
 fi
 
+ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/app/Http/Controllers/Concerns'"
+
 echo "[deploy-laravel] ${LCF}/config/snippets/ -> ${STAND_SSH}:${REMOTE}/config/snippets/"
 rsync -az \
   "${LCF}/config/snippets/" \
@@ -45,6 +47,11 @@ if [[ -f "${LCF}/config/oidc.php" ]]; then
   rsync -az "${LCF}/config/oidc.php" "${STAND_SSH}:${REMOTE}/config/oidc.php"
 fi
 
+if [[ -f "${LCF}/config/documentation.php" ]]; then
+  echo "[deploy-laravel] documentation.php (раздел /docs)"
+  rsync -az "${LCF}/config/documentation.php" "${STAND_SSH}:${REMOTE}/config/documentation.php"
+fi
+
 if [[ -f "${LCF}/routes/web.php" ]]; then
   echo "[deploy-laravel] routes/web.php"
   rsync -az "${LCF}/routes/web.php" "${STAND_SSH}:${REMOTE}/routes/web.php"
@@ -60,6 +67,7 @@ for f in \
   app/Http/Controllers/AdminCourseSettingsController.php \
   app/Http/Controllers/AdminCourseContentController.php \
   app/Http/Controllers/AdminPracticeImagesController.php \
+  app/Http/Controllers/Concerns/ScopesPracticeImagesForStaff.php \
   app/Http/Controllers/AdminDockerLibraryController.php \
   app/Http/Controllers/AdminLearnersController.php \
   app/Http/Controllers/AdminQuizController.php \
@@ -74,9 +82,13 @@ for f in \
   app/Http/Controllers/AccountController.php \
   app/Http/Controllers/PortalController.php \
   app/Http/Controllers/PortalEnrollController.php \
+  app/Http/Controllers/DocumentationController.php \
   app/Http/Controllers/TeacherCourseReportController.php \
+  app/Services/DocumentationCatalog.php \
   app/Http/Middleware/EnsureAdminCourseSelected.php \
   app/Http/Middleware/EnsureCourseSelected.php \
+  app/Http/Middleware/EnsureLearnerCourseActive.php \
+  app/Http/Middleware/EnsureLearnerCertificateCourse.php \
   app/Http/Middleware/EnsureLearner.php \
   app/Http/Middleware/ApplyLearnerPreview.php \
   app/Http/Middleware/ApplyStaffAdminPreview.php \
@@ -97,6 +109,7 @@ for f in \
   app/Services/LegacyAltPracticeImagesBootstrap.php \
   app/Support/LegacyAltPracticeImageCatalog.php \
   app/Support/PracticeImageWizardCatalog.php \
+  app/Services/LearnerCourseAvailability.php \
   app/Services/PortalStaffAccess.php \
   app/Services/PortalMaintenance.php \
   app/Services/MaintenanceActivityLogger.php \
@@ -121,6 +134,7 @@ for f in \
   app/Support/AdminNavigation.php \
   app/Support/StaffImpersonation.php \
   app/Support/StaffAdminPreview.php \
+  app/Support/StaffRoleGuide.php \
   app/Support/OidcIdentityClaims.php \
   app/Support/OidcSignInRedirect.php \
   app/Support/PortalWelcomeInitials.php \
@@ -171,6 +185,36 @@ if [[ -f "${LCF}/database/migrations/2026_05_07_000004_add_course_id_to_final_la
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_05_07_000004_add_course_id_to_final_lab_results_table.php"
 fi
 
+if [[ -f "${LCF}/database/migrations/2026_06_02_120900_add_difficulty_flags_enabled_to_courses_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…difficulty_flags_enabled…"
+  rsync -az "${LCF}/database/migrations/2026_06_02_120900_add_difficulty_flags_enabled_to_courses_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_02_120900_add_difficulty_flags_enabled_to_courses_table.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_06_02_000001_add_certificate_settings_to_courses_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…certificate_settings…"
+  rsync -az "${LCF}/database/migrations/2026_06_02_000001_add_certificate_settings_to_courses_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_02_000001_add_certificate_settings_to_courses_table.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_06_02_000002_add_certificate_body_to_courses_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…certificate_body…"
+  rsync -az "${LCF}/database/migrations/2026_06_02_000002_add_certificate_body_to_courses_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_02_000002_add_certificate_body_to_courses_table.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_06_02_130500_add_created_by_portal_staff_id_to_courses_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…created_by_portal_staff_id…"
+  rsync -az "${LCF}/database/migrations/2026_06_02_130500_add_created_by_portal_staff_id_to_courses_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_02_130500_add_created_by_portal_staff_id_to_courses_table.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_06_02_140000_add_created_by_portal_staff_id_to_practice_images_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…practice_images created_by…"
+  rsync -az "${LCF}/database/migrations/2026_06_02_140000_add_created_by_portal_staff_id_to_practice_images_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_02_140000_add_created_by_portal_staff_id_to_practice_images_table.php"
+fi
+
 for mf in \
   database/migrations/2026_05_06_000001_create_courses_table.php \
   database/migrations/2026_05_06_000002_create_course_enrollments_table.php \
@@ -215,6 +259,16 @@ fi
 if [[ -d "${LCF}/resources/views/portal" ]]; then
   echo "[deploy-laravel] resources/views/portal/"
   rsync -az "${LCF}/resources/views/portal/" "${STAND_SSH}:${REMOTE}/resources/views/portal/"
+fi
+
+if [[ -d "${LCF}/resources/views/docs" ]]; then
+  echo "[deploy-laravel] resources/views/docs/"
+  rsync -az "${LCF}/resources/views/docs/" "${STAND_SSH}:${REMOTE}/resources/views/docs/"
+fi
+
+if [[ -d "${LCF}/resources/docs" ]]; then
+  echo "[deploy-laravel] resources/docs/"
+  rsync -az "${LCF}/resources/docs/" "${STAND_SSH}:${REMOTE}/resources/docs/"
 fi
 
 for v in hub.blade.php theory.blade.php theory-quiz.blade.php practice.blade.php exam.blade.php; do
@@ -271,6 +325,23 @@ fi
 if [[ -f "${LCF}/public/css/portal-typography.css" ]]; then
   echo "[deploy-laravel] public/css/portal-typography.css"
   rsync -az "${LCF}/public/css/portal-typography.css" "${STAND_SSH}:${REMOTE}/public/css/portal-typography.css"
+fi
+
+if [[ -f "${LCF}/public/css/docs.css" ]]; then
+  echo "[deploy-laravel] public/css/docs.css"
+  rsync -az "${LCF}/public/css/docs.css" "${STAND_SSH}:${REMOTE}/public/css/docs.css"
+fi
+
+if [[ -f "${LCF}/public/js/docs-lightbox.js" ]]; then
+  echo "[deploy-laravel] public/js/docs-lightbox.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/docs-lightbox.js" "${STAND_SSH}:${REMOTE}/public/js/docs-lightbox.js"
+fi
+
+if [[ -d "${LCF}/public/images/docs" ]]; then
+  echo "[deploy-laravel] public/images/docs/"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/images/docs'"
+  rsync -az "${LCF}/public/images/docs/" "${STAND_SSH}:${REMOTE}/public/images/docs/"
 fi
 
 if [[ -d "${LCF}/public/vendor" ]]; then

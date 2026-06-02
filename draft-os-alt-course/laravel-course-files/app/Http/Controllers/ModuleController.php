@@ -407,6 +407,7 @@ class ModuleController extends Controller
     public function hub(int $module): View|RedirectResponse
     {
         $cm = $this->courseModuleOrAbort($module);
+        $moduleSequence = $this->courseModules->sequenceForModule($cm);
         $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
@@ -446,12 +447,56 @@ class ModuleController extends Controller
             }
         }
 
+        $difficultyEnabled = true;
+        if ($courseId > 0 && Schema::hasTable('courses') && Schema::hasColumn('courses', 'difficulty_flags_enabled')) {
+            $difficultyEnabled = (bool) \App\Models\Course::query()
+                ->whereKey($courseId)
+                ->value('difficulty_flags_enabled');
+        }
+        $difficultyOptions = [];
+        $labels = [
+            'theory' => $tTheory ?? (config('course.step_titles.theory') ?? 'Теория'),
+            'theory_quiz' => $tTq ?? (config('course.step_titles.theory_quiz') ?? 'Тест по теории'),
+            'practice' => $tPr ?? (config('course.step_titles.practice') ?? 'Практика'),
+            'module_exam' => $tEx ?? (config('course.step_titles.module_exam') ?? 'Итоговый тест'),
+        ];
+        if (is_array($hubPresent)) {
+            foreach ($hubPresent as $row) {
+                $sec = $row['section'] ?? null;
+                if (! ($sec instanceof \App\Models\CourseSection)) {
+                    continue;
+                }
+                $bk = (string) $sec->backendStepKey();
+                if ($bk === 'practice' && ! empty($row['waived'])) {
+                    continue;
+                }
+                if (! isset($labels[$bk])) {
+                    continue;
+                }
+                $difficultyOptions[] = ['key' => $bk, 'title' => $labels[$bk]];
+            }
+        } else {
+            $difficultyOptions[] = ['key' => 'theory', 'title' => $labels['theory']];
+            $difficultyOptions[] = ['key' => 'theory_quiz', 'title' => $labels['theory_quiz']];
+            if (! \App\Support\CourseModuleMeta::shouldSkipPractice($contentIdx)) {
+                $difficultyOptions[] = ['key' => 'practice', 'title' => $labels['practice']];
+            }
+            $difficultyOptions[] = ['key' => 'module_exam', 'title' => $labels['module_exam']];
+        }
+
+        $legacyAlt = $courseId > 0 ? $this->courseModules->selectedCourseIsLegacyAlt() : true;
+        $scoreWeightLegend = ($courseId > 0 && $this->sectionService->useDbSectionsForModule($module))
+            ? $this->sectionService->moduleScoreWeightLegend($module, $contentIdx, $legacyAlt)
+            : null;
+
         return view('modules.hub', [
             'module' => $module,
+            'moduleSequence' => $moduleSequence,
             'meta' => $meta,
             'progress' => $p,
             'percent' => $this->scoring->moduleProgressPercent($p),
             'modulePoints' => $this->scoring->modulePointsForProgress($p),
+            'scoreWeightLegend' => $scoreWeightLegend,
             'passThreshold' => $courseId > 0
                 ? $this->sectionService->passPercentForQuiz($module)
                 : CourseScoringService::PASS_THRESHOLD,
@@ -464,6 +509,8 @@ class ModuleController extends Controller
             'hubPresent' => $hubPresent,
             'showHubBriefing' => $showBriefing,
             'sectionService' => $this->sectionService,
+            'difficultyEnabled' => $difficultyEnabled,
+            'difficultyOptions' => $difficultyOptions,
         ]);
     }
 
@@ -486,6 +533,7 @@ class ModuleController extends Controller
     public function theory(int $module): View|RedirectResponse
     {
         $cm = $this->courseModuleOrAbort($module);
+        $moduleSequence = $this->courseModules->sequenceForModule($cm);
         if ($r = $this->accessGate->redirectIfModuleLocked($this->learner(), $module)) {
             return $r;
         }
@@ -503,6 +551,7 @@ class ModuleController extends Controller
 
         return view('modules.theory', [
             'module' => $module,
+            'moduleSequence' => $moduleSequence,
             'meta' => $meta,
             'progress' => $p,
         ]);
@@ -532,6 +581,7 @@ class ModuleController extends Controller
     public function theoryQuizShow(int $module): View|RedirectResponse
     {
         $cm = $this->courseModuleOrAbort($module);
+        $moduleSequence = $this->courseModules->sequenceForModule($cm);
         $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         $cid = $this->learnerCourseId();
@@ -568,6 +618,7 @@ class ModuleController extends Controller
 
         return view('modules.theory-quiz', [
             'module' => $module,
+            'moduleSequence' => $moduleSequence,
             'meta' => $this->courseModules->displayMeta($cm),
             'questions' => $qs,
             'progress' => $this->learner()->progressFor($module),
@@ -630,6 +681,7 @@ class ModuleController extends Controller
     public function theoryQuizResult(int $module): View|RedirectResponse
     {
         $cm = $this->courseModuleOrAbort($module);
+        $moduleSequence = $this->courseModules->sequenceForModule($cm);
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
@@ -653,6 +705,7 @@ class ModuleController extends Controller
 
         return view('modules.theory-quiz-result', [
             'module' => $module,
+            'moduleSequence' => $moduleSequence,
             'meta' => $this->courseModules->displayMeta($cm),
             'result' => $breakdownView['result'],
             'showBreakdown' => $breakdownView['showBreakdown'],
@@ -749,6 +802,7 @@ class ModuleController extends Controller
     public function practiceShow(int $module): View|RedirectResponse
     {
         $cm = $this->courseModuleOrAbort($module);
+        $moduleSequence = $this->courseModules->sequenceForModule($cm);
         $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         $courseId = (int) session('course_id', 0);
@@ -781,6 +835,7 @@ class ModuleController extends Controller
 
         return view('modules.practice', [
             'module' => $module,
+            'moduleSequence' => $moduleSequence,
             'meta' => $meta,
             'progress' => $learner->progressFor($module),
             'practiceSession' => $practiceSession,
@@ -828,6 +883,7 @@ class ModuleController extends Controller
     public function examShow(int $module): View|RedirectResponse
     {
         $cm = $this->courseModuleOrAbort($module);
+        $moduleSequence = $this->courseModules->sequenceForModule($cm);
         $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
@@ -886,6 +942,7 @@ class ModuleController extends Controller
 
         return view('modules.exam', [
             'module' => $module,
+            'moduleSequence' => $moduleSequence,
             'meta' => $this->courseModules->displayMeta($cm),
             'questions' => $qs,
             'progress' => $p,
@@ -953,6 +1010,7 @@ class ModuleController extends Controller
     public function examResult(int $module): View|RedirectResponse
     {
         $cm = $this->courseModuleOrAbort($module);
+        $moduleSequence = $this->courseModules->sequenceForModule($cm);
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $module)) {
             return $r;
@@ -970,6 +1028,7 @@ class ModuleController extends Controller
 
         return view('modules.exam-result', [
             'module' => $module,
+            'moduleSequence' => $moduleSequence,
             'meta' => $this->courseModules->displayMeta($cm),
             'r' => $breakdownView['result'],
             'progress' => $p,
@@ -1121,17 +1180,53 @@ class ModuleController extends Controller
 
     public function saveDifficulties(Request $request, int $module): RedirectResponse
     {
-        $this->courseModuleOrAbort($module);
+        $cm = $this->courseModuleOrAbort($module);
         if ($r = $this->accessGate->redirectIfModuleLocked($this->learner(), $module)) {
             return $r;
         }
+        $courseId = (int) session('course_id', 0);
+        if ($courseId > 0 && Schema::hasTable('courses') && Schema::hasColumn('courses', 'difficulty_flags_enabled')) {
+            $enabled = (bool) \App\Models\Course::query()
+                ->whereKey($courseId)
+                ->value('difficulty_flags_enabled');
+            if (! $enabled) {
+                return redirect()->route('modules.hub', $module);
+            }
+        }
         $p = $this->learner()->progressFor($module);
-        $p->difficulty_flags = [
-            'theory' => $request->boolean('d_theory'),
-            'theory_quiz' => $request->boolean('d_theory_quiz'),
-            'practice' => $request->boolean('d_practice'),
-            'module_exam' => $request->boolean('d_module_exam'),
+        $flags = [
+            'theory' => false,
+            'theory_quiz' => false,
+            'practice' => false,
+            'module_exam' => false,
         ];
+
+        $contentIdx = $cm->effectiveContentIndex();
+        if ($courseId > 0 && Schema::hasTable('course_sections') && $this->sectionService->useDbSectionsForModule($module)) {
+            $legacyAlt = $this->courseModules->selectedCourseIsLegacyAlt();
+            $allowed = [];
+            foreach ($this->sectionService->enabledSectionsForCourseModule($module) as $sec) {
+                $bk = (string) $sec->backendStepKey();
+                if ($bk === 'practice' && $this->sectionService->isPracticeWaived($module, $contentIdx, $legacyAlt)) {
+                    continue;
+                }
+                $allowed[$bk] = true;
+            }
+            foreach (array_keys($flags) as $k) {
+                if (! empty($allowed[$k])) {
+                    $flags[$k] = $request->boolean('d_'.$k);
+                }
+            }
+        } else {
+            $flags['theory'] = $request->boolean('d_theory');
+            $flags['theory_quiz'] = $request->boolean('d_theory_quiz');
+            if (! \App\Support\CourseModuleMeta::shouldSkipPractice($contentIdx)) {
+                $flags['practice'] = $request->boolean('d_practice');
+            }
+            $flags['module_exam'] = $request->boolean('d_module_exam');
+        }
+
+        $p->difficulty_flags = $flags;
         $p->save();
 
         return redirect()->route('modules.hub', $module)->with('ok', 'Отметки о сложностях сохранены.');

@@ -2,6 +2,16 @@
     $nameClass = trim(($nameExtraClass ?? '') . ' cert-recipient-name');
     $issueStr = filled(trim((string) ($issueDate ?? ''))) ? trim((string) $issueDate) : '—';
     $serialStr = $serial ?: 'CROC-ALT-DRAFT';
+    $courseTitleText = trim((string) ($courseTitle ?? '«Особенности ОС Альт»'));
+    if ($courseTitleText !== '' && ! str_starts_with($courseTitleText, '«')) {
+        $courseTitleText = '«'.$courseTitleText.'»';
+    }
+    $bodyTpl = trim((string) ($certificateBody ?? ''));
+    if ($bodyTpl === '') {
+        $bodyTpl = 'успешно завершил(а) курс {course} и подтвердил(а) практические навыки администрирования.';
+    }
+    $bodyWithMarker = str_replace('{course}', '<<COURSE>>', $bodyTpl);
+    $bodyEsc = e($bodyWithMarker);
 @endphp
 <div class="cert-paper">
     <div class="cert-paper__base" aria-hidden="true"></div>
@@ -40,9 +50,9 @@
             <div style="font-size:20px;color:#0f766e;letter-spacing:0.12em;text-transform:uppercase;font-weight:700">Настоящий сертификат подтверждает, что</div>
             <div style="margin-top:34px;font-size:52px;line-height:1.08;font-weight:800;color:#134e4a" class="{{ $nameClass }}">{{ $recipientName }}</div>
             <div style="margin-top:34px;font-size:24px;line-height:1.45;max-width:900px;margin-left:auto;margin-right:auto">
-                успешно завершил(а) курс
-                <strong>«Особенности ОС Альт»</strong>
-                и подтвердил(а) практические навыки администрирования.
+                <span class="js-cert-body-text">
+                    {!! str_replace('&lt;&lt;COURSE&gt;&gt;', '<strong class="js-cert-course-title">'.$courseTitleText.'</strong>', $bodyEsc) !!}
+                </span>
             </div>
         </div>
     </div>
@@ -53,7 +63,7 @@
                 $tier = $certTier ?? ['key' => 'administrator', 'label' => 'ALT Linux Administrator'];
             @endphp
             Квалификация (сводно по курсу):<br>
-            <strong style="font-size:16px;color:#0f172a">{{ $tier['label'] }}</strong><br>
+            <strong class="js-cert-tier-label" style="font-size:16px;color:#0f172a">{{ $tier['label'] }}</strong><br>
             <span style="font-size:13px;opacity:0.92">Платформа: учебный курс КРОК</span>
         </div>
         <div style="text-align:right">

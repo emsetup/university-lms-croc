@@ -68,8 +68,6 @@ class TeacherCourseReportController extends Controller
 
     public function resetAttempt(Request $request, int $learner, int $module): RedirectResponse
     {
-        abort_unless(app(PortalStaffAccess::class)->canResetLearnerProgress(), 403);
-
         $request->validate([
             'step' => 'required|in:theory_quiz,module_exam,practice',
             'confirm' => 'accepted',
@@ -77,6 +75,7 @@ class TeacherCourseReportController extends Controller
         ]);
         $l = Learner::query()->with('courseEnrollments')->findOrFail($learner);
         $courseId = $this->learnerCourseId($l);
+        abort_unless(app(PortalStaffAccess::class)->canResetLearnerProgressForCourse($courseId), 403);
         $panel = $this->learnerDetail->modulePanel($l, $module, $courseId);
         abort_if($panel === null, 404);
         $p = $l->progressFor($module, $courseId);

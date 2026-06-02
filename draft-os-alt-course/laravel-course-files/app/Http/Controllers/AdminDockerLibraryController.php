@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ScopesPracticeImagesForStaff;
 use App\Models\Course;
 use App\Models\CourseModulePracticeSetting;
 use App\Models\PracticeImage;
@@ -20,6 +21,8 @@ use Illuminate\View\View;
 
 final class AdminDockerLibraryController extends Controller
 {
+    use ScopesPracticeImagesForStaff;
+
     private const IMAGE_STATS_TTL_MINUTES = 10;
 
     public function __construct(private PracticeImageRecipeBootstrap $recipeBootstrap) {}
@@ -34,7 +37,7 @@ final class AdminDockerLibraryController extends Controller
 
         $q = trim((string) $request->query('q', ''));
 
-        $items = PracticeImage::query()
+        $items = $this->scopePracticeImagesForStaff(PracticeImage::query())
             ->with([
                 'modulePracticeSettings' => static function ($rel) {
                     $rel->with(['courseModule' => static function ($cm) {
@@ -97,7 +100,7 @@ final class AdminDockerLibraryController extends Controller
             $slug = $slug.'-'.Str::lower(Str::random(4));
         }
 
-        $row = PracticeImage::query()->create([
+        $row = PracticeImage::query()->create($this->withPracticeImageOwner([
             'title' => (string) $data['title'],
             'description' => isset($data['description']) ? trim((string) $data['description']) : null,
             'slug' => $slug,
@@ -112,7 +115,7 @@ final class AdminDockerLibraryController extends Controller
             'dockerfile_text' => '',
             'check_script_text' => '',
             'is_built' => false,
-        ]);
+        ]));
 
         $this->recipeBootstrap->initFromTemplate($row);
         $row->refresh();
@@ -156,6 +159,7 @@ final class AdminDockerLibraryController extends Controller
     public function build(Request $request, int $id): RedirectResponse|JsonResponse
     {
         $row = PracticeImage::query()->findOrFail($id);
+        $this->assertCanEditPracticeImage($row);
         $client = PracticeLabDaemonClient::fromConfig();
         if (! $client) {
             if ($request->wantsJson()) {
@@ -185,6 +189,7 @@ final class AdminDockerLibraryController extends Controller
     public function sandboxStatus(int $id): JsonResponse
     {
         $row = PracticeImage::query()->findOrFail($id);
+        $this->assertCanEditPracticeImage($row);
         $state = PracticeImageSandboxService::make()->getState((int) $row->id);
 
         return response()->json([
@@ -204,6 +209,7 @@ final class AdminDockerLibraryController extends Controller
         }
 
         $row = PracticeImage::query()->findOrFail($id);
+        $this->assertCanEditPracticeImage($row);
         $svc = PracticeImageSandboxService::make();
         if (! $svc->isDaemonReady()) {
             return response()->json(['ok' => false, 'error' => 'Lab-daemon не настроен.'], 503);
@@ -221,6 +227,7 @@ final class AdminDockerLibraryController extends Controller
         }
 
         $row = PracticeImage::query()->findOrFail($id);
+        $this->assertCanEditPracticeImage($row);
         $svc = PracticeImageSandboxService::make();
         if (! $svc->isDaemonReady()) {
             return response()->json(['ok' => false, 'error' => 'Lab-daemon не настроен.'], 503);
@@ -237,7 +244,8 @@ final class AdminDockerLibraryController extends Controller
             return response()->json(['ok' => false, 'error' => 'Режим модератора: остановка недоступна.'], 403);
         }
 
-        PracticeImage::query()->findOrFail($id);
+        $row = PracticeImage::query()->findOrFail($id);
+        $this->assertCanEditPracticeImage($row);
         $result = PracticeImageSandboxService::make()->stop($id);
 
         return response()->json($result);
@@ -246,6 +254,7 @@ final class AdminDockerLibraryController extends Controller
     public function destroy(int $id): RedirectResponse
     {
         $row = PracticeImage::query()->findOrFail($id);
+        $this->assertCanEditPracticeImage($row);
         $usage = CourseModulePracticeSetting::query()->where('practice_image_id', $row->id)->count();
         $finalLabCourses = 0;
         if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'final_lab_practice_image_id')) {

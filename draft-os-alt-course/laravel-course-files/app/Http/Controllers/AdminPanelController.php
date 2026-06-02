@@ -212,11 +212,12 @@ class AdminPanelController extends Controller
 
         $courseIdOverride = $resultCourseId > 0 ? $resultCourseId : null;
         $certCoursePercent = $scoring->certificateCoursePercent($result->learner, $courseIdOverride, $result);
+        $certTier = $scoring->certificateTier($certCoursePercent, $courseIdOverride);
 
         return view('admin.certificate-preview', [
             'row' => $result,
             'certCoursePercent' => $certCoursePercent,
-            'certTier' => $scoring->certificateTier($certCoursePercent),
+            'certTier' => $certTier,
         ]);
     }
 
@@ -314,9 +315,11 @@ class AdminPanelController extends Controller
             $activity = app(PortalActivityFeedService::class)->feed($scopedIds, [], $activityLimit);
         }
 
-        $editableCourseIds = ($gate->isPortalAdmin() || $gate->isCourseModerator())
-            ? null
-            : $gate->assignedCourseIds()->flip()->all();
+        $editableCourseIds = match (true) {
+            $gate->isPortalAdmin(), $gate->isCourseModerator() => null,
+            $gate->isCourseCreator() => $gate->ownedCourseIds()->flip()->all(),
+            default => $gate->assignedCourseIds()->flip()->all(),
+        };
 
         return [
             'dashMetrics' => $metrics,
@@ -383,6 +386,9 @@ class AdminPanelController extends Controller
     {
         if ($gate->isInstructor() || $gate->isCourseTester()) {
             return $gate->assignedCourseIds()->map(fn ($id) => (int) $id)->values()->all();
+        }
+        if ($gate->isCourseCreator()) {
+            return $gate->ownedCourseIds()->map(fn ($id) => (int) $id)->values()->all();
         }
 
         return null;

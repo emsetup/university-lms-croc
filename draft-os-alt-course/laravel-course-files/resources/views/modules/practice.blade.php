@@ -1,6 +1,10 @@
 @extends('layouts.course')
 
-@section('title', 'Модуль '.$module.': '.config('course.step_titles.practice'))
+@php
+    $mid = (int) ($moduleSequence ?? $module);
+@endphp
+
+@section('title', 'Модуль '.$mid.': '.config('course.step_titles.practice'))
 
 @section('content')
 <div class="page-container practice-page-anchor" id="practice-page-anchor">
@@ -9,13 +13,13 @@
             <span>К шагам модуля</span>
         </a>
     <div class="card">
-        <h1 style="margin-top:0">Модуль {{ $module }}: {{ config('course.step_titles.practice') }}</h1>
-        @if ((int) $module === 1)
+        <h1 style="margin-top:0">Модуль {{ $mid }}: {{ config('course.step_titles.practice') }}</h1>
+        @if ($mid === 1)
             <div class="card" style="margin:0 0 1rem;padding:0.75rem 1rem;border-left:4px solid #2d6a9f;background:#f3f8fc">
                 <p style="margin:0;font-size:0.95rem"><strong>Модуль 1 (Docker).</strong> В контейнере — типичный <strong>серверный</strong> профиль ALT. Результаты — в одном файле в домашнем каталоге пользователя <code>student</code> (имя и формат — в тексте задания). Проверка: кнопка <strong>«Проверить результат»</strong> (балл 0–100), зачёт в курсе — <strong>«Принять результат»</strong>.</p>
             </div>
         @endif
-        @if ((int) $module === 8)
+        @if ($mid === 8)
             <div class="card" style="margin:0 0 1rem;padding:0.75rem 1rem;border-left:4px solid #2d6a9f;background:#f3f8fc">
                 <p style="margin:0;font-size:0.95rem"><strong>Модуль 8 (Docker).</strong> Засчитывается <strong>одно</strong> задание: правки в <strong>трёх файлах</strong> конфигурации <strong>audit</strong> — ровно то, что проверяет <code>sudo /opt/lab-check/check.sh</code> (строка <code>TASK1:PASS</code> или <code>TASK1:FAIL</code>, балл 0 или 100).</p>
                 <p class="muted small" style="margin:0.5rem 0 0">Условия перечислены в тексте ниже и в таблице «Что именно проверяется». Запуск <code>auditd</code> в контейнере для кнопки «Проверить результат» <strong>не</strong> требуется.</p>
