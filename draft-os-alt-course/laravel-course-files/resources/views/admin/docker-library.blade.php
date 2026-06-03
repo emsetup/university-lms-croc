@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @push('styles')
-    <link rel="stylesheet" href="{{ asset('css/docker-sandbox.css') }}?v=3">
+    <link rel="stylesheet" href="{{ asset('css/docker-sandbox.css') }}?v=4">
 @endpush
 
 @section('title', 'Библиотека Docker-образов')
@@ -290,7 +290,10 @@
                             <span>Результат проверки</span>
                             <span class="ap-docker-sandbox__score" id="ap-docker-sandbox-score" hidden></span>
                         </div>
+                        <ul class="ap-docker-sandbox__hints" id="ap-docker-sandbox-hints" hidden></ul>
+                        <p class="ap-docker-sandbox__log-empty" id="ap-docker-sandbox-log-empty" hidden>Журнал пуст. Проверьте, что в образе есть <code>/opt/lab-check/check.sh</code> и контейнер запущен.</p>
                         <pre class="ap-docker-sandbox__log" id="ap-docker-sandbox-log"></pre>
+                        <p class="ap-docker-sandbox__log-meta" id="ap-docker-sandbox-log-meta" hidden></p>
                     </section>
 
                     <p class="ap-docker-sandbox__tip">После правок в мастере: <strong>Пересобрать</strong> образ, затем снова <strong>Запустить</strong>.</p>
@@ -392,6 +395,9 @@
             var sandboxSteps = document.querySelectorAll('.ap-docker-sandbox__step');
             var sandboxLogWrap = document.getElementById('ap-docker-sandbox-log-wrap');
             var sandboxLog = document.getElementById('ap-docker-sandbox-log');
+            var sandboxLogEmpty = document.getElementById('ap-docker-sandbox-log-empty');
+            var sandboxLogMeta = document.getElementById('ap-docker-sandbox-log-meta');
+            var sandboxHints = document.getElementById('ap-docker-sandbox-hints');
             var sandboxScore = document.getElementById('ap-docker-sandbox-score');
 
             function escHtml(s) {
@@ -449,10 +455,14 @@
                     var passed = !!st.last_check_passed;
                     var score = st.last_check_score;
                     var max = st.last_check_max_score;
+                    var exitCode = st.last_check_exit_code;
                     if (score != null && max != null) {
                         rows += statusRow('Проверка', score + ' из ' + max + ' баллов', passed ? 'is-ok' : 'is-fail');
                     } else {
                         rows += statusRow('Проверка', passed ? 'Успешно' : 'Есть ошибки', passed ? 'is-ok' : 'is-fail');
+                    }
+                    if (exitCode != null && exitCode !== '' && Number(exitCode) !== 0) {
+                        rows += statusRow('Код выхода', String(exitCode), 'is-fail');
                     }
                 }
                 sandboxMeta.innerHTML = '<div class="ap-docker-sandbox__status-card ap-docker-sandbox__status-card--run">' + rows + '</div>';
@@ -493,6 +503,99 @@
                 [sandboxStart, sandboxCheck, sandboxStop].forEach(function (b) {
                     if (b) b.disabled = true;
                 });
+            }
+
+            function clearSandboxBusy(running) {
+                if (sandboxStart) {
+                    sandboxStart.disabled = !!running;
+                    sandboxStart.classList.toggle('is-running', !!running);
+                }
+                if (sandboxCheck) sandboxCheck.disabled = !running;
+                if (sandboxStop) sandboxStop.disabled = !running;
+            }
+
+            function renderSandboxCheckResult(st) {
+                if (!sandboxLogWrap) return;
+                var hasCheck = !!(st && st.last_check_at);
+                if (!hasCheck) {
+                    sandboxLogWrap.hidden = true;
+                    if (sandboxLog) sandboxLog.innerHTML = '';
+                    if (sandboxLogEmpty) sandboxLogEmpty.hidden = true;
+                    if (sandboxLogMeta) sandboxLogMeta.hidden = true;
+                    if (sandboxHints) {
+                        sandboxHints.hidden = true;
+                        sandboxHints.innerHTML = '';
+                    }
+                    if (sandboxScore) sandboxScore.hidden = true;
+                    return;
+                }
+
+                sandboxLogWrap.hidden = false;
+                sandboxLogWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+                var log = st && st.last_check_log != null ? String(st.last_check_log) : '';
+                var hints = Array.isArray(st.last_check_hints) ? st.last_check_hints : [];
+
+                if (sandboxHints) {
+                    if (hints.length) {
+                        sandboxHints.hidden = false;
+                        sandboxHints.innerHTML = hints.map(function (h) {
+                            return '<li>' + escHtml(String(h)) + '</li>';
+                        }).join('');
+                    } else {
+                        sandboxHints.hidden = true;
+                        sandboxHints.innerHTML = '';
+                    }
+                }
+
+                if (sandboxLog) {
+                    if (log.trim() !== '') {
+                        sandboxLog.hidden = false;
+                        sandboxLog.innerHTML = formatCheckLogHtml(log);
+                    } else {
+                        sandboxLog.hidden = true;
+                        sandboxLog.innerHTML = '';
+                    }
+                }
+                if (sandboxLogEmpty) {
+                    sandboxLogEmpty.hidden = log.trim() !== '';
+                }
+
+                if (sandboxLogMeta) {
+                    var meta = [];
+                    if (st.last_check_at) {
+                        meta.push('Проверено: ' + formatIsoShort(st.last_check_at));
+                    }
+                    if (st.last_check_exit_code != null && st.last_check_exit_code !== '' && Number(st.last_check_exit_code) !== 0) {
+                        meta.push('Код выхода check.sh: ' + st.last_check_exit_code);
+                    }
+                    if (meta.length) {
+                        sandboxLogMeta.hidden = false;
+                        sandboxLogMeta.textContent = meta.join(' · ');
+                    } else {
+                        sandboxLogMeta.hidden = true;
+                        sandboxLogMeta.textContent = '';
+                    }
+                }
+
+                if (sandboxScore) {
+                    var sc = st.last_check_score;
+                    var mx = st.last_check_max_score;
+                    if (sc != null && mx != null) {
+                        sandboxScore.hidden = false;
+                        sandboxScore.textContent = sc + ' / ' + mx;
+                        sandboxScore.classList.remove('is-ok', 'is-warn', 'is-fail');
+                        if (st.last_check_passed) {
+                            sandboxScore.classList.add('is-ok');
+                        } else if (mx > 0 && sc / mx >= 0.5) {
+                            sandboxScore.classList.add('is-warn');
+                        } else {
+                            sandboxScore.classList.add('is-fail');
+                        }
+                    } else {
+                        sandboxScore.hidden = true;
+                    }
+                }
             }
 
             function renderSandboxState(data) {
@@ -536,35 +639,7 @@
                         sandboxPlaceholder.hidden = false;
                     }
                 }
-                var log = st && st.last_check_log ? String(st.last_check_log) : '';
-                if (sandboxLogWrap && sandboxLog) {
-                    if (log) {
-                        sandboxLogWrap.hidden = false;
-                        sandboxLog.innerHTML = formatCheckLogHtml(log);
-                        if (sandboxScore) {
-                            var sc = st.last_check_score;
-                            var mx = st.last_check_max_score;
-                            if (sc != null && mx != null) {
-                                sandboxScore.hidden = false;
-                                sandboxScore.textContent = sc + ' / ' + mx;
-                                sandboxScore.classList.remove('is-ok', 'is-warn', 'is-fail');
-                                if (st.last_check_passed) {
-                                    sandboxScore.classList.add('is-ok');
-                                } else if (mx > 0 && sc / mx >= 0.5) {
-                                    sandboxScore.classList.add('is-warn');
-                                } else {
-                                    sandboxScore.classList.add('is-fail');
-                                }
-                            } else {
-                                sandboxScore.hidden = true;
-                            }
-                        }
-                    } else {
-                        sandboxLogWrap.hidden = true;
-                        sandboxLog.innerHTML = '';
-                        if (sandboxScore) sandboxScore.hidden = true;
-                    }
-                }
+                renderSandboxCheckResult(st);
                 document.querySelectorAll('.ap-docker-sandbox-open[data-image-id="' + sandboxCtx.id + '"]').forEach(function (btn) {
                     btn.classList.toggle('ap-docker-sandbox-open--active', running);
                     btn.textContent = running ? 'Стенд · отладка' : 'Тестовый стенд';
@@ -645,7 +720,9 @@
                         renderSandboxState(j);
                     }).catch(function (e) {
                         sandboxStatus.textContent = String(e);
-                    }).finally(refreshSandboxFromServer);
+                    }).finally(function () {
+                        refreshSandboxFromServer();
+                    });
                 });
             }
             if (sandboxCheck) {
@@ -665,10 +742,28 @@
                             }
                             return;
                         }
+                        if (sandboxStatus) {
+                            sandboxStatus.hidden = false;
+                            sandboxStatus.textContent = (j.state && j.state.last_check_passed) ? 'Проверка пройдена.' : 'Проверка завершилась с замечаниями — см. журнал ниже.';
+                        }
                         renderSandboxState(j);
                     }).catch(function (e) {
                         sandboxStatus.textContent = String(e);
-                    }).finally(refreshSandboxFromServer);
+                    }).finally(function () {
+                        var running = !!(sandboxCtx.statusUrl);
+                        if (running && sandboxCtx.statusUrl) {
+                            getJson(sandboxCtx.statusUrl).then(function (res) {
+                                var body = res.body || {};
+                                var st = body.state || null;
+                                renderSandboxState(body);
+                                clearSandboxBusy(!!(st && st.lab_id));
+                            }).catch(function () {
+                                clearSandboxBusy(true);
+                            });
+                        } else {
+                            clearSandboxBusy(true);
+                        }
+                    });
                 });
             }
             if (sandboxStop) {

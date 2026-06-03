@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Course;
 use App\Models\Learner;
 use App\Support\CourseModuleMeta;
 use Illuminate\Http\RedirectResponse;
@@ -12,6 +13,9 @@ use Illuminate\Support\Facades\Schema;
  */
 final class ModuleAccessGate
 {
+    /** @var array<int, bool> */
+    private array $unlockAllModulesCache = [];
+
     public function __construct(
         private CourseSectionService $sections,
         private CourseModuleService $modules,
@@ -29,6 +33,14 @@ final class ModuleAccessGate
         $courseId = $courseId ?? $this->courseId($learner);
         if ($courseId < 1) {
             return false;
+        }
+        if ($this->courseUnlocksAllModules($courseId)) {
+            $ordered = $this->modules->orderedModuleIdsForCourse($courseId);
+            if ($ordered === []) {
+                return $courseModuleId >= 1;
+            }
+
+            return in_array($courseModuleId, $ordered, true);
         }
         $ordered = $this->modules->orderedModuleIdsForCourse($courseId);
         if ($ordered === []) {
@@ -57,6 +69,20 @@ final class ModuleAccessGate
         $last = $prev->module_exam_last_result ?? null;
 
         return is_array($last) && $last !== [];
+    }
+
+    private function courseUnlocksAllModules(int $courseId): bool
+    {
+        if (isset($this->unlockAllModulesCache[$courseId])) {
+            return $this->unlockAllModulesCache[$courseId];
+        }
+        if (! Schema::hasTable('courses') || ! Schema::hasColumn('courses', 'unlock_all_modules')) {
+            return $this->unlockAllModulesCache[$courseId] = false;
+        }
+
+        return $this->unlockAllModulesCache[$courseId] = (bool) Course::query()
+            ->whereKey($courseId)
+            ->value('unlock_all_modules');
     }
 
     public function redirectIfModuleLocked(Learner $learner, int $courseModuleId): ?RedirectResponse

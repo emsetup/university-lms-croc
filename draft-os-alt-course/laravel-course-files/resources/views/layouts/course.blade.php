@@ -168,6 +168,7 @@
                 @endif
                 <a class="btn btn-ghost" href="{{ route('portal') }}">Курсы</a>
                 <a class="btn btn-ghost" href="{{ route('documentation.index') }}">Документация</a>
+                @include('partials.admin-logs-nav-link', ['class' => 'btn btn-ghost'])
                 @if (! empty($portalStaffAccess))
                     <a class="btn btn-ghost" href="{{ route('admin.panel') }}">Управление</a>
                 @endif
@@ -225,5 +226,11 @@
     }
 })();
 </script>
+@if (session('learner_id'))
+    <span id="portal-incident-reporter" hidden
+          data-endpoint="{{ route('portal.incident.store') }}"
+          data-csrf="{{ csrf_token() }}"></span>
+    <script src="{{ asset('js/portal-incident-reporter.js') }}" defer></script>
+@endif
 </body>
 </html>

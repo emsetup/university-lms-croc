@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Course;
 use App\Models\PortalStaff;
 use App\Models\PracticeImage;
+use App\Support\PortalStaffPermissionCatalog as Perm;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,14 @@ final class PortalStaffAccess
 
     private ?Collection $practiceImageIdsForEditableCourses = null;
 
+    private ?PortalStaffPermissionResolver $permissionResolver = null;
+
     public function __construct(private PortalStaff $staff) {}
+
+    private function perms(): PortalStaffPermissionResolver
+    {
+        return $this->permissionResolver ??= new PortalStaffPermissionResolver($this->staff);
+    }
 
     public static function fromLearnerId(int $learnerId): ?self
     {
@@ -47,32 +55,32 @@ final class PortalStaffAccess
 
     public function isPortalAdmin(): bool
     {
-        return $this->staff->isPortalAdmin();
+        return $this->staff->isPortalAdmin() || $this->perms()->hasRole(PortalStaff::ROLE_PORTAL_ADMIN);
     }
 
     public function isCourseModerator(): bool
     {
-        return $this->staff->isCourseModerator();
+        return $this->staff->isCourseModerator() || $this->perms()->hasRole(PortalStaff::ROLE_COURSE_MODERATOR);
     }
 
     public function isCourseCreator(): bool
     {
-        return $this->staff->isCourseCreator();
+        return $this->staff->isCourseCreator() || $this->perms()->hasRole(PortalStaff::ROLE_COURSE_CREATOR);
     }
 
     public function isCourseEditor(): bool
     {
-        return $this->staff->isCourseEditor();
+        return $this->staff->isCourseEditor() || $this->perms()->hasRole(PortalStaff::ROLE_COURSE_EDITOR);
     }
 
     public function isInstructor(): bool
     {
-        return $this->staff->isInstructor();
+        return $this->staff->isInstructor() || $this->perms()->hasRole(PortalStaff::ROLE_INSTRUCTOR);
     }
 
     public function isCourseTester(): bool
     {
-        return $this->staff->isCourseTester();
+        return $this->staff->isCourseTester() || $this->perms()->hasRole(PortalStaff::ROLE_COURSE_TESTER);
     }
 
     /** Редактирование курса: модули, практики, сертификаты, метаданные (не преподаватель и не тестировщик). */
@@ -81,13 +89,23 @@ final class PortalStaffAccess
         return $this->isPortalAdmin()
             || $this->isCourseModerator()
             || $this->isCourseCreator()
-            || $this->isCourseEditor();
+            || $this->isCourseEditor()
+            || $this->perms()->hasAny(
+                Perm::COURSES_MANAGE_ALL,
+                Perm::COURSES_MANAGE_ASSIGNED,
+                Perm::CONTENT_EDIT_ALL,
+                Perm::CONTENT_EDIT_ASSIGNED,
+            );
     }
 
     /** Просмотр статистики обучающихся по курсу в админке. */
     public function canViewCourseLearnerStats(int $courseId): bool
     {
-        if ($this->isPortalAdmin() || $this->isCourseModerator()) {
+        if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::LEARNERS_VIEW_ALL)) {
+            return true;
+        }
+        if ($this->perms()->has(Perm::LEARNERS_VIEW_ASSIGNED)
+            && $this->assignedCourseIds()->containsStrict($courseId)) {
             return true;
         }
         if ($this->isCourseCreator()) {
@@ -111,7 +129,7 @@ final class PortalStaffAccess
     /** Сброс попыток обучающего (не преподаватель). */
     public function canResetLearnerProgress(): bool
     {
-        return $this->isPortalAdmin() || $this->isCourseModerator();
+        return $this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::LEARNERS_RESET);
     }
 
     /** Сброс попыток по конкретному курсу. */
@@ -134,23 +152,27 @@ final class PortalStaffAccess
 
     public function isReadOnlyCourseContent(): bool
     {
+        if ($this->perms()->hasAny(Perm::CONTENT_EDIT_ALL, Perm::CONTENT_EDIT_ASSIGNED)) {
+            return false;
+        }
+
         return $this->isCourseTester() || $this->isInstructor();
     }
 
     public function canManageStaff(): bool
     {
-        return $this->isPortalAdmin();
+        return $this->isPortalAdmin() || $this->perms()->has(Perm::STAFF_MANAGE);
     }
 
     public function canViewPortalLearners(): bool
     {
-        return $this->isPortalAdmin() || $this->isCourseModerator();
+        return $this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::PEOPLE_VIEW);
     }
 
     /** Заглушка портала, сброс переопределения из .env. */
     public function canManagePortalSettings(): bool
     {
-        return $this->isPortalAdmin();
+        return $this->isPortalAdmin() || $this->perms()->has(Perm::SETTINGS_MANAGE);
     }
 
     /** Просмотр портала от лица обучающегося. */
@@ -170,7 +192,8 @@ final class PortalStaffAccess
         return $this->isPortalAdmin()
             || $this->isCourseModerator()
             || $this->isCourseCreator()
-            || $this->isCourseEditor();
+            || $this->isCourseEditor()
+            || $this->perms()->has(Perm::COURSES_CREATE);
     }
 
     public function assignedCourseIds(): Collection
@@ -178,13 +201,17 @@ final class PortalStaffAccess
         if ($this->assignedCourseIds !== null) {
             return $this->assignedCourseIds;
         }
+        $base = collect();
         if ($this->isInstructor() || $this->isCourseTester() || $this->isCourseEditor()) {
             $this->staff->loadMissing('courses');
-
-            return $this->assignedCourseIds = $this->staff->courses->pluck('id');
+            $base = $this->staff->courses->pluck('id');
         }
 
-        return $this->assignedCourseIds = collect();
+        return $this->assignedCourseIds = $base
+            ->merge($this->perms()->groupCourseIds())
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
     }
 
     /**
@@ -225,7 +252,11 @@ final class PortalStaffAccess
 
     public function canAccessCourseInAdmin(int $courseId): bool
     {
-        if ($this->isPortalAdmin() || $this->isCourseModerator()) {
+        if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::COURSES_MANAGE_ALL)) {
+            return true;
+        }
+        if ($this->perms()->has(Perm::COURSES_MANAGE_ASSIGNED)
+            && $this->assignedCourseIds()->containsStrict($courseId)) {
             return true;
         }
         if ($this->isCourseCreator()) {
@@ -245,7 +276,11 @@ final class PortalStaffAccess
 
     public function canEditCourseMeta(int $courseId): bool
     {
-        if ($this->isPortalAdmin() || $this->isCourseModerator()) {
+        if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::COURSES_MANAGE_ALL)) {
+            return true;
+        }
+        if ($this->perms()->has(Perm::COURSES_MANAGE_ASSIGNED)
+            && $this->assignedCourseIds()->containsStrict($courseId)) {
             return true;
         }
         if ($this->isCourseCreator()) {
@@ -272,7 +307,7 @@ final class PortalStaffAccess
 
     public function canEditPracticeImage(int $practiceImageId): bool
     {
-        if ($this->isPortalAdmin() || $this->isCourseModerator()) {
+        if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::DOCKER_MANAGE_ALL)) {
             return true;
         }
         if (! $this->isCourseCreator() && ! $this->isCourseEditor()) {
@@ -314,7 +349,7 @@ final class PortalStaffAccess
     /** Привязать собранный образ к курсу, который сотрудник может редактировать. */
     public function canAssignPracticeImageToCourse(int $practiceImageId, int $courseId): bool
     {
-        if ($this->isPortalAdmin() || $this->isCourseModerator()) {
+        if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::DOCKER_MANAGE_ALL)) {
             return true;
         }
         if ($this->isCourseCreator()) {
@@ -349,7 +384,7 @@ final class PortalStaffAccess
      */
     public function scopePracticeImagesForStaff(Builder $query): Builder
     {
-        if ($this->isPortalAdmin() || $this->isCourseModerator()) {
+        if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::DOCKER_MANAGE_ALL)) {
             return $query;
         }
         if (($this->isCourseCreator() || $this->isCourseEditor())

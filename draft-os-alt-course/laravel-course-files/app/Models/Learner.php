@@ -10,6 +10,10 @@ class Learner extends Model
 {
     protected $fillable = ['email'];
 
+    protected $casts = [
+        'last_login_at' => 'datetime',
+    ];
+
     public function courseEnrollments(): HasMany
     {
         return $this->hasMany(CourseEnrollment::class);

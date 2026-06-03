@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Learner;
 use App\Models\PortalStaff;
+use App\Models\PortalStaffGroup;
+use App\Support\PortalStaffPermissionCatalog;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -13,23 +16,59 @@ final class AdminStaffController extends Controller
 {
     public function index(Request $request): View
     {
+        $staffTab = (string) $request->query('tab', 'users');
+        if (! in_array($staffTab, ['users', 'groups'], true)) {
+            $staffTab = 'users';
+        }
+
         $totalStaff = PortalStaff::query()->count();
         $q = trim((string) $request->query('q', ''));
-        $query = PortalStaff::query()
-            ->with(['learner:id,email', 'courses:id,title'])
-            ->orderBy('id');
-        if ($q !== '') {
-            $like = '%'.addcslashes($q, '%_\\').'%';
-            $query->whereHas('learner', function ($lq) use ($like) {
-                $lq->where('email', 'like', $like);
-            });
+        [$staffSort, $staffDir] = $this->staffListSortParams($request);
+
+        $items = collect();
+        if ($staffTab === 'users') {
+            $query = PortalStaff::query()
+                ->with([
+                    'learner:id,email,sso_display_name,last_login_at',
+                    'courses:id,title',
+                    'groups:id,name',
+                ]);
+            if ($q !== '') {
+                $like = '%'.addcslashes($q, '%_\\').'%';
+                $query->whereHas('learner', function ($lq) use ($like) {
+                    $lq->where('email', 'like', $like);
+                });
+            }
+            $this->applyStaffListSort($query, $staffSort, $staffDir);
+            $items = $query->get();
         }
-        $items = $query->get();
+
+        $groups = collect();
+        $allStaffForGroups = collect();
+        if ($staffTab === 'groups') {
+            $groups = PortalStaffGroup::query()
+                ->withCount('members')
+                ->with(['permissions', 'courses:id,title', 'members.learner:id,email,sso_display_name'])
+                ->orderBy('sort')
+                ->orderBy('name')
+                ->get();
+            $allStaffForGroups = PortalStaff::query()
+                ->with('learner:id,email,sso_display_name')
+                ->orderBy('id')
+                ->get();
+        }
 
         return view('admin.staff-index', [
             'items' => $items,
             'staffSearch' => $q,
             'staffSearchEnabled' => $totalStaff > 5,
+            'staffSort' => $staffSort,
+            'staffDir' => $staffDir,
+            'staffTab' => $staffTab,
+            'groups' => $groups,
+            'allStaffForGroups' => $allStaffForGroups,
+            'permissionSections' => PortalStaffPermissionCatalog::sections(),
+            'assignedPermissionKeys' => PortalStaffPermissionCatalog::ASSIGNED_SCOPE_KEYS,
         ]);
     }
 
@@ -100,6 +139,60 @@ final class AdminStaffController extends Controller
         return redirect()
             ->route('admin.staff.index')
             ->with('ok', 'Сотрудник удалён.');
+    }
+
+    /**
+     * @return array{0: string, 1: 'asc'|'desc'}
+     */
+    private function staffListSortParams(Request $request): array
+    {
+        $sort = (string) $request->query('sort', 'id');
+        if (! in_array($sort, ['id', 'email', 'name', 'role', 'login'], true)) {
+            $sort = 'id';
+        }
+        $dir = strtolower((string) $request->query('dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        return [$sort, $dir];
+    }
+
+    private function applyStaffListSort(Builder $query, string $sort, string $dir): void
+    {
+        $joined = false;
+        $joinLearners = function () use ($query, &$joined): void {
+            if ($joined) {
+                return;
+            }
+            $query->join('learners', 'learners.id', '=', 'portal_staff.learner_id')
+                ->select('portal_staff.*');
+            $joined = true;
+        };
+
+        if ($sort === 'email') {
+            $joinLearners();
+            $query->orderBy('learners.email', $dir);
+        } elseif ($sort === 'name') {
+            $joinLearners();
+            $query->orderByRaw(
+                "(learners.sso_display_name IS NULL OR TRIM(learners.sso_display_name) = '') ASC"
+            )
+                ->orderBy('learners.sso_display_name', $dir)
+                ->orderBy('learners.email', 'asc');
+        } elseif ($sort === 'login') {
+            $joinLearners();
+            $query->orderByRaw('learners.last_login_at IS NULL ASC')
+                ->orderBy('learners.last_login_at', $dir);
+        } elseif ($sort === 'role') {
+            $roles = PortalStaff::ROLES;
+            $placeholders = implode(',', array_fill(0, count($roles), '?'));
+            $query->orderByRaw(
+                'FIELD(portal_staff.role, '.$placeholders.') '.($dir === 'desc' ? 'DESC' : 'ASC'),
+                $roles
+            );
+            $joinLearners();
+            $query->orderBy('learners.email', 'asc');
+        } else {
+            $query->orderBy('portal_staff.id', $dir);
+        }
     }
 
     /**

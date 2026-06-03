@@ -10,6 +10,7 @@ use App\Models\Learner;
 use App\Services\CourseScoringService;
 use App\Services\PortalActivityFeedService;
 use App\Services\PortalStaffAccess;
+use App\Support\PortalChangelog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -328,6 +329,7 @@ class AdminPanelController extends Controller
             'dashCoursesQuick' => $coursesQuick,
             'dashEditableCourseIds' => $editableCourseIds,
             'dashCanCreateCourse' => $gate->canCreateCourses(),
+            'changelogEntries' => PortalChangelog::forDashboard(),
         ];
     }
 

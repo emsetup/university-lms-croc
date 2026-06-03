@@ -20,6 +20,14 @@
                     @endforeach
                 </select>
 
+                <div class="ap-people__sort-toggle ap-toggle-row">
+                    <label class="ap-toggle">
+                        <input type="checkbox" id="ap-people-sort-active" class="ap-toggle__input" value="1">
+                        <span class="ap-toggle__track" aria-hidden="true"></span>
+                        <span class="ap-toggle__label">Сначала недавно активные</span>
+                    </label>
+                </div>
+
                 <div class="ap-people__list" role="listbox" aria-label="Обучающиеся" id="ap-people-list">
                     @forelse ($leftList as $row)
                         <button
@@ -31,6 +39,8 @@
                             data-email="{{ e(mb_strtolower($row['email'], 'UTF-8')) }}"
                             data-full-name="{{ e(mb_strtolower((string) ($row['full_name'] ?? ''), 'UTF-8')) }}"
                             data-course-ids="{{ e(implode(',', $row['course_ids'])) }}"
+                            data-last-active-ts="{{ (int) ($row['last_active_ts'] ?? 0) }}"
+                            data-last-active-by-course="{{ e(json_encode($row['last_active_by_course'] ?? [], JSON_UNESCAPED_UNICODE)) }}"
                             aria-selected="false"
                         >
                             <span class="ap-people-row__avatar" aria-hidden="true">{{ $row['initials'] }}</span>
@@ -72,11 +82,55 @@
             var detailBase = root ? root.getAttribute('data-detail-base') : '';
             var search = document.getElementById('ap-people-search');
             var courseSel = document.getElementById('ap-people-course');
+            var sortActiveEl = document.getElementById('ap-people-sort-active');
             var list = document.getElementById('ap-people-list');
             var emptyEl = document.getElementById('ap-people-detail-empty');
             var bodyEl = document.getElementById('ap-people-detail-body');
             var rows = list ? Array.prototype.slice.call(list.querySelectorAll('.ap-people-row')) : [];
             var activeId = null;
+            var sortStorageKey = 'ap-people-sort-active';
+
+            function sortActiveEnabled() {
+                return !!(sortActiveEl && sortActiveEl.checked);
+            }
+
+            function activeTsForRow(btn) {
+                var cid = courseSel && courseSel.value ? parseInt(courseSel.value, 10) : 0;
+                if (cid) {
+                    try {
+                        var map = JSON.parse(btn.getAttribute('data-last-active-by-course') || '{}');
+                        return parseInt(map[String(cid)] || map[cid] || 0, 10) || 0;
+                    } catch (e) {
+                        return 0;
+                    }
+                }
+                return parseInt(btn.getAttribute('data-last-active-ts') || '0', 10) || 0;
+            }
+
+            function nameSortKey(btn) {
+                var fn = (btn.getAttribute('data-full-name') || '').trim();
+                return (fn || btn.getAttribute('data-email') || '').toLowerCase();
+            }
+
+            function applyListOrder() {
+                if (!list) {
+                    return;
+                }
+                var sorted = rows.slice().sort(function (a, b) {
+                    if (sortActiveEnabled()) {
+                        var diff = activeTsForRow(b) - activeTsForRow(a);
+                        if (diff !== 0) {
+                            return diff;
+                        }
+                    }
+                    var ea = nameSortKey(a);
+                    var eb = nameSortKey(b);
+                    return ea < eb ? -1 : ea > eb ? 1 : 0;
+                });
+                sorted.forEach(function (btn) {
+                    list.appendChild(btn);
+                });
+            }
 
             function applyFilters() {
                 var q = (search && search.value ? search.value : '').toLowerCase().trim();
@@ -89,6 +143,7 @@
                     var okC = !cid || ids.indexOf(cid) !== -1;
                     btn.style.display = okQ && okC ? '' : 'none';
                 });
+                applyListOrder();
             }
 
             function setActive(btn) {
@@ -190,6 +245,17 @@
 
             if (search) search.addEventListener('input', applyFilters);
             if (courseSel) courseSel.addEventListener('change', applyFilters);
+            if (sortActiveEl) {
+                try {
+                    sortActiveEl.checked = localStorage.getItem(sortStorageKey) === '1';
+                } catch (e) {}
+                sortActiveEl.addEventListener('change', function () {
+                    try {
+                        localStorage.setItem(sortStorageKey, sortActiveEl.checked ? '1' : '0');
+                    } catch (e) {}
+                    applyFilters();
+                });
+            }
 
             applyFilters();
         })();

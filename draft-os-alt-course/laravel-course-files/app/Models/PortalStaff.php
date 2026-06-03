@@ -45,6 +45,12 @@ class PortalStaff extends Model
             ->withTimestamps();
     }
 
+    public function groups(): BelongsToMany
+    {
+        return $this->belongsToMany(PortalStaffGroup::class, 'portal_staff_group_members')
+            ->withTimestamps();
+    }
+
     public function isPortalAdmin(): bool
     {
         return $this->role === self::ROLE_PORTAL_ADMIN;

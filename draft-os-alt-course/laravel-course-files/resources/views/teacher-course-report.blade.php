@@ -42,9 +42,20 @@
     </div>
 
     <div class="card teacher-report-summary" style="margin-top:0">
-        <h2 style="margin-top:0">Все обучающиеся</h2>
+        <div class="teacher-report-summary__head">
+            <h2 style="margin:0">Все обучающиеся</h2>
+            @if (($layout ?? '') === 'layouts.admin')
+                <div class="ap-toggle-row teacher-report-summary__sort">
+                    <label class="ap-toggle">
+                        <input type="checkbox" id="ap-course-learners-sort-active" class="ap-toggle__input" value="1">
+                        <span class="ap-toggle__track" aria-hidden="true"></span>
+                        <span class="ap-toggle__label">Сначала недавно активные</span>
+                    </label>
+                </div>
+            @endif
+        </div>
         <div class="tr-table-wrap">
-            <table class="teacher-report-table">
+            <table class="teacher-report-table" id="ap-course-learners-table">
                 <thead>
                 <tr>
                     <th>Обучающийся</th>
@@ -59,7 +70,11 @@
                 </thead>
                 <tbody>
                 @foreach ($learnerRows as $row)
-                    <tr data-user-email="{{ e($row['email']) }}">
+                    <tr
+                        data-user-email="{{ e($row['email']) }}"
+                        data-last-active-ts="{{ (int) ($row['last_active_ts'] ?? 0) }}"
+                        data-sort-name="{{ e(mb_strtolower(trim((string) (($row['full_name'] ?? '') !== '' ? $row['full_name'] : $row['email'])), 'UTF-8')) }}"
+                    >
                         <td>
                             @if (! empty($row['full_name']))
                                 <div class="learner-cell-name">{{ $row['full_name'] }}</div>
@@ -105,6 +120,37 @@
     @if (($layout ?? '') === 'layouts.admin')
         <script>
             (function () {
+                var sortEl = document.getElementById('ap-course-learners-sort-active');
+                var table = document.getElementById('ap-course-learners-table');
+                var tbody = table ? table.querySelector('tbody') : null;
+                var sortKey = 'ap-course-learners-sort-active';
+
+                function applyTableOrder() {
+                    if (!tbody) return;
+                    var trs = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-user-email]'));
+                    var byActive = !!(sortEl && sortEl.checked);
+                    trs.sort(function (a, b) {
+                        if (byActive) {
+                            var diff = (parseInt(b.getAttribute('data-last-active-ts') || '0', 10) || 0)
+                                - (parseInt(a.getAttribute('data-last-active-ts') || '0', 10) || 0);
+                            if (diff !== 0) return diff;
+                        }
+                        var na = a.getAttribute('data-sort-name') || '';
+                        var nb = b.getAttribute('data-sort-name') || '';
+                        return na < nb ? -1 : na > nb ? 1 : 0;
+                    });
+                    trs.forEach(function (tr) { tbody.appendChild(tr); });
+                }
+
+                if (sortEl) {
+                    try { sortEl.checked = localStorage.getItem(sortKey) === '1'; } catch (e) {}
+                    sortEl.addEventListener('change', function () {
+                        try { localStorage.setItem(sortKey, sortEl.checked ? '1' : '0'); } catch (e) {}
+                        applyTableOrder();
+                    });
+                    applyTableOrder();
+                }
+
                 var q = new URLSearchParams(window.location.search).get('user');
                 if (!q) return;
                 var decoded = '';

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Learner;
+use App\Support\LearnerPortalLoginPersistence;
 use App\Support\LearnerSsoDisplayNamePersistence;
 use App\Support\OidcIdentityClaims;
 use App\Support\OidcSignInRedirect;
@@ -142,6 +143,8 @@ class OidcLoginController extends Controller
             $request->session()->forget('learner_name');
         }
 
+        LearnerPortalLoginPersistence::recordLogin($learner);
+        LearnerPortalLoginPersistence::markSessionRecorded($request);
         LearnerSsoDisplayNamePersistence::syncIfPossible($learner);
 
         return redirect('/');

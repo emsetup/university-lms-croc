@@ -379,13 +379,16 @@
             var max = parseInt(maxInp && maxInp.value, 10) || 0;
             var sum = tasks.reduce(function (a, t) { return a + (parseInt(t.points, 10) || 0); }, 0);
             if (max <= 0) max = sum > 0 ? sum : 100;
-            var useHelpers = getHelpersSelected().length > 0;
             var lines = ['#!/bin/bash', 'set -uo pipefail', '', 'STUDENT_HOME="${STUDENT_HOME:-/home/student}"', 'MAX=' + max, 'score=0', ''];
-            if (useHelpers) {
-                getHelpersSelected().forEach(function (id) {
-                    var p = checkById[id];
-                    if (p && p.body) lines.push(String(p.body).trim());
-                });
+            lines.push('hint() { echo "HINT: $*"; }');
+            lines.push('ok() { echo "OK: $*"; }');
+            lines.push('fail_vis() { echo "FAIL: $*"; }');
+            lines.push('');
+            getHelpersSelected().forEach(function (id) {
+                var p = checkById[id];
+                if (p && p.body) lines.push(String(p.body).trim());
+            });
+            if (getHelpersSelected().length > 0) {
                 lines.push('');
             }
             tasks.forEach(function (t, i) {

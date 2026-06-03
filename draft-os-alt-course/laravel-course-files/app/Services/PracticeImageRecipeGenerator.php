@@ -35,21 +35,18 @@ final class PracticeImageRecipeGenerator
             $startup = "#!/usr/bin/env bash\nset -euo pipefail\n\n# TODO: prepare lab state here\n";
         }
 
-        $check = (string) ($img->check_script_text ?? '');
+        $check = $this->normalizeCheckScript((string) ($img->check_script_text ?? ''));
         if (trim($check) === '') {
             $check = "#!/bin/bash\nset -uo pipefail\n\necho \"===PRACTICE_RESULT_JSON===\"\necho '{\"score\":0,\"max\":100}'\nexit 1\n";
         }
 
-        File::put($root.'/assets/startup.sh', $startup);
-        @chmod($root.'/assets/startup.sh', 0755);
+        $this->writeUnixScript($root.'/assets/startup.sh', $startup);
 
-        File::put($root.'/assets/entrypoint.sh', $this->entrypointScript($systemd));
-        @chmod($root.'/assets/entrypoint.sh', 0755);
+        $this->writeUnixScript($root.'/assets/entrypoint.sh', $this->entrypointScript($systemd));
 
         // Keep existing layout expected by current templates.
         File::ensureDirectoryExists($root.'/examples/practice-checks/custom');
-        File::put($root.'/examples/practice-checks/custom/check.sh', $check);
-        @chmod($root.'/examples/practice-checks/custom/check.sh', 0755);
+        $this->writeUnixScript($root.'/examples/practice-checks/custom/check.sh', $check);
 
         File::put($root.'/Dockerfile', $this->dockerfileFor($img));
     }
@@ -64,22 +61,69 @@ final class PracticeImageRecipeGenerator
             };
         }
 
-        $adds = is_array($img->package_add) ? array_values(array_filter(array_map('strval', $img->package_add))) : [];
-        $rems = is_array($img->package_remove) ? array_values(array_filter(array_map('strval', $img->package_remove))) : [];
-
+        $os = (string) ($img->base_os ?? 'alt');
         $features = is_array($img->features) ? $img->features : [];
-        $featBlock = $this->featuresBlock((string) ($img->base_os ?? 'alt'), $features);
+        ['add' => $adds, 'remove' => $rems] = $this->mergedPackageLists($img, $features);
 
-        $pkgBlock = $this->packageInstallBlock((string) ($img->base_os ?? 'alt'), $adds, $rems);
+        $pkgBlock = $this->packageInstallBlock($os, $adds, $rems);
+        $featBlock = $this->featuresBlock($os, $features);
 
         return "FROM {$base}\n\n".
             "COPY assets/entrypoint.sh /entrypoint.sh\n".
             "COPY assets/startup.sh /opt/lab/startup.sh\n".
             "COPY examples/practice-checks/custom/check.sh /opt/lab-check/check.sh\n\n".
             "RUN chmod +x /entrypoint.sh /opt/lab/startup.sh /opt/lab-check/check.sh\n\n".
-            ($featBlock !== '' ? $featBlock."\n\n" : '').
             ($pkgBlock !== '' ? $pkgBlock."\n\n" : '').
+            ($featBlock !== '' ? $featBlock."\n\n" : '').
             "ENTRYPOINT [\"/entrypoint.sh\"]\n";
+    }
+
+    /**
+     * @return array{add:list<string>,remove:list<string>}
+     */
+    private function mergedPackageLists(PracticeImage $img, array $features): array
+    {
+        $userAdd = is_array($img->package_add) ? array_values(array_filter(array_map('strval', $img->package_add))) : [];
+        $remove = is_array($img->package_remove) ? array_values(array_filter(array_map('strval', $img->package_remove))) : [];
+
+        $add = array_values(array_unique(array_merge($this->featurePackages($features), $userAdd)));
+        if ($remove !== []) {
+            $removeSet = array_fill_keys($remove, true);
+            $add = array_values(array_filter($add, static fn (string $p): bool => ! isset($removeSet[$p])));
+        }
+
+        return ['add' => $add, 'remove' => array_values(array_unique($remove))];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function featurePackages(array $features): array
+    {
+        $systemd = (bool) ($features['systemd_mode'] ?? false);
+        $sshd = (bool) ($features['sshd'] ?? false);
+        $locale = trim((string) ($features['locale'] ?? ''));
+
+        $cu = is_array($features['create_user'] ?? null) ? $features['create_user'] : [];
+        $cuEnabled = (bool) ($cu['enabled'] ?? false);
+        $cuSudo = (bool) ($cu['sudo'] ?? true);
+        $needSudo = $cuEnabled && $cuSudo;
+
+        $pkgs = [];
+        if ($systemd) {
+            $pkgs[] = 'systemd';
+        }
+        if ($sshd) {
+            $pkgs[] = 'openssh-server';
+        }
+        if ($needSudo) {
+            $pkgs[] = 'sudo';
+        }
+        if ($locale !== '') {
+            $pkgs[] = 'glibc-locales';
+        }
+
+        return $pkgs;
     }
 
     private function packageInstallBlock(string $os, array $add, array $remove): string
@@ -120,23 +164,52 @@ final class PracticeImageRecipeGenerator
         return implode('', $lines);
     }
 
+    private function writeUnixScript(string $path, string $content): void
+    {
+        File::put($path, str_replace(["\r\n", "\r"], "\n", $content));
+        @chmod($path, 0755);
+    }
+
+    private function normalizeCheckScript(string $check): string
+    {
+        $check = str_replace(["\r\n", "\r"], "\n", $check);
+        if (trim($check) === '') {
+            return $check;
+        }
+
+        if (preg_match('/^(?:ok|fail_vis|hint)\s*\(\)/m', $check)) {
+            return $check;
+        }
+
+        if (! preg_match('/\b(?:ok|fail_vis|hint)\s+"|\b(?:ok|fail_vis|hint)\s+\$/', $check)) {
+            return $check;
+        }
+
+        $helpers = "hint() { echo \"HINT: \$*\"; }\nok() { echo \"OK: \$*\"; }\nfail_vis() { echo \"FAIL: \$*\"; }\n\n";
+        if (preg_match('/^(#!.*\n)/', $check, $m)) {
+            return $m[1].$helpers.substr($check, strlen($m[1]));
+        }
+
+        return "#!/bin/bash\n".$helpers.$check;
+    }
+
     private function entrypointScript(bool $systemd): string
     {
         if ($systemd) {
             return <<<'SH'
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
 if [ -x /opt/lab/startup.sh ]; then
   /opt/lab/startup.sh || true
 fi
 
-exec /sbin/init
+exec /lib/systemd/systemd
 SH;
         }
 
         return <<<'SH'
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
 if [ -x /opt/lab/startup.sh ]; then
@@ -164,16 +237,6 @@ SH;
 
         $needSudo = $cuEnabled && $cuSudo;
         $needUser = $cuEnabled;
-
-        $pkgs = [];
-        if ($systemd) $pkgs[] = 'systemd';
-        if ($sshd) $pkgs[] = 'openssh-server';
-        if ($needSudo) $pkgs[] = 'sudo';
-        if ($locale !== '') $pkgs[] = 'glibc-locales';
-
-        if ($pkgs !== []) {
-            $lines[] = $this->packageInstallBlock($os, $pkgs, []);
-        }
 
         if ($locale !== '') {
             $safe = preg_replace('/[^A-Za-z0-9_.@-]/', '', $locale) ?: 'C.UTF-8';

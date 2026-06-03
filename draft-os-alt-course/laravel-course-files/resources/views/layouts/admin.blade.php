@@ -60,6 +60,7 @@
                     <span class="kbd" data-ap-kbd-palette>⌘K</span>
                 </button>
                 <a class="nav-cmd-btn" href="{{ route('documentation.index') }}">Документация</a>
+                @include('partials.admin-logs-nav-link')
                 <a class="nav-cmd-btn" href="{{ route('portal') }}">→ Портал</a>
                 <form method="post" action="{{ route('logout') }}" style="margin:0;display:inline">
                     @csrf

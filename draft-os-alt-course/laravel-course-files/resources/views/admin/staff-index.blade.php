@@ -5,35 +5,63 @@
 @php
     use App\Models\PortalStaff;
     use App\Models\Course;
+    use App\Support\LearnerDisplay;
     $courses = Course::query()->orderBy('sort')->orderBy('id')->get(['id', 'title']);
     $__staffRouteToken = 999999999;
     $staffUpdateUrlTpl = str_replace((string) $__staffRouteToken, '__ID__', route('admin.staff.update', ['staff' => $__staffRouteToken]));
     $staffDestroyUrlTpl = str_replace((string) $__staffRouteToken, '__ID__', route('admin.staff.destroy', ['staff' => $__staffRouteToken]));
     $pickedOldCourses = $errors->any() ? collect(old('course_ids', []))->map(fn ($v) => (int) $v)->all() : [];
+    $staffSort = $staffSort ?? 'id';
+    $staffDir = $staffDir ?? 'asc';
+    $staffSearch = $staffSearch ?? '';
+    $staffTab = $staffTab ?? 'users';
+    $__groupRouteToken = 999999998;
+    $groupUpdateUrlTpl = str_replace((string) $__groupRouteToken, '__ID__', route('admin.staff.groups.update', ['group' => $__groupRouteToken]));
+    $groupDestroyUrlTpl = str_replace((string) $__groupRouteToken, '__ID__', route('admin.staff.groups.destroy', ['group' => $__groupRouteToken]));
+    $staffIndexParams = array_filter(['tab' => 'users', 'q' => $staffSearch !== '' ? $staffSearch : null, 'sort' => $staffSort !== 'id' ? $staffSort : null, 'dir' => ($staffSort !== 'id' && $staffDir !== 'asc') ? $staffDir : null]);
+    $groupsIndexParams = array_filter(['tab' => 'groups', 'q' => $staffSearch !== '' ? $staffSearch : null]);
 @endphp
 
 @section('content')
     <div class="ap-page ap-fade ap-staff">
         <div class="ap-staff__head">
             <div>
-                <h1 class="ap-page-title ap-staff__title">Администраторы и роли</h1>
+                <h1 class="ap-page-title ap-staff__title">Сотрудники и доступ</h1>
                 <p class="ap-page-lead ap-staff__lead">
-                    Доступ к разделу <code>/adm</code> только у перечисленных здесь учётных записей после входа через SSO (OIDC).
+                    Учётные записи с доступом в <code>/adm</code> после SSO. Роли задают базовые права; <strong>группы</strong> дополняют их для команд и проектов.
                 </p>
             </div>
-            <button type="button" class="btn btn-primary ap-staff__add" id="ap-staff-open-create">
-                @include('partials.ap-icon', ['name' => 'plus', 'size' => 'sm'])
-                Добавить
-            </button>
+            <div class="ap-staff__head-actions">
+                <button type="button" class="btn btn-primary ap-staff__add @if ($staffTab !== 'users') is-hidden @endif" id="ap-staff-open-create">
+                    @include('partials.ap-icon', ['name' => 'plus', 'size' => 'sm'])
+                    Добавить сотрудника
+                </button>
+                <button type="button" class="btn btn-primary ap-staff__add @if ($staffTab !== 'groups') is-hidden @endif" id="ap-staff-open-create-group">
+                    @include('partials.ap-icon', ['name' => 'plus', 'size' => 'sm'])
+                    Создать группу
+                </button>
+            </div>
         </div>
 
-        @if (! empty($staffSearchEnabled))
+        <nav class="ap-staff-tabs" aria-label="Разделы сотрудников">
+            <a href="{{ route('admin.staff.index', $staffIndexParams) }}"
+               class="ap-staff-tabs__a @if ($staffTab === 'users') ap-staff-tabs__a--active @endif">Пользователи</a>
+            <a href="{{ route('admin.staff.index', $groupsIndexParams) }}"
+               class="ap-staff-tabs__a @if ($staffTab === 'groups') ap-staff-tabs__a--active @endif">Группы</a>
+        </nav>
+
+        @if ($staffTab === 'users' && ! empty($staffSearchEnabled))
             <form method="get" action="{{ route('admin.staff.index') }}" class="ap-docker__search ap-staff__search" role="search" style="margin-top:0.75rem">
                 <label class="ap-docker__search-label" for="ap-staff-q">Поиск по email</label>
-                <input id="ap-staff-q" name="q" type="search" value="{{ $staffSearch ?? '' }}" placeholder="Часть адреса…" class="ap-modal__input ap-docker__search-input" autocomplete="off">
+                <input id="ap-staff-q" name="q" type="search" value="{{ $staffSearch }}" placeholder="Часть адреса…" class="ap-modal__input ap-docker__search-input" autocomplete="off">
+                <input type="hidden" name="tab" value="users">
+                @if ($staffSort !== 'id')
+                    <input type="hidden" name="sort" value="{{ $staffSort }}">
+                    <input type="hidden" name="dir" value="{{ $staffDir }}">
+                @endif
                 <button type="submit" class="btn btn-primary">Найти</button>
                 @if (($staffSearch ?? '') !== '')
-                    <a href="{{ route('admin.staff.index') }}" class="btn btn-ghost">Сбросить</a>
+                    <a href="{{ route('admin.staff.index', ['tab' => 'users']) }}" class="btn btn-ghost">Сбросить</a>
                 @endif
             </form>
         @endif
@@ -55,15 +83,23 @@
             </div>
         @endif
 
+        @if ($staffTab === 'groups')
+            @include('admin.partials.staff-groups-tab')
+        @endif
+
+        @if ($staffTab === 'users')
         <div class="ap-card ap-staff__table-card">
             <div class="ap-table-wrap">
                 <table class="ap-table ap-staff-table">
                     <thead>
                     <tr>
-                        <th>Email</th>
-                        <th>Роль</th>
-                        <th>Курсы</th>
-                        <th class="ap-staff-table__actions-col">Действия</th>
+                        @include('admin.partials.staff-table-sort-th', ['column' => 'email', 'label' => 'Email', 'staffSort' => $staffSort, 'staffDir' => $staffDir, 'staffSearch' => $staffSearch])
+                        @include('admin.partials.staff-table-sort-th', ['column' => 'name', 'label' => 'ФИО', 'staffSort' => $staffSort, 'staffDir' => $staffDir, 'staffSearch' => $staffSearch])
+                        @include('admin.partials.staff-table-sort-th', ['column' => 'role', 'label' => 'Роль', 'staffSort' => $staffSort, 'staffDir' => $staffDir, 'staffSearch' => $staffSearch])
+                        <th scope="col">Группы</th>
+                        <th scope="col">Курсы</th>
+                        @include('admin.partials.staff-table-sort-th', ['column' => 'login', 'label' => 'Последний вход', 'staffSort' => $staffSort, 'staffDir' => $staffDir, 'staffSearch' => $staffSearch, 'class' => 'ap-staff-table__login-col'])
+                        <th class="ap-staff-table__actions-col" scope="col">Действия</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -89,6 +125,7 @@
                                 default => 'ap-staff-badge ap-staff-badge--muted',
                             };
                             $courseIds = $row->courses->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+                            $fullName = $row->learner ? LearnerDisplay::portalDisplayName($row->learner) : '';
                         @endphp
                         <tr class="ap-staff-row"
                             data-staff-id="{{ (int) $row->id }}"
@@ -96,7 +133,25 @@
                             data-role="{{ e($row->role) }}"
                             data-course-ids="{{ e(implode(',', $courseIds)) }}">
                             <td><strong class="ap-staff-table__email">{{ $email !== '' ? $email : '—' }}</strong></td>
+                            <td class="ap-staff-table__name">
+                                @if ($fullName !== '')
+                                    {{ $fullName }}
+                                @else
+                                    <span class="ap-muted" title="Появится после входа через SSO, когда сохранится имя из учётной записи">—</span>
+                                @endif
+                            </td>
                             <td><span class="{{ $badgeClass }}">{{ $roleLabel }}</span></td>
+                            <td class="ap-staff-table__groups">
+                                @if ($row->groups->isEmpty())
+                                    <span class="ap-muted">—</span>
+                                @else
+                                    <div class="ap-staff-group-tags">
+                                        @foreach ($row->groups as $grp)
+                                            <span class="ap-staff-group-tag">{{ $grp->name }}</span>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </td>
                             <td class="ap-staff-table__courses">
                                 @if ($row->courses->isEmpty())
                                     <span class="ap-muted">—</span>
@@ -106,6 +161,18 @@
                                             <li>{{ $c->title }}</li>
                                         @endforeach
                                     </ul>
+                                @endif
+                            </td>
+                            <td class="ap-staff-table__login">
+                                @php
+                                    $lastLogin = $row->learner?->last_login_at;
+                                @endphp
+                                @if ($lastLogin instanceof \DateTimeInterface)
+                                    <time datetime="{{ $lastLogin->timezone(config('app.timezone'))->format('Y-m-d\TH:i') }}">
+                                        {{ $lastLogin->timezone(config('app.timezone'))->format('d.m.Y H:i') }}
+                                    </time>
+                                @else
+                                    <span class="ap-muted" title="Пока не зафиксирован вход после обновления портала">—</span>
                                 @endif
                             </td>
                             <td>
@@ -133,8 +200,10 @@
                 @endif
             </div>
         </div>
+        @endif
     </div>
 
+    @if ($staffTab === 'users')
     {{-- Модалка: добавить / изменить --}}
     <div class="ap-modal" id="ap-staff-form-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="ap-staff-form-title">
         <div class="ap-modal__backdrop" data-ap-staff-modal-close tabindex="-1"></div>
@@ -195,7 +264,13 @@
             </form>
         </div>
     </div>
+    @endif
 
+    @if ($staffTab === 'groups')
+        @include('admin.partials.staff-group-modals')
+    @endif
+
+    @if ($staffTab === 'users')
     <script>
         (function () {
             var formModal = document.getElementById('ap-staff-form-modal');
@@ -446,4 +521,5 @@
             @endif
         })();
     </script>
+    @endif
 @endsection

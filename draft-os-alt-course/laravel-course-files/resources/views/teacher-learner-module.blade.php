@@ -1,10 +1,14 @@
 @extends('layouts.admin')
 
 @php
+    use App\Support\AdminNavigation;
     use App\Support\DurationFormat;
 
+    $layoutCourseChrome = AdminNavigation::showCourseChrome();
+
     $enrollment = $learner->courseEnrollments->sortBy('id')->first();
-    $courseModel = $enrollment?->course
+    $courseModel = ($forcedCourse ?? null)
+        ?? $enrollment?->course
         ?? \App\Models\Course::query()->where('slug', 'alt-os-features')->first();
     $tp = $courseModel ? ['adminCourse' => $courseModel->slug] : [];
     $cid = $courseModel ? (int) $courseModel->id : 0;
@@ -14,11 +18,31 @@
         : 0;
     $canResetProgress = $cid > 0 && (($portalStaffAccess ?? null)?->canResetLearnerProgressForCourse($cid) ?? false);
     $learnersListUrl = $tp !== [] ? route('admin.learners.course', $tp) : route('teacher.course-report');
-    $learnerCardUrl = route('teacher.course-report.learner', $learner->id);
+    $learnerCardUrl = $tp !== []
+        ? route('admin.learners.course.learner', array_merge($tp, ['learner' => $learner->id]))
+        : route('teacher.course-report.learner', $learner->id);
     $p = $panel['progress'];
     $rep = $panel['report'];
     $mid = (int) $panel['module_id'];
+    $resetPostUrl = $tp !== []
+        ? route('admin.learners.course.learner.reset', array_merge($tp, ['learner' => $learner->id, 'courseModule' => $mid]))
+        : route('teacher.course-report.learner.module.reset', ['learner' => $learner->id, 'module' => $mid]);
     $ps = $panel['practice_session'];
+    $tqHistTop = $panel['theory_quiz_history'] ?? [];
+    $exHistTop = $panel['module_exam_history'] ?? [];
+    $canResetTq =
+        $canResetProgress
+        && $p
+        && ((int) $p->theory_quiz_attempts >= 1
+            || is_array($p->theory_quiz_last_result)
+            || (is_array($tqHistTop) && count($tqHistTop) > 0));
+    $canResetPr = $canResetProgress && $p && ($p->practice_done_at || $ps);
+    $canResetEx =
+        $canResetProgress
+        && $p
+        && ((int) $p->module_exam_attempts >= 1
+            || is_array($p->module_exam_last_result)
+            || (is_array($exHistTop) && count($exHistTop) > 0));
     $secTheory = $p ? (int) ($p->seconds_theory ?? 0) : 0;
     $secTq = $p ? (int) ($p->seconds_theory_quiz ?? 0) : 0;
     $secPr = $p ? (int) ($p->seconds_practice ?? 0) : 0;
@@ -57,7 +81,7 @@
 
     <div class="learner-page-content">
     <div class="ap-report-bleed">
-        @if ($courseModel)
+        @if (! $layoutCourseChrome && $courseModel)
             <div class="ap-course-context">
                 <div class="ap-course-context__row">
                     <div class="ap-course-context__brand">
@@ -190,26 +214,22 @@
         <section class="card ap-report-mod-section section-card" id="test" data-section="test" data-type="test">
             <div class="section-card-header">
                 <h2 class="section-card-title" id="ta-tq-h">Тест по теории</h2>
-                <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
-                    <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
-                    <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
-                        <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
-                    @php
-                        $tqHistMenu = $panel['theory_quiz_history'] ?? [];
-                        $canResetTqMenu =
-                            $canResetProgress
-                            && $p
-                            && ((int) $p->theory_quiz_attempts >= 1
-                                || is_array($p->theory_quiz_last_result)
-                                || (is_array($tqHistMenu) && count($tqHistMenu) > 0));
-                    @endphp
-                    @if ($canResetTqMenu)
-                        <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#ta-reset-tq">Сброс попытки…</a>
+                <div class="section-card-header__actions">
+                    @if ($canResetTq)
+                        <a class="btn-reset" href="#ta-reset-tq">Сброс</a>
                     @endif
+                    <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
+                        <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
+                        <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
+                            <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
+                            @if ($canResetTq)
+                                <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#ta-reset-tq">Сброс попытки…</a>
+                            @endif
+                        </div>
                     </div>
                 </div>
             </div>
-            <p class="section-card-lead">Каждая попытка — отдельная карточка.</p>
+            <p class="section-card-lead">Переключайте вкладки, чтобы просмотреть каждую попытку.</p>
             <div class="section-card-divider" role="presentation"></div>
             <div class="section-card-body">
             @php
@@ -218,49 +238,20 @@
                     $thHist = [$p->theory_quiz_last_result];
                 }
             @endphp
-            @if ($p && is_array($thHist) && count($thHist) > 0)
-                @foreach ($thHist as $ti => $tattempt)
-                    <div class="attempt-card">
-                        <div class="attempt-header">
-                            <span>Попытка {{ $tattempt['attempt_no'] ?? ($ti + 1) }}</span>
-                            @if (! empty($tattempt['passed']))
-                                <span class="badge-threshold badge-threshold--ok">порог{!! $svgThOk !!}</span>
-                            @elseif (isset($tattempt['passed']) && ! $tattempt['passed'])
-                                <span class="badge-threshold badge-threshold--fail">порог{!! $svgThFail !!}</span>
-                            @endif
-                        </div>
-                        <p class="attempt-meta">
-                            Итог: {{ (int) ($tattempt['final_percent'] ?? 0) }}%
-                            @if (! empty($tattempt['raw_percent']))
-                                <span class="muted">&nbsp;·&nbsp;</span>Сырой: {{ (int) $tattempt['raw_percent'] }}%
-                            @endif
-                        </p>
-                        <p class="attempt-meta" style="margin-bottom:0">
-                            @if (! empty($tattempt['recorded_at'])){{ $tattempt['recorded_at'] }}@endif
-                            @if (! empty($tattempt['penalty_points']))<span> · штраф −{{ $tattempt['penalty_points'] }} п.п.</span>@endif
-                        </p>
-                        @include('partials.teacher-quiz-breakdown-items', [
-                            'items' => $tattempt['items'] ?? [],
-                            'questionBank' => $panel['theory_questions'],
-                        ])
-                    </div>
-                @endforeach
-            @else
-                <p class="muted" style="margin:0;font-size:14px">Пока нет завершённых попыток.</p>
-            @endif
+            @include('partials.teacher-attempt-tabs', [
+                'attempts' => $thHist,
+                'groupId' => 'tq-' . $mid,
+                'attemptNoKey' => 'attempt_no',
+                'passedKey' => 'passed',
+                'penaltyFlagKey' => 'penalty_points',
+                'questionBank' => $panel['theory_questions'],
+                'svgThOk' => $svgThOk,
+                'svgThFail' => $svgThFail,
+            ])
             </div>
-            @php
-                $tqHist = $panel['theory_quiz_history'] ?? [];
-                $canResetTq =
-                    $canResetProgress
-                    && $p
-                    && ((int) $p->theory_quiz_attempts >= 1
-                        || is_array($p->theory_quiz_last_result)
-                        || (is_array($tqHist) && count($tqHist) > 0));
-            @endphp
             @if ($canResetTq)
                 <div class="ap-report-reset-block" id="ta-reset-tq">
-                    <form method="post" action="{{ route('teacher.course-report.learner.module.reset', ['learner' => $learner->id, 'module' => $mid]) }}" class="js-ta-reset-form">
+                    <form method="post" action="{{ $resetPostUrl }}" class="js-ta-reset-form">
                         @csrf
                         <input type="hidden" name="step" value="theory_quiz">
                         <label><input type="checkbox" name="confirm" value="1" required> Сбросить последнюю «занятую» попытку: у обучающегося счётчик попыток уменьшится на 1, текущие результаты и история на его стороне очистятся; здесь останется запись в журнале сбросов.</label>
@@ -275,14 +266,18 @@
             <div class="section-card-header">
                 <h2 class="section-card-title" id="ta-pr-h">Практика</h2>
                 @if (! $skipPractice)
-                    <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
-                        <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
-                        <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
-                            <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
-                            @php $canResetPrMenu = $canResetProgress && $p && ($p->practice_done_at || $ps); @endphp
-                            @if ($canResetPrMenu)
-                                <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#ta-reset-pr">Сброс попытки…</a>
-                            @endif
+                    <div class="section-card-header__actions">
+                        @if ($canResetPr)
+                            <a class="btn-reset" href="#ta-reset-pr">Сброс</a>
+                        @endif
+                        <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
+                            <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
+                            <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
+                                <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
+                                @if ($canResetPr)
+                                    <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#ta-reset-pr">Сброс попытки…</a>
+                                @endif
+                            </div>
                         </div>
                     </div>
                 @endif
@@ -337,12 +332,9 @@
             @endif
             </div>
             @if (! $skipPractice)
-                @php
-                    $canResetPr = $canResetProgress && $p && ($p->practice_done_at || $ps);
-                @endphp
                 @if ($canResetPr)
                     <div class="ap-report-reset-block" id="ta-reset-pr">
-                        <form method="post" action="{{ route('teacher.course-report.learner.module.reset', ['learner' => $learner->id, 'module' => $mid]) }}" class="js-ta-reset-form">
+                        <form method="post" action="{{ $resetPostUrl }}" class="js-ta-reset-form">
                             @csrf
                             <input type="hidden" name="step" value="practice">
                             <label><input type="checkbox" name="confirm" value="1" required> Сбросить практику: снимок сессии уйдёт в журнал, отметка «сдано» и проценты у обучающегося сбросятся; контейнер нужно будет запустить заново.</label>
@@ -357,26 +349,22 @@
         <section class="card ap-report-mod-section section-card" id="exam" data-section="exam" data-type="exam">
             <div class="section-card-header">
                 <h2 class="section-card-title" id="ta-ex-h">Экзамен</h2>
-                <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
-                    <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
-                    <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
-                        <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
-                        @php
-                            $exHistMenu = $panel['module_exam_history'] ?? [];
-                            $canResetExMenu =
-                                $canResetProgress
-                                && $p
-                                && ((int) $p->module_exam_attempts >= 1
-                                    || is_array($p->module_exam_last_result)
-                                    || (is_array($exHistMenu) && count($exHistMenu) > 0));
-                        @endphp
-                        @if ($canResetExMenu)
-                            <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#ta-reset-ex">Сброс попытки…</a>
-                        @endif
+                <div class="section-card-header__actions">
+                    @if ($canResetEx)
+                        <a class="btn-reset" href="#ta-reset-ex">Сброс</a>
+                    @endif
+                    <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
+                        <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
+                        <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
+                            <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
+                            @if ($canResetEx)
+                                <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#ta-reset-ex">Сброс попытки…</a>
+                            @endif
+                        </div>
                     </div>
                 </div>
             </div>
-            <p class="section-card-lead">Все зафиксированные попытки — списком сверху вниз.</p>
+            <p class="section-card-lead">Переключайте вкладки, чтобы просмотреть каждую попытку.</p>
             <div class="section-card-divider" role="presentation"></div>
             <div class="section-card-body">
             <p class="ap-report-sec-meta-line" style="margin-top:0">
@@ -388,49 +376,20 @@
                     $exHist = [$p->module_exam_last_result];
                 }
             @endphp
-            @if ($p && is_array($exHist) && count($exHist) > 0)
-                @foreach ($exHist as $ei => $eattempt)
-                    <div class="attempt-card">
-                        <div class="attempt-header">
-                            <span>Попытка {{ $eattempt['attempt'] ?? ($ei + 1) }}</span>
-                            @if (! empty($eattempt['passed_this_attempt']))
-                                <span class="badge-threshold badge-threshold--ok">порог{!! $svgThOk !!}</span>
-                            @elseif (isset($eattempt['passed_this_attempt']) && ! $eattempt['passed_this_attempt'])
-                                <span class="badge-threshold badge-threshold--fail">порог{!! $svgThFail !!}</span>
-                            @endif
-                        </div>
-                        <p class="attempt-meta">
-                            Итог: {{ (int) ($eattempt['final_percent'] ?? 0) }}%
-                            @if (isset($eattempt['raw_percent']))
-                                <span class="muted">&nbsp;·&nbsp;</span>Сырой: {{ (int) $eattempt['raw_percent'] }}%
-                            @endif
-                        </p>
-                        <p class="attempt-meta" style="margin-bottom:0">
-                            @if (! empty($eattempt['recorded_at'])){{ $eattempt['recorded_at'] }}@endif
-                            @if (! empty($eattempt['penalty_applied']))<span> · штраф −{{ $eattempt['penalty_points'] ?? 10 }} п.п.</span>@endif
-                        </p>
-                        @include('partials.teacher-quiz-breakdown-items', [
-                            'items' => $eattempt['items'] ?? [],
-                            'questionBank' => $panel['exam_questions'],
-                        ])
-                    </div>
-                @endforeach
-            @else
-                <p class="muted" style="margin:0;font-size:14px">Пока нет завершённых попыток.</p>
-            @endif
+            @include('partials.teacher-attempt-tabs', [
+                'attempts' => $exHist,
+                'groupId' => 'ex-' . $mid,
+                'attemptNoKey' => 'attempt',
+                'passedKey' => 'passed_this_attempt',
+                'penaltyFlagKey' => 'penalty_applied',
+                'questionBank' => $panel['exam_questions'],
+                'svgThOk' => $svgThOk,
+                'svgThFail' => $svgThFail,
+            ])
             </div>
-            @php
-                $exHistR = $panel['module_exam_history'] ?? [];
-                $canResetEx =
-                    $canResetProgress
-                    && $p
-                    && ((int) $p->module_exam_attempts >= 1
-                        || is_array($p->module_exam_last_result)
-                        || (is_array($exHistR) && count($exHistR) > 0));
-            @endphp
             @if ($canResetEx)
                 <div class="ap-report-reset-block" id="ta-reset-ex">
-                    <form method="post" action="{{ route('teacher.course-report.learner.module.reset', ['learner' => $learner->id, 'module' => $mid]) }}" class="js-ta-reset-form">
+                    <form method="post" action="{{ $resetPostUrl }}" class="js-ta-reset-form">
                         @csrf
                         <input type="hidden" name="step" value="module_exam">
                         <label><input type="checkbox" name="confirm" value="1" required> Сбросить последнюю попытку экзамена: счётчик попыток −1, видимые результаты очищаются, снимок — в журнале.</label>
@@ -521,6 +480,47 @@
                 });
             });
         })();
+        document.querySelectorAll('[data-ap-attempt-tabs]').forEach(function (root) {
+            var tabs = root.querySelectorAll('[data-ap-attempt-tab]');
+            var panels = root.querySelectorAll('[data-ap-attempt-panel]');
+            if (!tabs.length) {
+                return;
+            }
+            function activate(idx) {
+                tabs.forEach(function (btn) {
+                    var on = btn.getAttribute('data-ap-attempt-tab') === String(idx);
+                    btn.classList.toggle('is-active', on);
+                    btn.setAttribute('aria-selected', on ? 'true' : 'false');
+                    btn.tabIndex = on ? 0 : -1;
+                });
+                panels.forEach(function (panel) {
+                    var on = panel.getAttribute('data-ap-attempt-panel') === String(idx);
+                    panel.classList.toggle('is-active', on);
+                    if (on) {
+                        panel.removeAttribute('hidden');
+                    } else {
+                        panel.setAttribute('hidden', '');
+                    }
+                });
+            }
+            tabs.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    activate(btn.getAttribute('data-ap-attempt-tab'));
+                });
+                btn.addEventListener('keydown', function (e) {
+                    var i = Array.prototype.indexOf.call(tabs, btn);
+                    if (e.key === 'ArrowRight' && i < tabs.length - 1) {
+                        e.preventDefault();
+                        tabs[i + 1].focus();
+                        activate(tabs[i + 1].getAttribute('data-ap-attempt-tab'));
+                    } else if (e.key === 'ArrowLeft' && i > 0) {
+                        e.preventDefault();
+                        tabs[i - 1].focus();
+                        activate(tabs[i - 1].getAttribute('data-ap-attempt-tab'));
+                    }
+                });
+            });
+        });
         document.querySelectorAll('.js-ta-reset-form').forEach(function (f) {
             f.addEventListener('submit', function (e) {
                 if (!confirm('Выполнить сброс для этого шага?')) {

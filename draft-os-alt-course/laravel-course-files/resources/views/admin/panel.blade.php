@@ -4,6 +4,7 @@
 
 @push('scripts')
     <script src="{{ asset('js/admin-activity-panel.js') }}" defer></script>
+    <script src="{{ asset('js/admin-dash-changelog.js') }}" defer></script>
 @endpush
 
 @section('content')
@@ -78,6 +79,11 @@
                 ])
             </section>
 
+            <div class="ap-dash-col-stack">
+                @include('admin.partials.changelog-panel', [
+                    'changelogEntries' => $changelogEntries ?? [],
+                ])
+
             <section class="ap-card ap-dash-card">
                 <h2 class="ap-card__title">Курсы</h2>
                 @if (($dashCoursesQuick ?? collect())->isEmpty())
@@ -138,6 +144,7 @@
                     </div>
                 @endif
             </section>
+            </div>
         </div>
     </div>
 

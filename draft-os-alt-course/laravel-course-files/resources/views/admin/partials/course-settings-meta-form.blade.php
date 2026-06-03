@@ -87,6 +87,26 @@
                         </div>
                     </div>
                 @endif
+
+                @php
+                    $unlockAllOn = false;
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'unlock_all_modules')) {
+                        $unlockAllOn = (string) old('unlock_all_modules', ($course->unlock_all_modules ?? false) ? '1' : '0') === '1';
+                    }
+                @endphp
+                @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'unlock_all_modules'))
+                    <div class="ap-settings-field" style="margin-top:1rem">
+                        <span class="ap-settings-label">Доступ к модулям</span>
+                        <p class="ap-settings-hint ap-muted">По умолчанию следующий модуль открывается после попытки итогового теста предыдущего.</p>
+                        <div class="ap-toggle-row">
+                            <label class="ap-toggle">
+                                <input type="checkbox" name="unlock_all_modules" value="1" class="ap-toggle__input" id="unlock-all-modules" @if ($unlockAllOn) checked @endif>
+                                <span class="ap-toggle__track" aria-hidden="true"></span>
+                                <span class="ap-toggle__label">Все модули доступны сразу</span>
+                            </label>
+                        </div>
+                    </div>
+                @endif
             </section>
 
             <section class="ap-settings-card" aria-labelledby="ap-settings-final-h">

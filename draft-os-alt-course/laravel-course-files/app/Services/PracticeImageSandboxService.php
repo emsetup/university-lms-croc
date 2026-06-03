@@ -117,7 +117,8 @@ final class PracticeImageSandboxService
 
         $state['last_check_log'] = $stdout;
         $state['last_check_at'] = now()->toIso8601String();
-        $state['last_check_hints'] = $parsed['hints'] !== [] ? $parsed['hints'] : null;
+        $state['last_check_exit_code'] = $exit;
+        $state['last_check_hints'] = $parsed['hints'] !== [] ? array_values(array_unique($parsed['hints'])) : null;
 
         if ($parsed['has_json'] && $parsed['score'] !== null) {
             $state['last_check_score'] = $parsed['score'];
@@ -163,6 +164,11 @@ final class PracticeImageSandboxService
 
     public static function daemonModuleKeyForImage(PracticeImage $row): int
     {
+        $features = is_array($row->features) ? $row->features : [];
+        if ((bool) ($features['systemd_mode'] ?? false)) {
+            return 8;
+        }
+
         $tpl = strtolower(trim((string) $row->base_template));
         $tag = strtolower(trim((string) $row->docker_tag));
 
@@ -196,7 +202,14 @@ final class PracticeImageSandboxService
 
     private function cachePrefix(): string
     {
-        return 'lid:'.(int) session('learner_id', 0);
+        $lid = (int) session('learner_id', 0);
+        if ($lid > 0) {
+            return 'lid:'.$lid;
+        }
+
+        $sid = (string) session()->getId();
+
+        return $sid !== '' ? 'sid:'.$sid : 'sid:anon';
     }
 
     private function adminPseudoLearnerId(): int

@@ -31,6 +31,12 @@ final class PracticeCheckOutputParser
             }
         }
 
+        if (preg_match_all('/^FAIL: (.+)$/m', $stdout, $fm)) {
+            foreach ($fm[1] as $line) {
+                $hints[] = $line;
+            }
+        }
+
         if (preg_match_all('/^TASK\d+:FAIL:(.+)$/m', $stdout, $tf)) {
             foreach ($tf[1] as $line) {
                 $hints[] = $line;

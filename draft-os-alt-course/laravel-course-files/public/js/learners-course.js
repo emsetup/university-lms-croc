@@ -28,6 +28,8 @@
 
     var listEl = $('ap-learners-list');
     var searchEl = $('ap-learners-search');
+    var sortActiveEl = $('ap-learners-sort-active');
+    var sortStorageKey = 'ap-learners-sort-active';
     var emptyEl = $('ap-learners-empty');
     var detailEl = $('ap-learners-detail');
     var innerEl = $('ap-learners-detail-inner');
@@ -47,15 +49,39 @@
         window.history.replaceState({}, '', u.toString());
     }
 
+    function sortActiveEnabled() {
+        return !!(sortActiveEl && sortActiveEl.checked);
+    }
+
+    function nameSortKey(L) {
+        var fn = ((L.full_name || '') + '').trim();
+        return (fn || L.email || '').toLowerCase();
+    }
+
+    function sortedLearners(filter) {
+        var q = (filter || '').trim().toLowerCase();
+        var list = learners.filter(function (L) {
+            var fnLower = ((L.full_name || '') + '').toLowerCase();
+            return !q || L.email.toLowerCase().indexOf(q) !== -1 || fnLower.indexOf(q) !== -1;
+        });
+        list.sort(function (a, b) {
+            if (sortActiveEnabled()) {
+                var diff = (parseInt(b.last_active_ts, 10) || 0) - (parseInt(a.last_active_ts, 10) || 0);
+                if (diff !== 0) {
+                    return diff;
+                }
+            }
+            var na = nameSortKey(a);
+            var nb = nameSortKey(b);
+            return na < nb ? -1 : na > nb ? 1 : 0;
+        });
+        return list;
+    }
+
     function renderList(filter) {
         if (!listEl) return;
-        var q = (filter || '').trim().toLowerCase();
         listEl.innerHTML = '';
-        learners.forEach(function (L) {
-            var fnLower = ((L.full_name || '') + '').toLowerCase();
-            if (q && L.email.toLowerCase().indexOf(q) === -1 && fnLower.indexOf(q) === -1) {
-                return;
-            }
+        sortedLearners(filter).forEach(function (L) {
             var li = document.createElement('li');
             li.className = 'ap-learners-list__item';
             li.setAttribute('role', 'option');
@@ -338,6 +364,17 @@
     if (searchEl) {
         searchEl.addEventListener('input', function () {
             renderList(searchEl.value);
+        });
+    }
+    if (sortActiveEl) {
+        try {
+            sortActiveEl.checked = localStorage.getItem(sortStorageKey) === '1';
+        } catch (e) {}
+        sortActiveEl.addEventListener('change', function () {
+            try {
+                localStorage.setItem(sortStorageKey, sortActiveEl.checked ? '1' : '0');
+            } catch (e) {}
+            renderList(searchEl ? searchEl.value : '');
         });
     }
 

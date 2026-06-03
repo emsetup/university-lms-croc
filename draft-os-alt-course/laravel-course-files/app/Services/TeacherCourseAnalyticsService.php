@@ -15,6 +15,7 @@ final class TeacherCourseAnalyticsService
     public function __construct(
         private CourseScoringService $scoring,
         private CourseModuleService $courseModules,
+        private LearnerLastActivityService $lastActivity,
     ) {}
 
     /**
@@ -47,11 +48,14 @@ final class TeacherCourseAnalyticsService
             ->get();
 
         $nameByLearner = LearnerDisplay::portalDisplayNamesByLearnerIds($ids);
+        $activityByCourse = $this->lastActivity->timestampsForLearners($ids, [$courseId])['by_course'];
 
         $rows = [];
         foreach ($learners as $learner) {
+            $lid = (int) $learner->id;
             $row = $this->rowForLearner($learner, $courseId);
-            $row['full_name'] = $nameByLearner[(int) $learner->id] ?? '';
+            $row['full_name'] = $nameByLearner[$lid] ?? '';
+            $row['last_active_ts'] = (int) ($activityByCourse[$lid][$courseId] ?? 0);
             $rows[] = $row;
         }
 

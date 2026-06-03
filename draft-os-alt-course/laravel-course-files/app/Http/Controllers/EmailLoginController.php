@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Learner;
+use App\Support\LearnerPortalLoginPersistence;
 use App\Support\OidcSignInRedirect;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -62,6 +63,8 @@ class EmailLoginController extends Controller
             $request->session()->regenerateToken();
         }
         session(['learner_id' => $learner->id]);
+        LearnerPortalLoginPersistence::recordLogin($learner);
+        LearnerPortalLoginPersistence::markSessionRecorded($request);
 
         return redirect()->route('portal');
     }

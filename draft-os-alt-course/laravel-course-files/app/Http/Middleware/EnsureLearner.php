@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Learner;
+use App\Support\LearnerPortalLoginPersistence;
 use App\Support\OidcSignInRedirect;
 use Closure;
 use Illuminate\Http\Request;
@@ -45,6 +46,8 @@ class EnsureLearner
         View::share('currentLearner', $learner);
         if ($previewId > 0) {
             View::share('learnerPreviewTarget', $learner);
+        } elseif ($previewId === 0) {
+            LearnerPortalLoginPersistence::recordLoginForSession($request, $learner);
         }
 
         return $next($request);

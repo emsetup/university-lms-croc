@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\CourseModule;
 use App\Services\CourseScoringService;
+use App\Services\CourseSectionService;
 use App\Services\PracticeLabDaemonClient;
 use App\Services\PracticeLabService;
 use App\Support\AdminCourseContentInspector;
@@ -153,7 +154,7 @@ class AdminTheoryController extends Controller
     public function previewTheory(Request $request, Course $adminCourse, int $module): View|RedirectResponse
     {
         abort_unless($module >= 1 && $module <= 9, 404);
-        $meta = CourseModuleMeta::resolved($module);
+        $meta = $this->previewModuleMeta($adminCourse, $module);
         $theoryRaw = (string) ($meta['theory'] ?? '');
         if (trim($theoryRaw) === '') {
             return redirect()
@@ -233,16 +234,16 @@ class AdminTheoryController extends Controller
     public function previewTheoryQuiz(Request $request, Course $adminCourse, int $module): View|RedirectResponse
     {
         abort_unless($module >= 1 && $module <= 9, 404);
-        $questions = AdminCourseContentInspector::theoryQuizQuestions($module);
+        $questions = $this->previewTheoryQuizQuestions($adminCourse, $module);
         if ($questions === []) {
             return redirect()
                 ->route('admin.theory.index', $this->theoryRouteQuery($request))
-                ->with('err', 'Модуль '.$module.': в конфиге нет вопросов теста по теории (theory_quiz).');
+                ->with('err', 'Модуль '.$module.': нет вопросов теста по теории.');
         }
 
         return view('admin.content-theory-quiz', [
             'module' => $module,
-            'meta' => is_array(config('course.modules.'.$module)) ? config('course.modules.'.$module) : [],
+            'meta' => $this->previewModuleMeta($adminCourse, $module),
             'questions' => $questions,
         ]);
     }
@@ -251,18 +252,18 @@ class AdminTheoryController extends Controller
     {
         abort_unless($module >= 1 && $module <= 9, 404);
         $markdown = PracticeHintMarkdown::stripBlockquoteHintsUnlessVisible(
-            AdminCourseContentInspector::practiceMarkdown($module),
+            $this->previewPracticeMarkdown($adminCourse, $module),
             true
         );
         if ($markdown === '') {
             return redirect()
                 ->route('admin.theory.index', $this->theoryRouteQuery($request))
-                ->with('err', 'Модуль '.$module.': в конфиге нет текста практики.');
+                ->with('err', 'Модуль '.$module.': нет текста практики.');
         }
 
         return view('admin.content-practice', [
             'module' => $module,
-            'meta' => is_array(config('course.modules.'.$module)) ? config('course.modules.'.$module) : [],
+            'meta' => $this->previewModuleMeta($adminCourse, $module),
             'practiceMarkdown' => $markdown,
         ]);
     }
@@ -270,18 +271,18 @@ class AdminTheoryController extends Controller
     public function previewModuleExam(Request $request, Course $adminCourse, int $module): View|RedirectResponse
     {
         abort_unless($module >= 1 && $module <= 9, 404);
-        $questions = AdminCourseContentInspector::moduleExamQuestions($module);
+        $questions = $this->previewModuleExamQuestions($adminCourse, $module);
         if ($questions === []) {
             return redirect()
                 ->route('admin.theory.index', $this->theoryRouteQuery($request))
-                ->with('err', 'Модуль '.$module.': в конфиге нет вопросов итогового теста (module_exam).');
+                ->with('err', 'Модуль '.$module.': нет вопросов итогового теста.');
         }
 
         return view('admin.content-module-exam', [
             'module' => $module,
-            'meta' => is_array(config('course.modules.'.$module)) ? config('course.modules.'.$module) : [],
+            'meta' => $this->previewModuleMeta($adminCourse, $module),
             'questions' => $questions,
-            'timeLimitMinutes' => $this->moduleExamTimeLimitMinutes($module),
+            'timeLimitMinutes' => $this->moduleExamTimeLimitMinutes($adminCourse, $module),
         ]);
     }
 
@@ -298,13 +299,21 @@ class AdminTheoryController extends Controller
         ]);
     }
 
-    private function moduleExamTimeLimitMinutes(int $module): int
+    private function moduleExamTimeLimitMinutes(Course $course, int $module): int
     {
-        $v = config('course.modules.'.$module.'.module_exam_time_limit_minutes');
+        if ($course->isLegacyAltCourse()) {
+            $v = config('course.modules.'.$module.'.module_exam_time_limit_minutes');
 
-        return (is_numeric($v) && (int) $v > 0)
-            ? (int) $v
-            : CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+            return (is_numeric($v) && (int) $v > 0)
+                ? (int) $v
+                : CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+        }
+        $cm = $this->courseModuleForContentIndex($course, $module);
+        if ($cm === null) {
+            return CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+        }
+
+        return app(CourseSectionService::class)->examTimeLimitMinutes((int) $cm->id, $module, false);
     }
 
     /**
@@ -322,8 +331,26 @@ class AdminTheoryController extends Controller
         $tq = $legacyAlt ? AdminCourseContentInspector::theoryQuizQuestions($m) : [];
         $ex = $legacyAlt ? AdminCourseContentInspector::moduleExamQuestions($m) : [];
         $practiceMd = $legacyAlt ? AdminCourseContentInspector::practiceMarkdown($m) : '';
-        $dockerImage = ($cm && $lab) ? $lab->imageForCourseModule($cm, $m) : ($legacyAlt ? AdminCourseContentInspector::practiceLabDockerImageForModule($m) : null);
         $theoryChars = $legacyAlt ? AdminCourseContentInspector::theoryCharacterCount($m) : 0;
+        $examTimeMin = $legacyAlt
+            ? $this->legacyModuleExamTimeLimitMinutes($m)
+            : CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+
+        if (! $legacyAlt && $cm instanceof CourseModule) {
+            $course = $cm->relationLoaded('course')
+                ? $cm->course
+                : Course::query()->find((int) $cm->course_id);
+            if ($course instanceof Course) {
+                $db = AdminCourseContentInspector::databaseModuleContentSummary($course, $cm);
+                $tq = $db['theory_quiz'];
+                $ex = $db['exam'];
+                $practiceMd = (string) $db['practice_markdown'];
+                $theoryChars = (int) $db['theory_chars'];
+                $examTimeMin = (int) $db['exam_time_min'];
+            }
+        }
+
+        $dockerImage = ($cm && $lab) ? $lab->imageForCourseModule($cm, $m) : ($legacyAlt ? AdminCourseContentInspector::practiceLabDockerImageForModule($m) : null);
 
         return [
             'module' => $m,
@@ -335,11 +362,101 @@ class AdminTheoryController extends Controller
             'theory_quiz_match' => AdminCourseContentInspector::countMatchDrag($tq),
             'exam_count' => count($ex),
             'exam_match' => AdminCourseContentInspector::countMatchDrag($ex),
-            'exam_time_min' => $this->moduleExamTimeLimitMinutes($m),
+            'exam_time_min' => $examTimeMin,
             'practice_summary' => AdminCourseContentInspector::practiceSummaryLine($practiceMd),
             'has_practice' => $practiceMd !== '',
             'practice_lab_docker_image' => $dockerImage,
         ];
+    }
+
+    private function legacyModuleExamTimeLimitMinutes(int $module): int
+    {
+        $v = config('course.modules.'.$module.'.module_exam_time_limit_minutes');
+
+        return (is_numeric($v) && (int) $v > 0)
+            ? (int) $v
+            : CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+    }
+
+    private function courseModuleForContentIndex(Course $course, int $contentIndex): ?CourseModule
+    {
+        foreach ($course->courseModules()->orderBy('sort')->orderBy('id')->get() as $cm) {
+            if ($cm->effectiveContentIndex() === $contentIndex) {
+                return $cm;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function previewModuleMeta(Course $course, int $module): array
+    {
+        if (! $course->isLegacyAltCourse()) {
+            $cm = $this->courseModuleForContentIndex($course, $module);
+            if ($cm !== null) {
+                $db = AdminCourseContentInspector::databaseModuleContentSummary($course, $cm);
+
+                return [
+                    'title' => (string) $cm->title,
+                    'summary' => (string) ($cm->summary ?? ''),
+                    'theory' => (string) $db['theory_markdown'],
+                    'practice' => (string) $db['practice_markdown'],
+                ];
+            }
+        }
+
+        return CourseModuleMeta::resolved($module);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function previewTheoryQuizQuestions(Course $course, int $module): array
+    {
+        if (! $course->isLegacyAltCourse()) {
+            $cm = $this->courseModuleForContentIndex($course, $module);
+            if ($cm !== null) {
+                return AdminCourseContentInspector::databaseModuleContentSummary($course, $cm)['theory_quiz'];
+            }
+
+            return [];
+        }
+
+        return AdminCourseContentInspector::theoryQuizQuestions($module);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function previewModuleExamQuestions(Course $course, int $module): array
+    {
+        if (! $course->isLegacyAltCourse()) {
+            $cm = $this->courseModuleForContentIndex($course, $module);
+            if ($cm !== null) {
+                return AdminCourseContentInspector::databaseModuleContentSummary($course, $cm)['exam'];
+            }
+
+            return [];
+        }
+
+        return AdminCourseContentInspector::moduleExamQuestions($module);
+    }
+
+    private function previewPracticeMarkdown(Course $course, int $module): string
+    {
+        if (! $course->isLegacyAltCourse()) {
+            $cm = $this->courseModuleForContentIndex($course, $module);
+            if ($cm !== null) {
+                return (string) AdminCourseContentInspector::databaseModuleContentSummary($course, $cm)['practice_markdown'];
+            }
+
+            return '';
+        }
+
+        return AdminCourseContentInspector::practiceMarkdown($module);
     }
 
     private function isReadOnlyAccess(Request $request): bool

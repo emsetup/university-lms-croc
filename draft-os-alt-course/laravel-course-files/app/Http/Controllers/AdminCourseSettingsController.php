@@ -120,6 +120,7 @@ final class AdminCourseSettingsController extends Controller
             'default_pass_percent' => ['nullable', 'integer', 'min:1', 'max:100'],
             'final_lab_enabled' => ['sometimes', 'boolean'],
             'difficulty_flags_enabled' => ['sometimes', 'boolean'],
+            'unlock_all_modules' => ['sometimes', 'boolean'],
             'final_lab_practice_image_id' => ['nullable', 'integer', 'min:1'],
             'certificate_enabled' => ['sometimes', 'boolean'],
             'certificate_title' => ['nullable', 'string', 'max:200'],
@@ -146,6 +147,9 @@ final class AdminCourseSettingsController extends Controller
         $course->final_lab_enabled = $request->boolean('final_lab_enabled');
         if (Schema::hasColumn('courses', 'difficulty_flags_enabled')) {
             $course->difficulty_flags_enabled = $request->boolean('difficulty_flags_enabled');
+        }
+        if (Schema::hasColumn('courses', 'unlock_all_modules')) {
+            $course->unlock_all_modules = $request->boolean('unlock_all_modules');
         }
 
         $imgId = isset($data['final_lab_practice_image_id']) ? (int) $data['final_lab_practice_image_id'] : null;

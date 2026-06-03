@@ -1,8 +1,11 @@
 @extends('layouts.admin')
 
 @php
+    use App\Support\AdminNavigation;
     use App\Support\DurationFormat;
     use App\Support\LearnerDisplay;
+
+    $layoutCourseChrome = AdminNavigation::showCourseChrome();
 
     $maxPtsMod = \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE;
     $enrollment = $learner->courseEnrollments->sortBy('id')->first();
@@ -42,7 +45,7 @@
 
     <div class="learner-page-content">
     <div class="ap-report-bleed">
-        @if ($courseModel)
+        @if (! $layoutCourseChrome && $courseModel)
             <div class="ap-course-context">
                 <div class="ap-course-context__row">
                     <div class="ap-course-context__brand">
@@ -183,8 +186,17 @@
                             ? route('admin.learners.course.learner.module', array_merge($tp, ['learner' => $learner->id, 'courseModule' => $mid]))
                             : route('teacher.course-report.learner.module', ['learner' => $learner->id, 'module' => $mid]);
                         $ex = is_array($r) ? (int) ($r['exam_pct'] ?? 0) : 0;
+                        $tqHistR = $pn['theory_quiz_history'] ?? [];
                         $exHistR = $pn['module_exam_history'] ?? [];
+                        $psR = $pn['practice_session'] ?? null;
                         $canResetProgress = $cid > 0 && (($portalStaffAccess ?? null)?->canResetLearnerProgressForCourse($cid) ?? false);
+                        $canResetTq =
+                            $canResetProgress
+                            && $pr
+                            && ((int) $pr->theory_quiz_attempts >= 1
+                                || is_array($pr->theory_quiz_last_result)
+                                || (is_array($tqHistR) && count($tqHistR) > 0));
+                        $canResetPr = $canResetProgress && $pr && ($pr->practice_done_at || $psR);
                         $canResetEx =
                             $canResetProgress
                             && $pr
@@ -228,7 +240,18 @@
                             </div>
                             <div class="module-card-body">
                                 @foreach ($sectionRows as $sr)
-                                    @php($srPct = (int) ($sr['percent'] ?? 0))
+                                    @php
+                                        $srPct = (int) ($sr['percent'] ?? 0);
+                                        $srBk = (string) ($sr['backend_key'] ?? '');
+                                        $resetHash = null;
+                                        if ($srBk === 'theory_quiz' && $canResetTq) {
+                                            $resetHash = 'ta-reset-tq';
+                                        } elseif ($srBk === 'practice' && $canResetPr) {
+                                            $resetHash = 'ta-reset-pr';
+                                        } elseif ($srBk === 'module_exam' && $canResetEx) {
+                                            $resetHash = 'ta-reset-ex';
+                                        }
+                                    @endphp
                                     <div class="section-row">
                                         <span class="section-label">{{ $sr['label'] ?? 'Этап' }}</span>
                                         <div class="section-bar">
@@ -238,8 +261,8 @@
                                         </div>
                                         <span class="section-pct">{{ $srPct }}%</span>
                                         <div class="section-actions">
-                                            @if ($canResetEx && ($sr['backend_key'] ?? '') === 'module_exam')
-                                                <a class="btn-reset" href="{{ $modUrl }}#ta-reset-ex">Сброс</a>
+                                            @if ($resetHash)
+                                                <a class="btn-reset" href="{{ $modUrl }}#{{ $resetHash }}">Сброс</a>
                                             @endif
                                         </div>
                                     </div>

@@ -2,11 +2,60 @@
 
 namespace App\Support;
 
+use App\Models\Course;
+use App\Models\CourseModule;
+use App\Services\CourseContentService;
+use App\Services\CourseSectionService;
+use Illuminate\Support\Facades\Schema;
+
 /**
  * Сводка по содержимому модуля для админ-панели (теория, тесты, практика).
  */
 final class AdminCourseContentInspector
 {
+    /**
+     * Сводка по модулю курса из БД (course_module_contents, course_quiz_*).
+     *
+     * @return array{
+     *     theory_chars: int,
+     *     theory_markdown: string,
+     *     practice_markdown: string,
+     *     theory_quiz: list<array<string, mixed>>,
+     *     exam: list<array<string, mixed>>,
+     *     exam_time_min: int
+     * }
+     */
+    public static function databaseModuleContentSummary(Course $course, CourseModule $cm): array
+    {
+        $contentSvc = app(CourseContentService::class);
+        $stored = $contentSvc->contentForModule($cm);
+        $theoryMd = (string) ($stored['theory_markdown'] ?? '');
+        $practiceMd = (string) ($stored['practice_markdown'] ?? '');
+        $tq = [];
+        $ex = [];
+        if (Schema::hasTable('course_quiz_banks')) {
+            $tqBank = $contentSvc->quizBankFor($course, $cm, 'theory_quiz');
+            if ($tqBank !== null) {
+                $tq = $contentSvc->questionsForBank($tqBank);
+            }
+            $exBank = $contentSvc->quizBankFor($course, $cm, 'module_exam');
+            if ($exBank !== null) {
+                $ex = $contentSvc->questionsForBank($exBank);
+            }
+        }
+        $idx = $cm->effectiveContentIndex();
+        $examMin = app(CourseSectionService::class)->examTimeLimitMinutes((int) $cm->id, $idx, false);
+
+        return [
+            'theory_chars' => mb_strlen($theoryMd),
+            'theory_markdown' => $theoryMd,
+            'practice_markdown' => $practiceMd,
+            'theory_quiz' => array_values($tq),
+            'exam' => array_values($ex),
+            'exam_time_min' => $examMin,
+        ];
+    }
+
     /**
      * @return list<array<string, mixed>>
      */

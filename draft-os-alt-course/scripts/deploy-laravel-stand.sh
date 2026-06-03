@@ -52,6 +52,11 @@ if [[ -f "${LCF}/config/documentation.php" ]]; then
   rsync -az "${LCF}/config/documentation.php" "${STAND_SSH}:${REMOTE}/config/documentation.php"
 fi
 
+if [[ -f "${LCF}/config/portal_changelog.php" ]]; then
+  echo "[deploy-laravel] portal_changelog.php (лента обновлений /adm)"
+  rsync -az "${LCF}/config/portal_changelog.php" "${STAND_SSH}:${REMOTE}/config/portal_changelog.php"
+fi
+
 if [[ -f "${LCF}/routes/web.php" ]]; then
   echo "[deploy-laravel] routes/web.php"
   rsync -az "${LCF}/routes/web.php" "${STAND_SSH}:${REMOTE}/routes/web.php"
@@ -62,6 +67,7 @@ for f in \
   app/Http/Controllers/EmailLoginController.php \
   app/Http/Controllers/OidcLoginController.php \
   app/Http/Controllers/AdminPanelController.php \
+  app/Http/Controllers/AdminIncidentLogsController.php \
   app/Http/Controllers/AdminSettingsController.php \
   app/Http/Controllers/AdminCoursesController.php \
   app/Http/Controllers/AdminCourseSettingsController.php \
@@ -72,6 +78,7 @@ for f in \
   app/Http/Controllers/AdminLearnersController.php \
   app/Http/Controllers/AdminQuizController.php \
   app/Http/Controllers/AdminStaffController.php \
+  app/Http/Controllers/AdminStaffGroupController.php \
   app/Http/Controllers/AdminTheoryController.php \
   app/Http/Controllers/AssessmentController.php \
   app/Http/Controllers/CertificateController.php \
@@ -101,6 +108,8 @@ for f in \
   app/Http/Middleware/ValidateTeacherReportToken.php \
   app/Http/Middleware/SyncAdminCourseFromSlug.php \
   app/Http/Middleware/LogAdminActivity.php \
+  app/Http/Middleware/LogPortalIncidents.php \
+  app/Http/Middleware/EnsurePortalAdmin.php \
   app/Services/CourseScoringService.php \
   app/Services/CourseSectionService.php \
   app/Services/CourseModuleService.php \
@@ -109,12 +118,19 @@ for f in \
   app/Services/LegacyAltPracticeImagesBootstrap.php \
   app/Support/LegacyAltPracticeImageCatalog.php \
   app/Support/PracticeImageWizardCatalog.php \
+  app/Support/PracticeCheckOutputParser.php \
   app/Services/LearnerCourseAvailability.php \
   app/Services/PortalStaffAccess.php \
+  app/Services/PortalStaffPermissionResolver.php \
   app/Services/PortalMaintenance.php \
   app/Services/MaintenanceActivityLogger.php \
   app/Services/PortalActivityLogger.php \
   app/Services/PortalActivityFeedService.php \
+  app/Services/PortalIncidentLogger.php \
+  app/Services/PortalIncidentFeedService.php \
+  app/Services/PortalServerStatsService.php \
+  app/Support/PortalIncidentBootstrap.php \
+  app/Services/LearnerLastActivityService.php \
   app/Services/PracticeLabDaemonClient.php \
   app/Services/PracticeImageRecipeBootstrap.php \
   app/Services/PracticeImageRecipeGenerator.php \
@@ -139,8 +155,12 @@ for f in \
   app/Support/OidcSignInRedirect.php \
   app/Support/PortalWelcomeInitials.php \
   app/Support/PortalWelcomeName.php \
+  app/Support/PortalChangelog.php \
   app/Support/LearnerDisplay.php \
   app/Support/LearnerSsoDisplayNamePersistence.php \
+  app/Support/LearnerPortalLoginPersistence.php \
+  app/Support/PortalStaffPermissionCatalog.php \
+  app/Support/PortalStaffFromEmail.php \
   app/Models/Course.php \
   app/Models/CourseModule.php \
   app/Models/CourseModuleContent.php \
@@ -156,7 +176,10 @@ for f in \
   app/Models/Learner.php \
   app/Models/ModuleProgress.php \
   app/Models/PortalStaff.php \
+  app/Models/PortalStaffGroup.php \
+  app/Models/PortalStaffGroupPermission.php \
   app/Models/PortalActivityEvent.php \
+  app/Models/PortalIncidentLog.php \
   app/Models/PracticeSession.php \
   app/Models/FinalLabResult.php \
   app/Models/PracticeImage.php
@@ -189,6 +212,12 @@ if [[ -f "${LCF}/database/migrations/2026_06_02_120900_add_difficulty_flags_enab
   echo "[deploy-laravel] database/migrations/…difficulty_flags_enabled…"
   rsync -az "${LCF}/database/migrations/2026_06_02_120900_add_difficulty_flags_enabled_to_courses_table.php" \
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_02_120900_add_difficulty_flags_enabled_to_courses_table.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_06_03_100000_add_unlock_all_modules_to_courses_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…unlock_all_modules…"
+  rsync -az "${LCF}/database/migrations/2026_06_03_100000_add_unlock_all_modules_to_courses_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_03_100000_add_unlock_all_modules_to_courses_table.php"
 fi
 
 if [[ -f "${LCF}/database/migrations/2026_06_02_000001_add_certificate_settings_to_courses_table.php" ]]; then
@@ -231,6 +260,10 @@ for mf in \
   database/migrations/2026_05_14_000001_add_tags_to_courses_table.php \
   database/migrations/2026_05_14_000002_add_course_admin_settings_columns.php \
   database/migrations/2026_05_14_000003_add_sso_display_name_to_learners_table.php \
+  database/migrations/2026_06_03_120000_add_last_login_at_to_learners_table.php \
+  database/migrations/2026_06_03_140000_create_portal_staff_groups_tables.php \
+  database/migrations/2026_06_03_150000_add_role_to_portal_staff_groups_table.php \
+  database/migrations/2026_06_03_160000_create_portal_incident_logs_table.php \
   database/migrations/2026_05_14_100000_seed_legacy_alt_os_course_content_to_database.php \
   database/migrations/2026_05_15_000001_create_portal_activity_events_table.php \
   database/migrations/2026_05_15_120000_seed_legacy_alt_practice_images.php
@@ -405,6 +438,12 @@ if [[ -f "${LCF}/public/js/admin-activity-panel.js" ]]; then
   rsync -az "${LCF}/public/js/admin-activity-panel.js" "${STAND_SSH}:${REMOTE}/public/js/admin-activity-panel.js"
 fi
 
+if [[ -f "${LCF}/public/js/admin-dash-changelog.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-dash-changelog.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-dash-changelog.js" "${STAND_SSH}:${REMOTE}/public/js/admin-dash-changelog.js"
+fi
+
 if [[ -f "${LCF}/public/js/admin-settings-menu.js" ]]; then
   echo "[deploy-laravel] public/js/admin-settings-menu.js"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
@@ -420,6 +459,18 @@ if [[ -f "${LCF}/public/js/admin-settings-staff-preview.js" ]]; then
   echo "[deploy-laravel] public/js/admin-settings-staff-preview.js"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
   rsync -az "${LCF}/public/js/admin-settings-staff-preview.js" "${STAND_SSH}:${REMOTE}/public/js/admin-settings-staff-preview.js"
+fi
+
+if [[ -f "${LCF}/public/js/admin-incident-logs.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-incident-logs.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-incident-logs.js" "${STAND_SSH}:${REMOTE}/public/js/admin-incident-logs.js"
+fi
+
+if [[ -f "${LCF}/public/js/portal-incident-reporter.js" ]]; then
+  echo "[deploy-laravel] public/js/portal-incident-reporter.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/portal-incident-reporter.js" "${STAND_SSH}:${REMOTE}/public/js/portal-incident-reporter.js"
 fi
 
 if [[ -f "${LCF}/public/static/admin/admin.css" ]]; then

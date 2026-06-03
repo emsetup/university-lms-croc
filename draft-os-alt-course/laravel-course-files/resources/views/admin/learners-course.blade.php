@@ -15,6 +15,13 @@
                 <p class="ap-muted ap-learners-split__lead">{{ $course->title }}</p>
                 <label class="ap-learners-split__search-label" for="ap-learners-search">Поиск по email или ФИО</label>
                 <input id="ap-learners-search" type="search" class="ap-modal__input ap-learners-split__search" placeholder="Email или ФИО…" autocomplete="off">
+                <div class="ap-toggle-row ap-learners-split__sort">
+                    <label class="ap-toggle">
+                        <input type="checkbox" id="ap-learners-sort-active" class="ap-toggle__input" value="1">
+                        <span class="ap-toggle__track" aria-hidden="true"></span>
+                        <span class="ap-toggle__label">Сначала недавно активные</span>
+                    </label>
+                </div>
             </div>
             <ul id="ap-learners-list" class="ap-learners-list" role="listbox" aria-label="Обучающиеся"></ul>
         </aside>

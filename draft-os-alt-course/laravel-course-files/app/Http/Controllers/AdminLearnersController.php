@@ -10,6 +10,7 @@ use App\Services\AdminCourseLearnerDetailService;
 use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
 use App\Services\InstructorProgressResetService;
+use App\Services\LearnerLastActivityService;
 use App\Services\ModuleAccessGate;
 use App\Services\PortalStaffAccess;
 use App\Services\TeacherCourseAnalyticsService;
@@ -49,19 +50,25 @@ final class AdminLearnersController extends Controller
             : Learner::query()->whereIn('id', $learnerIds)->orderBy('email')->get();
 
         $nameByLearner = LearnerDisplay::portalDisplayNamesByLearnerIds($learnerIds);
+        $activity = app(LearnerLastActivityService::class)
+            ->timestampsForLearners($learnerIds, $allowedCourseIds);
 
         $leftList = [];
         foreach ($learners as $learner) {
-            $cids = $learnerCourseMap[(int) $learner->id] ?? [];
+            $lid = (int) $learner->id;
+            $cids = $learnerCourseMap[$lid] ?? [];
             $email = (string) ($learner->email ?? '');
-            $fullName = $nameByLearner[(int) $learner->id] ?? '';
+            $fullName = $nameByLearner[$lid] ?? '';
+            $perCourse = $activity['by_course'][$lid] ?? [];
             $leftList[] = [
-                'id' => (int) $learner->id,
+                'id' => $lid,
                 'email' => $email,
                 'full_name' => $fullName,
                 'initials' => LearnerDisplay::initials($email, $fullName),
                 'course_count' => count($cids),
                 'course_ids' => array_values($cids),
+                'last_active_ts' => (int) ($activity['portal'][$lid] ?? 0),
+                'last_active_by_course' => $perCourse,
             ];
         }
 
@@ -187,6 +194,7 @@ final class AdminLearnersController extends Controller
         return view('teacher-learner-module', [
             'layout' => 'layouts.admin',
             'learner' => $learner,
+            'forcedCourse' => $adminCourse,
             'module' => (int) $courseModule->id,
             'panel' => $panel,
             'summaryRow' => $this->analytics->rowForLearner($learner, $courseId),

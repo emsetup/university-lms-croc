@@ -1,4 +1,4 @@
-/* Тестовый стенд — библиотека Docker (изолированные стили, v3) */
+/* Тестовый стенд — библиотека Docker (изолированные стили, v4) */
 
 .ap-docker-sandbox-modal.is-open {
   align-items: center;
@@ -296,6 +296,43 @@
 .ap-docker-sandbox__log .log-result,
 .ap-docker-sandbox__log .log-total { color: #fde68a; font-weight: 700; }
 .ap-docker-sandbox__log .log-json { color: #86efac; }
+
+.ap-docker-sandbox__hints {
+  margin: 0;
+  padding: 0.55rem 0.85rem 0.35rem 1.65rem;
+  background: #1e293b;
+  color: #bfdbfe;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  border-bottom: 1px solid #334155;
+}
+
+.ap-docker-sandbox__hints li + li {
+  margin-top: 0.25rem;
+}
+
+.ap-docker-sandbox__log-empty {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
+}
+
+.ap-docker-sandbox__log-empty code {
+  color: #e2e8f0;
+}
+
+.ap-docker-sandbox__log-meta {
+  margin: 0;
+  padding: 0.45rem 0.85rem 0.55rem;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  background: #0f172a;
+}
 
 .ap-docker-sandbox__tip {
   margin: 0;

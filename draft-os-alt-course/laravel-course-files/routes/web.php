@@ -11,6 +11,8 @@ use App\Http\Controllers\AdminDockerLibraryController;
 use App\Http\Controllers\AdminCourseContentController;
 use App\Http\Controllers\AdminSettingsController;
 use App\Http\Controllers\AdminStaffController;
+use App\Http\Controllers\AdminStaffGroupController;
+use App\Http\Controllers\AdminIncidentLogsController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AssessmentController;
 use App\Http\Controllers\CertificateController;
@@ -25,13 +27,16 @@ use App\Http\Controllers\PracticeLabController;
 use App\Http\Controllers\TeacherCourseReportController;
 use App\Models\Course;
 use App\Services\PortalStaffAccess;
+use App\Support\PortalIncidentBootstrap;
 use App\Support\StaffAdminPreview;
 use App\Support\StaffImpersonation;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 
+PortalIncidentBootstrap::register();
+
 // Дочерние @section рендерятся до layout: переменная нужна и на `admin.*`, `portal.*`, не только на layouts.course.
-View::composer(['layouts.course', 'admin.*', 'portal.*', 'docs.*', 'layouts.admin', 'layouts.admin-preview', 'teacher-course-report'], function ($view) {
+View::composer(['layouts.course', 'admin.*', 'portal.*', 'docs.*', 'layouts.admin', 'layouts.admin-preview', 'teacher-course-report', 'teacher-learner-profile', 'teacher-learner-module'], function ($view) {
     if (StaffImpersonation::isPreviewRequest(request())) {
         $view->with('portalStaffAccess', null);
         $view->with('learnerPreviewActive', true);
@@ -88,6 +93,7 @@ Route::get('/oidc/callback', [OidcLoginController::class, 'callback'])->name('oi
 Route::middleware([
     \App\Http\Middleware\ApplyLearnerPreview::class,
     \App\Http\Middleware\MaintenanceForUsers::class,
+    \App\Http\Middleware\LogPortalIncidents::class,
 ])->group(function () {
     Route::get('/', [PortalController::class, 'index'])->name('portal');
     Route::post('/portal/enroll/{course}', [\App\Http\Controllers\PortalEnrollController::class, 'store'])
@@ -95,6 +101,7 @@ Route::middleware([
         ->name('portal.enroll');
 
     Route::middleware([\App\Http\Middleware\EnsureLearner::class])->group(function () {
+        Route::post('/portal/incident', [AdminIncidentLogsController::class, 'storeClient'])->name('portal.incident.store');
         Route::get('/account', AccountController::class)->name('account');
         Route::get('/docs', [DocumentationController::class, 'index'])->name('documentation.index');
         Route::get('/docs/{slug}', [DocumentationController::class, 'show'])
@@ -169,6 +176,15 @@ Route::middleware([
     \App\Http\Middleware\LogAdminActivity::class,
 ])->group(function () {
     Route::get('/adm', [AdminPanelController::class, 'show'])->name('admin.panel');
+
+    Route::middleware([\App\Http\Middleware\EnsurePortalAdmin::class])->group(function () {
+        Route::get('/adm/logi', [AdminIncidentLogsController::class, 'index'])->name('admin.incidents.index');
+        Route::get('/adm/logi/lenta', [AdminIncidentLogsController::class, 'feed'])->name('admin.incidents.feed');
+        Route::get('/adm/logi/{incident}', [AdminIncidentLogsController::class, 'show'])
+            ->whereNumber('incident')
+            ->name('admin.incidents.show');
+    });
+
     Route::get('/adm/sobytiya', [AdminPanelController::class, 'activity'])->name('admin.activity');
     Route::get('/adm/sobytiya/lenta', [AdminPanelController::class, 'activityFeed'])->name('admin.activity.feed');
     Route::get('/adm/paleta/poisk', [AdminPanelController::class, 'commandPaletteSearch'])->name('admin.command-palette.search');
@@ -215,6 +231,13 @@ Route::middleware([
         Route::post('/adm/sotrudniki/{staff}/udalit', [AdminStaffController::class, 'destroy'])
             ->whereNumber('staff')
             ->name('admin.staff.destroy');
+        Route::post('/adm/sotrudniki/gruppy', [AdminStaffGroupController::class, 'store'])->name('admin.staff.groups.store');
+        Route::post('/adm/sotrudniki/gruppy/{group}', [AdminStaffGroupController::class, 'update'])
+            ->whereNumber('group')
+            ->name('admin.staff.groups.update');
+        Route::post('/adm/sotrudniki/gruppy/{group}/udalit', [AdminStaffGroupController::class, 'destroy'])
+            ->whereNumber('group')
+            ->name('admin.staff.groups.destroy');
     });
 
     Route::get('/adm/kursy', [AdminCoursesController::class, 'index'])->name('admin.courses.index');
