@@ -4,6 +4,8 @@ namespace App\Http\Middleware;
 
 use App\Models\Course;
 use App\Services\LearnerCourseAvailability;
+use App\Support\LearnerPreviewContext;
+use App\Support\StaffImpersonation;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,7 +22,7 @@ final class EnsureLearnerCourseActive
     {
         $courseId = (int) $request->route('course', 0);
         if ($courseId < 1) {
-            $courseId = (int) session('course_id', 0);
+            $courseId = LearnerPreviewContext::courseId($request);
         }
 
         if ($courseId < 1) {
@@ -29,24 +31,35 @@ final class EnsureLearnerCourseActive
 
         $course = Course::query()->find($courseId);
         if ($course === null) {
-            session()->forget(['course_id', 'course_title']);
+            if (LearnerPreviewContext::isActive($request)) {
+                session()->forget([
+                    StaffImpersonation::SESSION_COURSE_ID,
+                    StaffImpersonation::SESSION_COURSE_TITLE,
+                ]);
+            } else {
+                session()->forget(['course_id', 'course_title']);
+            }
 
             return redirect()->route('portal')->with('err', 'Курс не найден.');
         }
 
         if (! LearnerCourseAvailability::isOpenForLearning($course)) {
-            session()->forget(['course_id', 'course_title']);
+            if (LearnerPreviewContext::isActive($request)) {
+                session()->forget([
+                    StaffImpersonation::SESSION_COURSE_ID,
+                    StaffImpersonation::SESSION_COURSE_TITLE,
+                ]);
+            } else {
+                session()->forget(['course_id', 'course_title']);
+            }
 
             return redirect()
                 ->route('account')
                 ->with('err', 'Этот курс снят с обучения. Прогресс и сертификаты сохранены в личном кабинете.');
         }
 
-        if ((int) session('course_id', 0) !== (int) $course->id) {
-            session([
-                'course_id' => $course->id,
-                'course_title' => $course->title,
-            ]);
+        if (LearnerPreviewContext::courseId($request) !== (int) $course->id) {
+            LearnerPreviewContext::selectCourse((int) $course->id, (string) $course->title);
         }
 
         return $next($request);

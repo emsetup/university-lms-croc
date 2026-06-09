@@ -3,15 +3,18 @@
 @section('title', 'Практика модуля: '.$courseModule->title)
 
 @section('content')
+    @php
+        $rp = array_merge(\App\Support\AdminNavigation::adminCourseRouteParams(), ($adminKey ?? '') !== '' ? ['key' => $adminKey] : []);
+    @endphp
     <div class="ap-narrow-page">
         <div class="admin-card">
-            <p class="u-m0"><a class="btn btn-ghost btn-sm" href="{{ route('admin.course.module.sections', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}">К разделам модуля</a></p>
+            <p class="u-m0"><a class="btn btn-ghost btn-sm" href="{{ route('admin.course.module.sections', array_merge($rp, ['courseModule' => $courseModule->id])) }}">К разделам модуля</a></p>
             <h1 class="practice-page__title u-mt-1">Практика · {{ $courseModule->title }}</h1>
             <p class="ap-muted small u-m0 u-mt-1">
                 Здесь выбирается Docker-образ для лабораторного стенда модуля. Если не выбрать — будет использован fallback из <span class="mono">config/practice_lab.php</span> по <span class="mono">content_source_index</span> (как у Alt).
             </p>
 
-            <form method="post" action="{{ route('admin.course.module.practice.save', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}" class="u-mt-1">
+            <form method="post" action="{{ route('admin.course.module.practice.save', array_merge($rp, ['courseModule' => $courseModule->id])) }}" class="u-mt-1">
                 @csrf
 
                 <div class="practice-module-grid">

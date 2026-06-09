@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Support\LearnerPreviewContext;
 
 class Learner extends Model
 {
@@ -26,7 +27,7 @@ class Learner extends Model
 
     public function finalLabResult(): HasOne
     {
-        $courseId = (int) session('course_id', 0);
+        $courseId = LearnerPreviewContext::courseId();
         $q = $this->hasOne(FinalLabResult::class);
         if ($courseId > 0) {
             $q->where('course_id', $courseId);
@@ -50,7 +51,7 @@ class Learner extends Model
      */
     public function progressExisting(int $courseModuleId, ?int $courseId = null): ?ModuleProgress
     {
-        $courseId = $courseId ?? (int) session('course_id', 0);
+        $courseId = $courseId ?? LearnerPreviewContext::courseId();
         if ($this->relationLoaded('moduleProgresses')) {
             return $this->moduleProgresses->first(function (ModuleProgress $p) use ($courseId, $courseModuleId) {
                 return (int) $p->course_id === $courseId && (int) $p->course_module_id === $courseModuleId;
@@ -65,7 +66,7 @@ class Learner extends Model
 
     public function progressFor(int $courseModuleId, ?int $courseId = null): ModuleProgress
     {
-        $courseId = $courseId ?? (int) session('course_id', 0);
+        $courseId = $courseId ?? LearnerPreviewContext::courseId();
         $defaults = [
             'difficulty_flags' => [
                 'theory' => false,

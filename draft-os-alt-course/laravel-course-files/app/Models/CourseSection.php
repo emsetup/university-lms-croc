@@ -16,6 +16,8 @@ final class CourseSection extends Model
 
     public const TYPE_EXAM = 'exam';
 
+    public const TYPE_SURVEY = 'survey';
+
     protected $fillable = [
         'course_id',
         'course_module_id',
@@ -50,15 +52,68 @@ final class CourseSection extends Model
         return $this->hasOne(CourseSectionSetting::class, 'course_section_id');
     }
 
+    /** Уникальный ключ этапа в порядке модуля (один раздел — один ключ). */
     public function backendStepKey(): string
+    {
+        return 's'.$this->id;
+    }
+
+    public static function idFromStepKey(string $key): ?int
+    {
+        if (preg_match('/^s(\d+)$/', $key, $m)) {
+            return (int) $m[1];
+        }
+
+        return null;
+    }
+
+    /** Ключ типа для legacy-прогресса и весов баллов. */
+    public function legacyTypeKey(): string
     {
         return match ($this->type) {
             self::TYPE_TEXT => 'theory',
             self::TYPE_QUIZ => 'theory_quiz',
             self::TYPE_PRACTICE => 'practice',
             self::TYPE_EXAM => 'module_exam',
+            self::TYPE_SURVEY => 'survey',
             default => 'theory',
         };
+    }
+
+    public function quizBankKind(): ?string
+    {
+        return match ($this->type) {
+            self::TYPE_QUIZ => 'theory_quiz',
+            self::TYPE_EXAM => 'module_exam',
+            self::TYPE_SURVEY => 'survey',
+            default => null,
+        };
+    }
+
+    public function learnerRouteName(): ?string
+    {
+        return match ($this->type) {
+            self::TYPE_TEXT => 'course.module.theory',
+            self::TYPE_QUIZ => 'course.module.theory-quiz',
+            self::TYPE_PRACTICE => 'course.module.practice',
+            self::TYPE_EXAM => 'course.module.exam',
+            self::TYPE_SURVEY => 'course.module.section.survey',
+            default => null,
+        };
+    }
+
+    /**
+     * @return array{course: int, module: int}|array{course: int, module: int, section: int}
+     */
+    public function learnerRouteParams(int $courseId, int $moduleSequence, ?int $sectionSequence = null): array
+    {
+        if ($this->type === self::TYPE_SURVEY) {
+            $sectionSequence ??= app(\App\Services\CourseSectionService::class)->sequenceForSection($this);
+
+            return \App\Support\LearnerRoute::section($courseId, $moduleSequence, $sectionSequence);
+        }
+
+        return \App\Support\LearnerRoute::hub($courseId, $moduleSequence);
     }
 
     public static function typesList(): array
@@ -68,6 +123,7 @@ final class CourseSection extends Model
             self::TYPE_QUIZ => 'Тест (вопросы)',
             self::TYPE_PRACTICE => 'Практика (Docker)',
             self::TYPE_EXAM => 'Экзамен (по одному вопросу)',
+            self::TYPE_SURVEY => 'Опрос (сбор данных)',
         ];
     }
 }

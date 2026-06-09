@@ -13,6 +13,7 @@ final class CourseQuizBank extends Model
     protected $fillable = [
         'course_id',
         'course_module_id',
+        'course_section_id',
         'kind',
         'pass_percent',
         'time_limit_minutes',
@@ -26,6 +27,7 @@ final class CourseQuizBank extends Model
     protected $casts = [
         'course_id' => 'int',
         'course_module_id' => 'int',
+        'course_section_id' => 'int',
         'pass_percent' => 'int',
         'time_limit_minutes' => 'int',
         'attempt_limit' => 'int',

@@ -7,6 +7,8 @@ use App\Models\Learner;
 use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
 use App\Services\ModuleAccessGate;
+use App\Support\CourseAudiencePlaque;
+use App\Support\LearnerPreviewContext;
 use App\Support\LearnerSsoDisplayNamePersistence;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -24,13 +26,19 @@ class DashboardController extends Controller
         /** @var Learner $learner */
         $learner = Learner::query()
             ->with('moduleProgresses')
-            ->findOrFail(session('learner_id'));
+            ->findOrFail(LearnerPreviewContext::learnerId());
         LearnerSsoDisplayNamePersistence::syncIfPossible($learner);
 
-        $courseId = (int) session('course_id', 0);
+        $courseId = LearnerPreviewContext::courseId();
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
         $finalLabEnabled = $course ? (bool) ($course->final_lab_enabled ?? true) : true;
         $certificateEnabled = $course ? (bool) ($course->certificate_enabled ?? true) : true;
+        $showModuleProgress = ! $course
+            || ! Schema::hasColumn('courses', 'show_module_progress')
+            || (bool) ($course->show_module_progress ?? true);
+        $assessmentEnabled = ! $course
+            || ! Schema::hasColumn('courses', 'assessment_enabled')
+            || (bool) ($course->assessment_enabled ?? true);
         $modules = [];
         $sumPercent = 0;
         $modulesPassed = 0;
@@ -87,6 +95,7 @@ class DashboardController extends Controller
         $finalDone = $finalLabEnabled ? (bool) optional($learner->finalLabResult)->passed : true;
 
         return view('dashboard', [
+            'courseId' => $courseId,
             'modules' => $modules,
             'courseModuleCount' => $moduleCount,
             'trackModulesPassed' => $modulesPassed,
@@ -100,6 +109,15 @@ class DashboardController extends Controller
             'finalLabBestScore' => $finalBest,
             'finalLabAttempts' => $finalAttempts,
             'assessmentSnapshot' => $this->scoring->learnerAssessmentSnapshot($learner),
+            'showModuleProgress' => $showModuleProgress,
+            'assessmentEnabled' => $assessmentEnabled,
+            'showFurtherCourseSection' => $assessmentEnabled || $finalLabEnabled || $certificateEnabled,
+            'showInformativeCourseNotice' => $course
+                && Schema::hasColumn('courses', 'assessment_enabled')
+                && Schema::hasColumn('courses', 'certificate_enabled')
+                && ! $assessmentEnabled
+                && ! $certificateEnabled,
+            'audiencePlaque' => CourseAudiencePlaque::forCourse($course),
         ]);
     }
 }

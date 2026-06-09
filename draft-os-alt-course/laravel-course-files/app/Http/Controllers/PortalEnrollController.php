@@ -6,8 +6,9 @@ use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Models\CourseModule;
 use App\Models\Learner;
+use App\Services\CourseModuleService;
 use App\Services\LearnerCourseAvailability;
-use App\Support\OidcSignInRedirect;
+use App\Support\LearnerPreviewContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -15,25 +16,21 @@ final class PortalEnrollController extends Controller
 {
     public function store(Request $request, int $course): RedirectResponse
     {
-        if (! session('learner_id')) {
-            if (config('oidc.enabled') && config('oidc.required')) {
-                return OidcSignInRedirect::toOidcLogin($request);
-            }
-
-            return redirect()->route('portal', ['login' => 1])->with('err', 'Сначала войдите по корпоративной почте.');
+        $learnerId = LearnerPreviewContext::learnerId($request);
+        if ($learnerId <= 0) {
+            return redirect()
+                ->route('portal', ['login' => 1])
+                ->with('err', 'Сначала войдите в учётную запись.');
         }
 
         $c = Course::query()->findOrFail($course);
-        $learner = Learner::query()->findOrFail((int) session('learner_id'));
+        $learner = Learner::query()->findOrFail($learnerId);
         $next = (string) $request->input('next', '');
         $certificateOnly = $next === 'certificate';
 
         if (! LearnerCourseAvailability::isOpenForLearning($c)) {
             if ($certificateOnly && LearnerCourseAvailability::learnerHasIssuedCertificate($learner, (int) $c->id)) {
-                session([
-                    'course_id' => $c->id,
-                    'course_title' => $c->title,
-                ]);
+                LearnerPreviewContext::selectCourse((int) $c->id, (string) $c->title);
 
                 return redirect()->route('certificate')->with('ok', 'Сертификат по архивному курсу.');
             }
@@ -53,10 +50,7 @@ final class PortalEnrollController extends Controller
         $enroll->last_seen_at = now();
         $enroll->save();
 
-        session([
-            'course_id' => $c->id,
-            'course_title' => $c->title,
-        ]);
+        LearnerPreviewContext::selectCourse((int) $c->id, (string) $c->title);
 
         if ($certificateOnly) {
             return redirect()->route('certificate')->with('ok', 'Курс выбран.');
@@ -66,9 +60,16 @@ final class PortalEnrollController extends Controller
         }
         if ($next === 'module') {
             $moduleId = (int) $request->input('module', 0);
-            if ($moduleId > 0 && CourseModule::query()->where('course_id', $c->id)->where('id', $moduleId)->exists()) {
-                return redirect()->route('modules.hub', ['module' => $moduleId])
-                    ->with('ok', 'Продолжаем обучение.');
+            $cm = $moduleId > 0
+                ? app(CourseModuleService::class)->findForCourse((int) $c->id, $moduleId)
+                : null;
+            if ($cm !== null) {
+                $seq = app(CourseModuleService::class)->sequenceForModule($cm);
+
+                return redirect()->route('course.module.hub', [
+                    'course' => (int) $c->id,
+                    'module' => $seq,
+                ])->with('ok', 'Продолжаем обучение.');
             }
 
             return redirect()->route('course.dashboard', ['course' => $c->id])->with('ok', 'Курс выбран.');
@@ -80,4 +81,3 @@ final class PortalEnrollController extends Controller
         return redirect()->route('course.dashboard', ['course' => $c->id])->with('ok', 'Курс начат. Удачного обучения!');
     }
 }
-

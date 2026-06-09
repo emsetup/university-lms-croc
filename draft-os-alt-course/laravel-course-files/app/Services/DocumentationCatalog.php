@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\CourseContentMarkdown;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
@@ -108,7 +109,7 @@ final class DocumentationCatalog
         $markdown = $this->expandImagePaths($markdown);
         $html = (string) Str::markdown($markdown);
         $html = $this->expandImagePathsInHtml($html);
-        $html = $this->enrichCallouts($html);
+        $html = CourseContentMarkdown::enrichCallouts($html);
         $html = $this->wrapScreenshots($html);
 
         return $html;
@@ -270,33 +271,6 @@ final class DocumentationCatalog
             '/src="(\/images\/docs\/[^"]+)"/',
             static function (array $m): string {
                 return 'src="'.e(asset(ltrim($m[1], '/'))).'"';
-            },
-            $html
-        );
-    }
-
-    private function enrichCallouts(string $html): string
-    {
-        return (string) preg_replace_callback(
-            '/<blockquote>\s*<p>(.*?)<\/p>\s*<\/blockquote>/s',
-            function (array $m): string {
-                $inner = (string) $m[1];
-                $type = 'note';
-                $label = 'Примечание';
-                if (preg_match('/<strong>(Подсказка|Важно|Зачем[^<]*)<\/strong>\s*:?\s*/u', $inner, $tag)) {
-                    $label = trim(strip_tags($tag[1]));
-                    $inner = (string) preg_replace('/<strong>[^<]+<\/strong>\s*:?\s*/u', '', $inner, 1);
-                    $type = match (true) {
-                        str_starts_with($label, 'Подсказ') => 'tip',
-                        str_starts_with($label, 'Важн') => 'warn',
-                        str_starts_with($label, 'Зачем') => 'goal',
-                        default => 'note',
-                    };
-                }
-
-                return '<aside class="docs-callout docs-callout--'.$type.'">'
-                    .'<span class="docs-callout__label">'.e($label).'</span>'
-                    .'<div class="docs-callout__body">'.$inner.'</div></aside>';
             },
             $html
         );

@@ -11,11 +11,14 @@
             <span class="muted">— в этой вкладке вы смотрите портал как обучающийся.</span>
         </span>
         <div class="impersonation-banner__actions">
+            <a class="btn btn-primary impersonation-banner__btn" href="{{ route('portal.learner-preview.end') }}">
+                Завершить просмотр
+            </a>
             <button type="button" class="btn btn-ghost impersonation-banner__btn" onclick="window.close()">
                 Закрыть окно
             </button>
-            <a class="btn btn-primary impersonation-banner__btn" href="{{ route('admin.settings') }}" target="_blank" rel="noopener">
-                Вернуться в админку
+            <a class="btn btn-ghost impersonation-banner__btn" href="{{ route('admin.settings') }}" target="_blank" rel="noopener">
+                Настройки админки
             </a>
         </div>
     </div>

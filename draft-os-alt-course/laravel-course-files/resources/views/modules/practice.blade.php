@@ -1,25 +1,26 @@
 @extends('layouts.course')
 
 @php
-    $mid = (int) ($moduleSequence ?? $module);
+    $modNum = (int) ($moduleSequence ?? $module);
+    $lr = \App\Support\LearnerRoute::hub((int) ($courseId ?? session('course_id')), $modNum);
 @endphp
 
-@section('title', 'Модуль '.$mid.': '.config('course.step_titles.practice'))
+@section('title', 'Модуль '.$modNum.': '.config('course.step_titles.practice'))
 
 @section('content')
 <div class="page-container practice-page-anchor" id="practice-page-anchor">
-        <a class="back-link" href="{{ route('modules.hub', $module) }}">
+        <a class="back-link" href="{{ route('course.module.hub', $lr) }}">
             @include('partials.ap-icon', ['name' => 'arrow-left'])
             <span>К шагам модуля</span>
         </a>
     <div class="card">
-        <h1 style="margin-top:0">Модуль {{ $mid }}: {{ config('course.step_titles.practice') }}</h1>
-        @if ($mid === 1)
+        <h1 style="margin-top:0">Модуль {{ $modNum }}: {{ config('course.step_titles.practice') }}</h1>
+        @if ($modNum === 1)
             <div class="card" style="margin:0 0 1rem;padding:0.75rem 1rem;border-left:4px solid #2d6a9f;background:#f3f8fc">
                 <p style="margin:0;font-size:0.95rem"><strong>Модуль 1 (Docker).</strong> В контейнере — типичный <strong>серверный</strong> профиль ALT. Результаты — в одном файле в домашнем каталоге пользователя <code>student</code> (имя и формат — в тексте задания). Проверка: кнопка <strong>«Проверить результат»</strong> (балл 0–100), зачёт в курсе — <strong>«Принять результат»</strong>.</p>
             </div>
         @endif
-        @if ($mid === 8)
+        @if ($modNum === 8)
             <div class="card" style="margin:0 0 1rem;padding:0.75rem 1rem;border-left:4px solid #2d6a9f;background:#f3f8fc">
                 <p style="margin:0;font-size:0.95rem"><strong>Модуль 8 (Docker).</strong> Засчитывается <strong>одно</strong> задание: правки в <strong>трёх файлах</strong> конфигурации <strong>audit</strong> — ровно то, что проверяет <code>sudo /opt/lab-check/check.sh</code> (строка <code>TASK1:PASS</code> или <code>TASK1:FAIL</code>, балл 0 или 100).</p>
                 <p class="muted small" style="margin:0.5rem 0 0">Условия перечислены в тексте ниже и в таблице «Что именно проверяется». Запуск <code>auditd</code> в контейнере для кнопки «Проверить результат» <strong>не</strong> требуется.</p>
@@ -35,7 +36,7 @@
             <p class="muted small" style="margin:0 0 0.75rem">Блоки <strong>подсказок</strong> появятся после первой автопроверки на стенде, в которой <strong>не набран полный балл</strong> (кнопка «Проверить результат» ниже). Если с первого раза всё верно — подсказки не понадобятся.</p>
         @endif
         <article class="theory-article prose-course practice-block theory-content content-protect" data-integrity-protect>
-            {!! \Illuminate\Support\Str::markdown($practiceMarkdown) !!}
+            {!! \App\Support\CourseContentMarkdown::toHtml($practiceMarkdown) !!}
         </article>
         @include('partials.assessment-integrity')
 
@@ -98,7 +99,7 @@
 
                 <div class="practice-lab-actions">
                     @if (! $hasLab)
-                        <form method="post" action="{{ route('modules.practice.lab.start', $module) }}" class="inline-form">
+                        <form method="post" action="{{ route('course.module.practice.lab.start', $lr) }}" class="inline-form">
                             @csrf
                             <button type="submit" class="btn btn-primary">Запустить контейнер</button>
                         </form>
@@ -114,7 +115,7 @@
                             <p class="muted">Веб-терминал не выдан (на стенде: <code>LAB_ENABLE_TTY=1</code>, <code>LAB_PUBLIC_HOST</code> — IP или DNS стенда <strong>для браузера обучающегося</strong>, не <code>127.0.0.1</code>; в <code>.env</code> Laravel — <code>PRACTICE_LAB_PUBLIC_HOST</code>; скрипт <code>start-lab-daemon-stand.sh</code> подставляет хост из <code>STAND_SSH</code>). Или SSH / <code>docker exec</code>.</p>
                         @endif
                         <p class="muted small">Стенд активен до {{ $ps->expires_at->timezone(config('app.timezone'))->format('d.m.Y H:i') }}</p>
-                        <form method="post" action="{{ route('modules.practice.lab.check', $module) }}" class="inline-form">
+                        <form method="post" action="{{ route('course.module.practice.lab.check', $lr) }}" class="inline-form">
                             @csrf
                             <button type="submit" class="btn btn-primary">Проверить результат</button>
                         </form>
@@ -147,7 +148,7 @@
                     @endif
 
                     @if ($hasLab && $canAccept && ! $progress->practice_done_at)
-                        <form method="post" action="{{ route('modules.practice.lab.accept', $module) }}" style="margin-top:1rem" class="inline-form" onsubmit="return confirm(@json(
+                        <form method="post" action="{{ route('course.module.practice.lab.accept', $lr) }}" style="margin-top:1rem" class="inline-form" onsubmit="return confirm(@json(
                             ($ps->last_check_score !== null
                                 ? 'Зачесть практику с баллом '.$ps->last_check_score.' из '.($ps->last_check_max_score ?? 100).'? Несохранённые правки в контейнере можно доделать до «Завершить».'
                                 : 'Зафиксировать этот результат и зачесть практику?')
@@ -174,7 +175,7 @@
                 @endif
 
                 @if ($hasLab)
-                    <form method="post" action="{{ route('modules.practice.lab.finish', $module) }}" style="margin-top:0.75rem" class="inline-form" onsubmit="return confirm('Удалить контейнер? Несохранённая работа внутри стенда будет потеряна.');">
+                    <form method="post" action="{{ route('course.module.practice.lab.finish', $lr) }}" style="margin-top:0.75rem" class="inline-form" onsubmit="return confirm('Удалить контейнер? Несохранённая работа внутри стенда будет потеряна.');">
                         @csrf
                         <button type="submit" class="btn btn-ghost">Завершить работу со стендом</button>
                     </form>
@@ -193,7 +194,7 @@
 
         @if (! $progress->practice_done_at)
             @if (!($labEnabled ?? false) || ($allowManualDone ?? false))
-                <form method="post" action="{{ route('modules.practice.done', $module) }}" style="margin-top:1rem">
+                <form method="post" action="{{ route('course.module.practice.done', $lr) }}" style="margin-top:1rem">
                     @csrf
                     <button type="submit" class="btn btn-ghost">{{ ($labEnabled ?? false) ? 'Отметить без контейнера (аварийно)' : 'Отметить практику выполненной' }}</button>
                 </form>

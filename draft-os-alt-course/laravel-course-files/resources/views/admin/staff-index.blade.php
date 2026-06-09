@@ -98,6 +98,7 @@
                         @include('admin.partials.staff-table-sort-th', ['column' => 'role', 'label' => 'Роль', 'staffSort' => $staffSort, 'staffDir' => $staffDir, 'staffSearch' => $staffSearch])
                         <th scope="col">Группы</th>
                         <th scope="col">Курсы</th>
+                        <th scope="col" class="ap-staff-table__comment-col">Комментарий</th>
                         @include('admin.partials.staff-table-sort-th', ['column' => 'login', 'label' => 'Последний вход', 'staffSort' => $staffSort, 'staffDir' => $staffDir, 'staffSearch' => $staffSearch, 'class' => 'ap-staff-table__login-col'])
                         <th class="ap-staff-table__actions-col" scope="col">Действия</th>
                     </tr>
@@ -126,12 +127,17 @@
                             };
                             $courseIds = $row->courses->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
                             $fullName = $row->learner ? LearnerDisplay::portalDisplayName($row->learner) : '';
+                            $accessComment = trim((string) ($row->access_comment ?? ''));
+                            if (in_array($accessComment, ['&quot;&quot;', '""'], true)) {
+                                $accessComment = '';
+                            }
                         @endphp
                         <tr class="ap-staff-row"
                             data-staff-id="{{ (int) $row->id }}"
                             data-email="{{ e($email) }}"
                             data-role="{{ e($row->role) }}"
-                            data-course-ids="{{ e(implode(',', $courseIds)) }}">
+                            data-course-ids="{{ e(implode(',', $courseIds)) }}"
+                            data-access-comment="{{ e($accessComment) }}">
                             <td><strong class="ap-staff-table__email">{{ $email !== '' ? $email : '—' }}</strong></td>
                             <td class="ap-staff-table__name">
                                 @if ($fullName !== '')
@@ -161,6 +167,13 @@
                                             <li>{{ $c->title }}</li>
                                         @endforeach
                                     </ul>
+                                @endif
+                            </td>
+                            <td class="ap-staff-table__comment">
+                                @if ($accessComment !== '')
+                                    <span class="ap-staff-table__comment-text" title="{{ e($accessComment) }}">{{ $accessComment }}</span>
+                                @else
+                                    <span class="ap-muted">—</span>
                                 @endif
                             </td>
                             <td class="ap-staff-table__login">
@@ -242,6 +255,11 @@
                         @endforeach
                     </div>
                 </div>
+                <div class="ap-modal__field">
+                    <label class="ap-modal__label" for="ap-staff-access-comment">Комментарий</label>
+                    <textarea id="ap-staff-access-comment" name="access_comment" class="ap-modal__input ap-staff-access-comment-input" rows="2" maxlength="500" placeholder="Номер заявки, ссылка на запрос, инициатор…">@if ($errors->any()){{ old('access_comment') }}@endif</textarea>
+                    <p class="ap-staff-access-comment-hint ap-muted">Необязательно. Для учёта, по какому запросу выдан доступ (видно только администраторам в таблице сотрудников).</p>
+                </div>
                 <div class="ap-modal__footer">
                     <button type="button" class="btn btn-ghost" data-ap-staff-modal-close>Отмена</button>
                     <button type="submit" class="btn btn-primary" id="ap-staff-form-submit">Сохранить</button>
@@ -278,6 +296,7 @@
             var form = document.getElementById('ap-staff-form');
             var emailIn = document.getElementById('ap-staff-email');
             var roleSel = document.getElementById('ap-staff-role');
+            var commentIn = document.getElementById('ap-staff-access-comment');
             var coursesWrap = document.getElementById('ap-staff-courses-wrap');
             var coursesHint = document.getElementById('ap-staff-courses-hint');
             var formTitle = document.getElementById('ap-staff-form-title');
@@ -408,6 +427,11 @@
                 });
             }
 
+            function parseAccessComment(tr) {
+                if (!tr) return '';
+                return tr.getAttribute('data-access-comment') || '';
+            }
+
             function openCreateModal() {
                 if (!form) return;
                 form.setAttribute('action', storeUrl);
@@ -415,6 +439,7 @@
                 formSubmit.textContent = 'Сохранить';
                 emailIn.value = '';
                 roleSel.value = 'portal_admin';
+                if (commentIn) commentIn.value = '';
                 uncheckAllCourses();
                 syncCoursesVisibility();
                 syncRoleGuide();
@@ -430,6 +455,7 @@
                 formSubmit.textContent = 'Сохранить';
                 emailIn.value = tr.getAttribute('data-email') || '';
                 roleSel.value = tr.getAttribute('data-role') || 'portal_admin';
+                if (commentIn) commentIn.value = parseAccessComment(tr);
                 setCourseSelection(tr.getAttribute('data-course-ids') || '');
                 syncCoursesVisibility();
                 syncRoleGuide();
@@ -509,6 +535,7 @@
                 else openCreateModal();
                 if (emailIn) emailIn.value = want;
                 if (roleSel) roleSel.value = @json(old('role', 'portal_admin'));
+                if (commentIn) commentIn.value = @json(old('access_comment', ''));
                 syncCoursesVisibility();
                 syncRoleGuide();
                 @foreach ($pickedOldCourses as $pid)

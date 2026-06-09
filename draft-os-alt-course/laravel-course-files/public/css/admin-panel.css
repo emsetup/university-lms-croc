@@ -970,6 +970,24 @@ a.ap-card:hover {
     margin: 0;
 }
 
+.ap-changelog-modal__doc {
+    margin-top: 1rem;
+}
+
+.ap-changelog-modal__doc-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--brand, #0d9488);
+    text-decoration: none;
+}
+
+.ap-changelog-modal__doc-link:hover {
+    text-decoration: underline;
+}
+
 .ap-changelog-modal__footer {
     display: flex;
     justify-content: flex-end;
@@ -2242,6 +2260,36 @@ body.ap-modal-open {
 .ap-staff-table__courses {
   font-size: 0.88rem;
   max-width: 22rem;
+}
+
+.ap-staff-table__comment-col {
+  min-width: 10rem;
+}
+
+.ap-staff-table__comment {
+  font-size: 0.86rem;
+  max-width: 16rem;
+  color: var(--ap-text-secondary);
+}
+
+.ap-staff-table__comment-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.ap-staff-access-comment-input {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+.ap-staff-access-comment-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .ap-staff-table__login-col {
@@ -5020,8 +5068,12 @@ body.ap-modal-open {
     background: #fff;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 0.35rem;
     flex-shrink: 0;
+}
+
+.questions-sidebar-header .questions-count-badge {
+    margin-left: auto;
 }
 
 .questions-sidebar-title {
@@ -5049,13 +5101,15 @@ body.ap-modal-open {
 }
 
 .question-list-item {
-    padding: 10px 12px;
+    display: flex;
+    align-items: stretch;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.12s;
+    transition: background 0.12s, border-color 0.12s, box-shadow 0.12s, opacity 0.12s;
     margin-bottom: 4px;
     border: 1px solid transparent;
     background: transparent;
+    overflow: hidden;
 }
 
 .question-list-item:hover {
@@ -5067,6 +5121,55 @@ body.ap-modal-open {
     background: #fff;
     border-color: #00b956;
     box-shadow: 0 1px 4px rgba(0, 185, 86, 0.15);
+}
+
+.question-list-item.is-dragging {
+    opacity: 0.58;
+    border-color: #d1d5db;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+    background: #fff;
+}
+
+.question-list-item.is-drop-target {
+    border-color: #00b956;
+    background: rgba(0, 185, 86, 0.07);
+}
+
+.q-item-drag-handle {
+    flex: 0 0 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9ca3af;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+    -webkit-user-drag: element;
+    background: rgba(15, 23, 42, 0.03);
+    border-right: 1px solid transparent;
+    font-size: 15px;
+    line-height: 1;
+}
+
+.question-list-item:hover .q-item-drag-handle,
+.question-list-item.active .q-item-drag-handle {
+    border-right-color: #e5e7eb;
+    color: #6b7280;
+}
+
+.q-item-drag-handle:active {
+    cursor: grabbing;
+}
+
+.q-item-main {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px 10px 8px;
+}
+
+.questions-sidebar-hint {
+    font-size: 11px;
+    margin-left: 0.35rem;
 }
 
 .q-item-num {
@@ -5283,7 +5386,7 @@ body.ap-modal-open {
 
 .new-question-row {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: 12px;
     flex-wrap: wrap;
 }
@@ -5291,6 +5394,11 @@ body.ap-modal-open {
 .new-question-row > div {
     flex: 1;
     min-width: 160px;
+}
+
+.new-question-row > .btn {
+    align-self: center;
+    flex-shrink: 0;
 }
 
 .ap-sec-settings-quiz-only {

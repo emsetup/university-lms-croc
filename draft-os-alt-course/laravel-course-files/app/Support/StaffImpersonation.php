@@ -18,6 +18,12 @@ final class StaffImpersonation
 {
     public const QUERY_PARAM = 'preview';
 
+    public const SESSION_TOKEN = 'learner_preview_token';
+
+    public const SESSION_COURSE_ID = 'learner_preview_course_id';
+
+    public const SESSION_COURSE_TITLE = 'learner_preview_course_title';
+
     private const CACHE_PREFIX = 'portal_learner_preview:';
 
     private const TTL_HOURS = 8;
@@ -74,9 +80,46 @@ final class StaffImpersonation
         return is_string($t) && $t !== '' ? $t : null;
     }
 
+    /** Токен из query или сессии (чтобы не терять просмотр при переходах без ?preview=). */
+    public static function activeToken(Request $request): ?string
+    {
+        $fromQuery = self::previewTokenFromRequest($request);
+        if ($fromQuery !== null) {
+            return $fromQuery;
+        }
+
+        $fromSession = session(self::SESSION_TOKEN);
+
+        return is_string($fromSession) && $fromSession !== '' ? $fromSession : null;
+    }
+
+    public static function persistToken(string $token): void
+    {
+        session([self::SESSION_TOKEN => $token]);
+    }
+
+    public static function clearSession(): void
+    {
+        session()->forget([
+            self::SESSION_TOKEN,
+            self::SESSION_COURSE_ID,
+            self::SESSION_COURSE_TITLE,
+        ]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function routeQueryParams(Request $request): array
+    {
+        $token = self::activeToken($request);
+
+        return $token !== null ? [self::QUERY_PARAM => $token] : [];
+    }
+
     public static function isPreviewRequest(Request $request): bool
     {
-        return self::resolvePreview(self::previewTokenFromRequest($request)) !== null;
+        return self::resolvePreview(self::activeToken($request)) !== null;
     }
 
     /**
@@ -84,7 +127,7 @@ final class StaffImpersonation
      */
     public static function previewContext(Request $request): ?array
     {
-        return self::resolvePreview(self::previewTokenFromRequest($request));
+        return self::resolvePreview(self::activeToken($request));
     }
 
     public static function assertCanImpersonate(Learner $target, int $staffLearnerId): void

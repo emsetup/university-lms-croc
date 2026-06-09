@@ -492,18 +492,38 @@ final class AdminQuizController extends Controller
             }
 
             foreach (array_values($items) as $i => $q) {
-                $type = ! empty($q['match_drag'])
-                    ? 'match_drag'
-                    : (is_array($q['c'] ?? null) ? 'multi' : 'single');
+                $type = ! empty($q['open_text'])
+                    ? 'open_text'
+                    : (! empty($q['match_drag'])
+                        ? 'match_drag'
+                        : (is_array($q['c'] ?? null) ? 'multi' : 'single'));
 
                 /** @var \App\Models\CourseQuizQuestion $qq */
-                $qq = \App\Models\CourseQuizQuestion::query()->create([
+                $create = [
                     'quiz_bank_id' => (int) $bank->id,
                     'sort' => ($i + 1) * 10,
                     'question_text' => (string) ($q['q'] ?? ''),
                     'type' => $type,
                     'points' => isset($q['points']) ? (int) $q['points'] : null,
-                ]);
+                ];
+                if ($type === 'open_text') {
+                    $settings = [];
+                    if (! empty($q['placeholder'])) {
+                        $settings['placeholder'] = trim((string) $q['placeholder']);
+                    }
+                    if (! empty($q['max_length']) && is_numeric($q['max_length'])) {
+                        $settings['max_length'] = (int) $q['max_length'];
+                    }
+                    if ($settings !== []) {
+                        $create['settings_json'] = $settings;
+                    }
+                }
+                /** @var \App\Models\CourseQuizQuestion $qq */
+                $qq = \App\Models\CourseQuizQuestion::query()->create($create);
+
+                if ($type === 'open_text') {
+                    continue;
+                }
 
                 if ($type === 'match_drag') {
                     $left = is_array($q['left'] ?? null) ? $q['left'] : [];
@@ -532,16 +552,18 @@ final class AdminQuizController extends Controller
                 }
 
                 $corr = $q['c'] ?? null;
-                $idxs = is_array($corr) ? $corr : [(int) $corr];
-                foreach ($idxs as $idx) {
-                    $idx = (int) $idx;
-                    if (! isset($optIds[$idx])) {
-                        continue;
+                if ($corr !== null && $corr !== []) {
+                    $idxs = is_array($corr) ? $corr : [(int) $corr];
+                    foreach ($idxs as $idx) {
+                        $idx = (int) $idx;
+                        if (! isset($optIds[$idx])) {
+                            continue;
+                        }
+                        \App\Models\CourseQuizCorrectAnswer::query()->create([
+                            'question_id' => (int) $qq->id,
+                            'option_id' => (int) $optIds[$idx],
+                        ]);
                     }
-                    \App\Models\CourseQuizCorrectAnswer::query()->create([
-                        'question_id' => (int) $qq->id,
-                        'option_id' => (int) $optIds[$idx],
-                    ]);
                 }
             }
         });
@@ -567,6 +589,25 @@ final class AdminQuizController extends Controller
                 return ['ok' => false, 'message' => "Вопрос #".($i + 1).": пустой текст.", 'data' => []];
             }
 
+            $isOpen = ! empty($q['open_text']);
+            if ($isOpen) {
+                if ($kind !== 'survey') {
+                    return ['ok' => false, 'message' => "Вопрос #".($i + 1).": открытый ответ только для опросов.", 'data' => []];
+                }
+                $qq['open_text'] = true;
+                if (! empty($q['placeholder'])) {
+                    $qq['placeholder'] = trim((string) $q['placeholder']);
+                }
+                if (! empty($q['max_length']) && is_numeric($q['max_length'])) {
+                    $ml = (int) $q['max_length'];
+                    if ($ml < 1 || $ml > 50000) {
+                        return ['ok' => false, 'message' => "Вопрос #".($i + 1).": max_length 1..50000.", 'data' => []];
+                    }
+                    $qq['max_length'] = $ml;
+                }
+                $out[] = $qq;
+                continue;
+            }
             $isMatch = ! empty($q['match_drag']);
             if ($isMatch) {
                 $qq['match_drag'] = true;
@@ -604,7 +645,11 @@ final class AdminQuizController extends Controller
                 $qq['a'] = $a;
 
                 $c = $q['c'] ?? null;
-                if (is_array($c)) {
+                if ($kind === 'survey') {
+                    if (is_array($c)) {
+                        $qq['c'] = [];
+                    }
+                } elseif (is_array($c)) {
                     $idx = [];
                     foreach ($c as $v) {
                         if (! is_numeric($v)) {

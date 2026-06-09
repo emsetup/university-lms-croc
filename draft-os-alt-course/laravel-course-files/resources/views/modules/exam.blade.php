@@ -2,14 +2,15 @@
 
 @php
     $total = count($questions);
-    $mid = (int) ($moduleSequence ?? $module);
+    $modNum = (int) ($moduleSequence ?? $module);
+    $lr = \App\Support\LearnerRoute::hub((int) ($courseId ?? session('course_id')), $modNum);
 @endphp
 
-@section('title', 'Модуль '.$mid.': '.config('course.step_titles.module_exam'))
+@section('title', 'Модуль '.$modNum.': '.config('course.step_titles.module_exam'))
 
 @section('content')
     <div class="page-container">
-    <a class="back-link" href="{{ route('modules.hub', $module) }}">
+    <a class="back-link" href="{{ route('course.module.hub', $lr) }}">
         @include('partials.ap-icon', ['name' => 'arrow-left'])
         <span>К шагам модуля</span>
     </a>
@@ -18,7 +19,7 @@
         @if ($needsRetakeAck)
             <dialog class="quiz-modal" id="module-exam-retake-warn" open aria-labelledby="module-exam-retake-title">
                 <div class="quiz-modal-inner">
-                    <p class="quiz-modal-badge">Модуль {{ $meta['letter'] }}</p>
+                    <p class="quiz-modal-badge">Модуль {{ $modNum }}@if (! empty($meta['letter'])) · {{ $meta['letter'] }}@endif</p>
                     <h2 id="module-exam-retake-title" class="quiz-modal-heading">Пересдача / вторая попытка</h2>
                     <ul class="quiz-modal-list">
                         <li class="quiz-modal-warn"><strong>Сохранённый результат будет заменён.</strong> После отправки новой попытки на странице «Результат» и в кратком разборе останутся <strong>только данные этой попытки</strong>. То, что вы видели после прошлой отправки (проценты, разбор по вопросам), <strong>больше не отображается</strong> — учтите это, если нужно что-то переписать из разбора заранее.</li>
@@ -32,7 +33,7 @@
                     </label>
                     <div class="quiz-modal-actions">
                         <button type="button" class="btn btn-primary" id="module-exam-retake-next" disabled>Далее — условия теста и запуск таймера</button>
-                        <a class="quiz-modal-cancel" href="{{ route('modules.hub', $module) }}">Отмена, вернуться к модулю</a>
+                        <a class="quiz-modal-cancel" href="{{ route('course.module.hub', $lr) }}">Отмена, вернуться к модулю</a>
                     </div>
                 </div>
             </dialog>
@@ -53,17 +54,17 @@
                     @endif
                 </ul>
                 <div class="quiz-modal-actions">
-                    <form method="post" action="{{ route('modules.exam.start', $module) }}" class="quiz-modal-form">
+                    <form method="post" action="{{ route('course.module.exam.start', $lr) }}" class="quiz-modal-form">
                         @csrf
                         <button type="submit" class="btn btn-primary">Запустить отсчёт</button>
                     </form>
-                    <a class="quiz-modal-cancel" href="{{ route('modules.hub', $module) }}">Вернуться к модулю без старта</a>
+                    <a class="quiz-modal-cancel" href="{{ route('course.module.hub', $lr) }}">Вернуться к модулю без старта</a>
                 </div>
             </div>
         </dialog>
 
         <div class="card theory-quiz-idle-card">
-            <h1 class="theory-quiz-page-title">Модуль {{ $mid }}: {{ config('course.step_titles.module_exam') }}</h1>
+            <h1 class="theory-quiz-page-title">Модуль {{ $modNum }}: {{ config('course.step_titles.module_exam') }}</h1>
             <p class="muted" style="margin:0">
                 @if ($needsRetakeAck)
                     Сначала подтвердите условия пересдачи в первом окне, затем — общие условия теста и запуск таймера.
@@ -96,8 +97,8 @@
         @endif
     @else
         <div class="card module-exam-card content-protect" data-integrity-protect>
-            <h1 style="margin-top:0">Модуль {{ $mid }}: {{ config('course.step_titles.module_exam') }}</h1>
-            @if ($mid === 3)
+            <h1 style="margin-top:0">Модуль {{ $modNum }}: {{ config('course.step_titles.module_exam') }}</h1>
+            @if ($modNum === 3)
                 <div class="module-exam-m3-rubric muted" style="margin:0 0 1rem;line-height:1.5">
                     <p style="margin:0 0 0.35rem"><strong>Экзамен: Модуль 3 — ЦУС, Alterator и модули администрирования</strong></p>
                     <p style="margin:0">20 вопросов · 4 типа · максимум <strong>100</strong> баллов (в зачёт идёт процент от суммы баллов).</p>
@@ -109,7 +110,7 @@
                     </ul>
                     <p style="margin:0.5rem 0 0">Порог зачёта: <strong>{{ $passThreshold }}%</strong> от максимума баллов этой попытки.</p>
                 </div>
-            @elseif ($mid === 4)
+            @elseif ($modNum === 4)
                 <div class="module-exam-m4-rubric muted" style="margin:0 0 1rem;line-height:1.5">
                     <p style="margin:0 0 0.35rem"><strong>Экзамен: Модуль 4 — Установка ОС «Альт», инсталлятор и профили</strong></p>
                     <p style="margin:0">20 вопросов · 4 типа · <strong>100</strong> баллов · порог сдачи: <strong>{{ $passThreshold }}</strong> баллов (процент от суммы набранных баллов).</p>
@@ -121,7 +122,7 @@
                     </ul>
                     <p style="margin:0.5rem 0 0">На прохождение отводится <strong>{{ $timeLimitMinutes }} минут</strong> (таймер после «Запустить отсчёт»).</p>
                 </div>
-            @elseif ($mid === 5)
+            @elseif ($modNum === 5)
                 <div class="module-exam-m5-rubric muted" style="margin:0 0 1rem;line-height:1.5">
                     <p style="margin:0 0 0.35rem"><strong>Экзамен: Модуль 5 — Сеть: три менеджера и контексты</strong></p>
                     <p style="margin:0">20 вопросов · 4 типа · <strong>100</strong> баллов. Сопоставление (вопросы 14–16) оформлено как «отметьте все верные пары».</p>
@@ -171,7 +172,7 @@
                 <div class="module-exam-progress-bar__fill" id="module-exam-progress-fill" style="width: {{ $total > 0 ? round(100 / $total) : 0 }}%"></div>
             </div>
 
-            <form method="post" action="{{ route('modules.exam.submit', $module) }}" id="module-exam-form" novalidate>
+            <form method="post" action="{{ route('course.module.exam.submit', $lr) }}" id="module-exam-form" novalidate>
                 @csrf
                 @foreach ($questions as $i => $q)
                     @php

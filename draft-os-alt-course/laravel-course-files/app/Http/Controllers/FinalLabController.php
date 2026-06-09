@@ -6,7 +6,7 @@ use App\Models\Course;
 use App\Models\FinalLabResult;
 use App\Models\Learner;
 use App\Models\PracticeSession;
-use App\Services\CourseScoringService;
+use App\Support\LearnerPreviewContext;
 use App\Services\PracticeLabService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Schema;
@@ -27,8 +27,8 @@ class FinalLabController extends Controller
 
     public function show(): View|RedirectResponse
     {
-        $learner = Learner::findOrFail(session('learner_id'));
-        $courseId = (int) session('course_id', 0);
+        $learner = Learner::findOrFail(LearnerPreviewContext::learnerId());
+        $courseId = LearnerPreviewContext::courseId();
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
         if ($course && Schema::hasColumn('courses', 'final_lab_enabled') && ! $course->final_lab_enabled) {
             return redirect()->route('dashboard')->with('err', 'Финальная лабораторная отключена для этого курса.');
@@ -76,7 +76,7 @@ class FinalLabController extends Controller
 
     public function startLab(): RedirectResponse
     {
-        $learner = Learner::findOrFail(session('learner_id'));
+        $learner = Learner::findOrFail(LearnerPreviewContext::learnerId());
         if ($r = $this->guardLearnerAccess($learner)) {
             return $r;
         }
@@ -86,7 +86,7 @@ class FinalLabController extends Controller
         }
         $lab = PracticeLabService::make();
         try {
-            $courseId = (int) session('course_id', 0);
+            $courseId = LearnerPreviewContext::courseId();
             $course = $courseId > 0 ? Course::query()->find($courseId) : null;
             if (! $this->finalLabEnabledForCourse($course)) {
                 return redirect()->route('final-lab')->with('err', 'Финальная лабораторная отключена для этого курса.');
@@ -112,12 +112,12 @@ class FinalLabController extends Controller
 
     public function checkLab(): RedirectResponse
     {
-        $learner = Learner::findOrFail(session('learner_id'));
+        $learner = Learner::findOrFail(LearnerPreviewContext::learnerId());
         if ($r = $this->guardLearnerAccess($learner)) {
             return $r;
         }
         try {
-            $courseId = (int) session('course_id', 0);
+            $courseId = LearnerPreviewContext::courseId();
             $out = PracticeLabService::make()->runCheck($learner, $courseId, self::FINAL_LAB_SESSION_MODULE_ID);
         } catch (Throwable $e) {
             return redirect()->route('final-lab')->with('err', $e->getMessage());
@@ -131,7 +131,7 @@ class FinalLabController extends Controller
 
     public function acceptLab(): RedirectResponse
     {
-        $learner = Learner::findOrFail(session('learner_id'));
+        $learner = Learner::findOrFail(LearnerPreviewContext::learnerId());
         if ($r = $this->guardLearnerAccess($learner)) {
             return $r;
         }
@@ -140,7 +140,7 @@ class FinalLabController extends Controller
         if ($attempt > 2) {
             return redirect()->route('final-lab')->with('err', 'Попытки финальной лабораторной исчерпаны.');
         }
-        $courseId = (int) session('course_id', 0);
+        $courseId = LearnerPreviewContext::courseId();
         $session = PracticeSession::query()
             ->where('learner_id', $learner->id)
             ->where('course_id', $courseId)
@@ -168,11 +168,11 @@ class FinalLabController extends Controller
 
     public function finishLab(): RedirectResponse
     {
-        $learner = Learner::findOrFail(session('learner_id'));
+        $learner = Learner::findOrFail(LearnerPreviewContext::learnerId());
         if ($r = $this->guardLearnerAccess($learner)) {
             return $r;
         }
-        $courseId = (int) session('course_id', 0);
+        $courseId = LearnerPreviewContext::courseId();
         PracticeLabService::make()->destroyLab($learner, $courseId, self::FINAL_LAB_SESSION_MODULE_ID);
 
         return redirect()->route('final-lab')->with('ok', 'Контейнер финальной лабораторной удалён.');
@@ -180,7 +180,7 @@ class FinalLabController extends Controller
 
     private function resultModel(Learner $learner): FinalLabResult
     {
-        $courseId = (int) session('course_id', 0);
+        $courseId = LearnerPreviewContext::courseId();
         return $learner->finalLabResult()->firstOrCreate(
             ['learner_id' => $learner->id, 'course_id' => $courseId > 0 ? $courseId : null],
             ['attempts' => 0, 'passed' => false, 'best_score' => 0]
@@ -195,7 +195,7 @@ class FinalLabController extends Controller
         if (! Schema::hasTable('practice_sessions')) {
             return redirect()->route('final-lab')->with('err', 'Не выполнены миграции practice_sessions. Запустите php artisan migrate.');
         }
-        $courseId = (int) session('course_id', 0);
+        $courseId = LearnerPreviewContext::courseId();
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
         if (! $this->finalLabEnabledForCourse($course)) {
             return redirect()->route('final-lab')->with('err', 'Финальная лабораторная отключена для этого курса.');

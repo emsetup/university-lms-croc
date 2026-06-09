@@ -108,11 +108,14 @@
             cursor: pointer;
             display: flex;
             flex-direction: column;
+            align-self: stretch;
             position: relative;
             overflow: hidden;
             border-radius: 12px;
             min-height: 220px;
+            height: auto;
             padding: 2.35rem 1.15rem 1.15rem;
+            box-sizing: border-box;
             transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
         }
         .portal-course-card.course-card-active {
@@ -153,9 +156,20 @@
             margin-top: 0;
         }
         .portal-course-title { min-height: 2.7rem; }
-        .portal-course-grow { flex: 1; min-height: 0; }
+        .portal-course-grow {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .portal-course-progress-block {
+            margin-top: 0.85rem;
+            min-height: 3.75rem;
+            flex-shrink: 0;
+        }
         .portal-course-actions {
             margin-top: auto;
+            padding-top: 0.85rem;
             display: flex;
             flex-wrap: wrap;
             gap: 0.5rem;
@@ -170,11 +184,18 @@
             transform: scale(1.02);
             box-shadow: 0 6px 18px rgba(0, 185, 86, 0.28);
         }
-        .portal-course-audience-row {
+        .portal-course-audience-row,
+        .portal-course-audience-spacer {
             margin-top: 0.65rem;
+            min-height: 2.35rem;
+            width: 100%;
+        }
+        .portal-course-audience-row {
             display: flex;
             justify-content: center;
-            width: 100%;
+        }
+        .portal-course-audience-spacer {
+            flex-shrink: 0;
         }
         .portal-course-progress-head {
             display: flex;
@@ -190,27 +211,53 @@
         }
 
         .portal-catalog-grid.module-grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            display: flex;
+            flex-wrap: wrap;
+            align-items: stretch;
             gap: 16px;
             margin-top: 20px;
         }
+        .portal-catalog-grid.module-grid > .portal-course-card,
+        .portal-catalog-grid.module-grid > .portal-slot-card,
+        .portal-catalog-grid.module-grid > .portal-contact-card {
+            flex: 1 1 calc((100% - 32px) / 3);
+            max-width: calc((100% - 32px) / 3);
+            min-width: 0;
+            align-self: stretch;
+            height: auto;
+        }
+        .portal-catalog-grid.module-grid > .portal-catalog-empty,
+        .portal-catalog-grid.module-grid > .portal-search-no-hits {
+            flex: 1 1 100%;
+            max-width: 100%;
+        }
         @media (max-width: 820px) {
-            .portal-catalog-grid.module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .portal-catalog-grid.module-grid > .portal-course-card,
+            .portal-catalog-grid.module-grid > .portal-slot-card,
+            .portal-catalog-grid.module-grid > .portal-contact-card {
+                flex-basis: calc((100% - 16px) / 2);
+                max-width: calc((100% - 16px) / 2);
+            }
         }
         @media (max-width: 520px) {
-            .portal-catalog-grid.module-grid { grid-template-columns: minmax(0, 1fr); }
+            .portal-catalog-grid.module-grid > .portal-course-card,
+            .portal-catalog-grid.module-grid > .portal-slot-card,
+            .portal-catalog-grid.module-grid > .portal-contact-card {
+                flex-basis: 100%;
+                max-width: 100%;
+            }
         }
 
         .portal-slot-card.placeholder-card {
             position: relative;
             overflow: hidden;
-            height: 100%;
             min-height: 220px;
             align-self: stretch;
             display: flex;
-            align-items: center;
+            flex-direction: column;
+            align-items: stretch;
             justify-content: center;
+            box-sizing: border-box;
             cursor: default;
             background: #f5f5f5 !important;
             border: 1.5px dashed #d1d5db !important;
@@ -306,13 +353,14 @@
 
         .portal-contact-card {
             position: relative;
-            height: 100%;
             min-height: 220px;
+            align-self: stretch;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            text-align: center;
-            padding: 1.15rem 1rem;
+            box-sizing: border-box;
+            padding: 0;
             cursor: default;
             background: #f5f5f5 !important;
             border: 1px solid #e0e0e0 !important;
@@ -324,23 +372,52 @@
             background: #ececec !important;
             box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
         }
+        .portal-contact-card__body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 1.35rem 1.1rem;
+            box-sizing: border-box;
+        }
         .portal-contact-card__text {
-            font-size: 0.9rem;
-            line-height: 1.55;
-            color: #888;
-            max-width: 14rem;
+            width: 100%;
+            max-width: 15.5rem;
+            text-align: center;
+        }
+        .portal-contact-card__lead {
+            margin: 0 0 1rem;
+            font-size: 0.92rem;
+            line-height: 1.4;
+            font-weight: 600;
+            color: #475569;
+        }
+        .portal-contact-card__contacts {
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+        }
+        .portal-contact-card__item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        .portal-contact-card__label {
+            font-size: 0.78rem;
+            line-height: 1.35;
+            color: #94a3b8;
         }
         .portal-contact-card__text a {
-            color: #4b5563;
-            font-weight: 500;
+            color: #334155;
+            font-size: 0.88rem;
+            font-weight: 600;
             text-decoration: none;
-            border-bottom: 1px solid transparent;
-            transition: color 0.18s ease, border-color 0.18s ease, text-decoration 0.18s ease;
+            transition: color 0.18s ease;
         }
         .portal-contact-card__text a:hover {
-            color: #1f2937;
+            color: #00b956;
             text-decoration: underline;
-            border-bottom-color: transparent;
         }
 
         .portal-catalog-empty {
@@ -504,7 +581,7 @@
         .course-info-modal__summary { line-height: 1.6; color: #334155; white-space: pre-wrap; }
     </style>
 
-    @if (session('learner_id') && ! empty($learnerEmail))
+    @if (! empty($learnerEmail))
         <div class="card page-section welcome-block" >
             <div class="portal-welcome-head">
                 <div class="portal-welcome-main">
@@ -552,12 +629,23 @@
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
                 <div>
                     <h1 style="margin:0 0 0.35rem">Образовательный портал</h1>
-                    <p class="muted" style="margin:0;max-width:60rem;line-height:1.5">
-                        Выберите курс и начните обучение. Прогресс и попытки привязаны к вашей корпоративной почте.
-                    </p>
+                    @if (config('oidc.enabled') && config('oidc.required'))
+                        <p class="muted" style="margin:0;max-width:60rem;line-height:1.5">
+                            Для доступа к курсам необходимо войти через корпоративный аккаунт (SSO).
+                            Каталог курсов можно просматривать без входа.
+                        </p>
+                    @else
+                        <p class="muted" style="margin:0;max-width:60rem;line-height:1.5">
+                            Выберите курс и начните обучение. Прогресс и попытки привязаны к вашей корпоративной почте.
+                        </p>
+                    @endif
                 </div>
                 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
-                    <button type="button" class="btn btn-primary" id="portal-login-open">Войти</button>
+                    @if (config('oidc.enabled') && config('oidc.required'))
+                        <button type="button" class="btn btn-primary" id="portal-login-open">Войти через SSO</button>
+                    @else
+                        <button type="button" class="btn btn-primary" id="portal-login-open">Войти</button>
+                    @endif
                 </div>
             </div>
             <div class="portal-course-search-wrap" role="search" aria-label="Поиск по каталогу курсов">
@@ -657,33 +745,39 @@
                     <div class="portal-course-title" style="font-weight:800;font-size:1.05rem;line-height:1.25">{{ $c->title }}</div>
                     <div class="portal-course-grow">
                         <div class="muted course-card__description" style="font-size:0.92rem;line-height:1.45;margin-top:0.35rem">{{ $c->summary }}</div>
-                    </div>
-                    @if ($c->slug === 'alt-os-features')
-                        <div class="portal-course-audience-row">
-                            <button type="button" class="btn btn-ghost" id="portal-course-audience-open">Подробнее: для кого этот курс</button>
-                        </div>
-                    @endif
-
-                    @if (session('learner_id') && ($pct > 0 || ($enroll && ! empty($enroll->started_at))))
-                        <div style="margin-top:0.85rem">
-                            <div class="portal-course-progress-head muted small">
-                                <span>Прогресс по курсу: <strong>{{ $pct }}%</strong></span>
-                                @if (($mp['total'] ?? 0) > 0)
-                                    <span>{{ (int) ($mp['passed'] ?? 0) }} из {{ (int) ($mp['total'] ?? 0) }} модулей</span>
-                                @endif
+                        @php $audiencePlaque = \App\Support\CourseAudiencePlaque::forCourse($c); @endphp
+                        @if ($audiencePlaque && $audiencePlaque['hasModal'])
+                            <div class="portal-course-audience-row">
+                                <button type="button" class="btn btn-ghost portal-course-audience-open" data-course-id="{{ $c->id }}">Подробнее: для кого этот курс</button>
                             </div>
-                            <div class="learner-track-summary__bar portal-course-progress-bar" aria-hidden="true">
-                                <div class="learner-track-summary__bar-fill" style="width: {{ min(100, max(0, $pct)) }}%"></div>
-                            </div>
-                            @if ($enroll && $enroll->started_at)
-                                <div class="muted small" style="margin-top:0.35rem">
-                                    Начато: <strong>{{ $enroll->started_at->format('d.m.Y H:i') }}</strong>
+                        @else
+                            <div class="portal-course-audience-spacer" aria-hidden="true"></div>
+                        @endif
+                        @if (! empty($learnerEmail))
+                            @if ($pct > 0 || ($enroll && ! empty($enroll->started_at)))
+                                <div class="portal-course-progress-block">
+                                    <div class="portal-course-progress-head muted small">
+                                        <span>Прогресс по курсу: <strong>{{ $pct }}%</strong></span>
+                                        @if (($mp['total'] ?? 0) > 0)
+                                            <span>{{ (int) ($mp['passed'] ?? 0) }} из {{ (int) ($mp['total'] ?? 0) }} модулей</span>
+                                        @endif
+                                    </div>
+                                    <div class="learner-track-summary__bar portal-course-progress-bar" aria-hidden="true">
+                                        <div class="learner-track-summary__bar-fill" style="width: {{ min(100, max(0, $pct)) }}%"></div>
+                                    </div>
+                                    @if ($enroll && $enroll->started_at)
+                                        <div class="muted small" style="margin-top:0.35rem">
+                                            Начато: <strong>{{ $enroll->started_at->format('d.m.Y H:i') }}</strong>
+                                        </div>
+                                    @endif
                                 </div>
+                            @else
+                                <div class="portal-course-progress-block portal-course-progress-block--empty" aria-hidden="true"></div>
                             @endif
-                        </div>
-                    @endif
-                    <div class="portal-course-actions" style="margin-top:0.85rem">
-                        @if (session('learner_id'))
+                        @endif
+                    </div>
+                    <div class="portal-course-actions">
+                        @if (! empty($learnerEmail))
                             <form method="post" action="{{ route('portal.enroll', ['course' => $c->id]) }}" style="margin:0">
                                 @csrf
                                 <button type="submit" class="btn btn-primary">{{ $started ? 'Продолжить' : 'Начать обучение' }}</button>
@@ -711,10 +805,20 @@
                 </div>
             @endforeach
             <div class="module-card portal-contact-card js-catalog-extra">
-                <div class="portal-contact-card__text">
-                    Хотите разместить свой курс?<br>
-                    Напишите нам:<br>
-                    <a href="mailto:emednikov@croc.ru">emednikov@croc.ru</a>
+                <div class="portal-contact-card__body">
+                    <div class="portal-contact-card__text">
+                        <p class="portal-contact-card__lead">Хотите разместить свой курс?</p>
+                        <div class="portal-contact-card__contacts">
+                            <div class="portal-contact-card__item">
+                                <span class="portal-contact-card__label">Добавление курсов и права доступа</span>
+                                <a href="mailto:ArZhukov@croc.ru">ArZhukov@croc.ru</a>
+                            </div>
+                            <div class="portal-contact-card__item">
+                                <span class="portal-contact-card__label">Вопросы по доработке портала</span>
+                                <a href="mailto:EMednikov@croc.ru">EMednikov@croc.ru</a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -723,7 +827,17 @@
 </div>
 
     @include('portal.partials.login-modal', ['domain' => config('course.email_domain')])
-    @include('partials.course-audience-modal')
+    @if ($portalAudienceModal ?? false)
+        <div id="portal-audience-sources" hidden>
+            @foreach ($courses as $c)
+                @php $ap = \App\Support\CourseAudiencePlaque::forCourse($c); @endphp
+                @if ($ap && $ap['hasModal'])
+                    <template id="portal-audience-src-{{ $c->id }}" data-title="{{ e($ap['title']) }}">{!! $ap['bodyHtml'] !!}</template>
+                @endif
+            @endforeach
+        </div>
+        @include('partials.course-audience-modal')
+    @endif
 
     <div class="course-info-modal" id="portal-course-info-modal" aria-hidden="true">
         <div class="course-info-modal__backdrop" data-course-info-close tabindex="-1"></div>
@@ -862,14 +976,20 @@
 
         (function () {
             var modal = document.getElementById('course-audience-modal-root');
-            var openBtn = document.getElementById('portal-course-audience-open');
-            if (!modal || !openBtn) return;
+            if (!modal) return;
 
             var lastFocus = null;
+            var titleEl = document.getElementById('course-audience-modal-title');
+            var bodyEl = document.getElementById('course-audience-modal-body');
             function closeEls() {
                 return modal.querySelectorAll('[data-modal-close]');
             }
-            function openModal() {
+            function openModal(courseId) {
+                var tpl = courseId ? document.getElementById('portal-audience-src-' + courseId) : null;
+                if (tpl) {
+                    if (titleEl) titleEl.textContent = tpl.getAttribute('data-title') || 'Для кого этот материал';
+                    if (bodyEl) bodyEl.innerHTML = '<div class="course-audience-intro__content">' + tpl.innerHTML + '</div>';
+                }
                 lastFocus = document.activeElement;
                 modal.classList.add('is-open');
                 modal.setAttribute('aria-hidden', 'false');
@@ -883,7 +1003,12 @@
                 document.body.classList.remove('course-modal-open');
                 if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
             }
-            openBtn.addEventListener('click', openModal);
+            document.addEventListener('click', function (e) {
+                var btn = e.target.closest('.portal-course-audience-open');
+                if (!btn) return;
+                e.preventDefault();
+                openModal(btn.getAttribute('data-course-id'));
+            });
             closeEls().forEach(function (el) {
                 el.addEventListener('click', function (e) {
                     if (el.classList.contains('course-modal__backdrop')) {
@@ -922,7 +1047,7 @@
 
                 footerEl.querySelectorAll('[data-dynamic]').forEach(function (n) { n.remove(); });
 
-                @if (session('learner_id'))
+                @if (! empty($learnerEmail))
                 if (courseId) {
                     var form = document.createElement('form');
                     form.method = 'post';

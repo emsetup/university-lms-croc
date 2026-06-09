@@ -3,23 +3,22 @@
 @php
     $st = config('course.step_titles', []);
     $tTheory = $st['theory'] ?? 'Теория';
-    $mid = (int) ($moduleSequence ?? $module);
+    $modNum = (int) ($moduleSequence ?? $module);
+    $lr = \App\Support\LearnerRoute::hub((int) ($courseId ?? session('course_id')), $modNum);
 @endphp
 
-@section('title', 'Модуль '.$mid.': '.($meta['title'] ?? $tTheory))
+@section('title', 'Модуль '.$modNum.': '.($meta['title'] ?? $tTheory))
 
 @section('content')
     <div class="page-container">
-        <a class="back-link" href="{{ route('modules.hub', $module) }}">
+        <a class="back-link" href="{{ route('course.module.hub', $lr) }}">
             @include('partials.ap-icon', ['name' => 'arrow-left'])
             <span>К шагам модуля</span>
         </a>
 
         <header class="card module-step-header">
-            @if (! empty($meta['letter']))
-                <div class="tag module-step-header__badge">Модуль {{ $meta['letter'] }} — {{ $mid }}</div>
-            @endif
-            <h1 class="module-step-page-title">Модуль {{ $mid }}: {{ $meta['title'] ?? 'Без названия' }}</h1>
+            <div class="tag module-step-header__badge">Модуль {{ $modNum }}@if (! empty($meta['letter'])) · {{ $meta['letter'] }}@endif</div>
+            <h1 class="module-step-page-title">Модуль {{ $modNum }}: {{ $meta['title'] ?? 'Без названия' }}</h1>
             <p class="muted module-step-header__step">{{ $tTheory }}</p>
         </header>
 
@@ -27,7 +26,7 @@
             $theoryRaw = (string) ($meta['theory'] ?? '');
         @endphp
         <article class="theory-article prose-course practice-block theory-content">
-            {!! \Illuminate\Support\Str::markdown($theoryRaw) !!}
+            {!! \App\Support\CourseContentMarkdown::toHtml($theoryRaw) !!}
         </article>
 
         <style>
@@ -73,7 +72,7 @@
             })();
         </script>
 
-        <form method="post" action="{{ route('modules.theory.read', $module) }}" style="margin-top: 1.5rem">
+        <form method="post" action="{{ route('course.module.theory.read', $lr) }}" style="margin-top: 1.5rem">
             @csrf
             <button type="submit" class="btn btn-primary">Отметить теорию как просмотренную</button>
         </form>

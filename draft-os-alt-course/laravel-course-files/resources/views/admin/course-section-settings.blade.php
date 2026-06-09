@@ -3,12 +3,15 @@
 @section('title', 'Настройки раздела: '.$section->title)
 
 @section('content')
+    @php
+        $rp = array_merge(\App\Support\AdminNavigation::adminCourseRouteParams(), ($adminKey ?? '') !== '' ? ['key' => $adminKey] : []);
+    @endphp
     <div class="ap-narrow-page">
         <div class="admin-card">
-            <p class="u-m0"><a class="btn btn-ghost btn-sm" href="{{ route('admin.course.module.sections', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}">Разделы модуля</a></p>
+            <p class="u-m0"><a class="btn btn-ghost btn-sm" href="{{ route('admin.course.module.sections', array_merge($rp, ['courseModule' => $courseModule->id])) }}">Разделы модуля</a></p>
             <h1 class="practice-page__title u-mt-1">{{ $section->title }}</h1>
             <p class="ap-muted small u-m0 u-mt-1">Тип: <strong>{{ $section->type }}</strong></p>
-            <form method="post" action="{{ route('admin.course.module.sections.update', ['courseModule' => $courseModule->id, 'section' => $section->id, 'key' => $adminKey]) }}" class="form-row u-mt-1">
+            <form method="post" action="{{ route('admin.course.module.sections.update', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])) }}" class="form-row u-mt-1">
                 @csrf
                 <div class="form-field">
                     <label class="form-label" for="sec-rename-title">Название</label>
@@ -20,7 +23,7 @@
 
         <div class="admin-card">
             <h2 class="admin-card__title">Параметры</h2>
-            <form method="post" action="{{ route('admin.course.module.section.settings.save', ['courseModule' => $courseModule->id, 'section' => $section->id, 'key' => $adminKey]) }}">
+            <form method="post" action="{{ route('admin.course.module.section.settings.save', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])) }}">
                 @csrf
 
                 @if ($section->type === 'text')
@@ -105,7 +108,7 @@
 
                 <div class="actions-row u-mt-1">
                     <button type="submit" class="btn btn-primary btn-sm">Сохранить</button>
-                    <a class="btn btn-ghost btn-sm" href="{{ route('admin.course.module.sections', ['courseModule' => $courseModule->id, 'key' => $adminKey]) }}">Отмена</a>
+                    <a class="btn btn-ghost btn-sm" href="{{ route('admin.course.module.sections', array_merge($rp, ['courseModule' => $courseModule->id])) }}">Отмена</a>
                 </div>
             </form>
         </div>

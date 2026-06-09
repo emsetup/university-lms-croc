@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -12,13 +11,11 @@ final class AdminContentMarkdown
 {
     public static function toHtml(string $markdown): string
     {
-        $markdown = str_replace("\0", '', $markdown);
-        if ($markdown === '') {
-            return '';
-        }
         try {
-            return Str::markdown($markdown);
+            return CourseContentMarkdown::toHtml($markdown);
         } catch (Throwable) {
+            $markdown = str_replace("\0", '', $markdown);
+
             return '<p class="muted">Не удалось отрисовать разметку (ошибка конвертера Markdown).</p>'
                 .'<pre class="check-log-pre" style="white-space:pre-wrap;word-break:break-word">'
                 .e($markdown)

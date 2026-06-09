@@ -8,9 +8,10 @@ use App\Models\CourseModule;
 use App\Models\Learner;
 use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
+use App\Support\CourseAudiencePlaque;
 use App\Support\LearnerSsoDisplayNamePersistence;
 use App\Support\OidcIdentityClaims;
-use App\Support\OidcSignInRedirect;
+use App\Support\LearnerPreviewContext;
 use App\Support\PortalWelcomeInitials;
 use App\Support\PortalWelcomeName;
 use Illuminate\Http\RedirectResponse;
@@ -27,9 +28,7 @@ final class PortalController extends Controller
 
     public function index(Request $request): View|RedirectResponse
     {
-        if (! session('learner_id') && config('oidc.enabled') && config('oidc.required')) {
-            return OidcSignInRedirect::toOidcLogin($request);
-        }
+        $learnerId = LearnerPreviewContext::learnerId($request);
 
         $courses = Course::query()
             ->where('is_published', true)
@@ -43,11 +42,11 @@ final class PortalController extends Controller
         $modulesProgressByCourseId = [];
         $portalWelcomeName = null;
         $learner = null;
-        if (session('learner_id')) {
+        if ($learnerId > 0) {
             /** @var Learner $learner */
             $learner = Learner::query()
                 ->with(['moduleProgresses', 'finalLabResults'])
-                ->findOrFail(session('learner_id'));
+                ->findOrFail($learnerId);
 
             $portalWelcomeName = PortalWelcomeName::forLearner($learner);
             LearnerSsoDisplayNamePersistence::syncIfPossible($learner);
@@ -85,8 +84,18 @@ final class PortalController extends Controller
             ->sort()
             ->values();
 
+        $portalAudienceModal = false;
+        foreach ($courses as $c) {
+            $ap = CourseAudiencePlaque::forCourse($c);
+            if ($ap !== null && $ap['hasModal']) {
+                $portalAudienceModal = true;
+                break;
+            }
+        }
+
         return view('portal.index', [
             'courses' => $courses,
+            'portalAudienceModal' => $portalAudienceModal,
             'showLogin' => (bool) $request->query('login', false),
             'enrollmentsByCourseId' => $enrollmentsByCourseId,
             'progressByCourseId' => $progressByCourseId,

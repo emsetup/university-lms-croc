@@ -32,7 +32,7 @@ class PortalStaff extends Model
 
     protected $table = 'portal_staff';
 
-    protected $fillable = ['learner_id', 'role'];
+    protected $fillable = ['learner_id', 'role', 'access_comment'];
 
     public function learner(): BelongsTo
     {

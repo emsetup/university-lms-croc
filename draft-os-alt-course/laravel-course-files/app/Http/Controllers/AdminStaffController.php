@@ -92,6 +92,7 @@ final class AdminStaffController extends Controller
         $staff = PortalStaff::query()->create([
             'learner_id' => $learner->id,
             'role' => $data['role'],
+            'access_comment' => $data['access_comment'],
         ]);
         $this->syncCourses($staff, $data['role'], $data['course_ids']);
 
@@ -109,6 +110,7 @@ final class AdminStaffController extends Controller
     {
         $data = $this->validatePayload($request, $staff);
         $staff->role = $data['role'];
+        $staff->access_comment = $data['access_comment'];
         $staff->save();
 
         $learner = $staff->learner;
@@ -182,13 +184,19 @@ final class AdminStaffController extends Controller
             $query->orderByRaw('learners.last_login_at IS NULL ASC')
                 ->orderBy('learners.last_login_at', $dir);
         } elseif ($sort === 'role') {
-            $roles = PortalStaff::ROLES;
-            $placeholders = implode(',', array_fill(0, count($roles), '?'));
-            $query->orderByRaw(
-                'FIELD(portal_staff.role, '.$placeholders.') '.($dir === 'desc' ? 'DESC' : 'ASC'),
-                $roles
-            );
             $joinLearners();
+            $roles = PortalStaff::ROLES;
+            $whenClauses = [];
+            $bindings = [];
+            foreach ($roles as $index => $role) {
+                $whenClauses[] = 'WHEN ? THEN ?';
+                $bindings[] = $role;
+                $bindings[] = $index + 1;
+            }
+            $query->orderByRaw(
+                'CASE portal_staff.role '.implode(' ', $whenClauses).' ELSE 999 END '.($dir === 'desc' ? 'DESC' : 'ASC'),
+                $bindings
+            );
             $query->orderBy('learners.email', 'asc');
         } else {
             $query->orderBy('portal_staff.id', $dir);
@@ -196,7 +204,7 @@ final class AdminStaffController extends Controller
     }
 
     /**
-     * @return array{email: string, role: string, course_ids: list<int>}
+     * @return array{email: string, role: string, course_ids: list<int>, access_comment: ?string}
      */
     private function validatePayload(Request $request, ?PortalStaff $existing): array
     {
@@ -212,9 +220,11 @@ final class AdminStaffController extends Controller
             'role' => ['required', 'string', $roleRule],
             'course_ids' => ['nullable', 'array'],
             'course_ids.*' => ['integer', 'exists:courses,id'],
+            'access_comment' => ['nullable', 'string', 'max:500'],
         ], [], [
             'email' => 'email',
             'course_ids' => 'курсы',
+            'access_comment' => 'комментарий',
         ]);
 
         $role = (string) $data['role'];
@@ -242,7 +252,18 @@ final class AdminStaffController extends Controller
             'email' => $email,
             'role' => $role,
             'course_ids' => $courseIds,
+            'access_comment' => $this->normalizeAccessComment($data['access_comment'] ?? null),
         ];
+    }
+
+    private function normalizeAccessComment(mixed $value): ?string
+    {
+        $text = trim((string) $value);
+        if ($text === '' || in_array($text, ['&quot;&quot;', '""'], true)) {
+            return null;
+        }
+
+        return $text;
     }
 
     /**

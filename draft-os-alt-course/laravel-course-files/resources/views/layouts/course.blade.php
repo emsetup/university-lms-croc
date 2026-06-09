@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('croc-app-icon-512.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('croc-app-icon-512.png') }}">
     <link rel="stylesheet" href="{{ asset('css/local-fonts.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/course.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/course.css') }}?v={{ file_exists(public_path('css/course.css')) ? filemtime(public_path('css/course.css')) : 1 }}">
     @if (request()->routeIs('admin.*'))
         <link rel="stylesheet" href="{{ asset('css/admin-panel.css') }}">
         <link rel="stylesheet" href="{{ asset('static/admin/admin.css') }}">
@@ -96,9 +96,14 @@
         .module-exam-match__card.module-exam-match__card--drag { opacity: 0.55; }
     </style>
     <style id="course-catalog-cards">
-        /* Портал, личный кабинет, админ: сетка курсов без растягивания по высоте строки */
-        .module-grid.courses-catalog-grid {
-            align-items: start;
+        /* Портал и личный кабинет: карточки в ряду одной высоты, кнопка внизу */
+        .module-grid.courses-catalog-grid:not(.portal-catalog-grid),
+        .module-grid.portal-catalog-grid:not(.courses-catalog-grid) {
+            align-items: stretch;
+        }
+        .module-grid.courses-catalog-grid:not(.portal-catalog-grid) > .portal-course-card,
+        .module-grid.portal-catalog-grid:not(.courses-catalog-grid) > .portal-course-card {
+            align-self: stretch;
         }
         /* Краткое описание на карточке курса (полный текст — в модалке / форме редактирования) */
         .course-card__description {
@@ -114,10 +119,12 @@
 </head>
 <body class="course-ui @if (request()->routeIs('documentation.*')) course-ui--docs @endif">
 @php
+    use App\Support\LearnerPreviewContext;
     $isPortalUi = request()->routeIs('portal') || request()->routeIs('login') || request()->routeIs('account')
         || request()->routeIs('documentation.*');
     $isAdminUi = request()->routeIs('admin.*');
-    $hasCourse = (bool) session('course_id');
+    $effectiveCourseId = LearnerPreviewContext::courseId();
+    $hasCourse = $effectiveCourseId > 0;
     $hasAdminCourse = (bool) session('admin_course_id');
     if ($isAdminUi) {
         if ($hasAdminCourse) {
@@ -131,7 +138,7 @@
         $brandTitle = 'Образовательный портал';
         $brandKicker = 'Трек знаний';
     } else {
-        $brandTitle = session('course_title') ?: 'Образовательный портал';
+        $brandTitle = LearnerPreviewContext::courseTitle() ?: session('course_title') ?: 'Образовательный портал';
         $brandKicker = $hasCourse ? 'Учебный курс' : 'Трек знаний';
     }
     $psaChrome = $portalStaffAccess ?? null;
@@ -168,15 +175,14 @@
                 @endif
                 <a class="btn btn-ghost" href="{{ route('portal') }}">Курсы</a>
                 <a class="btn btn-ghost" href="{{ route('documentation.index') }}">Документация</a>
-                @include('partials.admin-logs-nav-link', ['class' => 'btn btn-ghost'])
                 @if (! empty($portalStaffAccess))
                     <a class="btn btn-ghost" href="{{ route('admin.panel') }}">Управление</a>
                 @endif
                 <a class="btn btn-ghost" href="{{ route('account') }}">Личный кабинет</a>
                 @if (! $isAdminUi && ! $isPortalUi && $hasCourse)
-                    <a class="btn btn-ghost" href="{{ route('course.dashboard', ['course' => (int) session('course_id')]) }}">Модули</a>
+                    <a class="btn btn-ghost" href="{{ route('course.dashboard', ['course' => $effectiveCourseId]) }}">Модули</a>
                 @endif
-                <form method="post" action="{{ route('logout') }}" style="margin:0">
+                <form method="post" action="{{ route('logout', [], false) }}" style="margin:0">
                     @csrf
                     <button type="submit" class="btn btn-ghost">Выйти</button>
                 </form>

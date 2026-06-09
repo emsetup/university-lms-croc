@@ -17,7 +17,7 @@
             @php
                 $theoryRaw = (string) ($meta['theory'] ?? '');
             @endphp
-            <article class="theory-article prose-course practice-block">
+            <article class="theory-article prose-course practice-block theory-content">
                 {!! \App\Support\AdminContentMarkdown::toHtml($theoryRaw) !!}
             </article>
 

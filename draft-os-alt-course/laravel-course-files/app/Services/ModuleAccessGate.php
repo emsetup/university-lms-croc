@@ -4,7 +4,10 @@ namespace App\Services;
 
 use App\Models\Course;
 use App\Models\Learner;
+use App\Models\CourseSection;
 use App\Support\CourseModuleMeta;
+use App\Support\LearnerPreviewContext;
+use App\Support\LearnerRoute;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Schema;
 
@@ -23,7 +26,7 @@ final class ModuleAccessGate
 
     private function courseId(Learner $learner): int
     {
-        $id = (int) session('course_id', 0);
+        $id = LearnerPreviewContext::courseId();
 
         return $id > 0 ? $id : 0;
     }
@@ -107,7 +110,9 @@ final class ModuleAccessGate
             return $this->legacyRedirectForStep($learner, $courseModuleId, $targetBackendKey, $contentIdx);
         }
         if (! $this->sections->hasBackendStep($courseModuleId, $targetBackendKey)) {
-            return redirect()->route('modules.hub', $courseModuleId)
+            $seq = $cm ? $this->modules->sequenceForModule($cm) : $courseModuleId;
+
+            return redirect()->route('course.module.hub', LearnerRoute::hub($courseId, $seq))
                 ->with('err', 'Этот этап отключён в настройках курса.');
         }
         $p = $learner->progressFor($courseModuleId);
@@ -136,13 +141,16 @@ final class ModuleAccessGate
 
     private function legacyRedirectForStep(Learner $learner, int $courseModuleId, string $targetBackendKey, int $contentSourceIndex): ?RedirectResponse
     {
+        $courseId = $this->courseIdFromModule($courseModuleId);
+        $seq = $this->moduleSequenceForId($courseModuleId);
+        $hub = LearnerRoute::hub($courseId, $seq);
         if ($targetBackendKey === 'theory') {
             return null;
         }
         if ($targetBackendKey === 'theory_quiz') {
             $p = $learner->progressFor($courseModuleId);
             if (! $p->theory_read_at) {
-                return redirect()->route('modules.theory', $courseModuleId)
+                return redirect()->route('course.module.theory', $hub)
                     ->with('err', 'Сначала отметьте просмотр теории.');
             }
 
@@ -151,11 +159,11 @@ final class ModuleAccessGate
         if ($targetBackendKey === 'practice') {
             $p = $learner->progressFor($courseModuleId);
             if (! $p->theory_read_at) {
-                return redirect()->route('modules.theory', $courseModuleId)
+                return redirect()->route('course.module.theory', $hub)
                     ->with('err', 'Сначала отметьте просмотр теории.');
             }
             if (! $this->sections->isTheoryQuizEffectivelyPassed($p, $courseModuleId)) {
-                return redirect()->route('modules.theory-quiz', $courseModuleId)
+                return redirect()->route('course.module.theory-quiz', $hub)
                     ->with('err', 'Сначала успешно сдайте тест по теории.');
             }
 
@@ -164,15 +172,15 @@ final class ModuleAccessGate
         if ($targetBackendKey === 'module_exam') {
             $p = $learner->progressFor($courseModuleId);
             if (! $p->theory_read_at) {
-                return redirect()->route('modules.theory', $courseModuleId)
+                return redirect()->route('course.module.theory', $hub)
                     ->with('err', 'Сначала отметьте просмотр теории.');
             }
             if (! $this->sections->isTheoryQuizEffectivelyPassed($p, $courseModuleId)) {
-                return redirect()->route('modules.theory-quiz', $courseModuleId)
+                return redirect()->route('course.module.theory-quiz', $hub)
                     ->with('err', 'Сначала успешно сдайте тест по теории.');
             }
             if (! CourseModuleMeta::shouldSkipPractice($contentSourceIndex) && ! $p->practice_done_at) {
-                return redirect()->route('modules.hub', $courseModuleId)
+                return redirect()->route('course.module.hub', $hub)
                     ->with('err', 'Сначала зачтите практическое занятие.');
             }
 
@@ -185,13 +193,46 @@ final class ModuleAccessGate
     private function redirectForBackendKey(int $courseModuleId, string $blockedKey): RedirectResponse
     {
         $msg = 'Сначала завершите предыдущий этап модуля.';
+        $courseId = $this->courseIdFromModule($courseModuleId);
+        $sec = $this->sections->findSectionByStepKey($courseModuleId, $blockedKey);
+        if ($sec !== null) {
+            $routeName = $sec->learnerRouteName();
+            if ($routeName !== null) {
+                $cm = $this->modules->findForCourse($courseId, $courseModuleId);
+                $seq = $cm ? $this->modules->sequenceForModule($cm) : $courseModuleId;
+                $surveyMsg = $sec->type === CourseSection::TYPE_SURVEY
+                    ? 'Сначала заполните и отправьте опрос «'.$sec->title.'».': $msg;
+
+                return redirect()->route($routeName, $sec->learnerRouteParams($courseId, $seq))
+                    ->with('err', $sec->type === CourseSection::TYPE_SURVEY ? $surveyMsg : $msg);
+            }
+        }
+
+        $seq = $this->moduleSequenceForId($courseModuleId);
+        $hub = LearnerRoute::hub($courseId, $seq);
 
         return match ($blockedKey) {
-            'theory' => redirect()->route('modules.theory', $courseModuleId)->with('err', $msg),
-            'theory_quiz' => redirect()->route('modules.theory-quiz', $courseModuleId)->with('err', $msg),
-            'practice' => redirect()->route('modules.practice', $courseModuleId)->with('err', $msg),
-            'module_exam' => redirect()->route('modules.exam', $courseModuleId)->with('err', $msg),
-            default => redirect()->route('modules.hub', $courseModuleId)->with('err', $msg),
+            'theory' => redirect()->route('course.module.theory', $hub)->with('err', $msg),
+            'theory_quiz' => redirect()->route('course.module.theory-quiz', $hub)->with('err', $msg),
+            'practice' => redirect()->route('course.module.practice', $hub)->with('err', $msg),
+            'module_exam' => redirect()->route('course.module.exam', $hub)->with('err', $msg),
+            'survey' => redirect()->route('course.module.hub', $hub)->with('err', 'Сначала заполните и отправьте опрос.'),
+            default => redirect()->route('course.module.hub', $hub)->with('err', $msg),
         };
+    }
+
+    private function moduleSequenceForId(int $courseModuleId): int
+    {
+        $courseId = $this->courseIdFromModule($courseModuleId);
+        $cm = $this->modules->findForCourse($courseId, $courseModuleId);
+
+        return $cm ? $this->modules->sequenceForModule($cm) : $courseModuleId;
+    }
+
+    private function courseIdFromModule(int $courseModuleId): int
+    {
+        $cid = (int) \App\Models\CourseModule::query()->whereKey($courseModuleId)->value('course_id');
+
+        return $cid > 0 ? $cid : (int) LearnerPreviewContext::courseId();
     }
 }

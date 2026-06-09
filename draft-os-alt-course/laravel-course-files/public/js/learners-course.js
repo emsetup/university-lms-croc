@@ -271,6 +271,19 @@
                             esc(m.title) +
                             '">Сброс</button>';
                     }
+                    if (s.survey_card && s.survey_card.submitted) {
+                        rows += '<div class="ap-learners-survey-card ap-muted small" style="grid-column:1/-1;padding:0.35rem 0">';
+                        if (s.survey_card.anonymous) {
+                            rows += 'Опрос отправлен' + (s.survey_card.submitted_at ? ' · ' + esc(s.survey_card.submitted_at) : '') + ' (анонимный)';
+                        } else if (s.survey_card.items && s.survey_card.items.length) {
+                            rows += '<details><summary>Ответы опроса' + (s.survey_card.submitted_at ? ' · ' + esc(s.survey_card.submitted_at) : '') + '</summary><ul style="margin:0.35rem 0 0;padding-left:1rem">';
+                            s.survey_card.items.forEach(function (it) {
+                                rows += '<li><strong>' + esc(it.question || '') + '</strong>: ' + esc(it.answer || '') + '</li>';
+                            });
+                            rows += '</ul></details>';
+                        }
+                        rows += '</div>';
+                    }
                     rows += '</div></li>';
                 });
                 rows += '</ul>';

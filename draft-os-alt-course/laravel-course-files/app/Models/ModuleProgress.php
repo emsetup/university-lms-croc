@@ -27,6 +27,7 @@ class ModuleProgress extends Model
             'module_exam_history' => 'array',
             'module_exam_deadline_at' => 'datetime',
             'difficulty_flags' => 'array',
+            'section_states' => 'array',
             'instructor_resets' => 'array',
             'module_access_started_at' => 'datetime',
             'module_cleared_at' => 'datetime',

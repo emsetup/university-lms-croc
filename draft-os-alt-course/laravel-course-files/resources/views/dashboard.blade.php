@@ -3,22 +3,39 @@
 @section('title', 'Модули курса')
 
 @section('content')
-    <div class="page-container">
-    <div class="dashboard-plaques">
-        <button type="button" class="dashboard-plaque dashboard-plaque--audience" id="course-audience-open" aria-haspopup="dialog" aria-controls="course-audience-modal">
-            <span class="dashboard-plaque__accent" aria-hidden="true"></span>
-            <span class="dashboard-plaque__main">
-                <span class="dashboard-plaque__kicker">О курсе</span>
-                <span class="dashboard-plaque__title">Для кого этот материал</span>
-                <span class="dashboard-plaque__hint muted">Практикум по ОС «Альт» для администраторов с опытом Linux (ориентир&nbsp;— уровень <abbr title="Red Hat Certified System Administrator">RHCSA</abbr>). Нажмите, чтобы прочитать полное описание.</span>
-            </span>
-            <span class="dashboard-plaque__action" aria-hidden="true">Подробнее</span>
-        </button>
+    <div class="page-container @if ($showInformativeCourseNotice ?? false) page-container--dashboard @endif">
+    <div class="dashboard-page__main">
+    <div class="dashboard-plaques @if (empty($audiencePlaque)) dashboard-plaques--no-audience @endif">
+        @if (! empty($audiencePlaque))
+            @if (! empty($audiencePlaque['hasModal']))
+                <button type="button" class="dashboard-plaque dashboard-plaque--audience" id="course-audience-open" aria-haspopup="dialog" aria-controls="course-audience-modal">
+            @else
+                <div class="dashboard-plaque dashboard-plaque--audience dashboard-plaque--static">
+            @endif
+                <span class="dashboard-plaque__accent" aria-hidden="true"></span>
+                <span class="dashboard-plaque__main">
+                    <span class="dashboard-plaque__kicker">{{ $audiencePlaque['kicker'] }}</span>
+                    <span class="dashboard-plaque__title">{{ $audiencePlaque['title'] }}</span>
+                    <span class="dashboard-plaque__hint muted">{!! nl2br(e($audiencePlaque['teaser'])) !!}</span>
+                </span>
+                @if (! empty($audiencePlaque['hasModal']))
+                    <span class="dashboard-plaque__action" aria-hidden="true">Подробнее</span>
+                @endif
+            @if (! empty($audiencePlaque['hasModal']))
+                </button>
+            @else
+                </div>
+            @endif
+        @endif
 
         <div class="dashboard-plaques__split">
             <section class="dashboard-plaque dashboard-plaque--track card">
                 <h1 class="dashboard-plaque__h1">Трек модулей</h1>
-                <p class="muted dashboard-plaque__text">Пройдите теорию, тест по теории, практику и итоговый тест в каждом модуле. Ползунок на карточке модуля показывает долю завершённых этапов (по 25% за шаг).</p>
+                @if ($showModuleProgress ?? true)
+                    <p class="muted dashboard-plaque__text">Пройдите теорию, тест по теории, практику и итоговый тест в каждом модуле. Ползунок на карточке модуля показывает долю завершённых этапов (по 25% за шаг).</p>
+                @else
+                    <p class="muted dashboard-plaque__text">Выберите модуль и проходите этапы в удобном порядке. Все модули курса доступны сразу.</p>
+                @endif
             </section>
 
             <section class="dashboard-plaque dashboard-plaque--account card" aria-labelledby="dashboard-account-label">
@@ -29,9 +46,12 @@
         </div>
     </div>
 
-    @include('partials.course-audience-modal')
+    @if (! empty($audiencePlaque) && ! empty($audiencePlaque['hasModal']))
+        @include('partials.course-audience-modal', ['audiencePlaque' => $audiencePlaque])
+    @endif
     @include('partials.dashboard-assessment-modal')
 
+    @if ($showModuleProgress ?? true)
     <section class="learner-track-summary card" aria-label="Общий прогресс по курсу">
         <h2 class="learner-track-summary__title">Ваш прогресс по модулям</h2>
         <p class="muted small learner-track-summary__lead">Модули открываются по очереди: следующий доступен после <strong>зачёта</strong> итогового теста предыдущего или после <strong>попытки сдачи с результатом выше 0%</strong> (ноль процентов — как будто экзамен не сдавали). Ползунок на карточке — четыре шага внутри модуля (по 25%).</p>
@@ -99,7 +119,7 @@
                     }
                 @endphp
                 @if (!empty($m['unlocked']))
-                    <a href="{{ route('modules.hub', $m['id']) }}" class="{{ $cellClass }}" role="listitem" title="Модуль {{ (int) ($m['sequence'] ?? 1) }}: {{ $m['title'] }}">
+                    <a href="{{ route('course.module.hub', ['course' => $courseId, 'module' => $m['sequence']]) }}" class="{{ $cellClass }}" role="listitem" title="Модуль {{ (int) ($m['sequence'] ?? 1) }}: {{ $m['title'] }}">
                         {{ (int) ($m['sequence'] ?? 1) }}
                     </a>
                 @else
@@ -108,13 +128,15 @@
             @endforeach
         </div>
     </section>
+    @endif
 
-    <div class="module-grid">
+    <div class="module-grid dashboard-modules-grid">
         @foreach ($modules as $m)
             <div class="module-card {{ empty($m['unlocked']) ? 'module-card--locked locked' : '' }}">
-                <div class="tag">Модуль {{ $m['letter'] }} — {{ (int) ($m['sequence'] ?? $m['id']) }}/{{ $courseModuleCount }}</div>
+                <div class="tag">Модуль {{ (int) ($m['sequence'] ?? $m['id']) }}/{{ $courseModuleCount }}@if (! empty($m['letter'])) · {{ $m['letter'] }}@endif</div>
                 <div style="font-weight:700">Модуль {{ (int) ($m['sequence'] ?? $m['id']) }}: {{ $m['title'] }}</div>
                 <div class="muted" style="font-size:0.9rem">{{ $m['summary'] }}</div>
+                @if ($showModuleProgress ?? true)
                 <div>
                     <span class="muted small" style="display:block;margin-bottom:4px">Прогресс</span>
                     <div class="progress-track" aria-hidden="true">
@@ -122,8 +144,9 @@
                     </div>
                     <span class="visually-hidden">Прогресс модуля {{ $m['id'] }}: {{ (int) $m['percent'] }}%</span>
                 </div>
+                @endif
                 @if (!empty($m['unlocked']))
-                    <a class="btn btn-primary" href="{{ route('modules.hub', $m['id']) }}">Открыть модуль</a>
+                    <a class="btn btn-primary" href="{{ route('course.module.hub', ['course' => $courseId, 'module' => $m['sequence']]) }}">Открыть модуль</a>
                 @else
                     <p class="module-card-lock-note muted small" style="margin:0">Откроется после зачёта итогового теста предыдущего модуля (№{{ max(1, (int) ($m['sequence'] ?? 1) - 1) }}) или после попытки сдачи с ненулевым результатом.</p>
                     <span class="btn btn-module-locked" aria-disabled="true">Недоступно</span>
@@ -132,21 +155,26 @@
         @endforeach
     </div>
 
+    @if ($showFurtherCourseSection ?? true)
     <div class="card" style="margin-top:1.25rem">
         <h2 style="margin-top:0">Дальше по курсу</h2>
         <div class="module-grid">
+            @if ($assessmentEnabled ?? true)
             <div class="module-card">
                 <div class="tag">Оценка</div>
                 <div style="font-weight:700">Оценка по модулям</div>
                 <div class="muted" style="font-size:0.9rem">Сводная аналитика по всем модулям: проценты, баллы и слабые места. Полезно перед финальной лабораторной.</div>
+                @if ($showModuleProgress ?? true)
                 <div>
                     <span class="muted small" style="display:block;margin-bottom:4px">Готовность трека</span>
                     <div class="progress-track" aria-hidden="true">
                         <div class="progress-fill" style="width: {{ min(100, max(0, (int) $trackAvgPercent)) }}%"></div>
                     </div>
                 </div>
+                @endif
                 <button type="button" class="btn btn-primary" id="dash-assessment-open" aria-haspopup="dialog" aria-controls="dash-assessment-modal-dialog">Перейти к оценке</button>
             </div>
+            @endif
 
             @if (($finalLabEnabled ?? true) === true)
                 <div class="module-card {{ ! $allDone ? 'module-card--locked locked' : '' }}">
@@ -186,6 +214,15 @@
             @endif
         </div>
     </div>
+    @endif
+
+    </div>{{-- .dashboard-page__main --}}
+
+    @if ($showInformativeCourseNotice ?? false)
+        <footer class="dashboard-page__footer">
+            @include('partials.dashboard-informative-notice')
+        </footer>
+    @endif
 
     <script>
         (function () {

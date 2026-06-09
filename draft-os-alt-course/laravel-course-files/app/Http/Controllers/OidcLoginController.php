@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Learner;
 use App\Support\LearnerPortalLoginPersistence;
+use App\Support\LoginReturnUrl;
 use App\Support\LearnerSsoDisplayNamePersistence;
 use App\Support\OidcIdentityClaims;
 use App\Support\OidcSignInRedirect;
@@ -21,9 +22,16 @@ class OidcLoginController extends Controller
 
         $bounce = OidcSignInRedirect::oidcLoginUrl($request);
         if (str_starts_with($bounce, 'http://') || str_starts_with($bounce, 'https://')) {
+            $bounceQuery = [];
+            if ($request->boolean('reauth')) {
+                $bounceQuery['reauth'] = '1';
+            }
             $hint = $this->sanitizedLoginHint($request);
             if ($hint !== '') {
-                $bounce .= (str_contains($bounce, '?') ? '&' : '?').http_build_query(['login_hint' => $hint], '', '&', PHP_QUERY_RFC3986);
+                $bounceQuery['login_hint'] = $hint;
+            }
+            if ($bounceQuery !== []) {
+                $bounce .= (str_contains($bounce, '?') ? '&' : '?').http_build_query($bounceQuery, '', '&', PHP_QUERY_RFC3986);
             }
 
             return redirect()->away($bounce);
@@ -63,6 +71,9 @@ class OidcLoginController extends Controller
         $loginHint = $this->sanitizedLoginHint($request);
         if ($loginHint !== '') {
             $params['login_hint'] = $loginHint;
+        }
+        if ($request->boolean('reauth')) {
+            $params['prompt'] = 'login';
         }
 
         return redirect()->away($authorize.'?'.http_build_query($params, '', '&', PHP_QUERY_RFC3986));
@@ -146,6 +157,10 @@ class OidcLoginController extends Controller
         LearnerPortalLoginPersistence::recordLogin($learner);
         LearnerPortalLoginPersistence::markSessionRecorded($request);
         LearnerSsoDisplayNamePersistence::syncIfPossible($learner);
+
+        if ($return = LoginReturnUrl::pull()) {
+            return redirect()->to($return);
+        }
 
         return redirect('/');
     }

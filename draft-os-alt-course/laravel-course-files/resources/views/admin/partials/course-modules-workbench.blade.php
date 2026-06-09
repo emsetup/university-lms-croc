@@ -6,12 +6,36 @@
         'quiz' => 'Тест',
         'practice' => 'Практика',
         'exam' => 'Экзамен',
+        'survey' => 'Опрос',
+    ];
+    $sectionTypeDescriptions = [
+        'text' => [
+            'title' => 'Теория',
+            'text' => 'Текстовый материал модуля: лекция, инструкция или справка в Markdown. Обучающийся читает и отмечает просмотр. На баллы модуля не влияет, но открывает следующие этапы.',
+        ],
+        'quiz' => [
+            'title' => 'Тест по теории',
+            'text' => 'Проверка понимания прочитанного: один или несколько вариантов ответа, порог зачёта и таймер. Учитывается в итоге модуля (обычно 25% баллов).',
+        ],
+        'practice' => [
+            'title' => 'Практика',
+            'text' => 'Лабораторная работа в Docker-контейнере: задание, стенд и автопроверка. Учитывается в итоге модуля (обычно 25% баллов).',
+        ],
+        'exam' => [
+            'title' => 'Итоговый тест',
+            'text' => 'Финальная проверка модуля: вопросы по шагам или на одной странице, в том числе сопоставление и баллы за вопрос. Основной вес в модуле (обычно 50%).',
+        ],
+        'survey' => [
+            'title' => 'Опрос',
+            'text' => 'Сбор обратной связи и данных: без оценки и проверки правильности, как просмотр теории. Обучающийся должен отправить ответы, чтобы перейти к следующим разделам.',
+        ],
     ];
     $defaultSectionTitles = [
         'text' => 'Теория',
         'quiz' => 'Тест по теории',
         'practice' => 'Практика',
         'exam' => 'Итоговый тест',
+        'survey' => 'Опрос',
     ];
 @endphp
 
@@ -91,12 +115,14 @@
                             @foreach ($m->sections as $sec)
                                 <li class="ap-sec-row" data-section-id="{{ $sec->id }}">
                                     <span class="ap-mod-drag-handle ap-mod-drag-handle--sec" title="Перетащить">≡</span>
+                                    <span class="ap-mod-card__badge ap-mod-card__badge--num ap-sec-row__num">[{{ $loop->iteration }}]</span>
                                     <span class="ap-sec-chip ap-sec-chip--{{ $sec->type }}">
                                         @php
                                             $secIcon = match ($sec->type) {
                                                 'quiz' => 'help-circle',
                                                 'practice' => 'terminal',
                                                 'exam' => 'clipboard-check',
+                                                'survey' => 'pencil',
                                                 default => 'file-text',
                                             };
                                         @endphp
@@ -205,6 +231,16 @@
                     @include('partials.ap-icon', ['name' => 'clipboard-check', 'size' => 'lg'])
                     <span class="ap-sec-type-card__label">Экзамен</span>
                 </button>
+                <button type="button" class="ap-sec-type-card ap-sec-type-card--survey" data-ap-pick-sec-type="survey">
+                    @include('partials.ap-icon', ['name' => 'pencil', 'size' => 'lg'])
+                    <span class="ap-sec-type-card__label">Опрос</span>
+                </button>
+            </div>
+            <div id="ap-sec-type-desc" class="ap-sec-type-desc ap-sec-type-desc--text" role="status" aria-live="polite">
+                <div class="ap-sec-type-desc__head">
+                    <span class="ap-sec-type-desc__badge" id="ap-sec-type-desc-badge">Теория</span>
+                </div>
+                <p class="ap-sec-type-desc__text" id="ap-sec-type-desc-text">{{ $sectionTypeDescriptions['text']['text'] }}</p>
             </div>
             <label class="ap-settings-label" for="ap-add-sec-title">Название раздела</label>
             <input id="ap-add-sec-title" class="ap-modal__input" type="text" name="title" required maxlength="200" value="{{ $defaultSectionTitles['text'] }}">
@@ -308,6 +344,7 @@
                     <option value="quiz">Тест</option>
                     <option value="practice">Практика</option>
                     <option value="exam">Экзамен</option>
+                    <option value="survey">Опрос</option>
                 </select>
                 <div class="ap-sec-edit-panel__toggle-row">
                     <span class="ap-settings-label" style="margin:0">Активен</span>
@@ -334,12 +371,45 @@
                     <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-pass" value="own"> Задать своё</label>
                     <input id="ap-sec-own-pass" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="1" max="100" placeholder="%" hidden>
                 </fieldset>
+                <div class="ap-sec-settings-survey-only" id="ap-sec-survey-fields" hidden>
+                    <div class="ap-sec-edit-panel__toggle-row">
+                        <span class="ap-settings-label" style="margin:0">Анонимный опрос</span>
+                        <label class="ap-sec-edit-panel__switch">
+                            <input type="checkbox" id="ap-sec-set-anonymous">
+                            <span class="ap-sec-edit-panel__switch-ui" aria-hidden="true"></span>
+                        </label>
+                    </div>
+                    <p class="ap-muted small">В отчётах и CSV не показываются email и ФИО; в карточке обучающегося — только факт отправки.</p>
+                    <div class="ap-sec-edit-panel__toggle-row">
+                        <span class="ap-settings-label" style="margin:0">Блокирует переход к следующим разделам</span>
+                        <label class="ap-sec-edit-panel__switch">
+                            <input type="checkbox" id="ap-sec-set-blocks-progress" checked>
+                            <span class="ap-sec-edit-panel__switch-ui" aria-hidden="true"></span>
+                        </label>
+                    </div>
+                    <p class="ap-muted small">Если выключено — опрос необязателен для прогресса по модулю. Быстрая ссылка всё равно открывает опрос без прохождения курса.</p>
+                    <div id="ap-sec-quick-link-wrap" class="ap-sec-quick-link" hidden>
+                        <span class="ap-settings-label">Быстрая ссылка</span>
+                        <p class="ap-muted small">Сотрудник открывает ссылку → вход → опрос → «Спасибо», без хаба модуля. Доступ только авторизованным.</p>
+                        <div id="ap-sec-quick-link-active" class="ap-sec-quick-link__active" hidden>
+                            <input type="text" class="ap-modal__input ap-sec-quick-link__url" id="ap-sec-quick-link-url" readonly>
+                            <div class="ap-sec-quick-link__actions">
+                                <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-quick-link-copy">Копировать</button>
+                                <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-quick-link-regen">Новая ссылка</button>
+                                <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-quick-link-off">Отключить</button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm" id="ap-sec-quick-link-gen" hidden>Создать быструю ссылку</button>
+                    </div>
+                    <p class="ap-muted small" id="ap-sec-survey-responses-link-wrap" hidden><a href="#" id="ap-sec-survey-responses-link" target="_blank" rel="noopener">Ответы опроса и выгрузка CSV</a></p>
+                </div>
             </div>
             <div id="ap-sec-edit-panel-pane-questions" class="ap-sec-edit-panel__pane ap-sec-edit-panel__pane--questions" hidden role="tabpanel">
                 <div class="panel-questions-layout">
                     <aside class="questions-sidebar">
                         <div class="questions-sidebar-header">
                             <span class="questions-sidebar-title">Список</span>
+                            <span class="questions-sidebar-hint ap-muted">≡ — порядок</span>
                             <span id="ap-sec-quiz-count" class="questions-count-badge">0</span>
                         </div>
                         <div id="ap-sec-quiz-list" class="questions-list-scroll" role="list"></div>
@@ -366,6 +436,7 @@
                                     <option value="single">Один ответ</option>
                                     <option value="multi">Несколько ответов</option>
                                     <option value="match">Сопоставление (drag)</option>
+                                    <option value="open_text" id="ap-sec-q-type-open">Открытый ответ</option>
                                 </select>
                                 <label class="ap-settings-label" id="ap-sec-q-points-label" for="ap-sec-q-points" hidden>Баллы (points)</label>
                                 <input id="ap-sec-q-points" class="ap-modal__input" type="number" min="0" step="1" placeholder="например, 5" hidden>
@@ -378,6 +449,12 @@
                                     </div>
                                     <p id="ap-sec-q-c-hint" class="ap-muted small"></p>
                                     <div id="ap-sec-q-answers" class="answer-list"></div>
+                                </div>
+                                <div id="ap-sec-q-open-wrap" hidden>
+                                    <label class="ap-settings-label" for="ap-sec-q-placeholder">Подсказка в поле</label>
+                                    <input id="ap-sec-q-placeholder" class="ap-modal__input" type="text" maxlength="200" placeholder="Например: Опишите кратко…">
+                                    <label class="ap-settings-label" for="ap-sec-q-maxlen">Макс. длина ответа</label>
+                                    <input id="ap-sec-q-maxlen" class="ap-modal__input" type="number" min="1" max="50000" placeholder="8000">
                                 </div>
                                 <div id="ap-sec-q-match-wrap" hidden>
                                     <div class="ap-sec-q-section-head">
@@ -400,6 +477,7 @@
                                             <option value="single">Один ответ</option>
                                             <option value="multi">Несколько ответов</option>
                                             <option value="match">Сопоставление</option>
+                                            <option value="open_text" id="ap-new-q-type-open">Открытый ответ</option>
                                         </select>
                                     </div>
                                     <button type="button" class="btn btn-primary btn-sm" id="ap-new-q-submit">Добавить в список</button>
@@ -407,8 +485,11 @@
                                 <div id="ap-new-q-block-opts">
                                     <label class="ap-settings-label" for="ap-new-q-opts">Варианты (по одному в строке)</label>
                                     <textarea id="ap-new-q-opts" class="ap-modal__input ap-settings-textarea" rows="4" placeholder="Вариант 1&#10;Вариант 2"></textarea>
-                                    <label class="ap-settings-label" for="ap-new-q-correct">Правильный ответ: индекс с 0 (или несколько через запятую)</label>
-                                    <input id="ap-new-q-correct" class="ap-modal__input" type="text" placeholder="0 или 0,2">
+                                    <p id="ap-new-q-survey-note" class="ap-muted small" hidden>Опрос: правильный ответ не задаётся — достаточно вариантов для респондента.</p>
+                                    <div id="ap-new-q-correct-wrap">
+                                        <label class="ap-settings-label" for="ap-new-q-correct">Правильный ответ: индекс с 0 (или несколько через запятую)</label>
+                                        <input id="ap-new-q-correct" class="ap-modal__input" type="text" placeholder="0 или 0,2">
+                                    </div>
                                 </div>
                                 <div id="ap-new-q-block-match" hidden>
                                     <label class="ap-settings-label" for="ap-new-q-left">Слева (по строке)</label>
@@ -484,6 +565,7 @@
     if (!root) return;
 
     var defaultTitles = @json($defaultSectionTitles);
+    var sectionTypeDescriptions = @json($sectionTypeDescriptions);
 
     function openModal(el) {
         if (!el) return;
@@ -513,6 +595,27 @@
     var addSecType = document.getElementById('ap-add-sec-type');
     var addSecTitle = document.getElementById('ap-add-sec-title');
     var currentSectionStoreUrl = '';
+
+    function updateSectionTypeDesc(typ) {
+        var box = document.getElementById('ap-sec-type-desc');
+        var badge = document.getElementById('ap-sec-type-desc-badge');
+        var textEl = document.getElementById('ap-sec-type-desc-text');
+        var info = sectionTypeDescriptions[typ] || sectionTypeDescriptions.text;
+        if (box) {
+            box.className = 'ap-sec-type-desc ap-sec-type-desc--' + typ;
+        }
+        if (badge) badge.textContent = info.title || typ;
+        if (textEl) textEl.textContent = info.text || '';
+    }
+
+    function selectSectionType(typ) {
+        addSecType.value = typ;
+        if (addSecTitle) addSecTitle.value = defaultTitles[typ] || '';
+        document.querySelectorAll('[data-ap-pick-sec-type]').forEach(function (x) {
+            x.classList.toggle('is-selected', x.getAttribute('data-ap-pick-sec-type') === typ);
+        });
+        updateSectionTypeDesc(typ);
+    }
 
     var delModModal = document.getElementById('ap-modal-delete-module');
     var delModForm = document.getElementById('ap-form-delete-module');
@@ -764,11 +867,7 @@
             addSecBtn.addEventListener('click', function () {
                 currentSectionStoreUrl = card.getAttribute('data-section-store-url');
                 addSecForm.action = currentSectionStoreUrl;
-                addSecType.value = 'text';
-                if (addSecTitle) addSecTitle.value = defaultTitles['text'] || 'Теория';
-                document.querySelectorAll('[data-ap-pick-sec-type]').forEach(function (x) {
-                    x.classList.toggle('is-selected', x.getAttribute('data-ap-pick-sec-type') === 'text');
-                });
+                selectSectionType('text');
                 openModal(addSecModal);
             });
         }
@@ -777,12 +876,7 @@
     if (addSecForm) {
         document.querySelectorAll('[data-ap-pick-sec-type]').forEach(function (b) {
             b.addEventListener('click', function () {
-                var typ = b.getAttribute('data-ap-pick-sec-type');
-                addSecType.value = typ;
-                if (addSecTitle) addSecTitle.value = defaultTitles[typ] || '';
-                document.querySelectorAll('[data-ap-pick-sec-type]').forEach(function (x) {
-                    x.classList.toggle('is-selected', x === b);
-                });
+                selectSectionType(b.getAttribute('data-ap-pick-sec-type'));
             });
         });
     }

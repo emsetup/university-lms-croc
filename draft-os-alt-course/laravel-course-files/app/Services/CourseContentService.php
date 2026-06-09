@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Models\CourseModule;
 use App\Models\CourseModuleContent;
 use App\Models\CourseQuizBank;
+use App\Models\CourseSection;
 use App\Models\CourseQuizCorrectAnswer;
 use App\Models\CourseQuizMatchPair;
 use App\Models\CourseQuizOption;
@@ -49,7 +50,7 @@ final class CourseContentService
         if (! Schema::hasTable('course_quiz_banks')) {
             return null;
         }
-        if (! in_array($kind, ['theory_quiz', 'module_exam', 'final_lab'], true)) {
+        if (! in_array($kind, ['theory_quiz', 'module_exam', 'final_lab', 'survey'], true)) {
             return null;
         }
 
@@ -58,7 +59,38 @@ final class CourseContentService
             ->when($cm !== null, fn ($q) => $q->where('course_module_id', (int) $cm->id))
             ->when($cm === null, fn ($q) => $q->whereNull('course_module_id'))
             ->where('kind', $kind)
+            ->when(
+                Schema::hasColumn('course_quiz_banks', 'course_section_id'),
+                fn ($q) => $q->whereNull('course_section_id')
+            )
             ->first();
+    }
+
+    public function quizBankForSection(CourseSection $section): ?CourseQuizBank
+    {
+        if (! Schema::hasTable('course_quiz_banks')) {
+            return null;
+        }
+        $kind = $section->quizBankKind();
+        if ($kind === null) {
+            return null;
+        }
+        if (Schema::hasColumn('course_quiz_banks', 'course_section_id')) {
+            $bySection = CourseQuizBank::query()
+                ->where('course_section_id', (int) $section->id)
+                ->first();
+            if ($bySection !== null) {
+                return $bySection;
+            }
+        }
+
+        $module = CourseModule::query()->find((int) $section->course_module_id);
+        $course = Course::query()->find((int) $section->course_id);
+        if (! $module || ! $course) {
+            return null;
+        }
+
+        return $this->quizBankFor($course, $module, $kind);
     }
 
     /**
@@ -159,7 +191,16 @@ final class CourseContentService
             if (is_numeric($q->points) && (int) $q->points > 0) {
                 $row['points'] = (int) $q->points;
             }
-            if ($type === 'match_drag') {
+            if ($type === 'open_text') {
+                $row['open_text'] = true;
+                $settings = is_array($q->settings_json) ? $q->settings_json : [];
+                if (! empty($settings['placeholder'])) {
+                    $row['placeholder'] = (string) $settings['placeholder'];
+                }
+                if (! empty($settings['max_length']) && is_numeric($settings['max_length'])) {
+                    $row['max_length'] = (int) $settings['max_length'];
+                }
+            } elseif ($type === 'match_drag') {
                 $row['match_drag'] = true;
                 $row['left'] = $pairsByQ[$qid]['left'] ?? [];
                 $row['right'] = $pairsByQ[$qid]['right'] ?? [];

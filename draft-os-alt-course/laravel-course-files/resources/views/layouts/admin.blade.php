@@ -62,7 +62,7 @@
                 <a class="nav-cmd-btn" href="{{ route('documentation.index') }}">Документация</a>
                 @include('partials.admin-logs-nav-link')
                 <a class="nav-cmd-btn" href="{{ route('portal') }}">→ Портал</a>
-                <form method="post" action="{{ route('logout') }}" style="margin:0;display:inline">
+                <form method="post" action="{{ route('logout', [], false) }}" style="margin:0;display:inline">
                     @csrf
                     <button type="submit" class="nav-cmd-btn">Выйти</button>
                 </form>
@@ -130,24 +130,7 @@
                     </p>
                 </div>
                 @if ($tab !== null)
-                    <nav class="ap-course-tabs" aria-label="Разделы курса">
-                        @if ($canTools)
-                            <a class="ap-course-tabs__a @if($tab === 'course_modules') ap-course-tabs__a--active @endif"
-                               href="{{ route('admin.course.settings', $tp) }}">Модули</a>
-                        @endif
-                        @if ($canTools || ($psa && $psa->isCourseTester()))
-                            <a class="ap-course-tabs__a @if($tab === 'course_content') ap-course-tabs__a--active @endif"
-                               href="{{ route('admin.theory.index', $tp) }}">Содержимое</a>
-                        @endif
-                        @if ($canTools || $canViewLearners)
-                            <a class="ap-course-tabs__a @if($tab === 'learners') ap-course-tabs__a--active @endif"
-                               href="{{ route('admin.learners.course', $tp) }}">Обучающиеся</a>
-                        @endif
-                        @if ($canTools)
-                            <a class="ap-course-tabs__a @if($tab === 'certificates') ap-course-tabs__a--active @endif"
-                               href="{{ route('admin.certificates', $tp) }}">Сертификаты</a>
-                        @endif
-                    </nav>
+                    @include('partials.admin-course-tabs')
                 @endif
             @endif
 

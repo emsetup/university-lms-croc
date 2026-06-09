@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Course;
+use App\Models\CourseModule;
+use App\Models\CourseSection;
 use App\Models\Learner;
 use App\Models\PracticeSession;
 use Illuminate\Support\Collection;
@@ -93,6 +95,7 @@ final class TeacherLearnerProfileDetailService
                     'theory_quiz_history' => $p ? ($p->theory_quiz_history ?? []) : [],
                     'module_exam_history' => $p ? ($p->module_exam_history ?? []) : [],
                     'instructor_resets' => $p ? ($p->instructor_resets ?? []) : [],
+                    'surveys' => $this->surveyPanelsForModule($learner, $mod, $courseId),
                 ];
             }
         }
@@ -125,13 +128,14 @@ final class TeacherLearnerProfileDetailService
             'theory_quiz' => (string) ($stepTitles['theory_quiz'] ?? 'Тест по теории'),
             'practice' => (string) ($stepTitles['practice'] ?? 'Практика'),
             'module_exam' => (string) ($stepTitles['module_exam'] ?? 'Экзамен'),
+            'survey' => 'Опрос',
         ];
 
         $rows = [];
         if ($this->courseSections->useDbSectionsForModule($mid)) {
             foreach ($this->courseSections->enabledSectionsForCourseModule($mid) as $sec) {
                 $bk = $sec->backendStepKey();
-                $waived = $bk === 'practice' && $this->courseSections->isPracticeWaived($mid, $idx, $legacyAlt);
+                $waived = $sec->legacyTypeKey() === 'practice' && $this->courseSections->isPracticeWaived($mid, $idx, $legacyAlt);
                 if ($waived) {
                     continue;
                 }
@@ -139,10 +143,12 @@ final class TeacherLearnerProfileDetailService
                     ? $this->courseSections->displayProgressPercentForBackendKey($p, $bk, $mid, $idx, $legacyAlt)
                     : 0;
                 $rows[] = [
-                    'label' => (string) ($sec->title !== '' ? $sec->title : ($defaultLabels[$bk] ?? $bk)),
+                    'label' => (string) ($sec->title !== '' ? $sec->title : ($defaultLabels[$sec->legacyTypeKey()] ?? $bk)),
                     'percent' => $pct,
                     'waived' => false,
                     'backend_key' => $bk,
+                    'section_id' => (int) $sec->id,
+                    'section_type' => (string) $sec->type,
                 ];
             }
 
@@ -166,4 +172,34 @@ final class TeacherLearnerProfileDetailService
 
         return $rows;
     }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function surveyPanelsForModule(Learner $learner, CourseModule $mod, int $courseId): array
+    {
+        if (! $this->courseSections->useDbSectionsForModule((int) $mod->id)) {
+            return [];
+        }
+        $course = Course::query()->find($courseId);
+        $out = [];
+        foreach ($this->courseSections->enabledSectionsForCourseModule((int) $mod->id) as $sec) {
+            if ($sec->type !== CourseSection::TYPE_SURVEY) {
+                continue;
+            }
+            $card = app(\App\Services\SurveyResponseExportService::class)->cardForLearner($sec, (int) $learner->id);
+            $responsesUrl = $course
+                ? route('admin.course.module.section.survey-responses', ['adminCourse' => $course->slug, 'courseModule' => $mod->id, 'section' => $sec->id])
+                : null;
+            $out[(int) $sec->id] = [
+                'section_id' => (int) $sec->id,
+                'title' => (string) $sec->title,
+                'card' => $card,
+                'responses_url' => $responsesUrl,
+            ];
+        }
+
+        return $out;
+    }
+
 }

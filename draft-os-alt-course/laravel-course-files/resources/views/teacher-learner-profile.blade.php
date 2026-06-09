@@ -72,20 +72,8 @@
                 $canToolsTabs = $psaTabs && $psaTabs->canUseCourseAdminTools();
                 $canViewLearnersTabs = $psaTabs && $cid > 0 && $psaTabs->canViewCourseLearnerStats($cid);
             @endphp
-            <nav class="ap-course-tabs" aria-label="Разделы курса">
-                @if ($canToolsTabs)
-                    <a class="ap-course-tabs__a" href="{{ route('admin.course.settings', $tp) }}">Модули</a>
-                @endif
-                @if ($canToolsTabs || ($psaTabs && $psaTabs->isCourseTester()))
-                    <a class="ap-course-tabs__a" href="{{ route('admin.theory.index', $tp) }}">Содержимое</a>
-                @endif
-                @if ($canToolsTabs || $canViewLearnersTabs)
-                    <a class="ap-course-tabs__a ap-course-tabs__a--active" href="{{ route('admin.learners.course', $tp) }}">Обучающиеся</a>
-                @endif
-                @if ($canToolsTabs)
-                    <a class="ap-course-tabs__a" href="{{ route('admin.certificates', $tp) }}">Сертификаты</a>
-                @endif
-            </nav>
+            @php $adminCourseTab = 'learners'; @endphp
+            @include('partials.admin-course-tabs')
         @endif
         <div class="admin-breadcrumb-wrap ap-report-breadcrumb-below-tabs">
             <nav class="breadcrumb" aria-label="Хлебные крошки">

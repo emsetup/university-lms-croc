@@ -16,12 +16,14 @@ final class CourseQuizQuestion extends Model
         'question_text',
         'type',
         'points',
+        'settings_json',
     ];
 
     protected $casts = [
         'quiz_bank_id' => 'int',
         'sort' => 'int',
         'points' => 'int',
+        'settings_json' => 'array',
     ];
 
     public function bank(): BelongsTo

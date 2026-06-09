@@ -30,6 +30,7 @@
     var modalTag = null;
     var modalTitle = null;
     var modalBody = null;
+    var modalDoc = null;
     var lastFocus = null;
 
     function getModal() {
@@ -44,6 +45,7 @@
         modalTag = document.getElementById('ap-changelog-modal-tag');
         modalTitle = document.getElementById('ap-changelog-modal-title');
         modalBody = document.getElementById('ap-changelog-modal-body');
+        modalDoc = document.getElementById('ap-changelog-modal-doc');
         return modal;
     }
 
@@ -85,6 +87,23 @@
             html = '<p class="ap-muted">Текст обновления недоступен.</p>';
         }
         modalBody.innerHTML = html;
+
+        var docUrl = trigger.getAttribute('data-ap-changelog-doc-url') || '';
+        var docLabel = trigger.getAttribute('data-ap-changelog-doc-label') || 'Документация';
+        if (modalDoc) {
+            if (docUrl) {
+                modalDoc.hidden = false;
+                modalDoc.innerHTML =
+                    '<a class="ap-changelog-modal__doc-link" href="' +
+                    escHtml(docUrl) +
+                    '">' +
+                    escHtml(docLabel) +
+                    '</a>';
+            } else {
+                modalDoc.hidden = true;
+                modalDoc.innerHTML = '';
+            }
+        }
 
         lastFocus = document.activeElement;
         m.hidden = false;

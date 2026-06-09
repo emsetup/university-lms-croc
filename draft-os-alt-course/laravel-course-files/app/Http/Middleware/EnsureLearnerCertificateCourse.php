@@ -4,7 +4,8 @@ namespace App\Http\Middleware;
 
 use App\Models\Course;
 use App\Models\Learner;
-use App\Services\LearnerCourseAvailability;
+use App\Support\LearnerPreviewContext;
+use App\Support\StaffImpersonation;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,14 +20,21 @@ final class EnsureLearnerCertificateCourse
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $courseId = (int) session('course_id', 0);
+        $courseId = LearnerPreviewContext::courseId($request);
         if ($courseId < 1) {
             return redirect()->route('account')->with('err', 'Сначала выберите курс в личном кабинете.');
         }
 
         $course = Course::query()->find($courseId);
         if ($course === null) {
-            session()->forget(['course_id', 'course_title']);
+            if (LearnerPreviewContext::isActive($request)) {
+                session()->forget([
+                    StaffImpersonation::SESSION_COURSE_ID,
+                    StaffImpersonation::SESSION_COURSE_TITLE,
+                ]);
+            } else {
+                session()->forget(['course_id', 'course_title']);
+            }
 
             return redirect()->route('account')->with('err', 'Курс не найден.');
         }
@@ -35,12 +43,19 @@ final class EnsureLearnerCertificateCourse
             return $next($request);
         }
 
-        $learner = Learner::query()->find((int) session('learner_id', 0));
+        $learner = Learner::query()->find(LearnerPreviewContext::learnerId($request));
         if ($learner !== null && LearnerCourseAvailability::learnerHasIssuedCertificate($learner, $courseId)) {
             return $next($request);
         }
 
-        session()->forget(['course_id', 'course_title']);
+        if (LearnerPreviewContext::isActive($request)) {
+            session()->forget([
+                StaffImpersonation::SESSION_COURSE_ID,
+                StaffImpersonation::SESSION_COURSE_TITLE,
+            ]);
+        } else {
+            session()->forget(['course_id', 'course_title']);
+        }
 
         return redirect()
             ->route('account')

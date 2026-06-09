@@ -7,6 +7,8 @@ use App\Models\CourseModule;
 use App\Models\CourseSection;
 use App\Models\ModuleProgress;
 use App\Support\CourseModuleMeta;
+use App\Support\SectionProgress;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -48,6 +50,62 @@ final class CourseSectionService
         return $this->enabledCache[$courseModuleId];
     }
 
+    /**
+     * Порядковый номер раздела среди включённых в модуле (1..N), по sort/id.
+     */
+    public function sequenceForSection(CourseSection $section): int
+    {
+        $courseModuleId = (int) $section->course_module_id;
+        if ($courseModuleId < 1) {
+            return 1;
+        }
+
+        $sort = (int) ($section->sort ?? 0);
+        $id = (int) ($section->id ?? 0);
+        if ($id < 1) {
+            return 1;
+        }
+
+        $before = 0;
+        foreach ($this->enabledSectionsForCourseModule($courseModuleId) as $sec) {
+            $secSort = (int) ($sec->sort ?? 0);
+            $secId = (int) ($sec->id ?? 0);
+            if ($secSort < $sort || ($secSort === $sort && $secId < $id)) {
+                $before++;
+            }
+        }
+
+        return max(1, $before + 1);
+    }
+
+    public function findBySequenceForModule(int $courseModuleId, int $sequence): ?CourseSection
+    {
+        if ($courseModuleId < 1 || $sequence < 1) {
+            return null;
+        }
+
+        return $this->enabledSectionsForCourseModule($courseModuleId)->get($sequence - 1);
+    }
+
+    /**
+     * Раздел по порядковому номеру (1..N) или по legacy id в URL (старые закладки).
+     */
+    public function findOrFailBySequenceForModuleRoute(int $courseModuleId, int $sectionRoute): CourseSection
+    {
+        $sec = $this->findBySequenceForModule($courseModuleId, $sectionRoute);
+        if ($sec === null) {
+            $sec = CourseSection::query()->find($sectionRoute);
+            if ($sec
+                && (int) $sec->course_module_id === $courseModuleId
+                && $sec->is_enabled) {
+                return $sec;
+            }
+            throw (new ModelNotFoundException)->setModel(CourseSection::class, [$sectionRoute]);
+        }
+
+        return $sec;
+    }
+
     public function useDbSectionsForModule(int $courseModuleId): bool
     {
         return $courseModuleId > 0
@@ -85,26 +143,50 @@ final class CourseSectionService
         return CourseModuleMeta::shouldSkipPractice($contentSourceIndex);
     }
 
-    public function hasBackendStep(int $courseModuleId, string $backendKey): bool
+    public function hasBackendStep(int $courseModuleId, string $stepKey): bool
     {
-        foreach ($this->enabledSectionsForCourseModule($courseModuleId) as $sec) {
-            if ($sec->backendStepKey() === $backendKey) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->findSectionByStepKey($courseModuleId, $stepKey) !== null;
     }
 
-    public function findSectionByBackendKey(int $courseModuleId, string $backendKey): ?CourseSection
+    public function findSectionByStepKey(int $courseModuleId, string $stepKey): ?CourseSection
     {
+        $sectionId = CourseSection::idFromStepKey($stepKey);
+        if ($sectionId !== null) {
+            $sec = CourseSection::query()->find($sectionId);
+            if ($sec
+                && (int) $sec->course_module_id === $courseModuleId
+                && $sec->is_enabled) {
+                return $sec;
+            }
+
+            return null;
+        }
+
         foreach ($this->enabledSectionsForCourseModule($courseModuleId) as $sec) {
-            if ($sec->backendStepKey() === $backendKey) {
+            if ($sec->legacyTypeKey() === $stepKey) {
                 return $sec;
             }
         }
 
         return null;
+    }
+
+    /** @deprecated use findSectionByStepKey */
+    public function findSectionByBackendKey(int $courseModuleId, string $backendKey): ?CourseSection
+    {
+        return $this->findSectionByStepKey($courseModuleId, $backendKey);
+    }
+
+    public function countEnabledSectionsOfType(int $courseModuleId, string $type): int
+    {
+        return $this->enabledSectionsForCourseModule($courseModuleId)
+            ->where('type', $type)
+            ->count();
+    }
+
+    public function isSoleSectionOfType(CourseSection $section): bool
+    {
+        return $this->countEnabledSectionsOfType((int) $section->course_module_id, (string) $section->type) === 1;
     }
 
     /**
@@ -124,9 +206,34 @@ final class CourseSectionService
         return $cid > 0 ? Course::query()->find($cid) : null;
     }
 
+    public function passPercentForSection(CourseSection $section): int
+    {
+        $m = $this->mergedSettings($section);
+        if (($m['pass_from_course'] ?? false) === true) {
+            $course = Course::query()->find((int) $section->course_id);
+            $def = $course?->default_pass_percent;
+            if (is_numeric($def) && (int) $def > 0) {
+                return (int) $def;
+            }
+
+            return CourseScoringService::PASS_THRESHOLD;
+        }
+        $v = $m['pass_percent'] ?? null;
+        if (is_numeric($v) && (int) $v > 0) {
+            return (int) $v;
+        }
+        $course = Course::query()->find((int) $section->course_id);
+        $def = $course?->default_pass_percent;
+        if (is_numeric($def) && (int) $def > 0) {
+            return (int) $def;
+        }
+
+        return CourseScoringService::PASS_THRESHOLD;
+    }
+
     public function passPercentForQuiz(int $courseModuleId): int
     {
-        $sec = $this->findSectionByBackendKey($courseModuleId, 'theory_quiz');
+        $sec = $this->findSectionByStepKey($courseModuleId, 'theory_quiz');
         $m = $sec ? $this->mergedSettings($sec) : [];
         if (($m['pass_from_course'] ?? false) === true) {
             $course = $this->courseForModule($courseModuleId);
@@ -152,7 +259,7 @@ final class CourseSectionService
 
     public function passPercentForExam(int $courseModuleId): int
     {
-        $sec = $this->findSectionByBackendKey($courseModuleId, 'module_exam');
+        $sec = $this->findSectionByStepKey($courseModuleId, 'module_exam');
         $m = $sec ? $this->mergedSettings($sec) : [];
         if (($m['pass_from_course'] ?? false) === true) {
             $course = $this->courseForModule($courseModuleId);
@@ -353,6 +460,9 @@ final class CourseSectionService
         }
         for ($i = 0; $i < (int) $idx; $i++) {
             $step = $order[$i];
+            if (! $this->stepBlocksProgress($courseModuleId, $step)) {
+                continue;
+            }
             if (! $this->isStepComplete($p, $step, $courseModuleId, $contentSourceIndex, $legacyAlt)) {
                 return $step;
             }
@@ -371,7 +481,10 @@ final class CourseSectionService
 
     public function moduleProgressPercent(ModuleProgress $p, int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): int
     {
-        $keys = $this->progressBackendKeys($courseModuleId, $contentSourceIndex, $legacyAlt);
+        $keys = array_values(array_filter(
+            $this->progressBackendKeys($courseModuleId, $contentSourceIndex, $legacyAlt),
+            fn (string $bk) => $this->stepBlocksProgress($courseModuleId, $bk)
+        ));
         if ($keys === []) {
             return 0;
         }
@@ -385,25 +498,162 @@ final class CourseSectionService
         return (int) round(100 * $done / count($keys));
     }
 
-    public function isStepComplete(ModuleProgress $p, string $backendKey, int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): bool
+    public function isStepComplete(ModuleProgress $p, string $stepKey, int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): bool
     {
-        if ($backendKey === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)) {
+        $sec = $this->findSectionByStepKey($courseModuleId, $stepKey);
+        if ($sec !== null) {
+            if ($sec->legacyTypeKey() === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)) {
+                return true;
+            }
+
+            return $this->isSectionComplete($p, $sec, $courseModuleId, $contentSourceIndex, $legacyAlt);
+        }
+
+        if ($stepKey === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)) {
             return true;
         }
 
-        return match ($backendKey) {
+        return match ($stepKey) {
             'theory' => (bool) $p->theory_read_at,
             'theory_quiz' => $this->isTheoryQuizEffectivelyPassed($p, $courseModuleId),
             'practice' => (bool) $p->practice_done_at,
             'module_exam' => $this->isModuleExamEffectivelyPassed($p, $courseModuleId),
+            'survey' => $this->isSurveyComplete($p, $courseModuleId),
             default => false,
         };
+    }
+
+    public function isSectionComplete(
+        ModuleProgress $p,
+        CourseSection $section,
+        int $courseModuleId,
+        int $contentSourceIndex,
+        bool $legacyAlt = true,
+    ): bool {
+        $sole = $this->isSoleSectionOfType($section);
+
+        return match ($section->type) {
+            CourseSection::TYPE_TEXT => SectionProgress::isTextRead($p, $section, $sole),
+            CourseSection::TYPE_QUIZ => $this->isSectionQuizPassed($p, $section, $sole),
+            CourseSection::TYPE_PRACTICE => $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)
+                || SectionProgress::isPracticeDone($p, $section, $sole),
+            CourseSection::TYPE_EXAM => $this->isSectionExamPassed($p, $section, $sole),
+            CourseSection::TYPE_SURVEY => $this->isSurveyCompleteForSection($p, (int) $section->id),
+            default => false,
+        };
+    }
+
+    public function isSectionQuizPassed(ModuleProgress $p, CourseSection $section, ?bool $sole = null): bool
+    {
+        $sole ??= $this->isSoleSectionOfType($section);
+        $st = SectionProgress::quizState($p, $section, $sole);
+        if (! empty($st['passed'])) {
+            return true;
+        }
+        $threshold = $this->passPercentForSection($section);
+
+        return $this->quizStateIndicatesPass($st, $threshold);
+    }
+
+    public function isSectionExamPassed(ModuleProgress $p, CourseSection $section, ?bool $sole = null): bool
+    {
+        $sole ??= $this->isSoleSectionOfType($section);
+        $st = SectionProgress::quizState($p, $section, $sole);
+        if (! empty($st['passed'])) {
+            return true;
+        }
+        $threshold = $this->passPercentForSection($section);
+
+        return $this->quizStateIndicatesPass($st, $threshold);
+    }
+
+    /**
+     * @param  array{passed:bool,attempts:int,best_score:int,last_result:?array,history:array}  $st
+     */
+    private function quizStateIndicatesPass(array $st, int $threshold): bool
+    {
+        if ((int) ($st['best_score'] ?? 0) >= $threshold) {
+            return true;
+        }
+        if ($this->quizAttemptIndicatesPass($st['last_result'] ?? null, $threshold)) {
+            return true;
+        }
+        foreach ($st['history'] ?? [] as $entry) {
+            if ($this->quizAttemptIndicatesPass($entry, $threshold)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
      * Зачёт по тесту теории: флаг в БД или сохранённые результаты (best_score, history).
      * Нужно при пересдаче: theory_quiz_passed сбрасывается, лучший % остаётся.
      */
+
+
+    public function stepBlocksProgress(int $courseModuleId, string $stepKey): bool
+    {
+        $sec = $this->findSectionByStepKey($courseModuleId, $stepKey);
+        if ($sec === null) {
+            return $stepKey !== 'survey';
+        }
+        $settings = $this->mergedSettings($sec);
+        if (array_key_exists('blocks_progress', $settings)) {
+            return (bool) $settings['blocks_progress'];
+        }
+
+        return true;
+    }
+
+    public function isSurveyComplete(ModuleProgress $p, int $courseModuleId): bool
+    {
+        foreach ($this->enabledSectionsForCourseModule($courseModuleId) as $sec) {
+            if ($sec->type !== CourseSection::TYPE_SURVEY) {
+                continue;
+            }
+            if (! $this->isSurveyCompleteForSection($p, (int) $sec->id)) {
+                return false;
+            }
+        }
+
+        return $this->enabledSectionsForCourseModule($courseModuleId)
+            ->where('type', CourseSection::TYPE_SURVEY)
+            ->isNotEmpty();
+    }
+
+    public function isSurveyCompleteForSection(ModuleProgress $p, int $sectionId): bool
+    {
+        if (! Schema::hasTable('course_survey_submissions')) {
+            return false;
+        }
+        $learnerId = (int) ($p->learner_id ?? 0);
+        if ($learnerId < 1 || $sectionId < 1) {
+            return false;
+        }
+
+        return \App\Models\CourseSurveySubmission::query()
+            ->where('course_section_id', $sectionId)
+            ->where('learner_id', $learnerId)
+            ->exists();
+    }
+
+    public function isSurveyAnonymous(int $courseModuleId, ?int $sectionId = null): bool
+    {
+        if ($sectionId !== null) {
+            $sec = CourseSection::query()->find($sectionId);
+        } else {
+            $sec = $this->findSectionByStepKey($courseModuleId, 'survey');
+        }
+        if ($sec === null) {
+            return false;
+        }
+        $settings = $this->mergedSettings($sec);
+
+        return (bool) ($settings['anonymous'] ?? false);
+    }
+
     public function isTheoryQuizEffectivelyPassed(ModuleProgress $p, int $courseModuleId): bool
     {
         if ($p->theory_quiz_passed) {
@@ -505,9 +755,13 @@ final class CourseSectionService
     {
         if ($courseModuleId > 0 && $this->useDbSectionsForModule($courseModuleId)) {
             $out = [];
-            foreach ($this->orderedBackendKeys($courseModuleId, $contentSourceIndex, $legacyAlt) as $bk) {
-                if (isset(self::DEFAULT_SCORE_WEIGHTS[$bk])) {
-                    $out[] = $bk;
+            foreach ($this->enabledSectionsForCourseModule($courseModuleId) as $sec) {
+                $lt = $sec->legacyTypeKey();
+                if ($lt === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)) {
+                    continue;
+                }
+                if (isset(self::DEFAULT_SCORE_WEIGHTS[$lt])) {
+                    $out[] = $sec->backendStepKey();
                 }
             }
 
@@ -536,8 +790,18 @@ final class CourseSectionService
 
         $sum = 0.0;
         $raw = [];
+        $legacyCounts = [];
         foreach ($keys as $k) {
-            $w = self::DEFAULT_SCORE_WEIGHTS[$k];
+            $sec = $this->findSectionByStepKey($courseModuleId, $k);
+            $lt = $sec?->legacyTypeKey() ?? $k;
+            $legacyCounts[$lt] = ($legacyCounts[$lt] ?? 0) + 1;
+        }
+        foreach ($keys as $k) {
+            $sec = $this->findSectionByStepKey($courseModuleId, $k);
+            $lt = $sec?->legacyTypeKey() ?? $k;
+            $base = self::DEFAULT_SCORE_WEIGHTS[$lt] ?? 0.0;
+            $cnt = max(1, $legacyCounts[$lt] ?? 1);
+            $w = $base / $cnt;
             $raw[$k] = $w;
             $sum += $w;
         }
@@ -566,8 +830,14 @@ final class CourseSectionService
 
         $out = [];
         foreach ($this->moduleScoreWeights($courseModuleId, $contentSourceIndex, $legacyAlt) as $bk => $w) {
+            $sec = $this->findSectionByStepKey($courseModuleId, $bk);
+            $lt = $sec?->legacyTypeKey() ?? $bk;
+            $label = $labels[$lt] ?? $lt;
+            if ($sec !== null) {
+                $label = (string) $sec->title;
+            }
             $out[] = [
-                'label' => $labels[$bk] ?? $bk,
+                'label' => $label,
                 'pct' => (int) round($w * 100),
             ];
         }
@@ -575,13 +845,27 @@ final class CourseSectionService
         return $out;
     }
 
-    public function scorePercentForBackendKey(ModuleProgress $p, string $backendKey, int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): int
+    public function scorePercentForBackendKey(ModuleProgress $p, string $stepKey, int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): int
     {
-        if ($backendKey === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)) {
+        $sec = $this->findSectionByStepKey($courseModuleId, $stepKey);
+        if ($sec !== null) {
+            $sole = $this->isSoleSectionOfType($sec);
+
+            return match ($sec->type) {
+                CourseSection::TYPE_QUIZ => min(100, max(0, (int) (SectionProgress::quizState($p, $sec, $sole)['best_score'] ?? 0))),
+                CourseSection::TYPE_PRACTICE => $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)
+                    ? 100
+                    : min(100, max(0, SectionProgress::practicePercent($p, $sec, $sole))),
+                CourseSection::TYPE_EXAM => min(100, max(0, (int) (SectionProgress::quizState($p, $sec, $sole)['best_score'] ?? 0))),
+                default => 0,
+            };
+        }
+
+        if ($stepKey === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)) {
             return 100;
         }
 
-        return match ($backendKey) {
+        return match ($stepKey) {
             'theory_quiz' => min(100, max(0, (int) $p->theory_quiz_best_score)),
             'practice' => min(100, max(0, (int) ($p->practice_lab_percent ?? ($p->practice_done_at ? 100 : 0)))),
             'module_exam' => min(100, max(0, (int) $p->module_exam_best_score)),
@@ -609,18 +893,33 @@ final class CourseSectionService
      */
     public function displayProgressPercentForBackendKey(
         ModuleProgress $p,
-        string $backendKey,
+        string $stepKey,
         int $courseModuleId,
         int $contentSourceIndex,
         bool $legacyAlt = true
     ): int {
-        if ($backendKey === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)) {
+        $sec = $this->findSectionByStepKey($courseModuleId, $stepKey);
+        if ($sec !== null) {
+            $sole = $this->isSoleSectionOfType($sec);
+
+            return match ($sec->type) {
+                CourseSection::TYPE_TEXT => SectionProgress::isTextRead($p, $sec, $sole) ? 100 : 0,
+                CourseSection::TYPE_SURVEY => $this->isSurveyCompleteForSection($p, (int) $sec->id) ? 100 : 0,
+                CourseSection::TYPE_PRACTICE => $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)
+                    ? 0
+                    : $this->scorePercentForBackendKey($p, $stepKey, $courseModuleId, $contentSourceIndex, $legacyAlt),
+                default => $this->scorePercentForBackendKey($p, $stepKey, $courseModuleId, $contentSourceIndex, $legacyAlt),
+            };
+        }
+
+        if ($stepKey === 'practice' && $this->isPracticeWaived($courseModuleId, $contentSourceIndex, $legacyAlt)) {
             return 0;
         }
 
-        return match ($backendKey) {
+        return match ($stepKey) {
             'theory' => $p->theory_read_at ? 100 : 0,
-            'theory_quiz', 'practice', 'module_exam' => $this->scorePercentForBackendKey($p, $backendKey, $courseModuleId, $contentSourceIndex, $legacyAlt),
+            'theory_quiz', 'practice', 'module_exam' => $this->scorePercentForBackendKey($p, $stepKey, $courseModuleId, $contentSourceIndex, $legacyAlt),
+            'survey' => $this->isSurveyComplete($p, $courseModuleId) ? 100 : 0,
             default => 0,
         };
     }

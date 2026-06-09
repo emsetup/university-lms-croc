@@ -8,6 +8,7 @@
     $defaultDir = $column === 'login' ? 'desc' : 'asc';
     $nextDir = $isActive ? ($staffDir === 'asc' ? 'desc' : 'asc') : $defaultDir;
     $params = array_filter([
+        'tab' => 'users',
         'sort' => $column,
         'dir' => $nextDir,
         'q' => ($staffSearch ?? '') !== '' ? $staffSearch : null,

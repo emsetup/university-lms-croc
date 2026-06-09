@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\FinalLabResult;
 use App\Models\Learner;
-use App\Services\CourseScoringService;
+use App\Support\LearnerPreviewContext;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -19,8 +19,8 @@ class CertificateController extends Controller
 
     public function __invoke(): View|RedirectResponse
     {
-        $learner = Learner::findOrFail(session('learner_id'));
-        $courseId = (int) session('course_id', 0);
+        $learner = Learner::findOrFail(LearnerPreviewContext::learnerId());
+        $courseId = LearnerPreviewContext::courseId();
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
         if ($course && ! $course->certificate_enabled) {
             return redirect()->route('dashboard')->with('err', 'Сертификат для этого курса отключён.');
@@ -56,8 +56,8 @@ class CertificateController extends Controller
 
     public function saveRecipient(Request $request): RedirectResponse
     {
-        $learner = Learner::findOrFail(session('learner_id'));
-        $courseId = (int) session('course_id', 0);
+        $learner = Learner::findOrFail(LearnerPreviewContext::learnerId());
+        $courseId = LearnerPreviewContext::courseId();
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
         if ($course && ! $course->certificate_enabled) {
             return redirect()->route('dashboard')->with('err', 'Сертификат для этого курса отключён.');

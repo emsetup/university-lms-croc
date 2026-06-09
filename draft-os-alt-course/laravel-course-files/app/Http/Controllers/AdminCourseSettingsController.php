@@ -15,6 +15,7 @@ use App\Models\PracticeImage;
 use App\Models\CourseQuizBank;
 use App\Services\CourseContentService;
 use App\Services\CourseSectionService;
+use App\Services\SurveyQuickLinkService;
 use App\Services\LegacyAltPracticeImagesBootstrap;
 use App\Services\PortalStaffAccess;
 use App\Support\AdminCourseContentInspector;
@@ -121,6 +122,14 @@ final class AdminCourseSettingsController extends Controller
             'final_lab_enabled' => ['sometimes', 'boolean'],
             'difficulty_flags_enabled' => ['sometimes', 'boolean'],
             'unlock_all_modules' => ['sometimes', 'boolean'],
+            'show_module_progress' => ['sometimes', 'boolean'],
+            'assessment_enabled' => ['sometimes', 'boolean'],
+            'meta_includes_dashboard_extras' => ['sometimes', 'boolean'],
+            'audience_plaque_enabled' => ['sometimes', 'boolean'],
+            'audience_plaque_kicker' => ['nullable', 'string', 'max:80'],
+            'audience_plaque_title' => ['nullable', 'string', 'max:200'],
+            'audience_plaque_teaser' => ['nullable', 'string', 'max:2000'],
+            'audience_plaque_body' => ['nullable', 'string', 'max:20000'],
             'final_lab_practice_image_id' => ['nullable', 'integer', 'min:1'],
             'certificate_enabled' => ['sometimes', 'boolean'],
             'certificate_title' => ['nullable', 'string', 'max:200'],
@@ -144,23 +153,50 @@ final class AdminCourseSettingsController extends Controller
         $course->default_quiz_time_minutes = isset($data['default_quiz_time_minutes']) ? (int) $data['default_quiz_time_minutes'] : null;
         $course->default_pass_percent = isset($data['default_pass_percent']) ? (int) $data['default_pass_percent'] : null;
 
-        $course->final_lab_enabled = $request->boolean('final_lab_enabled');
-        if (Schema::hasColumn('courses', 'difficulty_flags_enabled')) {
-            $course->difficulty_flags_enabled = $request->boolean('difficulty_flags_enabled');
-        }
-        if (Schema::hasColumn('courses', 'unlock_all_modules')) {
-            $course->unlock_all_modules = $request->boolean('unlock_all_modules');
-        }
-
-        $imgId = isset($data['final_lab_practice_image_id']) ? (int) $data['final_lab_practice_image_id'] : null;
-        if ($imgId !== null && $imgId > 0) {
-            if (! PracticeImage::query()->where('id', $imgId)->where('is_built', true)->exists()) {
-                return back()->withInput()->with('err', 'Выбранный Docker-образ не найден или ещё не собран.');
+        $redirTab = (string) ($data['redirect_tab'] ?? 'kurs');
+        if ($redirTab === 'kurs') {
+            $course->final_lab_enabled = $request->boolean('final_lab_enabled');
+            if (Schema::hasColumn('courses', 'difficulty_flags_enabled')) {
+                $course->difficulty_flags_enabled = $request->boolean('difficulty_flags_enabled');
             }
-            app(PortalStaffAccess::class)->assertCanAssignPracticeImageToCourse($imgId, (int) $course->id);
-            $course->final_lab_practice_image_id = $imgId;
-        } else {
-            $course->final_lab_practice_image_id = null;
+            if (Schema::hasColumn('courses', 'unlock_all_modules')) {
+                $course->unlock_all_modules = $request->boolean('unlock_all_modules');
+            }
+            if (Schema::hasColumn('courses', 'show_module_progress')) {
+                $course->show_module_progress = $request->boolean('show_module_progress');
+            }
+            if (Schema::hasColumn('courses', 'assessment_enabled')) {
+                $course->assessment_enabled = $request->boolean('assessment_enabled');
+            }
+            if (Schema::hasColumn('courses', 'certificate_enabled') && $request->boolean('meta_includes_dashboard_extras')) {
+                $course->certificate_enabled = $request->boolean('certificate_enabled');
+            }
+            if (Schema::hasColumn('courses', 'audience_plaque_enabled')) {
+                $course->audience_plaque_enabled = $request->boolean('audience_plaque_enabled');
+                $course->audience_plaque_kicker = isset($data['audience_plaque_kicker'])
+                    ? trim((string) $data['audience_plaque_kicker']) ?: null
+                    : null;
+                $course->audience_plaque_title = isset($data['audience_plaque_title'])
+                    ? trim((string) $data['audience_plaque_title']) ?: null
+                    : null;
+                $course->audience_plaque_teaser = isset($data['audience_plaque_teaser'])
+                    ? trim((string) $data['audience_plaque_teaser']) ?: null
+                    : null;
+                $course->audience_plaque_body = isset($data['audience_plaque_body'])
+                    ? trim((string) $data['audience_plaque_body']) ?: null
+                    : null;
+            }
+
+            $imgId = isset($data['final_lab_practice_image_id']) ? (int) $data['final_lab_practice_image_id'] : null;
+            if ($imgId !== null && $imgId > 0) {
+                if (! PracticeImage::query()->where('id', $imgId)->where('is_built', true)->exists()) {
+                    return back()->withInput()->with('err', 'Выбранный Docker-образ не найден или ещё не собран.');
+                }
+                app(PortalStaffAccess::class)->assertCanAssignPracticeImageToCourse($imgId, (int) $course->id);
+                $course->final_lab_practice_image_id = $imgId;
+            } else {
+                $course->final_lab_practice_image_id = null;
+            }
         }
 
         if (Schema::hasColumn('courses', 'certificate_enabled')
@@ -180,7 +216,6 @@ final class AdminCourseSettingsController extends Controller
             ]);
         }
 
-        $redirTab = (string) ($data['redirect_tab'] ?? 'kurs');
         return redirect()
             ->route('admin.course.settings', array_merge($this->adminCourseRouteParams(), ['tab' => $redirTab]))
             ->with('ok', 'Настройки курса сохранены.');
@@ -373,13 +408,9 @@ final class AdminCourseSettingsController extends Controller
         $this->assertModuleCourse($courseModule);
         $courseId = (int) session('admin_course_id');
         $data = $request->validate([
-            'type' => 'required|in:text,quiz,practice,exam',
+            'type' => 'required|in:text,quiz,practice,exam,survey',
             'title' => 'required|string|max:200',
         ]);
-        if (CourseSection::query()->where('course_module_id', $courseModule->id)->where('type', $data['type'])->exists()) {
-            return $this->redirectToCourseSettings($request, 'ap-mod-'.$courseModule->id)
-                ->with('err', 'Тип раздела «'.$data['type'].'» уже есть у этого модуля.');
-        }
         $maxSort = (int) CourseSection::query()->where('course_module_id', $courseModule->id)->max('sort');
 
         $sec = CourseSection::query()->create([
@@ -588,10 +619,11 @@ final class AdminCourseSettingsController extends Controller
         $kind = match ($section->type) {
             CourseSection::TYPE_QUIZ => 'theory_quiz',
             CourseSection::TYPE_EXAM => 'module_exam',
+            CourseSection::TYPE_SURVEY => 'survey',
             default => null,
         };
         if ($kind !== null && Schema::hasTable('course_quiz_banks')) {
-            $bank = $contentSvc->quizBankFor($course, $courseModule, $kind);
+            $bank = $contentSvc->quizBankForSection($section);
             if ($bank !== null) {
                 $questions = $contentSvc->questionsForBank($bank);
                 $qCount = count($questions);
@@ -673,7 +705,48 @@ final class AdminCourseSettingsController extends Controller
             'practice_image' => $practiceImage,
             'docker_images' => $dockerImages,
             'save_url' => route('admin.course.section.panel.save', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])),
+            'survey_responses_url' => $section->type === CourseSection::TYPE_SURVEY
+                ? route('admin.course.module.section.survey-responses', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
+                : null,
+            'quick_link' => $section->type === CourseSection::TYPE_SURVEY
+                ? app(SurveyQuickLinkService::class)->metaForSection(
+                    $section,
+                    route('admin.course.section.quick-link.generate', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])),
+                    route('admin.course.section.quick-link.revoke', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
+                )
+                : null,
         ]);
+    }
+
+    public function sectionQuickLinkGenerate(Course $adminCourse, CourseModule $courseModule, CourseSection $section): JsonResponse
+    {
+        $this->assertSectionInModule($courseModule, $section);
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) session('admin_course_id'));
+
+        if ($section->type !== CourseSection::TYPE_SURVEY) {
+            return response()->json(['ok' => false, 'message' => 'Быстрая ссылка доступна только для опросов.'], 422);
+        }
+
+        $link = app(SurveyQuickLinkService::class)->generate($section);
+
+        return response()->json([
+            'ok' => true,
+            'url' => app(SurveyQuickLinkService::class)->learnerUrl($link),
+        ]);
+    }
+
+    public function sectionQuickLinkRevoke(Course $adminCourse, CourseModule $courseModule, CourseSection $section): JsonResponse
+    {
+        $this->assertSectionInModule($courseModule, $section);
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) session('admin_course_id'));
+
+        if ($section->type !== CourseSection::TYPE_SURVEY) {
+            return response()->json(['ok' => false, 'message' => 'Быстрая ссылка доступна только для опросов.'], 422);
+        }
+
+        app(SurveyQuickLinkService::class)->revoke($section);
+
+        return response()->json(['ok' => true]);
     }
 
     public function sectionPanelSave(Request $request, Course $adminCourse, CourseModule $courseModule, CourseSection $section): JsonResponse
@@ -692,7 +765,7 @@ final class AdminCourseSettingsController extends Controller
 
         $validator = \Illuminate\Support\Facades\Validator::make($payload, [
             'title' => 'required|string|max:200',
-            'type' => 'required|in:text,quiz,practice,exam',
+            'type' => 'required|in:text,quiz,practice,exam,survey',
             'is_enabled' => 'required|boolean',
             'attempts_from_course' => 'sometimes|boolean',
             'time_from_course' => 'sometimes|boolean',
@@ -708,6 +781,8 @@ final class AdminCourseSettingsController extends Controller
             'one_by_one' => 'sometimes|boolean',
             'breakdown_visible_minutes' => 'nullable|integer|min:0|max:10080',
             'min_read_seconds' => 'nullable|integer|min:0|max:86400',
+            'anonymous' => 'sometimes|boolean',
+            'blocks_progress' => 'sometimes|boolean',
         ]);
         if ($validator->fails()) {
             return response()->json(['ok' => false, 'message' => (string) $validator->errors()->first()], 422);
@@ -719,17 +794,6 @@ final class AdminCourseSettingsController extends Controller
             && (! Schema::hasTable('course_module_contents')
                 || ! CourseModuleContent::query()->where('course_module_id', $courseModule->id)->exists())) {
             return response()->json(['ok' => false, 'message' => 'Курс в legacy-режиме: сначала выполните миграции с переносом контента в БД или используйте классические редакторы.'], 422);
-        }
-
-        if ($p['type'] !== $section->type) {
-            $dup = CourseSection::query()
-                ->where('course_module_id', $courseModule->id)
-                ->where('type', $p['type'])
-                ->where('id', '!=', $section->id)
-                ->exists();
-            if ($dup) {
-                return response()->json(['ok' => false, 'message' => 'Тип раздела уже есть в этом модуле.'], 422);
-            }
         }
 
         try {
@@ -771,6 +835,14 @@ final class AdminCourseSettingsController extends Controller
                         'pass_from_course' => $pf,
                         'attempt_limit' => $af ? null : (isset($p['attempt_limit']) && $p['attempt_limit'] !== null ? (int) $p['attempt_limit'] : null),
                         'time_limit_minutes' => $tf ? null : (isset($p['time_limit_minutes']) && $p['time_limit_minutes'] !== null && $p['time_limit_minutes'] !== '' ? (int) $p['time_limit_minutes'] : ($prev['time_limit_minutes'] ?? null)),
+                    ]),
+                    CourseSection::TYPE_SURVEY => array_merge($prev, [
+                        'attempt_limit' => isset($p['attempt_limit']) && $p['attempt_limit'] !== null && $p['attempt_limit'] !== '' ? (int) $p['attempt_limit'] : ($prev['attempt_limit'] ?? 1),
+                        'time_limit_minutes' => isset($p['time_limit_minutes']) && $p['time_limit_minutes'] !== null && $p['time_limit_minutes'] !== '' ? (int) $p['time_limit_minutes'] : ($prev['time_limit_minutes'] ?? null),
+                        'shuffle' => (bool) ($p['shuffle'] ?? ($prev['shuffle'] ?? false)),
+                        'one_by_one' => (bool) ($p['one_by_one'] ?? ($prev['one_by_one'] ?? true)),
+                        'blocks_progress' => (bool) ($p['blocks_progress'] ?? ($prev['blocks_progress'] ?? false)),
+                        'anonymous' => (bool) ($p['anonymous'] ?? ($prev['anonymous'] ?? false)),
                     ]),
                     CourseSection::TYPE_EXAM => array_merge($prev, [
                         'attempts_from_course' => $af,
@@ -827,23 +899,32 @@ final class AdminCourseSettingsController extends Controller
                     $row->save();
                 }
 
-                if (in_array($section->type, [CourseSection::TYPE_QUIZ, CourseSection::TYPE_EXAM], true) && isset($p['questions']) && is_array($p['questions'])) {
-                    $kind = $section->type === CourseSection::TYPE_QUIZ ? 'theory_quiz' : 'module_exam';
+                if (in_array($section->type, [CourseSection::TYPE_QUIZ, CourseSection::TYPE_EXAM, CourseSection::TYPE_SURVEY], true) && isset($p['questions']) && is_array($p['questions'])) {
+                    $kind = match ($section->type) {
+                        CourseSection::TYPE_QUIZ => 'theory_quiz',
+                        CourseSection::TYPE_EXAM => 'module_exam',
+                        CourseSection::TYPE_SURVEY => 'survey',
+                        default => 'theory_quiz',
+                    };
                     $contentSvc = app(CourseContentService::class);
-                    $bank = $contentSvc->quizBankFor($course, $courseModule, $kind);
+                    $bank = $contentSvc->quizBankForSection($section);
                     if (! $bank) {
-                        $defaults = $kind === 'theory_quiz'
-                            ? ['pass_percent' => 70, 'time_limit_minutes' => 30, 'attempt_limit' => null, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 15, 'penalties_json' => ['2' => 10]]
-                            : ['pass_percent' => 70, 'time_limit_minutes' => 60, 'attempt_limit' => 2, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 30, 'penalties_json' => ['2' => 10]];
+                        $defaults = match ($kind) {
+                            'theory_quiz' => ['pass_percent' => 70, 'time_limit_minutes' => 30, 'attempt_limit' => null, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 15, 'penalties_json' => ['2' => 10]],
+                            'survey' => ['pass_percent' => 0, 'time_limit_minutes' => null, 'attempt_limit' => 1, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 0, 'penalties_json' => null],
+                            default => ['pass_percent' => 70, 'time_limit_minutes' => 60, 'attempt_limit' => 2, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 30, 'penalties_json' => ['2' => 10]],
+                        };
                         $bank = CourseQuizBank::query()->create([
                             'course_id' => (int) $course->id,
                             'course_module_id' => (int) $courseModule->id,
+                            'course_section_id' => (int) $section->id,
                             'kind' => $kind,
                             ...$defaults,
                         ]);
                     }
                     $quiz = app(AdminQuizController::class);
-                    $v = $quiz->validateQuizBankFormat($p['questions'], $kind, true);
+                    $allowPoints = $kind === 'module_exam';
+                    $v = $quiz->validateQuizBankFormat($p['questions'], $kind, $allowPoints);
                     if ($v['ok'] !== true) {
                         throw new \InvalidArgumentException((string) $v['message']);
                     }
@@ -966,6 +1047,15 @@ final class AdminCourseSettingsController extends Controller
             CourseSection::TYPE_PRACTICE => [
                 'attempt_limit' => null,
                 'time_limit_minutes' => null,
+            ],
+            CourseSection::TYPE_SURVEY => [
+                'time_limit_minutes' => null,
+                'attempt_limit' => 1,
+                'pass_percent' => null,
+                'shuffle' => false,
+                'one_by_one' => true,
+                'blocks_progress' => true,
+                'anonymous' => false,
             ],
             CourseSection::TYPE_EXAM => [
                 'time_limit_minutes' => 60,

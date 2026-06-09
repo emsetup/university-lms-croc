@@ -10,6 +10,7 @@ use App\Support\CourseModuleMeta;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
+use App\Support\LearnerPreviewContext;
 
 final class CourseModuleService
 {
@@ -54,6 +55,31 @@ final class CourseModuleService
         $m = $this->findForCourse($courseId, $courseModuleId);
         if ($m === null) {
             throw (new ModelNotFoundException)->setModel(CourseModule::class, [$courseModuleId]);
+        }
+
+        return $m;
+    }
+
+    public function findBySequenceForCourse(int $courseId, int $sequence): ?CourseModule
+    {
+        if ($courseId < 1 || $sequence < 1) {
+            return null;
+        }
+
+        return $this->orderedModulesForCourse($courseId)->get($sequence - 1);
+    }
+
+    /**
+     * Модуль по порядковому номеру в курсе (1..N) или по legacy id в URL (старые закладки).
+     */
+    public function findOrFailForCourseRoute(int $courseId, int $moduleRoute): CourseModule
+    {
+        $m = $this->findBySequenceForCourse($courseId, $moduleRoute);
+        if ($m === null) {
+            $m = $this->findForCourse($courseId, $moduleRoute);
+        }
+        if ($m === null) {
+            throw (new ModelNotFoundException)->setModel(CourseModule::class, [$moduleRoute]);
         }
 
         return $m;
@@ -142,7 +168,7 @@ final class CourseModuleService
 
     public function selectedCourseIsLegacyAlt(): bool
     {
-        $courseId = (int) session('course_id', 0);
+        $courseId = LearnerPreviewContext::courseId();
         if ($courseId < 1 || ! Schema::hasTable('courses')) {
             return false;
         }

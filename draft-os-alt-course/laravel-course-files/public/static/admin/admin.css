@@ -1110,6 +1110,7 @@ h3.module-card-title {
 
 .section-card > .section-card-lead {
   margin-top: 8px;
+  padding: 0 20px;
 }
 
 .section-card-title {
@@ -1120,6 +1121,11 @@ h3.module-card-title {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.card.ap-report-mod-section.section-card {
+  padding: 0;
+  overflow: hidden;
 }
 
 .section-card {
@@ -1145,6 +1151,42 @@ h3.module-card-title {
 
 .section-card[data-type="audit"] {
   border-left-color: #9ca3af;
+}
+
+.section-card[data-type="survey"] {
+  border-left-color: #0d9488;
+}
+
+.ap-report-survey-answers {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.ap-report-survey-answers__item {
+  padding: 0 0 12px;
+  margin: 0 0 12px;
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  border-radius: 0;
+  background: transparent;
+}
+
+.ap-report-survey-answers__item:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.ap-report-survey-answers__q {
+  font-weight: 600;
+  color: #111827;
+}
+
+.ap-report-survey-answers__a {
+  color: #374151;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .module-card-header__idle-actions {
@@ -1230,7 +1272,7 @@ h3.module-card-title {
 }
 
 .section-card-body {
-  padding-top: 12px;
+  padding: 0 20px 16px;
 }
 
 .ap-report-mod-page-title {

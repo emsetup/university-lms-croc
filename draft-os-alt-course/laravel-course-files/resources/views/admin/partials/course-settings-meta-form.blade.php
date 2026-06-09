@@ -18,6 +18,35 @@
                 <label class="ap-settings-label" for="course-summary">Описание</label>
                 <textarea id="course-summary" class="ap-modal__input ap-settings-textarea" name="summary" rows="5" maxlength="5000">{{ old('summary', $course->summary) }}</textarea>
 
+                @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'audience_plaque_enabled'))
+                    @php
+                        $audienceOn = (string) old('audience_plaque_enabled', ($course->audience_plaque_enabled ?? false) ? '1' : '0') === '1';
+                    @endphp
+                    <div class="ap-settings-field" style="margin-top:1.25rem">
+                        <span class="ap-settings-label">Плашка «О курсе» на дашборде</span>
+                        <p class="ap-settings-hint ap-muted">Зелёная строка над треком модулей: для кого материал и ссылка «Подробнее». У каждого курса — свой текст.</p>
+                        <div class="ap-toggle-row">
+                            <label class="ap-toggle">
+                                <input type="hidden" name="audience_plaque_enabled" value="0">
+                                <input type="checkbox" name="audience_plaque_enabled" value="1" class="ap-toggle__input" id="audience-plaque-enabled" @if ($audienceOn) checked @endif>
+                                <span class="ap-toggle__track" aria-hidden="true"></span>
+                                <span class="ap-toggle__label">Показывать плашку</span>
+                            </label>
+                        </div>
+                        <div id="audience-plaque-fields" @if (! $audienceOn) hidden @endif>
+                            <label class="ap-settings-label" for="audience-plaque-kicker" style="margin-top:0.75rem">Подпись сверху</label>
+                            <input id="audience-plaque-kicker" class="ap-modal__input ap-settings-input" type="text" name="audience_plaque_kicker" maxlength="80" value="{{ old('audience_plaque_kicker', $course->audience_plaque_kicker ?? 'О курсе') }}" placeholder="О курсе">
+                            <label class="ap-settings-label" for="audience-plaque-title" style="margin-top:0.75rem">Заголовок</label>
+                            <input id="audience-plaque-title" class="ap-modal__input ap-settings-input" type="text" name="audience_plaque_title" maxlength="200" value="{{ old('audience_plaque_title', $course->audience_plaque_title ?? 'Для кого этот материал') }}" placeholder="Для кого этот материал">
+                            <label class="ap-settings-label" for="audience-plaque-teaser" style="margin-top:0.75rem">Краткий текст на плашке</label>
+                            <textarea id="audience-plaque-teaser" class="ap-modal__input ap-settings-textarea" name="audience_plaque_teaser" rows="3" maxlength="2000" placeholder="Одна-две фразы — видны на дашборде">{{ old('audience_plaque_teaser', $course->audience_plaque_teaser) }}</textarea>
+                            <label class="ap-settings-label" for="audience-plaque-body" style="margin-top:0.75rem">Полное описание (модальное окно)</label>
+                            <textarea id="audience-plaque-body" class="ap-modal__input ap-settings-textarea" name="audience_plaque_body" rows="8" maxlength="20000" placeholder="Markdown: **жирный**, абзацы через пустую строку">{{ old('audience_plaque_body', $course->audience_plaque_body) }}</textarea>
+                            <p class="ap-muted small ap-settings-hint">Если полное описание пустое, кнопка «Подробнее» не показывается.</p>
+                        </div>
+                    </div>
+                @endif
+
                 <p class="ap-settings-label" style="margin-top:1rem">Статус</p>
                 <div class="ap-status-cards" role="radiogroup" aria-label="Статус публикации">
                     @php $st = old('course_status', $courseStatus); @endphp
@@ -90,14 +119,18 @@
 
                 @php
                     $unlockAllOn = false;
+                    $showProgressOn = true;
                     if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'unlock_all_modules')) {
                         $unlockAllOn = (string) old('unlock_all_modules', ($course->unlock_all_modules ?? false) ? '1' : '0') === '1';
+                    }
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_module_progress')) {
+                        $showProgressOn = (string) old('show_module_progress', ($course->show_module_progress ?? true) ? '1' : '0') === '1';
                     }
                 @endphp
                 @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'unlock_all_modules'))
                     <div class="ap-settings-field" style="margin-top:1rem">
                         <span class="ap-settings-label">Доступ к модулям</span>
-                        <p class="ap-settings-hint ap-muted">По умолчанию следующий модуль открывается после попытки итогового теста предыдущего.</p>
+                        <p class="ap-settings-hint ap-muted">По умолчанию следующий модуль открывается после попытки итогового теста предыдущего. Включите, если нужен свободный доступ к модулям — в том числе для опросов по быстрой ссылке без последовательного прохождения курса.</p>
                         <div class="ap-toggle-row">
                             <label class="ap-toggle">
                                 <input type="checkbox" name="unlock_all_modules" value="1" class="ap-toggle__input" id="unlock-all-modules" @if ($unlockAllOn) checked @endif>
@@ -106,6 +139,58 @@
                             </label>
                         </div>
                     </div>
+                @endif
+                @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_module_progress'))
+                    <div class="ap-settings-field" style="margin-top:1rem">
+                        <span class="ap-settings-label">Прогресс на дашборде</span>
+                        <p class="ap-settings-hint ap-muted">Сводка «Ваш прогресс по модулям» и полоски прогресса на карточках модулей. Отключите, если модули открыты сразу и обучающиеся проходят курс в произвольном порядке.</p>
+                        <div class="ap-toggle-row">
+                            <label class="ap-toggle">
+                                <input type="hidden" name="show_module_progress" value="0">
+                                <input type="checkbox" name="show_module_progress" value="1" class="ap-toggle__input" id="show-module-progress" @if ($showProgressOn) checked @endif>
+                                <span class="ap-toggle__track" aria-hidden="true"></span>
+                                <span class="ap-toggle__label">Показывать прогресс по модулям</span>
+                            </label>
+                        </div>
+                    </div>
+                @endif
+            </section>
+
+            <section class="ap-settings-card" aria-labelledby="ap-settings-dashboard-extras-h">
+                <h2 id="ap-settings-dashboard-extras-h" class="ap-settings-card__title">Итоговые этапы на дашборде</h2>
+                <p class="ap-settings-hint ap-muted">Блок «Дальше по курсу» для обучающихся. Отключите лишнее, если курс состоит только из опросов или не предполагает итоговую оценку и сертификат.</p>
+                <input type="hidden" name="meta_includes_dashboard_extras" value="1">
+                @php
+                    $assessmentOn = true;
+                    $certDashboardOn = (bool) ($course->certificate_enabled ?? true);
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'assessment_enabled')) {
+                        $assessmentOn = (string) old('assessment_enabled', ($course->assessment_enabled ?? true) ? '1' : '0') === '1';
+                    }
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'certificate_enabled')) {
+                        $certDashboardOn = (string) old('certificate_enabled', ($course->certificate_enabled ?? true) ? '1' : '0') === '1';
+                    }
+                @endphp
+                @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'assessment_enabled'))
+                    <div class="ap-toggle-row" style="margin-top:0.75rem">
+                        <label class="ap-toggle">
+                            <input type="hidden" name="assessment_enabled" value="0">
+                            <input type="checkbox" name="assessment_enabled" value="1" class="ap-toggle__input" id="assessment-enabled" @if ($assessmentOn) checked @endif>
+                            <span class="ap-toggle__track" aria-hidden="true"></span>
+                            <span class="ap-toggle__label">Оценка по модулям</span>
+                        </label>
+                    </div>
+                    <p class="ap-muted small ap-settings-hint">Сводная аналитика и карточка «Перейти к оценке» на дашборде.</p>
+                @endif
+                @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'certificate_enabled'))
+                    <div class="ap-toggle-row" style="margin-top:0.75rem">
+                        <label class="ap-toggle">
+                            <input type="hidden" name="certificate_enabled" value="0">
+                            <input type="checkbox" name="certificate_enabled" value="1" class="ap-toggle__input" id="certificate-enabled-kurs" @if ($certDashboardOn) checked @endif>
+                            <span class="ap-toggle__track" aria-hidden="true"></span>
+                            <span class="ap-toggle__label">Итоговая страница и сертификат</span>
+                        </label>
+                    </div>
+                    <p class="ap-muted small ap-settings-hint">Карточка на дашборде и страница сертификата. Уровни и оформление — на вкладке «Сертификат».</p>
                 @endif
             </section>
 
@@ -232,6 +317,20 @@
                 refreshDirty();
             });
             syncFinalDetails();
+        }
+
+        var audienceToggle = document.getElementById('audience-plaque-enabled');
+        var audienceFields = document.getElementById('audience-plaque-fields');
+        function syncAudienceFields() {
+            if (!audienceToggle || !audienceFields) return;
+            audienceFields.hidden = !audienceToggle.checked;
+        }
+        if (audienceToggle) {
+            audienceToggle.addEventListener('change', function () {
+                syncAudienceFields();
+                refreshDirty();
+            });
+            syncAudienceFields();
         }
 
         function closeDrawer() {

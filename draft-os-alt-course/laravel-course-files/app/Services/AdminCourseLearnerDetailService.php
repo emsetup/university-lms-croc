@@ -22,6 +22,7 @@ final class AdminCourseLearnerDetailService
         CourseSection::TYPE_QUIZ => 'Тест',
         CourseSection::TYPE_PRACTICE => 'Практика',
         CourseSection::TYPE_EXAM => 'Экзамен',
+        CourseSection::TYPE_SURVEY => 'Опрос',
     ];
 
     public function __construct(
@@ -168,6 +169,12 @@ final class AdminCourseLearnerDetailService
                     'courseModule' => $mid,
                 ]).$hash;
 
+                $surveyCard = null;
+                if ($sec->type === CourseSection::TYPE_SURVEY) {
+                    $surveyCard = app(\App\Services\SurveyResponseExportService::class)
+                        ->cardForLearner($sec, (int) $learner->id);
+                }
+
                 $out[] = [
                     'title' => (string) $sec->title,
                     'type' => (string) $sec->type,
@@ -177,6 +184,7 @@ final class AdminCourseLearnerDetailService
                     'view_hash' => $hash,
                     'reset_step' => $resetStep,
                     'show_reset' => $showReset,
+                    'survey_card' => $surveyCard,
                 ];
             }
 
@@ -225,11 +233,17 @@ final class AdminCourseLearnerDetailService
 
     private function anchorForBackendKey(string $bk): string
     {
+        $sid = CourseSection::idFromStepKey($bk);
+        if ($sid !== null) {
+            return '#section-'.$sid;
+        }
+
         return match ($bk) {
             'theory' => '#theory',
             'theory_quiz' => '#test',
             'practice' => '#practice',
             'module_exam' => '#exam',
+            'survey' => '#survey',
             default => '#theory',
         };
     }
@@ -260,11 +274,27 @@ final class AdminCourseLearnerDetailService
             return false;
         }
 
+        $sec = $this->courseSections->findSectionByStepKey($courseModuleId, $bk);
+        if ($sec !== null) {
+            if ($sec->type === CourseSection::TYPE_SURVEY) {
+                return app(\App\Services\SurveyResponseService::class)->hasSubmission((int) $sec->id, (int) $p->learner_id);
+            }
+
+            return $this->courseSections->isSectionComplete($p, $sec, $courseModuleId, $contentIdx, $legacyAlt)
+                || match ($sec->type) {
+                    CourseSection::TYPE_QUIZ => $this->theoryQuizStarted($p),
+                    CourseSection::TYPE_EXAM => $this->moduleExamStarted($p),
+                    CourseSection::TYPE_PRACTICE => $this->practiceStarted($p, $courseModuleId, $courseId, $contentIdx, $legacyAlt, $sessionsByModuleId),
+                    default => false,
+                };
+        }
+
         return match ($bk) {
             'theory' => (bool) $p->theory_read_at,
             'theory_quiz' => $this->theoryQuizStarted($p),
             'practice' => $this->practiceStarted($p, $courseModuleId, $courseId, $contentIdx, $legacyAlt, $sessionsByModuleId),
             'module_exam' => $this->moduleExamStarted($p),
+            'survey' => false,
             default => false,
         };
     }

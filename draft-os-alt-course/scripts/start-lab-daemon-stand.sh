@@ -74,10 +74,14 @@ sudo docker build -f "\$BUILD/Dockerfile" -t "\$IMAGE" "\$BUILD/"
 
 sudo docker rm -f "\$NAME" 2>/dev/null || true
 sudo mkdir -p "\$LARAVEL/storage/app" "\$EXPORT_DIR"
+# Пустой resolv для практики M5: bind-mount в учебный контейнер (см. lab-daemon/app.py).
+sudo touch /tmp/os-alt-lab-empty-resolv
+sudo chmod 644 /tmp/os-alt-lab-empty-resolv
 echo "[stand] docker run \$NAME (lab-daemon: --network host)"
 sudo docker run -d --name "\$NAME" --restart unless-stopped \
   --network host \
   -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /tmp:/tmp \
   -v "\$LARAVEL/storage/app:\$LARAVEL/storage/app" \
   -v "\$EXPORT_DIR:\$EXPORT_DIR" \
   --env-file "\$EF" \

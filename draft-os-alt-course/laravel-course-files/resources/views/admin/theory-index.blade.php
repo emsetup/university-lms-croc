@@ -246,7 +246,7 @@
                     <table class="admin-table content-table admin-theory-content-table">
                         <thead>
                             <tr>
-                                <th>#</th>
+                                <th>Пакет №</th>
                                 <th>Модуль</th>
                                 <th>Теория</th>
                                 <th>Тест</th>

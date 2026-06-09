@@ -1,0 +1,257 @@
+.admin-content:has(.ap-surveys-split) {
+  padding: 0;
+  max-width: none;
+}
+
+.ap-surveys-split {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  min-height: calc(100vh - 220px);
+  gap: 0;
+}
+
+.ap-surveys-split__left {
+  border-right: 1px solid #e8ecf0;
+  background: #fafbfc;
+  padding: 20px 16px 24px;
+  overflow: auto;
+}
+
+.ap-surveys-split__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ap-surveys-split__lead {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.ap-surveys-split__hint {
+  margin: 10px 0 0;
+  line-height: 1.45;
+}
+
+.ap-surveys-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.ap-surveys-list__group {
+  margin: 14px 0 6px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.ap-surveys-list__group:first-child {
+  margin-top: 0;
+}
+
+.ap-surveys-list__item {
+  display: block;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ap-surveys-list__item:hover {
+  background: #fff;
+  border-color: #e5e7eb;
+}
+
+.ap-surveys-list__item.is-active {
+  background: #fff;
+  border-color: #00b956;
+  box-shadow: 0 0 0 1px rgba(0, 185, 86, 0.15);
+}
+
+.ap-surveys-list__item-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.ap-surveys-list__item-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.ap-surveys-split__right {
+  padding: 20px 24px 32px;
+  overflow: auto;
+}
+
+.ap-surveys-empty,
+.ap-surveys-empty-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 24px;
+}
+
+.ap-surveys-detail__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+.ap-surveys-detail__kicker {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.ap-surveys-detail__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.ap-surveys-detail__meta {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
+.ap-surveys-detail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ap-surveys-quick-link {
+  min-width: 240px;
+  max-width: 340px;
+}
+
+.ap-surveys-quick-link label {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.ap-surveys-quick-link__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ap-surveys-quick-link__row .ap-modal__input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.ap-surveys-detail__export {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ap-surveys-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ap-surveys-panel__tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e8ecf0;
+  padding: 0 16px;
+  background: #fafbfc;
+}
+
+.ap-surveys-panel__tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.ap-surveys-panel__tab.is-active {
+  color: #111827;
+  border-bottom-color: #00b956;
+}
+
+.ap-surveys-panel__pane {
+  padding: 16px 20px 20px;
+}
+
+.ap-surveys-panel__lead {
+  margin: 0 0 12px;
+}
+
+.ap-surveys-table-wrap {
+  max-height: min(70vh, 720px);
+  overflow: auto;
+  border: 1px solid #e8ecf0;
+  border-radius: 10px;
+}
+
+.ap-surveys-table {
+  margin: 0;
+  font-size: 13px;
+}
+
+.ap-surveys-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f3f4f6;
+  white-space: nowrap;
+}
+
+.ap-surveys-table--long .ap-surveys-cell-q {
+  font-weight: 600;
+  min-width: 12rem;
+  max-width: 22rem;
+}
+
+.ap-surveys-table--long .ap-surveys-cell-a {
+  white-space: pre-wrap;
+  min-width: 14rem;
+}
+
+.ap-surveys-table--wide td,
+.ap-surveys-table--wide th {
+  max-width: 14rem;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .ap-surveys-split {
+    grid-template-columns: 1fr;
+  }
+
+  .ap-surveys-split__left {
+    border-right: none;
+    border-bottom: 1px solid #e8ecf0;
+    max-height: 40vh;
+  }
+}

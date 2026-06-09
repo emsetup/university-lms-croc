@@ -1,17 +1,19 @@
 @php
-    $bk = $section->backendStepKey();
-    $tqPassedEffective = ($bk === 'theory_quiz' && isset($sectionService))
-        ? $sectionService->isTheoryQuizEffectivelyPassed($p, (int) $module)
+    use App\Models\CourseSection;
+    use App\Support\SectionProgress;
+
+    $legacy = $section->legacyTypeKey();
+    $sole = isset($sectionService) ? $sectionService->isSoleSectionOfType($section) : true;
+    $routeName = $section->learnerRouteName();
+    $openTag = ($accessible && ! $waived && $routeName) ? 'a' : 'div';
+    $closeTag = ($accessible && ! $waived && $routeName) ? 'a' : 'div';
+    $href = ($accessible && ! $waived && $routeName)
+        ? route($routeName, $section->learnerRouteParams((int) ($courseId ?? session('course_id')), (int) $module))
+        : null;
+    $tqPassedEffective = ($section->type === CourseSection::TYPE_QUIZ && isset($sectionService))
+        ? $sectionService->isSectionQuizPassed($p, $section, $sole)
         : (bool) ($p->theory_quiz_passed ?? false);
-    $openTag = ($accessible && ! $waived) ? 'a' : 'div';
-    $closeTag = ($accessible && ! $waived) ? 'a' : 'div';
-    $href = ($accessible && ! $waived) ? match ($bk) {
-        'theory' => route('modules.theory', $module),
-        'theory_quiz' => route('modules.theory-quiz', $module),
-        'practice' => route('modules.practice', $module),
-        'module_exam' => route('modules.exam', $module),
-        default => route('modules.hub', $module),
-    } : null;
+    $quizSt = SectionProgress::quizState($p, $section, $sole);
 @endphp
 <li>
 @if ($openTag === 'a')
@@ -24,25 +26,26 @@
             <span class="hub-title-wrap"><span class="hub-title">{{ $title }}</span></span>
         </div>
         <div class="hub-meta">
-            @if ($bk === 'theory')
+            @if ($section->type === CourseSection::TYPE_TEXT)
+                @php $textDone = SectionProgress::isTextRead($p, $section, $sole); @endphp
                 <div class="hub-line1">
                     <div class="hub-track" title="Этап: просмотр теории">
-                        <div class="hub-track__fill{{ ($p->theory_read_at ? 100 : 0) >= 100 ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) ($p->theory_read_at ? 100 : 0) }}%"></div>
+                        <div class="hub-track__fill{{ $textDone ? '' : ' hub-track__fill--muted' }}" style="width: {{ $textDone ? 100 : 0 }}%"></div>
                     </div>
-                    <span class="hub-pct hub-pct--muted">{{ $p->theory_read_at ? '100' : '0' }}%</span>
-                    @if ($p->theory_read_at)
+                    <span class="hub-pct hub-pct--muted">{{ $textDone ? '100' : '0' }}%</span>
+                    @if ($textDone)
                         <span class="hub-badge hub-badge--ok badge-done">Готово</span>
                     @else
                         <span class="hub-badge hub-badge--wait">Дальше</span>
                     @endif
                 </div>
-                <p class="hub-line2">{{ $p->theory_read_at && $p->theory_read_at instanceof \DateTimeInterface ? $p->theory_read_at->format('d.m.Y H:i') : 'Откройте материал и отметьте просмотр' }}</p>
-            @elseif ($bk === 'theory_quiz')
+                <p class="hub-line2">{{ $textDone ? 'Материал просмотрен' : 'Откройте материал и отметьте просмотр' }}</p>
+            @elseif ($section->type === CourseSection::TYPE_QUIZ)
                 @php
-                    $tqAtt = (int) ($p->theory_quiz_attempts ?? 0);
-                    $tqBest = (int) ($p->theory_quiz_best_score ?? 0);
+                    $tqAtt = (int) ($quizSt['attempts'] ?? 0);
+                    $tqBest = (int) ($quizSt['best_score'] ?? 0);
                     $tqBar = $tqAtt > 0 ? min(100, $tqBest) : 0;
-                    $tqLast = is_array($p->theory_quiz_last_result ?? null) ? $p->theory_quiz_last_result : [];
+                    $tqLast = is_array($quizSt['last_result'] ?? null) ? $quizSt['last_result'] : [];
                     $tqParts = [];
                     if ($tqAtt > 0 && isset($tqLast['correct_count'], $tqLast['total'])) {
                         $tqParts[] = (int) $tqLast['correct_count'].'/'.(int) $tqLast['total'].' верных';
@@ -70,7 +73,7 @@
                     @endif
                 </div>
                 <p class="hub-line2">{{ $tqLine2 }}</p>
-            @elseif ($bk === 'practice')
+            @elseif ($section->type === CourseSection::TYPE_PRACTICE)
                 @if ($waived)
                     <div class="hub-line1">
                         <div class="hub-track" title="Нет этапа">
@@ -81,28 +84,26 @@
                     </div>
                     <p class="hub-line2 muted" style="margin:0">Практика в этом модуле не входит в курс.</p>
                 @else
-                    @php
-                        $prPct = $p->practice_lab_percent !== null ? (int) $p->practice_lab_percent : ($p->practice_done_at ? 100 : 0);
-                    @endphp
+                    @php $prPct = SectionProgress::practicePercent($p, $section, $sole); @endphp
                     <div class="hub-line1">
                         <div class="hub-track" title="Автопроверка стенда">
                             <div class="hub-track__fill{{ $prPct >= 100 ? '' : ($prPct > 0 ? '' : ' hub-track__fill--muted') }}" style="width: {{ (int) min(100, $prPct) }}%"></div>
                         </div>
-                        <span class="hub-pct">{{ $p->practice_lab_percent !== null ? (int) $p->practice_lab_percent.'%' : ($p->practice_done_at ? '100%' : '—') }}</span>
-                        @if ($p->practice_done_at)
+                        <span class="hub-pct">{{ $prPct > 0 ? (int) $prPct.'%' : '—' }}</span>
+                        @if (SectionProgress::isPracticeDone($p, $section, $sole))
                             <span class="hub-badge hub-badge--ok badge-done">Готово</span>
                         @else
                             <span class="hub-badge hub-badge--wait">Стенд</span>
                         @endif
                     </div>
-                    <p class="hub-line2">{{ $p->practice_done_at ? (($p->practice_done_at instanceof \DateTimeInterface) ? 'Зачтено '.$p->practice_done_at->format('d.m.Y H:i') : 'Зачтено') : 'После автопроверки стенда — процент по чек-листу' }}</p>
+                    <p class="hub-line2">{{ SectionProgress::isPracticeDone($p, $section, $sole) ? 'Зачтено' : 'После автопроверки стенда — процент по чек-листу' }}</p>
                 @endif
-            @elseif ($bk === 'module_exam')
+            @elseif ($section->type === CourseSection::TYPE_EXAM)
                 @php
-                    $exAtt = (int) ($p->module_exam_attempts ?? 0);
-                    $exBest = (int) ($p->module_exam_best_score ?? 0);
+                    $exAtt = (int) ($quizSt['attempts'] ?? 0);
+                    $exBest = (int) ($quizSt['best_score'] ?? 0);
                     $exBar = $exAtt > 0 ? min(100, $exBest) : 0;
-                    $exLast = is_array($p->module_exam_last_result ?? null) ? $p->module_exam_last_result : [];
+                    $exLast = is_array($quizSt['last_result'] ?? null) ? $quizSt['last_result'] : [];
                     $exParts = [];
                     if ($exAtt > 0) {
                         $exParts[] = 'попытка '.$exAtt.'/'.$exMax;
@@ -120,6 +121,9 @@
                         $exParts[] = 'сырой '.(int) $exLast['raw_percent'].'%';
                     }
                     $exLine2 = $exAtt > 0 ? implode(' · ', $exParts) : 'Порог '.$thEx.'% · до '.$exMax.' попыток';
+                    $exPassed = isset($sectionService)
+                        ? $sectionService->isSectionExamPassed($p, $section, $sole)
+                        : (bool) ($p->module_exam_passed ?? false);
                 @endphp
                 <div class="hub-line1">
                     <div class="hub-track" title="Итог последней попытки, порог {{ $thEx }}%">
@@ -127,7 +131,7 @@
                         <div class="hub-track__fill{{ $exBar >= $thEx ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) $exBar }}%"></div>
                     </div>
                     <span class="hub-pct">{{ $exAtt > 0 ? $exBest : '—' }}@if($exAtt > 0)%@endif</span>
-                    @if ($p->module_exam_passed)
+                    @if ($exPassed)
                         <span class="hub-badge hub-badge--counted badge-counted">Зачтён</span>
                     @elseif ($exAtt > 0)
                         <span class="hub-badge hub-badge--warn">Ещё раз</span>
@@ -136,6 +140,24 @@
                     @endif
                 </div>
                 <p class="hub-line2">{{ $exLine2 }}</p>
+            @elseif ($section->type === CourseSection::TYPE_SURVEY)
+                @php
+                    $surveyDone = isset($sectionService)
+                        ? $sectionService->isSurveyCompleteForSection($p, (int) $section->id)
+                        : false;
+                @endphp
+                <div class="hub-line1">
+                    <div class="hub-track" title="Опрос">
+                        <div class="hub-track__fill{{ $surveyDone ? '' : ' hub-track__fill--muted' }}" style="width: {{ $surveyDone ? 100 : 0 }}%"></div>
+                    </div>
+                    <span class="hub-pct hub-pct--muted">{{ $surveyDone ? '100' : '0' }}%</span>
+                    @if ($surveyDone)
+                        <span class="hub-badge hub-badge--ok badge-done">Готово</span>
+                    @else
+                        <span class="hub-badge hub-badge--wait">Далее</span>
+                    @endif
+                </div>
+                <p class="hub-line2">{{ $surveyDone ? 'Ответы сохранены' : 'Заполните опрос и отправьте ответы' }}</p>
             @endif
         </div>
         <span class="hub-row__go" aria-hidden="true">@include('partials.ap-icon', ['name' => 'chevron-right'])</span>

@@ -209,6 +209,28 @@ def _lab_systemd_needs_cgroup_tmpfs(body: CreateLabBody) -> bool:
     return _lab_runs_systemd_style(body)
 
 
+# Пустой файл на хосте: bind-mount на /etc/resolv.conf (Docker 27+ не даёт --tmpfs на файл).
+LAB_EMPTY_RESOLV = os.getenv("LAB_EMPTY_RESOLV", "/tmp/os-alt-lab-empty-resolv")
+
+
+def _ensure_empty_resolv_stub() -> str:
+    path = LAB_EMPTY_RESOLV
+    parent = os.path.dirname(path) or "/tmp"
+    os.makedirs(parent, exist_ok=True)
+    if not os.path.isfile(path):
+        open(path, "a", encoding="utf-8").close()
+    return path
+
+
+def _lab_m5_resolv_mount_args() -> list[str]:
+    stub = _ensure_empty_resolv_stub()
+    return [
+        "--cap-add=NET_ADMIN",
+        "--mount",
+        f"type=bind,source={stub},target=/etc/resolv.conf",
+    ]
+
+
 def _lab_m8_audit_caps(body: CreateLabBody) -> bool:
     """Модули с auditd-лабораторками: caps для запуска auditd в контейнере."""
     img = (body.image or "").lower()
@@ -358,26 +380,15 @@ def create_lab(body: CreateLabBody, _: None = Depends(_require_auth)) -> dict:
             )
             for item in reversed(extras_sysd):
                 cmd.insert(2, item)
-        # Модуль 5 (etcnet): NET_ADMIN + tmpfs на /etc/resolv.conf — иначе Docker даёт
-        # bind-mount на resolv.conf и скрипты etcnet при ifup падают с «rm: … Device or resource busy».
+        # Модуль 5 (etcnet): NET_ADMIN + writable /etc/resolv.conf (не bind с хоста Docker).
         if body.module_id == 5 or "lab-m5" in img:
-            for item in reversed(
-                [
-                    "--cap-add=NET_ADMIN",
-                    "/etc/resolv.conf:rw,nosuid,noexec,size=64k",
-                    "--tmpfs",
-                ]
-            ):
+            for item in reversed(_lab_m5_resolv_mount_args()):
                 cmd.insert(2, item)
         cmd.append(body.image)
     else:
         extra: list[str] = []
         if body.module_id == 5 or ("lab-m5" in img):
-            extra = [
-                "--cap-add=NET_ADMIN",
-                "--tmpfs",
-                "/etc/resolv.conf:rw,nosuid,noexec,size=64k",
-            ]
+            extra = _lab_m5_resolv_mount_args()
         if "lab-m8" in img:
             extra.append("--privileged")
             extra.extend(["--cap-add=AUDIT_CONTROL", "--cap-add=AUDIT_WRITE"])

@@ -6,10 +6,12 @@
     $tTq = $st['theory_quiz'] ?? 'Тест по теории';
     $tPr = $st['practice'] ?? 'Практика';
     $tEx = $st['module_exam'] ?? 'Итоговый тест';
-    $mid = (int) ($moduleSequence ?? $module);
+    $modNum = (int) ($moduleSequence ?? $module);
+    $mid = (int) ($moduleDbId ?? $modNum);
+    $lr = \App\Support\LearnerRoute::hub((int) ($courseId ?? session('course_id')), $modNum);
     $skipPractice = ! empty($hubPresent)
-        ? ! collect($hubPresent)->contains(fn ($hp) => ($hp['section']->backendStepKey() ?? '') === 'practice' && empty($hp['waived']))
-        : \App\Support\CourseModuleMeta::shouldSkipPractice((int) $module);
+        ? ! collect($hubPresent)->contains(fn ($hp) => ($hp['section']->legacyTypeKey() ?? '') === 'practice' && empty($hp['waived']))
+        : \App\Support\CourseModuleMeta::shouldSkipPractice((int) ($contentIdx ?? 1));
     $p = $progress;
     $tqLast = is_array($p->theory_quiz_last_result ?? null) ? $p->theory_quiz_last_result : [];
     $exLast = is_array($p->module_exam_last_result ?? null) ? $p->module_exam_last_result : [];
@@ -20,7 +22,7 @@
     $tqAtt = (int) ($p->theory_quiz_attempts ?? 0);
     $tqBest = (int) ($p->theory_quiz_best_score ?? 0);
     $tqPassedEffective = isset($sectionService)
-        ? $sectionService->isTheoryQuizEffectivelyPassed($p, (int) $module)
+        ? $sectionService->isTheoryQuizEffectivelyPassed($p, $mid)
         : (bool) $p->theory_quiz_passed;
     $exAtt = (int) ($p->module_exam_attempts ?? 0);
     $exBest = (int) ($p->module_exam_best_score ?? 0);
@@ -71,7 +73,7 @@
     $exLine2 = $exAtt > 0 ? implode(' · ', $exParts) : 'Порог '.$thEx.'% · до '.$exMax.' попыток';
 @endphp
 
-@section('title', 'Модуль '.$mid.': '.$meta['title'])
+@section('title', 'Модуль '.$modNum.': '.$meta['title'])
 
 @section('content')
     <div class="page-container">
@@ -82,43 +84,47 @@
         </a>
         <div class="module-header-card">
             <header class="module-hub__head">
-                <p class="module-badge">Модуль {{ $meta['letter'] !== '' ? $meta['letter'] : $mid }}</p>
-                <h1 class="module-hub__h1">Модуль {{ $mid }}: {{ $meta['title'] ?? 'Без названия' }}</h1>
+                <p class="module-badge">Модуль {{ $modNum }}@if (! empty($meta['letter']))<span class="muted"> · {{ $meta['letter'] }}</span>@endif</p>
+                <h1 class="module-hub__h1">Модуль {{ $modNum }}: {{ $meta['title'] ?? 'Без названия' }}</h1>
                 @if (! empty($meta['summary']))
                     <p class="muted module-hub__lead">{{ $meta['summary'] }}</p>
                 @endif
             </header>
 
-            <div class="module-progress-row" aria-label="Сводка по модулю">
+            <div class="module-progress-row @if (! ($showModuleScoring ?? true)) module-progress-row--single @endif" aria-label="Сводка по модулю">
                 <div class="module-progress-item">
                     <div class="module-progress-label">Этапы</div>
                     <div class="module-progress-value">{{ (int) $percent }}%</div>
                 </div>
-                <div class="module-progress-item">
-                    <div class="module-progress-label">Баллы</div>
-                    <div class="module-progress-value">{{ (int) ($modulePoints ?? 0) }}<span class="module-hub__stat-fr">/100</span></div>
-                </div>
+                @if ($showModuleScoring ?? true)
+                    <div class="module-progress-item">
+                        <div class="module-progress-label">Баллы</div>
+                        <div class="module-progress-value">{{ (int) ($modulePoints ?? 0) }}<span class="module-hub__stat-fr">/100</span></div>
+                    </div>
+                @endif
             </div>
             <div class="progress-track module-hub__overall-bar" title="Доля завершённых этапов модуля" aria-hidden="true">
                 <div class="progress-fill" style="width: {{ min(100, max(0, (int) $percent)) }}%"></div>
             </div>
-            <p class="module-hub__legend muted small">
-                @if (! empty($scoreWeightLegend))
-                    @if (count($scoreWeightLegend) > 0)
-                        Веса в баллах:
-                        @foreach ($scoreWeightLegend as $wl)
-                            {{ $wl['label'] }} {{ $wl['pct'] }}%@if (! $loop->last) · @endif
-                        @endforeach
-                        . Порог тестов <strong>{{ $th }}%</strong>.
+            @if ($showModuleScoring ?? true)
+                <p class="module-hub__legend muted small">
+                    @if (! empty($scoreWeightLegend))
+                        @if (count($scoreWeightLegend) > 0)
+                            Веса в баллах:
+                            @foreach ($scoreWeightLegend as $wl)
+                                {{ $wl['label'] }} {{ $wl['pct'] }}%@if (! $loop->last) · @endif
+                            @endforeach
+                            . Порог тестов <strong>{{ $th }}%</strong>.
+                        @else
+                            Баллы за модуль начисляются по итоговым тестам с порогом <strong>{{ $th }}%</strong>.
+                        @endif
+                    @elseif ($skipPractice)
+                        Баллы: без практики веса пересчитываются. Тесты — порог <strong>{{ $th }}%</strong>.
                     @else
-                        Баллы за модуль начисляются по итоговым тестам с порогом <strong>{{ $th }}%</strong>.
+                        Веса в баллах: {{ $tTq }} {{ $wTq }}% · {{ $tPr }} {{ $wPr }}% · {{ $tEx }} {{ $wEx }}%. Порог тестов <strong>{{ $th }}%</strong>.
                     @endif
-                @elseif ($skipPractice)
-                    Баллы: без практики веса пересчитываются. Тесты — порог <strong>{{ $th }}%</strong>.
-                @else
-                    Веса в баллах: {{ $tTq }} {{ $wTq }}% · {{ $tPr }} {{ $wPr }}% · {{ $tEx }} {{ $wEx }}%. Порог тестов <strong>{{ $th }}%</strong>.
-                @endif
-            </p>
+                </p>
+            @endif
         </div>
 
         @if (! empty($showHubBriefing))
@@ -133,7 +139,7 @@
                             Пройдите этапы по порядку: теория → тест → практика (если есть) → итоговый тест.
                         @endif
                     </p>
-                    <form method="post" action="{{ route('modules.hub.ack', $module) }}" style="margin:0">
+                    <form method="post" action="{{ route('course.module.hub.ack', $lr) }}" style="margin:0">
                         @csrf
                         <button type="submit" class="btn btn-primary">Понятно, продолжить</button>
                     </form>
@@ -146,7 +152,8 @@
                 @if (! empty($hubPresent))
                     @foreach ($hubPresent as $hp)
                         @include('modules.partials.hub-step-row', [
-                            'module' => $module,
+                            'courseId' => $courseId ?? session('course_id'),
+                            'module' => $modNum,
                             'section' => $hp['section'],
                             'waived' => $hp['waived'],
                             'accessible' => $hp['accessible'],
@@ -161,7 +168,7 @@
                     @endforeach
                 @else
                 <li>
-                    <a class="hub-row section-card" href="{{ route('modules.theory', $module) }}">
+                    <a class="hub-row section-card" href="{{ route('course.module.theory', $lr) }}">
                         <div class="hub-row__left">
                             <span class="hub-idx" aria-hidden="true">1</span>
                             <span class="hub-title-wrap"><span class="hub-title">{{ $tTheory }}</span></span>
@@ -185,7 +192,7 @@
                 </li>
 
                 <li>
-                    <a class="hub-row section-card" href="{{ route('modules.theory-quiz', $module) }}">
+                    <a class="hub-row section-card" href="{{ route('course.module.theory-quiz', $lr) }}">
                         <div class="hub-row__left">
                             <span class="hub-idx" aria-hidden="true">2</span>
                             <span class="hub-title-wrap"><span class="hub-title">{{ $tTq }}</span></span>
@@ -233,7 +240,7 @@
                     </li>
                 @else
                     <li>
-                        <a class="hub-row section-card" href="{{ route('modules.practice', $module) }}">
+                        <a class="hub-row section-card" href="{{ route('course.module.practice', $lr) }}">
                             <div class="hub-row__left">
                                 <span class="hub-idx" aria-hidden="true">3</span>
                                 <span class="hub-title-wrap"><span class="hub-title">{{ $tPr }}</span></span>
@@ -258,7 +265,7 @@
                 @endif
 
                 <li>
-                    <a class="hub-row section-card" href="{{ route('modules.exam', $module) }}">
+                    <a class="hub-row section-card" href="{{ route('course.module.exam', $lr) }}">
                         <div class="hub-row__left">
                             <span class="hub-idx" aria-hidden="true">{{ $skipPractice ? 3 : 4 }}</span>
                             <span class="hub-title-wrap"><span class="hub-title">{{ $tEx }}</span></span>
@@ -290,7 +297,7 @@
         @if (! empty($difficultyEnabled) && ! empty($difficultyOptions))
             <section class="module-hub__diff card">
                 <h2 class="module-hub__diff-h">Сложности по этапам</h2>
-                <form method="post" action="{{ route('modules.difficulties', $module) }}">
+                <form method="post" action="{{ route('course.module.difficulties', $lr) }}">
                     @csrf
                     <div class="module-hub__diff-grid">
                         @foreach ($difficultyOptions as $opt)

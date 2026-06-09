@@ -5,6 +5,7 @@ use App\Http\Controllers\AdminQuizController;
 use App\Http\Controllers\AdminTheoryController;
 use App\Http\Controllers\AdminCoursesController;
 use App\Http\Controllers\AdminCourseSettingsController;
+use App\Http\Controllers\AdminSurveyResponsesController;
 use App\Http\Controllers\AdminLearnersController;
 use App\Http\Controllers\AdminPracticeImagesController;
 use App\Http\Controllers\AdminDockerLibraryController;
@@ -56,11 +57,16 @@ View::composer(['layouts.course', 'admin.*', 'portal.*', 'docs.*', 'layouts.admi
 });
 
 View::composer('layouts.admin', function ($view) {
+    $course = \App\Support\AdminNavigation::currentCourse();
+    $hasSurveys = $course
+        ? app(\App\Services\CourseSurveyCatalogService::class)->hasSurveys((int) $course->id)
+        : false;
     $view->with('adminBreadcrumbs', \App\Support\AdminNavigation::breadcrumbs());
     $view->with('adminSidebarActive', \App\Support\AdminNavigation::sidebarActive());
     $view->with('adminCourseTab', \App\Support\AdminNavigation::courseTab());
     $view->with('adminShowCourseChrome', \App\Support\AdminNavigation::showCourseChrome());
-    $view->with('adminCurrentCourse', \App\Support\AdminNavigation::currentCourse());
+    $view->with('adminCurrentCourse', $course);
+    $view->with('adminCourseHasSurveys', $hasSurveys);
 });
 
 View::composer('layouts.course', function ($view) {
@@ -96,11 +102,22 @@ Route::middleware([
     \App\Http\Middleware\LogPortalIncidents::class,
 ])->group(function () {
     Route::get('/', [PortalController::class, 'index'])->name('portal');
+    Route::get('/portal/prosmotr/zavershit', function () {
+        return redirect()
+            ->route('admin.settings')
+            ->with('ok', 'Просмотр портала от лица обучающегося завершён.');
+    })->name('portal.learner-preview.end');
     Route::post('/portal/enroll/{course}', [\App\Http\Controllers\PortalEnrollController::class, 'store'])
         ->whereNumber('course')
         ->name('portal.enroll');
 
     Route::middleware([\App\Http\Middleware\EnsureLearner::class])->group(function () {
+        Route::get('/opros/{token}', [\App\Http\Controllers\SurveyQuickLinkController::class, 'show'])
+            ->where('token', '[A-Za-z0-9_-]+')
+            ->name('survey.quick');
+        Route::post('/opros/{token}', [\App\Http\Controllers\SurveyQuickLinkController::class, 'submit'])
+            ->where('token', '[A-Za-z0-9_-]+')
+            ->name('survey.quick.submit');
         Route::post('/portal/incident', [AdminIncidentLogsController::class, 'storeClient'])->name('portal.incident.store');
         Route::get('/account', AccountController::class)->name('account');
         Route::get('/docs', [DocumentationController::class, 'index'])->name('documentation.index');
@@ -139,20 +156,70 @@ Route::middleware([
     Route::post('/final-lab/accept', [FinalLabController::class, 'acceptLab'])->name('final-lab.accept');
     Route::post('/final-lab/finish', [FinalLabController::class, 'finishLab'])->name('final-lab.finish');
 
-    Route::prefix('module/{module}')->whereNumber('module')->group(function () {
-        Route::get('/', [ModuleController::class, 'hub'])->name('modules.hub');
+    $legacyModuleRedirect = static function (string $canonicalRoute, array $extra = []): \Closure {
+        return static function (int $module) use ($canonicalRoute, $extra): \Illuminate\Http\RedirectResponse {
+            $courseId = (int) session('course_id');
+            $cm = app(\App\Services\CourseModuleService::class)->findOrFailForCourseRoute($courseId, $module);
+            $seq = app(\App\Services\CourseModuleService::class)->sequenceForModule($cm);
+            $params = array_merge(\App\Support\LearnerRoute::hub($courseId, $seq), $extra);
+            if (isset($params['section']) && $params['section'] > 0) {
+                $sec = app(\App\Services\CourseSectionService::class)
+                    ->findOrFailBySequenceForModuleRoute((int) $cm->id, (int) $params['section']);
+                $params['section'] = app(\App\Services\CourseSectionService::class)->sequenceForSection($sec);
+            }
+
+            return redirect()->route($canonicalRoute, $params, 301);
+        };
+    };
+
+    Route::prefix('courses/{course}/module/{module}')
+        ->whereNumber(['course', 'module'])
+        ->group(function () {
+            Route::get('/', [ModuleController::class, 'hub'])->name('course.module.hub');
+            Route::post('/briefing', [ModuleController::class, 'ackHubBriefing'])->name('course.module.hub.ack');
+            Route::post('/difficulties', [ModuleController::class, 'saveDifficulties'])->name('course.module.difficulties');
+
+            Route::get('/theory', [ModuleController::class, 'theory'])->name('course.module.theory');
+            Route::post('/theory/read', [ModuleController::class, 'markTheoryRead'])->name('course.module.theory.read');
+
+            Route::get('/theory-quiz', [ModuleController::class, 'theoryQuizShow'])->name('course.module.theory-quiz');
+            Route::post('/theory-quiz/start', [ModuleController::class, 'theoryQuizStart'])->name('course.module.theory-quiz.start');
+            Route::post('/theory-quiz/submit', [ModuleController::class, 'theoryQuizSubmit'])->name('course.module.theory-quiz.submit');
+            Route::get('/theory-quiz/result', [ModuleController::class, 'theoryQuizResult'])->name('course.module.theory-quiz.result');
+
+            Route::get('/practice', [ModuleController::class, 'practiceShow'])->name('course.module.practice');
+            Route::post('/practice/done', [ModuleController::class, 'practiceDone'])->name('course.module.practice.done');
+
+            Route::post('/practice/lab/start', [PracticeLabController::class, 'start'])->name('course.module.practice.lab.start');
+            Route::post('/practice/lab/check', [PracticeLabController::class, 'check'])->name('course.module.practice.lab.check');
+            Route::post('/practice/lab/accept', [PracticeLabController::class, 'accept'])->name('course.module.practice.lab.accept');
+            Route::post('/practice/lab/finish', [PracticeLabController::class, 'finish'])->name('course.module.practice.lab.finish');
+
+            Route::get('/exam', [ModuleController::class, 'examShow'])->name('course.module.exam');
+            Route::post('/exam/start', [ModuleController::class, 'examStart'])->name('course.module.exam.start');
+            Route::post('/exam/submit', [ModuleController::class, 'examSubmit'])->name('course.module.exam.submit');
+            Route::get('/exam/result', [ModuleController::class, 'examResult'])->name('course.module.exam.result');
+
+            Route::prefix('section/{section}')->whereNumber('section')->group(function () {
+                Route::get('/survey', [\App\Http\Controllers\SurveyController::class, 'show'])->name('course.module.section.survey');
+                Route::post('/survey', [\App\Http\Controllers\SurveyController::class, 'submit'])->name('course.module.section.survey.submit');
+            });
+        });
+
+    Route::prefix('module/{module}')->whereNumber('module')->group(function () use ($legacyModuleRedirect) {
+        Route::get('/', $legacyModuleRedirect('course.module.hub'))->name('modules.hub');
         Route::post('/briefing', [ModuleController::class, 'ackHubBriefing'])->name('modules.hub.ack');
         Route::post('/difficulties', [ModuleController::class, 'saveDifficulties'])->name('modules.difficulties');
 
-        Route::get('/theory', [ModuleController::class, 'theory'])->name('modules.theory');
+        Route::get('/theory', $legacyModuleRedirect('course.module.theory'))->name('modules.theory');
         Route::post('/theory/read', [ModuleController::class, 'markTheoryRead'])->name('modules.theory.read');
 
-        Route::get('/theory-quiz', [ModuleController::class, 'theoryQuizShow'])->name('modules.theory-quiz');
+        Route::get('/theory-quiz', $legacyModuleRedirect('course.module.theory-quiz'))->name('modules.theory-quiz');
         Route::post('/theory-quiz/start', [ModuleController::class, 'theoryQuizStart'])->name('modules.theory-quiz.start');
         Route::post('/theory-quiz/submit', [ModuleController::class, 'theoryQuizSubmit'])->name('modules.theory-quiz.submit');
-        Route::get('/theory-quiz/result', [ModuleController::class, 'theoryQuizResult'])->name('modules.theory-quiz.result');
+        Route::get('/theory-quiz/result', $legacyModuleRedirect('course.module.theory-quiz.result'))->name('modules.theory-quiz.result');
 
-        Route::get('/practice', [ModuleController::class, 'practiceShow'])->name('modules.practice');
+        Route::get('/practice', $legacyModuleRedirect('course.module.practice'))->name('modules.practice');
         Route::post('/practice/done', [ModuleController::class, 'practiceDone'])->name('modules.practice.done');
 
         Route::post('/practice/lab/start', [PracticeLabController::class, 'start'])->name('modules.practice.lab.start');
@@ -160,10 +227,28 @@ Route::middleware([
         Route::post('/practice/lab/accept', [PracticeLabController::class, 'accept'])->name('modules.practice.lab.accept');
         Route::post('/practice/lab/finish', [PracticeLabController::class, 'finish'])->name('modules.practice.lab.finish');
 
-        Route::get('/exam', [ModuleController::class, 'examShow'])->name('modules.exam');
+        Route::get('/exam', $legacyModuleRedirect('course.module.exam'))->name('modules.exam');
         Route::post('/exam/start', [ModuleController::class, 'examStart'])->name('modules.exam.start');
         Route::post('/exam/submit', [ModuleController::class, 'examSubmit'])->name('modules.exam.submit');
-        Route::get('/exam/result', [ModuleController::class, 'examResult'])->name('modules.exam.result');
+        Route::get('/exam/result', $legacyModuleRedirect('course.module.exam.result'))->name('modules.exam.result');
+
+        Route::prefix('section/{section}')->whereNumber('section')->group(function () {
+            Route::get('/survey', static function (int $module, int $section): \Illuminate\Http\RedirectResponse {
+                $courseId = (int) session('course_id');
+                $cm = app(\App\Services\CourseModuleService::class)->findOrFailForCourseRoute($courseId, $module);
+                $modSeq = app(\App\Services\CourseModuleService::class)->sequenceForModule($cm);
+                $sec = app(\App\Services\CourseSectionService::class)
+                    ->findOrFailBySequenceForModuleRoute((int) $cm->id, $section);
+                $secSeq = app(\App\Services\CourseSectionService::class)->sequenceForSection($sec);
+
+                return redirect()->route(
+                    'course.module.section.survey',
+                    \App\Support\LearnerRoute::section($courseId, $modSeq, $secSeq),
+                    301
+                );
+            })->name('modules.section.survey');
+            Route::post('/survey', [\App\Http\Controllers\SurveyController::class, 'submit'])->name('modules.section.survey.submit');
+        });
     });
     });
 });
@@ -584,6 +669,29 @@ Route::middleware([
                     ->whereNumber('courseModule')
                     ->whereNumber('section')
                     ->name('admin.course.section.panel.save');
+                Route::post('/nastroyki/modul/{courseModule}/razdel/{section}/bystraya-ssylka', [AdminCourseSettingsController::class, 'sectionQuickLinkGenerate'])
+                    ->whereNumber('courseModule')
+                    ->whereNumber('section')
+                    ->name('admin.course.section.quick-link.generate');
+                Route::post('/nastroyki/modul/{courseModule}/razdel/{section}/bystraya-ssylka/off', [AdminCourseSettingsController::class, 'sectionQuickLinkRevoke'])
+                    ->whereNumber('courseModule')
+                    ->whereNumber('section')
+                    ->name('admin.course.section.quick-link.revoke');
+                Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/otvety', [AdminSurveyResponsesController::class, 'index'])
+                    ->whereNumber('courseModule')
+                    ->whereNumber('section')
+                    ->name('admin.course.module.section.survey-responses');
+                Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/otvety/export.csv', [AdminSurveyResponsesController::class, 'exportCsv'])
+                    ->whereNumber('courseModule')
+                    ->whereNumber('section')
+                    ->name('admin.course.module.section.survey-responses.export');
+                Route::get('/oprosy', [\App\Http\Controllers\AdminCourseSurveysController::class, 'index'])->name('admin.course.surveys');
+                Route::get('/oprosy/razdel/{section}/export.xls', [\App\Http\Controllers\AdminCourseSurveysController::class, 'exportWide'])
+                    ->whereNumber('section')
+                    ->name('admin.course.surveys.export.wide');
+                Route::get('/oprosy/razdel/{section}/export-long.xls', [\App\Http\Controllers\AdminCourseSurveysController::class, 'exportLong'])
+                    ->whereNumber('section')
+                    ->name('admin.course.surveys.export.long');
                 Route::get('/obuchayushiesya', [AdminLearnersController::class, 'indexCourse'])->name('admin.learners.course');
                 Route::get('/obuchayushiesya/learner/{learner}', [AdminLearnersController::class, 'courseLearnerShow'])
                     ->whereNumber('learner')

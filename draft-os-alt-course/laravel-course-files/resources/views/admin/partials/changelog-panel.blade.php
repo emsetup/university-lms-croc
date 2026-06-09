@@ -51,6 +51,10 @@
                                 @if ($changelogBodyPayload !== '')
                                     data-ap-changelog-body="{{ e($changelogBodyPayload) }}"
                                 @endif
+                                @if (! empty($entry['doc_url']))
+                                    data-ap-changelog-doc-url="{{ $entry['doc_url'] }}"
+                                    data-ap-changelog-doc-label="{{ $entry['doc_label'] ?? 'Документация' }}"
+                                @endif
                                 aria-label="Подробнее: {{ $entry['title'] }}"
                             >
                                 <span class="ap-changelog-list__date">
@@ -85,6 +89,7 @@
         </div>
         <h2 class="ap-changelog-modal__title" id="ap-changelog-modal-title"></h2>
         <div class="ap-changelog-modal__body" id="ap-changelog-modal-body"></div>
+        <div class="ap-changelog-modal__doc" id="ap-changelog-modal-doc" hidden></div>
         <div class="ap-changelog-modal__footer">
             <button type="button" class="ap-btn ap-btn--secondary ap-btn--sm" data-ap-changelog-modal-close>Закрыть</button>
         </div>

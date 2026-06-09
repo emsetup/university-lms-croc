@@ -11,6 +11,7 @@ use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
 use App\Services\ModuleAccessGate;
 use App\Support\DurationFormat;
+use App\Support\LearnerPreviewContext;
 use App\Support\LearnerSsoDisplayNamePersistence;
 use App\Support\PortalWelcomeInitials;
 use App\Support\PortalWelcomeName;
@@ -30,7 +31,7 @@ final class AccountController extends Controller
         /** @var Learner $learner */
         $learner = Learner::query()
             ->with(['moduleProgresses', 'finalLabResults'])
-            ->findOrFail((int) session('learner_id'));
+            ->findOrFail(LearnerPreviewContext::learnerId());
 
         $enrolledIds = CourseEnrollment::query()
             ->where('learner_id', $learner->id)
