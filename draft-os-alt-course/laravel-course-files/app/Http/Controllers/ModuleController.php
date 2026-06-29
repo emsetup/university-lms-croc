@@ -67,6 +67,14 @@ class ModuleController extends Controller
         return route('course.module.hub', LearnerRoute::hub($ctx['courseId'], $ctx['moduleSequence']));
     }
 
+    private function courseModuleOrAbort(int $moduleRoute): CourseModule
+    {
+        $courseRoute = (int) request()->route('course', 0);
+        $courseId = $courseRoute > 0 ? $courseRoute : LearnerPreviewContext::courseId();
+
+        return $this->courseModules->findOrFailForCourseRoute($courseId, $moduleRoute);
+    }
+
     private function moduleSequenceFor(CourseModule $cm): int
     {
         return $this->courseModules->sequenceForModule($cm);

@@ -4,16 +4,22 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use App\Models\CourseEnrollment;
+use App\Services\CourseChangeLogService;
 use App\Services\PortalStaffAccess;
 use App\Services\TeacherCourseAnalyticsService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 final class AdminCoursesController extends Controller
 {
+    public function __construct(private CourseChangeLogService $changeLog) {}
+
     public function index(Request $request): View
     {
         session()->forget(['admin_course_id', 'admin_course_title', 'admin_course_slug']);
@@ -21,87 +27,51 @@ final class AdminCoursesController extends Controller
         $gate = app(PortalStaffAccess::class);
         $analytics = app(TeacherCourseAnalyticsService::class);
 
-        $courses = Course::query()
+        $courseModels = Course::query()
+            ->with(['createdByPortalStaff.learner:id,email,sso_display_name'])
             ->orderBy('sort')
             ->orderBy('id')
-            ->get()
-            ->map(function (Course $c) use ($analytics) {
-                $courseId = (int) $c->id;
-                $enrolled = (int) CourseEnrollment::query()
-                    ->where('course_id', $courseId)
-                    ->count();
-                $completed = 0;
+            ->get();
 
-                if (Schema::hasTable('module_progress') || Schema::hasTable('final_lab_results')) {
-                    $enrollmentIds = DB::table('course_enrollments')
-                        ->where('course_id', $courseId)
-                        ->select('learner_id');
+        $courseModels = $this->filterCourseModelsForCatalog($courseModels, $gate);
 
-                    $progressIds = Schema::hasTable('module_progress')
-                        ? DB::table('module_progress')->where('course_id', $courseId)->select('learner_id')
-                        : null;
-                    $finalIds = Schema::hasTable('final_lab_results')
-                        ? DB::table('final_lab_results')->where('course_id', $courseId)->select('learner_id')
-                        : null;
+        $courseIds = $courseModels->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $statsByCourse = $analytics->batchCatalogStatsFast($courseIds);
 
-                    $unionEnrolled = $enrollmentIds;
-                    if ($progressIds) {
-                        $unionEnrolled = $unionEnrolled->union($progressIds);
-                    }
-                    if ($finalIds) {
-                        $unionEnrolled = $unionEnrolled->union($finalIds);
-                    }
-                    $enrolled = (int) DB::query()
-                        ->fromSub($unionEnrolled, 'u')
-                        ->distinct()
-                        ->count('learner_id');
-                }
+        $courses = $courseModels->map(function (Course $c) use ($statsByCourse, $gate) {
+            $courseId = (int) $c->id;
+            $stats = $statsByCourse[$courseId] ?? [
+                'enrolled' => 0,
+                'completed' => 0,
+                'completed_rate_pct' => 0,
+            ];
+            $creator = $this->changeLog->creatorForCourse($c);
 
-                if (Schema::hasTable('final_lab_results')) {
-                    $completed = (int) DB::table('final_lab_results')
-                        ->where('course_id', $courseId)
-                        ->whereNotNull('certificate_full_name')
-                        ->whereNotNull('certificate_serial')
-                        ->distinct()
-                        ->count('learner_id');
-                }
-
-                $completedRatePct = $enrolled > 0 ? (int) round(100 * $completed / $enrolled) : 0;
-                $avgProgressPct = $enrolled > 0 ? $analytics->averageGrandTotalPercentForCourse($courseId) : 0;
-
-                return [
-                    'id' => $c->id,
-                    'slug' => $c->slug,
-                    'title' => $c->title,
-                    'summary' => $c->summary,
-                    'is_published' => (bool) $c->is_published,
-                    'is_archived' => (bool) $c->is_archived,
-                    'enrolled' => (int) $enrolled,
-                    'completed' => (int) $completed,
-                    'completed_rate_pct' => $completedRatePct,
-                    'avg_progress_pct' => $avgProgressPct,
-                ];
-            });
-
-        if ($gate->isInstructor() || $gate->isCourseTester()) {
-            $allowed = $gate->assignedCourseIds()->flip()->all();
-            $courses = $courses->filter(fn (array $row) => isset($allowed[(int) $row['id']]))->values();
-        }
-        if ($gate->isCourseCreator()) {
-            $owned = $gate->ownedCourseIds()->flip()->all();
-            $courses = $courses->filter(fn (array $row) => isset($owned[(int) $row['id']]))->values();
-        }
-        if ($gate->isCourseEditor()) {
-            $allowed = $gate->editableCourseIds()->flip()->all();
-            $courses = $courses->filter(fn (array $row) => isset($allowed[(int) $row['id']]))->values();
-        }
+            return [
+                'id' => $c->id,
+                'slug' => $c->slug,
+                'title' => $c->title,
+                'summary' => $c->summary,
+                'is_published' => (bool) $c->is_published,
+                'is_archived' => (bool) $c->is_archived,
+                'is_collaborator' => $gate->isCollaboratorOnCourse($courseId),
+                'enrolled' => (int) $stats['enrolled'],
+                'completed' => (int) $stats['completed'],
+                'completed_rate_pct' => (int) $stats['completed_rate_pct'],
+                'creator_name' => $creator['name'],
+                'creator_email' => $creator['email'],
+                'creator_staff_id' => $creator['staff_id'],
+                'creator_initials' => $creator['initials'],
+            ];
+        });
 
         $editableCourseIds = match (true) {
             $gate->isPortalAdmin(), $gate->isCourseModerator() => null,
-            $gate->isCourseCreator() => $gate->ownedCourseIds()->flip()->all(),
-            $gate->isCourseEditor() => $gate->editableCourseIds()->flip()->all(),
+            $gate->isCourseCreator() => $gate->ownedCourseIds()->merge($gate->grantedCourseIds())->unique()->flip()->all(),
+            $gate->isCourseEditor() => $gate->editableCourseIds()->merge($gate->grantedCourseIds())->unique()->flip()->all(),
+            $gate->isCourseContributor() => $gate->grantedCourseIds()->flip()->all(),
             $gate->isInstructor() => [],
-            default => $gate->assignedCourseIds()->flip()->all(),
+            default => $gate->assignedCourseIds()->merge($gate->grantedCourseIds())->unique()->flip()->all(),
         };
 
         return view('admin.courses-index', [
@@ -109,7 +79,46 @@ final class AdminCoursesController extends Controller
             'canCreateCourse' => $gate->canCreateCourses(),
             'editableCourseIds' => $editableCourseIds,
             'openCreateModal' => $request->boolean('create'),
+            'canViewStaffProfiles' => $gate->canManageStaff(),
         ]);
+    }
+
+    public function catalogStats(Request $request): JsonResponse
+    {
+        $gate = app(PortalStaffAccess::class);
+        $analytics = app(TeacherCourseAnalyticsService::class);
+
+        $rawIds = $request->query('ids', '');
+        if (is_array($rawIds)) {
+            $requestedIds = array_map('intval', $rawIds);
+        } else {
+            $requestedIds = array_map('intval', array_filter(array_map('trim', explode(',', (string) $rawIds))));
+        }
+        $requestedIds = array_values(array_unique(array_filter($requestedIds, fn (int $id) => $id > 0)));
+        if ($requestedIds === []) {
+            return response()->json([]);
+        }
+
+        $allowedIds = array_values(array_filter(
+            $requestedIds,
+            fn (int $id) => $gate->canAccessCourseInAdmin($id)
+        ));
+        if ($allowedIds === []) {
+            return response()->json([]);
+        }
+
+        sort($allowedIds);
+        $cacheKey = 'admin.catalog.avg.v1.'.md5(implode(',', $allowedIds));
+        $avgByCourse = Cache::remember($cacheKey, 600, fn () => $analytics->batchCatalogAvgProgress($allowedIds));
+
+        $out = [];
+        foreach ($allowedIds as $courseId) {
+            $out[(string) $courseId] = [
+                'avg_progress_pct' => (int) ($avgByCourse[$courseId] ?? 0),
+            ];
+        }
+
+        return response()->json($out);
     }
 
     public function select(Request $request, int $course): RedirectResponse
@@ -198,7 +207,10 @@ final class AdminCoursesController extends Controller
             'sort' => isset($data['sort']) ? (int) $data['sort'] : 100,
             'is_published' => isset($data['is_published']) ? ((string) $data['is_published'] === '1') : false,
             'is_archived' => isset($data['is_archived']) ? ((string) $data['is_archived'] === '1') : false,
+            'strict_grants' => true,
         ]);
+
+        $this->changeLog->logCourseCreated($course);
 
         session([
             'admin_course_id' => $course->id,
@@ -287,6 +299,7 @@ final class AdminCoursesController extends Controller
         $c->sort = isset($data['sort']) ? (int) $data['sort'] : 100;
         $c->is_published = isset($data['is_published']) && (string) $data['is_published'] === '1';
         $c->is_archived = isset($data['is_archived']) && (string) $data['is_archived'] === '1';
+        $this->changeLog->logCourseDirty($c, 'Обновлена карточка курса');
         $c->save();
 
         if ((int) session('admin_course_id', 0) === (int) $c->id) {
@@ -306,6 +319,7 @@ final class AdminCoursesController extends Controller
         $c->is_archived = true;
         $c->is_published = false;
         $c->save();
+        $this->changeLog->logCourseArchived($c);
 
         return redirect()
             ->route('admin.courses.edit', ['course' => $c->id])
@@ -319,6 +333,7 @@ final class AdminCoursesController extends Controller
         $c = Course::query()->findOrFail($course);
         $c->is_archived = false;
         $c->save();
+        $this->changeLog->logCourseUnarchived($c);
 
         return redirect()
             ->route('admin.courses.edit', ['course' => $c->id])
@@ -337,6 +352,7 @@ final class AdminCoursesController extends Controller
         }
         $c->is_published = true;
         $c->save();
+        $this->changeLog->logCoursePublished($c);
 
         if ((int) session('admin_course_id', 0) === (int) $c->id) {
             session(['admin_course_title' => $c->title]);
@@ -345,5 +361,55 @@ final class AdminCoursesController extends Controller
         return redirect()
             ->route('admin.courses.index')
             ->with('ok', 'Курс опубликован.');
+    }
+
+    /** @param  Collection<int, Course>  $courseModels */
+    private function filterCourseModelsForCatalog(Collection $courseModels, PortalStaffAccess $gate): Collection
+    {
+        if ($gate->isPortalAdmin() || $gate->isCourseModerator()) {
+            return $courseModels;
+        }
+        if ($gate->isCourseContributor()) {
+            $allowed = $gate->grantedCourseIds()->flip()->all();
+
+            return $courseModels
+                ->filter(fn (Course $c) => isset($allowed[(int) $c->id]))
+                ->values();
+        }
+        if ($gate->isInstructor() || $gate->isCourseTester()) {
+            $allowed = $gate->assignedCourseIds()->flip()->all();
+
+            return $courseModels
+                ->filter(fn (Course $c) => isset($allowed[(int) $c->id]))
+                ->values();
+        }
+        if ($gate->isCourseCreator()) {
+            $owned = $gate->ownedCourseIds()->flip()->all();
+            $granted = $gate->grantedCourseIds()->flip()->all();
+
+            return $courseModels
+                ->filter(fn (Course $c) => isset($owned[(int) $c->id]) || isset($granted[(int) $c->id]))
+                ->values();
+        }
+        if ($gate->isCourseEditor()) {
+            $allowed = $gate->editableCourseIds()
+                ->merge($gate->grantedCourseIds())
+                ->unique()
+                ->flip()
+                ->all();
+
+            return $courseModels
+                ->filter(fn (Course $c) => isset($allowed[(int) $c->id]))
+                ->values();
+        }
+
+        $granted = $gate->grantedCourseIds()->flip()->all();
+        if ($granted !== []) {
+            return $courseModels
+                ->filter(fn (Course $c) => isset($granted[(int) $c->id]))
+                ->values();
+        }
+
+        return $courseModels;
     }
 }

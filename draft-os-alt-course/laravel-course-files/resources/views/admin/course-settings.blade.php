@@ -2,8 +2,15 @@
 
 @php
     $tab = $settingsTab ?? 'moduli';
+    $tabTitle = match ($tab) {
+        'kurs' => 'О курсе — '.$course->title,
+        'sertifikat' => 'Сертификат — '.$course->title,
+        'istoriya' => 'История — '.$course->title,
+        'soavtory' => 'Соавторы — '.$course->title,
+        default => 'Модули курса — '.$course->title,
+    };
 @endphp
-@section('title', $tab === 'kurs' ? 'О курсе — '.$course->title : ($tab === 'sertifikat' ? 'Сертификат — '.$course->title : 'Модули курса — '.$course->title))
+@section('title', $tabTitle)
 
 @section('content')
     @php
@@ -13,6 +20,9 @@
         $kursUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'kurs']));
         $moduliUrl = route('admin.course.settings', $tp);
         $certUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'sertifikat']));
+        $historyUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'istoriya']));
+        $soavtoryUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'soavtory']));
+        $showCollaboratorsTab = ! empty($canManageCollaborators);
     @endphp
 
     <div class="ap-course-settings-page">
@@ -20,6 +30,10 @@
             <a href="{{ $moduliUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'moduli') is-active @endif">Модули</a>
             <a href="{{ $kursUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'kurs') is-active @endif">О курсе</a>
             <a href="{{ $certUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'sertifikat') is-active @endif">Сертификат</a>
+            @if ($showCollaboratorsTab)
+                <a href="{{ $soavtoryUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'soavtory') is-active @endif">Соавторы</a>
+            @endif
+            <a href="{{ $historyUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'istoriya') is-active @endif">История</a>
         </nav>
 
         @if ($tab === 'kurs')
@@ -38,12 +52,33 @@
                 'courseStatus' => $courseStatus,
                 'tp' => $tp,
             ])
+        @elseif ($tab === 'istoriya')
+            @include('admin.partials.course-settings-history', [
+                'course' => $course,
+                'changeLogEntries' => $changeLogEntries ?? collect(),
+                'courseCreator' => $courseCreator ?? ['name' => '—', 'email' => '', 'staff_id' => null, 'initials' => '—'],
+                'changeLogService' => $changeLogService ?? app(\App\Services\CourseChangeLogService::class),
+                'canViewStaffProfiles' => ! empty($canViewStaffProfiles),
+            ])
+        @elseif ($tab === 'soavtory')
+            @include('admin.partials.course-settings-collaborators', [
+                'course' => $course,
+                'collaborators' => $collaborators ?? collect(),
+                'grantsByStaff' => $grantsByStaff ?? [],
+                'grantTree' => $grantTree ?? ['modules' => []],
+                'collaboratorLimit' => $collaboratorLimit ?? 5,
+                'collaboratorCount' => $collaboratorCount ?? 0,
+                'canManageCollaborators' => ! empty($canManageCollaborators),
+                'ap' => $tp,
+            ])
         @else
             @include('admin.partials.course-modules-workbench', [
                 'course' => $course,
                 'modules' => $modules,
                 'ap' => $tp,
                 'adminKey' => $adminKey ?? '',
+                'canEditCourseMeta' => ! empty($canEditCourseMeta),
+                'canEditCourseStructure' => ! empty($canEditCourseStructure),
             ])
         @endif
     </div>

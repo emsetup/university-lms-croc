@@ -26,7 +26,14 @@ final class PortalStaffAccess
 
     private ?PortalStaffPermissionResolver $permissionResolver = null;
 
+    private ?CourseContentGrantResolver $grantResolver = null;
+
     public function __construct(private PortalStaff $staff) {}
+
+    private function grants(): CourseContentGrantResolver
+    {
+        return $this->grantResolver ??= new CourseContentGrantResolver($this->staff);
+    }
 
     private function perms(): PortalStaffPermissionResolver
     {
@@ -83,9 +90,18 @@ final class PortalStaffAccess
         return $this->staff->isCourseTester() || $this->perms()->hasRole(PortalStaff::ROLE_COURSE_TESTER);
     }
 
+    public function isCourseContributor(): bool
+    {
+        return $this->staff->isCourseContributor() || $this->perms()->hasRole(PortalStaff::ROLE_COURSE_CONTRIBUTOR);
+    }
+
     /** Редактирование курса: модули, практики, сертификаты, метаданные (не преподаватель и не тестировщик). */
     public function canUseCourseAdminTools(): bool
     {
+        if ($this->isCourseContributor()) {
+            return $this->grants()->grantedCourseIds()->isNotEmpty();
+        }
+
         return $this->isPortalAdmin()
             || $this->isCourseModerator()
             || $this->isCourseCreator()
@@ -156,7 +172,353 @@ final class PortalStaffAccess
             return false;
         }
 
+        if ($this->isCourseContributor()) {
+            return false;
+        }
+
         return $this->isCourseTester() || $this->isInstructor();
+    }
+
+    /** Полный доступ к курсу по старой модели (без сужения грантами). */
+    public function hasLegacyFullCourseAccess(int $courseId): bool
+    {
+        if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::COURSES_MANAGE_ALL)) {
+            return true;
+        }
+        if ($this->perms()->has(Perm::COURSES_MANAGE_ASSIGNED)
+            && $this->assignedCourseIds()->containsStrict($courseId)) {
+            return true;
+        }
+        if ($this->isCourseCreator() && $this->ownedCourseIds()->containsStrict($courseId)) {
+            return true;
+        }
+        if ($this->isCourseEditor() && $this->editableCourseIds()->containsStrict($courseId)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /** Гранты сужают доступ редактора на курсе с strict_grants. */
+    public function grantsNarrowCourseAccess(int $courseId): bool
+    {
+        if (! $this->grants()->hasGrantsTable()) {
+            return false;
+        }
+        if (! $this->grants()->courseUsesStrictGrants($courseId)) {
+            return false;
+        }
+        if ($this->grants()->isCourseOwner($courseId)) {
+            return false;
+        }
+        if ($this->isPortalAdmin() || $this->isCourseModerator()) {
+            return false;
+        }
+
+        return $this->grants()->hasAnyGrantOnCourse($courseId);
+    }
+
+    public function usesGrantBasedAccess(int $courseId): bool
+    {
+        if ($this->isCourseContributor()) {
+            return true;
+        }
+        if ($this->isPortalAdmin() || $this->isCourseModerator()) {
+            return false;
+        }
+        if ($this->grants()->isCourseOwner($courseId)) {
+            return false;
+        }
+        if ($this->grants()->hasGrantsTable() && $this->grants()->hasAnyGrantOnCourse($courseId)) {
+            return true;
+        }
+
+        return $this->grantsNarrowCourseAccess($courseId);
+    }
+
+    public function canViewCourseInAdmin(int $courseId): bool
+    {
+        return $this->canAccessCourseInAdmin($courseId);
+    }
+
+    /** Вкладка «Модули» в настройках: структура курса или гранты на отдельные модули. */
+    public function canAccessCourseModulesTab(int $courseId): bool
+    {
+        if ($this->canEditCourseMeta($courseId)) {
+            return true;
+        }
+
+        return $this->usesGrantBasedAccess($courseId)
+            && $this->accessibleModulesForCourse($courseId)->isNotEmpty();
+    }
+
+    public function assertCanAccessCourseModulesTab(int $courseId): void
+    {
+        abort_unless($this->canAccessCourseModulesTab($courseId), 403);
+    }
+
+    /** Добавление модулей в курс (удаление и порядок — через canEditCourseMeta). */
+    public function canEditCourseStructure(int $courseId): bool
+    {
+        if ($this->canEditCourseMeta($courseId)) {
+            return true;
+        }
+
+        if (! $this->grants()->hasGrantsTable() || ! $this->grants()->hasAnyGrantOnCourse($courseId)) {
+            return false;
+        }
+
+        if ($this->grants()->canEditCourseContent($courseId)) {
+            return true;
+        }
+
+        return $this->grants()->canEditAllModulesInCourse($courseId);
+    }
+
+    public function assertCanEditCourseStructure(int $courseId): void
+    {
+        abort_unless($this->canEditCourseStructure($courseId), 403);
+    }
+
+    public function canViewModuleInAdmin(int $moduleId): bool
+    {
+        if ($this->isPortalAdmin() || $this->isCourseModerator()) {
+            return true;
+        }
+
+        $module = \App\Models\CourseModule::query()->find($moduleId);
+        if ($module === null) {
+            return false;
+        }
+        $courseId = (int) $module->course_id;
+
+        if ($this->usesGrantBasedAccess($courseId)) {
+            return $this->grants()->canViewModule($moduleId);
+        }
+
+        return $this->canAccessCourseInAdmin($courseId);
+    }
+
+    public function canEditModuleContent(int $moduleId): bool
+    {
+        if ($this->isReadOnlyCourseContent()) {
+            return false;
+        }
+        if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::CONTENT_EDIT_ALL)) {
+            return true;
+        }
+
+        $module = \App\Models\CourseModule::query()->find($moduleId);
+        if ($module === null) {
+            return false;
+        }
+        $courseId = (int) $module->course_id;
+
+        if ($this->usesGrantBasedAccess($courseId)) {
+            return $this->grants()->canEditModule($moduleId);
+        }
+
+        return $this->canEditCourseMeta($courseId);
+    }
+
+    public function canViewSectionInAdmin(int $sectionId): bool
+    {
+        if ($this->isPortalAdmin() || $this->isCourseModerator()) {
+            return true;
+        }
+
+        $section = \App\Models\CourseSection::query()->find($sectionId);
+        if ($section === null) {
+            return false;
+        }
+        $courseId = (int) $section->course_id;
+
+        if ($this->usesGrantBasedAccess($courseId)) {
+            return $this->grants()->canViewSection($sectionId);
+        }
+
+        return $this->canAccessCourseInAdmin($courseId);
+    }
+
+    public function canEditSection(int $sectionId): bool
+    {
+        if ($this->isReadOnlyCourseContent()) {
+            return false;
+        }
+        if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::CONTENT_EDIT_ALL)) {
+            return true;
+        }
+
+        $section = \App\Models\CourseSection::query()->find($sectionId);
+        if ($section === null) {
+            return false;
+        }
+        $courseId = (int) $section->course_id;
+
+        if ($this->usesGrantBasedAccess($courseId)) {
+            return $this->grants()->canEditSection($sectionId);
+        }
+
+        return $this->canEditCourseMeta($courseId);
+    }
+
+    public function canManageCollaborators(int $courseId): bool
+    {
+        if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->canManageStaff()) {
+            return true;
+        }
+        if ($this->grants()->isCourseOwner($courseId)) {
+            return true;
+        }
+        if ($this->grants()->canManageCourse($courseId)) {
+            return true;
+        }
+
+        return $this->hasLegacyFullCourseAccess($courseId) && ! $this->grantsNarrowCourseAccess($courseId);
+    }
+
+    public function assertCanManageCollaborators(int $courseId): void
+    {
+        abort_unless($this->canManageCollaborators($courseId), 403);
+    }
+
+    public function assertCanEditModuleContent(int $moduleId): void
+    {
+        abort_unless($this->canEditModuleContent($moduleId), 403);
+    }
+
+    public function assertCanViewSectionInAdmin(int $sectionId): void
+    {
+        abort_unless($this->canViewSectionInAdmin($sectionId), 403);
+    }
+
+    public function assertCanEditSection(int $sectionId): void
+    {
+        abort_unless($this->canEditSection($sectionId), 403);
+    }
+
+    /** @return Collection<int, int> */
+    public function accessibleModulesForCourse(int $courseId): Collection
+    {
+        if (! $this->usesGrantBasedAccess($courseId)) {
+            if (! $this->canAccessCourseInAdmin($courseId)) {
+                return collect();
+            }
+
+            return \App\Models\CourseModule::query()
+                ->where('course_id', $courseId)
+                ->orderBy('sort')
+                ->orderBy('id')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id);
+        }
+
+        return $this->grants()->accessibleModuleIdsForCourse($courseId);
+    }
+
+    /** @return Collection<int, int> */
+    public function accessibleSectionsForModule(int $moduleId): Collection
+    {
+        $module = \App\Models\CourseModule::query()->find($moduleId);
+        if ($module === null) {
+            return collect();
+        }
+        $courseId = (int) $module->course_id;
+
+        if (! $this->usesGrantBasedAccess($courseId)) {
+            if (! $this->canAccessCourseInAdmin($courseId)) {
+                return collect();
+            }
+
+            return \App\Models\CourseSection::query()
+                ->where('course_module_id', $moduleId)
+                ->orderBy('sort')
+                ->orderBy('id')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id);
+        }
+
+        return $this->grants()->accessibleSectionIdsForModule($moduleId);
+    }
+
+    /** @return Collection<int, int> */
+    public function grantedCourseIds(): Collection
+    {
+        return $this->grants()->grantedCourseIds();
+    }
+
+    public function isCollaboratorOnCourse(int $courseId): bool
+    {
+        return $this->grants()->hasAnyGrantOnCourse($courseId) && ! $this->grants()->isCourseOwner($courseId);
+    }
+
+    public function canViewCourseSettings(int $courseId): bool
+    {
+        return $this->canEditCourseMeta($courseId) || $this->canManageCollaborators($courseId);
+    }
+
+    public function canViewCourseDocker(int $courseId): bool
+    {
+        if ($this->usesGrantBasedAccess($courseId)) {
+            return $this->grants()->canEditCourseContent($courseId);
+        }
+
+        return $this->canEditCourseMeta($courseId);
+    }
+
+    public function canViewCourseLearnersTab(int $courseId): bool
+    {
+        if ($this->usesGrantBasedAccess($courseId)) {
+            return $this->grants()->canManageCourse($courseId)
+                || ($this->hasLegacyFullCourseAccess($courseId) && $this->canViewCourseLearnerStats($courseId));
+        }
+
+        return $this->canViewCourseLearnerStats($courseId);
+    }
+
+    public function canEditModuleQuiz(int $moduleId, string $kind): bool
+    {
+        if ($kind === 'final_lab') {
+            $module = \App\Models\CourseModule::query()->find($moduleId);
+
+            return $module !== null && $this->canEditCourseMeta((int) $module->course_id);
+        }
+
+        $sectionType = match ($kind) {
+            'theory_quiz' => \App\Models\CourseSection::TYPE_QUIZ,
+            'module_exam' => \App\Models\CourseSection::TYPE_EXAM,
+            default => null,
+        };
+        if ($sectionType === null) {
+            return $this->canEditModuleContent($moduleId);
+        }
+
+        $section = \App\Models\CourseSection::query()
+            ->where('course_module_id', $moduleId)
+            ->where('type', $sectionType)
+            ->orderBy('sort')
+            ->orderBy('id')
+            ->first();
+
+        if ($section !== null) {
+            return $this->canEditSection((int) $section->id);
+        }
+
+        return $this->canEditModuleContent($moduleId);
+    }
+
+    public function assertCanEditModuleQuiz(int $moduleId, string $kind): void
+    {
+        abort_unless($this->canEditModuleQuiz($moduleId, $kind), 403);
+    }
+
+    public function canViewAnyCourseContent(int $courseId): bool
+    {
+        if ($this->canAccessCourseInAdmin($courseId) && ! $this->usesGrantBasedAccess($courseId)) {
+            return true;
+        }
+
+        return $this->accessibleModulesForCourse($courseId)->isNotEmpty();
     }
 
     public function canManageStaff(): bool
@@ -259,11 +621,17 @@ final class PortalStaffAccess
             && $this->assignedCourseIds()->containsStrict($courseId)) {
             return true;
         }
-        if ($this->isCourseCreator()) {
-            return $this->ownedCourseIds()->containsStrict($courseId);
+        if ($this->isCourseCreator() && $this->ownedCourseIds()->containsStrict($courseId)) {
+            return true;
         }
-        if ($this->isCourseEditor()) {
-            return $this->editableCourseIds()->containsStrict($courseId);
+        if ($this->isCourseEditor() && $this->editableCourseIds()->containsStrict($courseId)) {
+            return true;
+        }
+        if ($this->isCourseContributor() && $this->grants()->canViewCourse($courseId)) {
+            return true;
+        }
+        if ($this->grants()->hasAnyGrantOnCourse($courseId)) {
+            return true;
         }
 
         return $this->assignedCourseIds()->containsStrict($courseId);
@@ -278,6 +646,9 @@ final class PortalStaffAccess
     {
         if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::COURSES_MANAGE_ALL)) {
             return true;
+        }
+        if ($this->usesGrantBasedAccess($courseId)) {
+            return $this->grants()->canManageCourse($courseId);
         }
         if ($this->perms()->has(Perm::COURSES_MANAGE_ASSIGNED)
             && $this->assignedCourseIds()->containsStrict($courseId)) {
@@ -487,6 +858,7 @@ final class PortalStaffAccess
             PortalStaff::ROLE_COURSE_EDITOR => 'Редактор курсов',
             PortalStaff::ROLE_INSTRUCTOR => 'Инструктор',
             PortalStaff::ROLE_COURSE_TESTER => 'Тестировщик курса',
+            PortalStaff::ROLE_COURSE_CONTRIBUTOR => 'Соавтор курса',
             default => $this->staff->role,
         };
     }

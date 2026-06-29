@@ -3,7 +3,7 @@
 @section('title', $pageTitle)
 
 @push('head')
-    <link rel="stylesheet" href="{{ asset('css/docs.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/docs.css') }}?v={{ @filemtime(public_path('css/docs.css')) ?: 1 }}">
 @endpush
 
 @section('content')

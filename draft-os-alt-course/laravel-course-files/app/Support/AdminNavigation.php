@@ -61,6 +61,11 @@ final class AdminNavigation
                 ...$root,
                 ['label' => 'Сотрудники', 'url' => null],
             ],
+            'admin.staff.show' => [
+                ...$root,
+                ['label' => 'Сотрудники', 'url' => route('admin.staff.index')],
+                ['label' => 'Профиль', 'url' => null],
+            ],
             'admin.staff.edit', 'admin.staff.update', 'admin.staff.destroy' => [
                 ...$root,
                 ['label' => 'Сотрудники', 'url' => route('admin.staff.index')],

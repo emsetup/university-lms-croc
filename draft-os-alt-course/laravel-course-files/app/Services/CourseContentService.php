@@ -54,16 +54,20 @@ final class CourseContentService
             return null;
         }
 
-        return CourseQuizBank::query()
+        $query = CourseQuizBank::query()
             ->where('course_id', (int) $course->id)
             ->when($cm !== null, fn ($q) => $q->where('course_module_id', (int) $cm->id))
             ->when($cm === null, fn ($q) => $q->whereNull('course_module_id'))
-            ->where('kind', $kind)
-            ->when(
-                Schema::hasColumn('course_quiz_banks', 'course_section_id'),
-                fn ($q) => $q->whereNull('course_section_id')
-            )
-            ->first();
+            ->where('kind', $kind);
+
+        if (Schema::hasColumn('course_quiz_banks', 'course_section_id')) {
+            $moduleLevel = (clone $query)->whereNull('course_section_id')->first();
+            if ($moduleLevel !== null) {
+                return $moduleLevel;
+            }
+        }
+
+        return $query->orderBy('id')->first();
     }
 
     public function quizBankForSection(CourseSection $section): ?CourseQuizBank

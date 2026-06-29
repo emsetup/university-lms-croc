@@ -307,6 +307,9 @@ Route::middleware([
         Route::get('/adm/sotrudniki', [AdminStaffController::class, 'index'])->name('admin.staff.index');
         Route::get('/adm/sotrudniki/sozdat', [AdminStaffController::class, 'create'])->name('admin.staff.create');
         Route::post('/adm/sotrudniki', [AdminStaffController::class, 'store'])->name('admin.staff.store');
+        Route::get('/adm/sotrudniki/{staff}', [AdminStaffController::class, 'show'])
+            ->whereNumber('staff')
+            ->name('admin.staff.show');
         Route::get('/adm/sotrudniki/{staff}/redaktirovat', [AdminStaffController::class, 'edit'])
             ->whereNumber('staff')
             ->name('admin.staff.edit');
@@ -326,6 +329,7 @@ Route::middleware([
     });
 
     Route::get('/adm/kursy', [AdminCoursesController::class, 'index'])->name('admin.courses.index');
+    Route::get('/adm/kursy/stats', [AdminCoursesController::class, 'catalogStats'])->name('admin.courses.catalog-stats');
     Route::middleware([\App\Http\Middleware\EnsureStaffAbility::class.':course_catalog_create'])->group(function () {
         Route::get('/adm/kursy/sozdat', [AdminCoursesController::class, 'create'])->name('admin.courses.create');
         Route::post('/adm/kursy', [AdminCoursesController::class, 'store'])->name('admin.courses.store');
@@ -589,6 +593,10 @@ Route::middleware([
             Route::get('/soderzhimoe/modul/{module}/ekzamen', [AdminTheoryController::class, 'previewModuleExam'])
                 ->whereNumber('module')
                 ->name('admin.theory.preview-module-exam');
+            Route::get('/soderzhimoe/modul/{module}/razdel/{section}', [AdminTheoryController::class, 'previewSection'])
+                ->whereNumber('module')
+                ->whereNumber('section')
+                ->name('admin.theory.preview-section');
             Route::get('/soderzhimoe/final-lab', [AdminTheoryController::class, 'previewFinalLab'])
                 ->name('admin.theory.preview-final-lab');
 
@@ -601,6 +609,9 @@ Route::middleware([
             Route::middleware([\App\Http\Middleware\DenyCourseTester::class])->group(function () {
                 Route::get('/nastroyki', [AdminCourseSettingsController::class, 'courseSettings'])->name('admin.course.settings');
                 Route::post('/nastroyki/save', [AdminCourseSettingsController::class, 'saveCourseSettings'])->name('admin.course.settings.save');
+                Route::post('/nastroyki/soavtory/invite', [\App\Http\Controllers\AdminCourseCollaboratorsController::class, 'invite'])->name('admin.course.collaborators.invite');
+                Route::post('/nastroyki/soavtory/{portalStaff}/remove', [\App\Http\Controllers\AdminCourseCollaboratorsController::class, 'remove'])->name('admin.course.collaborators.remove');
+                Route::get('/nastroyki/soavtory/search', [\App\Http\Controllers\AdminCourseCollaboratorsController::class, 'searchStaff'])->name('admin.course.collaborators.search');
                 Route::get('/moduli', function () {
                     return redirect()->route('admin.course.settings', array_merge(
                         ['adminCourse' => request()->route('adminCourse')->slug],

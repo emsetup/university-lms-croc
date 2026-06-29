@@ -111,6 +111,7 @@ final class DocumentationCatalog
         $html = $this->expandImagePathsInHtml($html);
         $html = CourseContentMarkdown::enrichCallouts($html);
         $html = $this->wrapScreenshots($html);
+        $html = $this->wrapTables($html);
 
         return $html;
     }
@@ -307,6 +308,15 @@ final class DocumentationCatalog
                     .'</button>'
                     .'</figure>';
             },
+            $html
+        );
+    }
+
+    private function wrapTables(string $html): string
+    {
+        return (string) preg_replace(
+            '/<table\b[^>]*>.*?<\/table>/s',
+            '<div class="docs-table-wrap">$0</div>',
             $html
         );
     }

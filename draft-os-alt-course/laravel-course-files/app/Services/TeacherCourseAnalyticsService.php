@@ -12,6 +12,9 @@ use Illuminate\Support\Facades\Schema;
 
 final class TeacherCourseAnalyticsService
 {
+    /** @var array<string, bool>|null */
+    private ?array $schemaTables = null;
+
     public function __construct(
         private CourseScoringService $scoring,
         private CourseModuleService $courseModules,
@@ -74,7 +77,7 @@ final class TeacherCourseAnalyticsService
 
         $moduleCount = CourseScoringService::moduleCount($courseId);
         $moduleMax = $this->scoring->maxTotalModulePoints($courseId);
-        $finalMax = CourseScoringService::MAX_FINAL_LAB_POINTS;
+        $finalMax = $this->scoring->maxFinalLabPoints($courseId);
         $grandMax = $moduleMax + $finalMax;
 
         $modulePoints = $this->scoring->totalModulePointsSafe($learner, $courseId);
@@ -155,6 +158,8 @@ final class TeacherCourseAnalyticsService
                 'total' => $trackedTotalSeconds,
             ],
             'module_count' => $moduleCount,
+            'has_scoring' => $grandMax > 0,
+            'final_lab_enabled' => $finalMax > 0,
         ];
     }
 
@@ -207,30 +212,227 @@ final class TeacherCourseAnalyticsService
      */
     public function averageGrandTotalPercentForCourse(int $courseId): int
     {
-        $learnerIds = $this->learnerIdsTouchingCourse($courseId);
-        if ($learnerIds === []) {
-            return 0;
+        $batch = $this->batchCatalogStats([$courseId]);
+
+        return (int) ($batch[$courseId]['avg_progress_pct'] ?? 0);
+    }
+
+    /**
+     * Сводная статистика для каталога курсов (без тяжёлого расчёта среднего прогресса).
+     *
+     * @param  list<int>  $courseIds
+     * @return array<int, array{enrolled:int, completed:int, completed_rate_pct:int}>
+     */
+    public function batchCatalogStatsFast(array $courseIds): array
+    {
+        $courseIds = array_values(array_unique(array_filter(array_map('intval', $courseIds), fn (int $id) => $id > 0)));
+        if ($courseIds === []) {
+            return [];
         }
 
-        $learners = Learner::query()
-            ->whereIn('id', $learnerIds)
-            ->with([
-                'moduleProgresses' => fn ($q) => $q->where('course_id', $courseId),
-                'finalLabResults' => fn ($q) => $q->where('course_id', $courseId),
-            ])
-            ->get();
+        $learnersByCourse = $this->batchLearnerIdsByCourse($courseIds);
+        $completedByCourse = $this->batchCompletedCounts($courseIds);
 
-        if ($learners->isEmpty()) {
-            return 0;
+        $out = [];
+        foreach ($courseIds as $courseId) {
+            $enrolled = count($learnersByCourse[$courseId] ?? []);
+            $completed = (int) ($completedByCourse[$courseId] ?? 0);
+            $out[$courseId] = [
+                'enrolled' => $enrolled,
+                'completed' => $completed,
+                'completed_rate_pct' => $enrolled > 0 ? (int) round(100 * $completed / $enrolled) : 0,
+            ];
         }
 
-        $sum = 0;
-        foreach ($learners as $learner) {
-            $row = $this->rowForLearner($learner, $courseId);
-            $sum += (int) ($row['grand_total_percent'] ?? 0);
+        return $out;
+    }
+
+    /**
+     * Средний процент прохождения по баллам для списка курсов (тяжёлый расчёт).
+     *
+     * @param  list<int>  $courseIds
+     * @return array<int, int>
+     */
+    public function batchCatalogAvgProgress(array $courseIds): array
+    {
+        $courseIds = array_values(array_unique(array_filter(array_map('intval', $courseIds), fn (int $id) => $id > 0)));
+        if ($courseIds === []) {
+            return [];
         }
 
-        return (int) round($sum / $learners->count());
+        $learnersByCourse = $this->batchLearnerIdsByCourse($courseIds);
+
+        return $this->batchAverageGrandTotalPercents($courseIds, $learnersByCourse);
+    }
+
+    /**
+     * Сводная статистика для каталога курсов одним пакетом (без N+1 запросов).
+     *
+     * @param  list<int>  $courseIds
+     * @return array<int, array{enrolled:int, completed:int, completed_rate_pct:int, avg_progress_pct:int}>
+     */
+    public function batchCatalogStats(array $courseIds): array
+    {
+        $courseIds = array_values(array_unique(array_filter(array_map('intval', $courseIds), fn (int $id) => $id > 0)));
+        if ($courseIds === []) {
+            return [];
+        }
+
+        $fast = $this->batchCatalogStatsFast($courseIds);
+        $avgByCourse = $this->batchCatalogAvgProgress($courseIds);
+
+        $out = [];
+        foreach ($courseIds as $courseId) {
+            $row = $fast[$courseId] ?? ['enrolled' => 0, 'completed' => 0, 'completed_rate_pct' => 0];
+            $out[$courseId] = [
+                'enrolled' => (int) $row['enrolled'],
+                'completed' => (int) $row['completed'],
+                'completed_rate_pct' => (int) $row['completed_rate_pct'],
+                'avg_progress_pct' => (int) ($avgByCourse[$courseId] ?? 0),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<int>  $courseIds
+     * @return array<int, list<int>>
+     */
+    private function batchLearnerIdsByCourse(array $courseIds): array
+    {
+        $sets = [];
+        foreach ($courseIds as $courseId) {
+            $sets[$courseId] = [];
+        }
+
+        if ($this->hasTable('course_enrollments')) {
+            foreach (DB::table('course_enrollments')->whereIn('course_id', $courseIds)->get(['course_id', 'learner_id']) as $row) {
+                $sets[(int) $row->course_id][(int) $row->learner_id] = true;
+            }
+        }
+        if ($this->hasTable('module_progress')) {
+            foreach (DB::table('module_progress')->whereIn('course_id', $courseIds)->get(['course_id', 'learner_id']) as $row) {
+                $sets[(int) $row->course_id][(int) $row->learner_id] = true;
+            }
+        }
+        if ($this->hasTable('final_lab_results')) {
+            foreach (DB::table('final_lab_results')->whereIn('course_id', $courseIds)->get(['course_id', 'learner_id']) as $row) {
+                $sets[(int) $row->course_id][(int) $row->learner_id] = true;
+            }
+        }
+
+        $out = [];
+        foreach ($sets as $courseId => $learnerSet) {
+            $out[(int) $courseId] = array_map('intval', array_keys($learnerSet));
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<int>  $courseIds
+     * @return array<int, int>
+     */
+    private function batchCompletedCounts(array $courseIds): array
+    {
+        if (! $this->hasTable('final_lab_results')) {
+            return [];
+        }
+
+        return DB::table('final_lab_results')
+            ->whereIn('course_id', $courseIds)
+            ->whereNotNull('certificate_full_name')
+            ->whereNotNull('certificate_serial')
+            ->groupBy('course_id')
+            ->selectRaw('course_id, COUNT(DISTINCT learner_id) as completed')
+            ->pluck('completed', 'course_id')
+            ->map(fn ($v) => (int) $v)
+            ->all();
+    }
+
+    /**
+     * @param  list<int>  $courseIds
+     * @param  array<int, list<int>>  $learnersByCourse
+     * @return array<int, int>
+     */
+    private function batchAverageGrandTotalPercents(array $courseIds, array $learnersByCourse): array
+    {
+        $allLearnerIds = [];
+        foreach ($learnersByCourse as $learnerIds) {
+            foreach ($learnerIds as $learnerId) {
+                $allLearnerIds[$learnerId] = true;
+            }
+        }
+        $allLearnerIds = array_map('intval', array_keys($allLearnerIds));
+        if ($allLearnerIds === []) {
+            return array_fill_keys($courseIds, 0);
+        }
+
+        $progressRows = $this->hasTable('module_progress')
+            ? ModuleProgress::query()
+                ->whereIn('course_id', $courseIds)
+                ->whereIn('learner_id', $allLearnerIds)
+                ->get()
+            : collect();
+
+        $finalRows = $this->hasTable('final_lab_results')
+            ? FinalLabResult::query()
+                ->whereIn('course_id', $courseIds)
+                ->whereIn('learner_id', $allLearnerIds)
+                ->get()
+            : collect();
+
+        $progressByKey = [];
+        foreach ($progressRows as $progress) {
+            $progressByKey[(int) $progress->course_id.'-'.(int) $progress->learner_id][] = $progress;
+        }
+
+        $finalByKey = [];
+        foreach ($finalRows as $final) {
+            $finalByKey[(int) $final->course_id.'-'.(int) $final->learner_id] = $final;
+        }
+
+        $maxGrandByCourse = [];
+        foreach ($courseIds as $courseId) {
+            $moduleMax = $this->scoring->maxTotalModulePoints($courseId);
+            $maxGrandByCourse[$courseId] = $this->scoring->maxTotalModulePoints($courseId) + $this->scoring->maxFinalLabPoints($courseId);
+        }
+
+        $out = [];
+        foreach ($courseIds as $courseId) {
+            $learnerIds = $learnersByCourse[$courseId] ?? [];
+            if ($learnerIds === []) {
+                $out[$courseId] = 0;
+                continue;
+            }
+
+            $maxGrand = (int) ($maxGrandByCourse[$courseId] ?? 0);
+            if ($maxGrand <= 0) {
+                $out[$courseId] = 0;
+                continue;
+            }
+
+            $sum = 0;
+            foreach ($learnerIds as $learnerId) {
+                $key = $courseId.'-'.$learnerId;
+                $progresses = collect($progressByKey[$key] ?? []);
+                $final = $finalByKey[$key] ?? null;
+
+                $learner = new Learner(['id' => $learnerId]);
+                $learner->setRelation('moduleProgresses', $progresses);
+                $learner->setRelation('finalLabResults', $final !== null ? collect([$final]) : collect());
+
+                $modulePoints = $this->scoring->totalModulePointsSafe($learner, $courseId);
+                $finalPoints = $this->scoring->finalLabPoints($final);
+                $grandTotal = min($maxGrand, max(0, $modulePoints + $finalPoints));
+                $sum += (int) round(100 * $grandTotal / $maxGrand);
+            }
+
+            $out[$courseId] = (int) round($sum / count($learnerIds));
+        }
+
+        return $out;
     }
 
     private function trackedSeconds(ModuleProgress $progress): int
@@ -239,5 +441,17 @@ final class TeacherCourseAnalyticsService
             + max(0, (int) ($progress->seconds_theory_quiz ?? 0))
             + max(0, (int) ($progress->seconds_practice ?? 0))
             + max(0, (int) ($progress->seconds_module_exam ?? 0));
+    }
+
+    private function hasTable(string $table): bool
+    {
+        if ($this->schemaTables === null) {
+            $this->schemaTables = [];
+        }
+        if (! array_key_exists($table, $this->schemaTables)) {
+            $this->schemaTables[$table] = Schema::hasTable($table);
+        }
+
+        return $this->schemaTables[$table];
     }
 }

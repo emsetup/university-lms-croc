@@ -114,6 +114,7 @@
                                 PortalStaff::ROLE_COURSE_EDITOR => 'Редактор курсов',
                                 PortalStaff::ROLE_INSTRUCTOR => 'Преподаватель курса',
                                 PortalStaff::ROLE_COURSE_TESTER => 'Тестировщик курса',
+                                PortalStaff::ROLE_COURSE_CONTRIBUTOR => 'Соавтор курса',
                                 default => $row->role,
                             };
                             $badgeClass = match ($row->role) {
@@ -123,10 +124,13 @@
                                 PortalStaff::ROLE_COURSE_CREATOR => 'ap-staff-badge ap-staff-badge--creator',
                                 PortalStaff::ROLE_COURSE_EDITOR => 'ap-staff-badge ap-staff-badge--editor',
                                 PortalStaff::ROLE_COURSE_TESTER => 'ap-staff-badge ap-staff-badge--tester',
+                                PortalStaff::ROLE_COURSE_CONTRIBUTOR => 'ap-staff-badge ap-staff-badge--editor',
                                 default => 'ap-staff-badge ap-staff-badge--muted',
                             };
                             $courseIds = $row->courses->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
                             $fullName = $row->learner ? LearnerDisplay::portalDisplayName($row->learner) : '';
+                            $initials = LearnerDisplay::initials($email, $fullName);
+                            $profileUrl = route('admin.staff.show', ['staff' => (int) $row->id]);
                             $accessComment = trim((string) ($row->access_comment ?? ''));
                             if (in_array($accessComment, ['&quot;&quot;', '""'], true)) {
                                 $accessComment = '';
@@ -138,13 +142,22 @@
                             data-role="{{ e($row->role) }}"
                             data-course-ids="{{ e(implode(',', $courseIds)) }}"
                             data-access-comment="{{ e($accessComment) }}">
-                            <td><strong class="ap-staff-table__email">{{ $email !== '' ? $email : '—' }}</strong></td>
+                            <td>
+                                <a class="ap-staff-table__profile-link" href="{{ $profileUrl }}">
+                                    <strong class="ap-staff-table__email">{{ $email !== '' ? $email : '—' }}</strong>
+                                </a>
+                            </td>
                             <td class="ap-staff-table__name">
-                                @if ($fullName !== '')
-                                    {{ $fullName }}
-                                @else
-                                    <span class="ap-muted" title="Появится после входа через SSO, когда сохранится имя из учётной записи">—</span>
-                                @endif
+                                <a class="ap-staff-table__profile-link ap-staff-table__profile-person" href="{{ $profileUrl }}">
+                                    <span class="ap-people-row__avatar" aria-hidden="true">{{ $initials }}</span>
+                                    <span class="ap-staff-table__profile-name">
+                                        @if ($fullName !== '')
+                                            {{ $fullName }}
+                                        @else
+                                            <span class="ap-muted" title="Появится после входа через SSO, когда сохранится имя из учётной записи">—</span>
+                                        @endif
+                                    </span>
+                                </a>
                             </td>
                             <td><span class="{{ $badgeClass }}">{{ $roleLabel }}</span></td>
                             <td class="ap-staff-table__groups">
@@ -240,6 +253,7 @@
                         <option value="{{ PortalStaff::ROLE_COURSE_EDITOR }}" @if ($r === PortalStaff::ROLE_COURSE_EDITOR) selected @endif>Редактор курсов</option>
                         <option value="{{ PortalStaff::ROLE_INSTRUCTOR }}" @if ($r === PortalStaff::ROLE_INSTRUCTOR) selected @endif>Преподаватель курса</option>
                         <option value="{{ PortalStaff::ROLE_COURSE_TESTER }}" @if ($r === PortalStaff::ROLE_COURSE_TESTER) selected @endif>Тестировщик курса</option>
+                        <option value="{{ PortalStaff::ROLE_COURSE_CONTRIBUTOR }}" @if ($r === PortalStaff::ROLE_COURSE_CONTRIBUTOR) selected @endif>Соавтор курса</option>
                     </select>
                 </div>
                 @include('partials.admin-staff-role-guide')

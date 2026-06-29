@@ -65,7 +65,97 @@ final class CourseScoringService
 
     public function maxTotalModulePoints(?int $courseId = null): int
     {
+        $courseId = $courseId ?? (int) session('course_id', 0);
+        if ($courseId > 0 && Schema::hasTable('course_modules')) {
+            $legacyAlt = (bool) Course::query()->find($courseId)?->isLegacyAltCourse();
+            $total = 0;
+            $modules = $this->courseModules->orderedModulesForCourse($courseId);
+            if ($modules->isNotEmpty()) {
+                foreach ($modules as $mod) {
+                    $mid = (int) $mod->id;
+                    $idx = $mod->effectiveContentIndex();
+                    if ($this->courseSections->useDbSectionsForModule($mid)) {
+                        if ($this->courseSections->moduleScoreWeights($mid, $idx, $legacyAlt) !== []) {
+                            $total += self::MAX_POINTS_PER_MODULE;
+                        }
+                    } else {
+                        $total += self::MAX_POINTS_PER_MODULE;
+                    }
+                }
+
+                return $total;
+            }
+        }
+
         return self::moduleCount($courseId) * self::MAX_POINTS_PER_MODULE;
+    }
+
+    /**
+     * @return array{
+     *     max_module_points: int,
+     *     max_final_lab_points: int,
+     *     max_course_points: int,
+     *     final_lab_enabled: bool,
+     *     has_scoring: bool,
+     *     module_count: int,
+     *     scoring_hint: string
+     * }
+     */
+    public function courseScoringReportMeta(int $courseId): array
+    {
+        $maxModule = $this->maxTotalModulePoints($courseId);
+        $maxFinal = $this->maxFinalLabPoints($courseId);
+        $maxGrand = $maxModule + $maxFinal;
+
+        return [
+            'max_module_points' => $maxModule,
+            'max_final_lab_points' => $maxFinal,
+            'max_course_points' => $maxGrand,
+            'final_lab_enabled' => $maxFinal > 0,
+            'has_scoring' => $maxGrand > 0,
+            'module_count' => self::moduleCount($courseId),
+            'scoring_hint' => $this->courseScoringHint($courseId, $maxModule, $maxFinal),
+        ];
+    }
+
+    private function courseScoringHint(int $courseId, int $maxModule, int $maxFinal): string
+    {
+        if ($maxModule <= 0 && $maxFinal <= 0) {
+            return 'В курсе нет оцениваемых этапов — баллы не начисляются (например, только опросы или теория без тестов).';
+        }
+
+        $legendParts = [];
+        $legacyAlt = (bool) Course::query()->find($courseId)?->isLegacyAltCourse();
+        foreach ($this->courseModules->orderedModulesForCourse($courseId) as $mod) {
+            $legend = $this->courseSections->moduleScoreWeightLegend(
+                (int) $mod->id,
+                $mod->effectiveContentIndex(),
+                $legacyAlt
+            );
+            if ($legend !== []) {
+                foreach ($legend as $item) {
+                    $legendParts[] = (string) $item['label'].' '.(int) $item['pct'].'%';
+                }
+                break;
+            }
+        }
+
+        $parts = [];
+        if ($maxModule > 0) {
+            $weightLine = $legendParts !== [] ? implode(' · ', $legendParts) : 'оцениваемые этапы модуля';
+            $parts[] = sprintf(
+                'Баллы за модуль: взвешенное среднее (%s), максимум %d за модуль; сумма по модулям — до %d',
+                $weightLine,
+                self::MAX_POINTS_PER_MODULE,
+                $maxModule
+            );
+        }
+        if ($maxFinal > 0) {
+            $parts[] = sprintf('финальная лаборатория — до %d', $maxFinal);
+        }
+        $parts[] = sprintf('«Итого курс» — максимум %d', $maxModule + $maxFinal);
+
+        return implode('. ', $parts).'.';
     }
 
     private function finalLabEnabledForCourseId(?int $courseId): bool
@@ -162,16 +252,20 @@ final class CourseScoringService
             $mid = (int) $mod->id;
             $legacyAlt = $mod->loadMissing('course:id,slug')->course?->isLegacyAltCourse() ?? false;
             $skipPractice = $this->courseSections->isPracticeWaived($mid, $idx, $legacyAlt);
+            $parts = $this->courseSections->assessmentPartsForModule($p, $mid, $idx, $legacyAlt);
             $out[] = [
                 'module_id' => (int) $mod->id,
+                'module_sequence' => $this->courseModules->sequenceForModule($mod),
                 'course_module_id' => (int) $mod->id,
                 'title' => (string) $mod->title,
                 'letter' => (string) ($mod->letter ?? ''),
                 'content_source_index' => $idx,
                 'points' => $this->modulePointsRow($idx, $p, $mid, $legacyAlt),
-                'theory_quiz_pct' => $p ? (int) $p->theory_quiz_best_score : 0,
-                'practice_pct' => $skipPractice ? null : ($p ? (int) ($p->practice_lab_percent ?? 0) : 0),
-                'exam_pct' => $p ? (int) $p->module_exam_best_score : 0,
+                'parts' => $parts,
+                'weight_legend' => $this->courseSections->moduleScoreWeightLegend($mid, $idx, $legacyAlt),
+                'theory_quiz_pct' => self::partPctByLegacyKey($parts, 'theory_quiz'),
+                'practice_pct' => self::partPctByLegacyKey($parts, 'practice'),
+                'exam_pct' => self::partPctByLegacyKey($parts, 'module_exam'),
                 'difficulties' => $p ? ($p->difficulty_flags ?? []) : [],
                 'skip_practice' => $skipPractice,
             ];
@@ -320,115 +414,143 @@ final class CourseScoringService
     }
 
     /**
+     * @param  list<array<string, mixed>>  $parts
+     */
+    public static function partPctByLegacyKey(array $parts, string $legacyKey): ?int
+    {
+        foreach ($parts as $part) {
+            if (($part['legacy_key'] ?? '') === $legacyKey) {
+                return (int) ($part['pct'] ?? 0);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array{color_key: string, label: string, pct: int}>
+     */
+    public static function buildSummaryParts(array $rows): array
+    {
+        /** @var array<string, array{color_key: string, label: string, sum: int, count: int}> $acc */
+        $acc = [];
+        foreach ($rows as $row) {
+            foreach ((array) ($row['parts'] ?? []) as $part) {
+                $colorKey = (string) ($part['color_key'] ?? '');
+                if ($colorKey === '') {
+                    continue;
+                }
+                if (! isset($acc[$colorKey])) {
+                    $acc[$colorKey] = [
+                        'color_key' => $colorKey,
+                        'label' => (string) ($part['label'] ?? $colorKey),
+                        'sum' => 0,
+                        'count' => 0,
+                    ];
+                }
+                $acc[$colorKey]['sum'] += (int) ($part['pct'] ?? 0);
+                $acc[$colorKey]['count']++;
+            }
+        }
+
+        $out = [];
+        foreach ($acc as $item) {
+            $out[] = [
+                'color_key' => $item['color_key'],
+                'label' => $item['label'],
+                'pct' => $item['count'] > 0 ? (int) round($item['sum'] / $item['count']) : 0,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $parts
+     * @return array{weak_key: string, any_below_pass: bool}
+     */
+    public static function assessPartsRisk(array $parts, int $passThreshold = self::PASS_THRESHOLD): array
+    {
+        $weakKey = '';
+        $minPct = 101;
+        $anyBelowPass = false;
+        foreach ($parts as $part) {
+            $pct = (int) ($part['pct'] ?? 0);
+            $colorKey = (string) ($part['color_key'] ?? '');
+            if ($pct < $minPct && $colorKey !== '') {
+                $minPct = $pct;
+                $weakKey = $colorKey;
+            }
+            if ($pct < $passThreshold) {
+                $anyBelowPass = true;
+            }
+        }
+
+        return [
+            'weak_key' => $weakKey,
+            'any_below_pass' => $anyBelowPass,
+        ];
+    }
+
+    /**
      * @return array{
      *   rows: list<array<string, mixed>>,
-     *   averages: array{tq: int, pr: int|null, ex: int},
+     *   summary_parts: list<array{color_key: string, label: string, pct: int}>,
      *   total_points: int,
      *   max_points: int,
-     *   pass_threshold: int,
-     *   weight_tq_pct: int,
-     *   weight_pr_pct: int,
-     *   weight_ex_pct: int
+     *   pass_threshold: int
      * }
      */
     public function learnerAssessmentSnapshot(Learner $learner): array
     {
         $courseId = (int) session('course_id', 0);
         $rows = [];
-        $sumTq = 0;
-        $sumEx = 0;
-        $sumPr = 0;
-        $prN = 0;
 
         if ($courseId > 0 && Schema::hasTable('course_modules') && $this->courseModules->moduleCountForCourse($courseId) > 0) {
-            $mods = $this->courseModules->orderedModulesForCourse($courseId);
-            $n = max(1, $mods->count());
-            foreach ($mods as $mod) {
+            foreach ($this->courseModules->orderedModulesForCourse($courseId) as $mod) {
                 $id = (int) $mod->id;
                 $meta = $this->courseModules->displayMeta($mod);
                 $p = $learner->progressExisting($id, $courseId);
                 $idx = $mod->effectiveContentIndex();
                 $legacyAlt = $mod->loadMissing('course:id,slug')->course?->isLegacyAltCourse() ?? false;
                 $skipPractice = $this->courseSections->isPracticeWaived($id, $idx, $legacyAlt);
-                $tq = $p ? (int) $p->theory_quiz_best_score : 0;
-                $pr = $skipPractice ? null : ($p ? (int) ($p->practice_lab_percent ?? 0) : 0);
-                $ex = $p ? (int) $p->module_exam_best_score : 0;
-                $sumTq += $tq;
-                $sumEx += $ex;
-                if ($pr !== null) {
-                    $sumPr += $pr;
-                    $prN++;
-                }
-
-                $parts = [['key' => 'tq', 'label' => 'Тест по теории', 'pct' => $tq]];
-                if ($pr !== null) {
-                    $parts[] = ['key' => 'pr', 'label' => 'Практика', 'pct' => $pr];
-                }
-                $parts[] = ['key' => 'ex', 'label' => 'Итоговый тест', 'pct' => $ex];
-
-                $weakKey = 'tq';
-                $minPct = 101;
-                foreach ($parts as $part) {
-                    if ($part['pct'] < $minPct) {
-                        $minPct = $part['pct'];
-                        $weakKey = $part['key'];
-                    }
-                }
-                $anyBelowPass = false;
-                foreach ($parts as $part) {
-                    if ($part['pct'] < self::PASS_THRESHOLD) {
-                        $anyBelowPass = true;
-                        break;
-                    }
-                }
+                $parts = $this->courseSections->assessmentPartsForModule($p, $id, $idx, $legacyAlt);
+                $risk = self::assessPartsRisk($parts);
 
                 $rows[] = [
                     'module_id' => $id,
+                    'module_sequence' => $this->courseModules->sequenceForModule($mod),
                     'title' => (string) ($meta['title'] ?? ('Модуль '.$id)),
                     'letter' => (string) ($meta['letter'] ?? (string) $id),
                     'skip_practice' => $skipPractice,
-                    'theory_quiz_pct' => $tq,
-                    'practice_pct' => $pr,
-                    'exam_pct' => $ex,
+                    'theory_quiz_pct' => self::partPctByLegacyKey($parts, 'theory_quiz'),
+                    'practice_pct' => self::partPctByLegacyKey($parts, 'practice'),
+                    'exam_pct' => self::partPctByLegacyKey($parts, 'module_exam'),
                     'points' => $this->modulePointsRow($idx, $p, $id, $legacyAlt),
-                    'weak_key' => $weakKey,
-                    'any_below_pass' => $anyBelowPass,
-                    'tq_attempts' => $p ? (int) $p->theory_quiz_attempts : 0,
-                    'ex_attempts' => $p ? (int) $p->module_exam_attempts : 0,
+                    'weak_key' => $risk['weak_key'],
+                    'any_below_pass' => $risk['any_below_pass'],
                     'difficulties' => $p ? (array) ($p->difficulty_flags ?? []) : [],
                     'parts' => $parts,
+                    'weight_legend' => $this->courseSections->moduleScoreWeightLegend($id, $idx, $legacyAlt),
                 ];
             }
 
             return [
                 'rows' => $rows,
-                'averages' => [
-                    'tq' => (int) round($sumTq / $n),
-                    'pr' => $prN > 0 ? (int) round($sumPr / $prN) : null,
-                    'ex' => (int) round($sumEx / $n),
-                ],
+                'summary_parts' => self::buildSummaryParts($rows),
                 'total_points' => $this->totalModulePoints($learner, $courseId),
                 'max_points' => $this->maxTotalModulePoints($courseId),
                 'pass_threshold' => self::PASS_THRESHOLD,
-                'weight_tq_pct' => (int) round(self::MODULE_SCORE_WEIGHT_THEORY_QUIZ * 100),
-                'weight_pr_pct' => (int) round(self::MODULE_SCORE_WEIGHT_PRACTICE * 100),
-                'weight_ex_pct' => (int) round(self::MODULE_SCORE_WEIGHT_EXAM * 100),
             ];
         }
 
         return [
             'rows' => [],
-            'averages' => [
-                'tq' => 0,
-                'pr' => null,
-                'ex' => 0,
-            ],
+            'summary_parts' => [],
             'total_points' => $this->totalModulePoints($learner, $courseId),
             'max_points' => $this->maxTotalModulePoints($courseId),
             'pass_threshold' => self::PASS_THRESHOLD,
-            'weight_tq_pct' => (int) round(self::MODULE_SCORE_WEIGHT_THEORY_QUIZ * 100),
-            'weight_pr_pct' => (int) round(self::MODULE_SCORE_WEIGHT_PRACTICE * 100),
-            'weight_ex_pct' => (int) round(self::MODULE_SCORE_WEIGHT_EXAM * 100),
         ];
     }
 }

@@ -3,7 +3,7 @@
 @section('title', $pageTitle . ' — Документация')
 
 @push('head')
-    <link rel="stylesheet" href="{{ asset('css/docs.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/docs.css') }}?v={{ @filemtime(public_path('css/docs.css')) ?: 1 }}">
 @endpush
 
 @section('content')
@@ -63,19 +63,19 @@
                     </div>
                 </article>
             </div>
-
-            @if ($headings !== [])
-                <aside class="docs-aside-toc" aria-label="На этой странице">
-                    <nav class="docs-toc" data-docs-toc>
-                        <p class="docs-toc__label">На странице</p>
-                        @foreach ($headings as $h)
-                            <a href="#{{ $h['id'] }}" @class(['docs-toc__h3' => $h['level'] === 3])>{{ $h['text'] }}</a>
-                        @endforeach
-                    </nav>
-                </aside>
-            @endif
         </div>
     </div>
+
+    @if ($headings !== [])
+        <aside class="docs-aside-toc" aria-label="На этой странице">
+            <nav class="docs-toc" data-docs-toc>
+                <p class="docs-toc__label">На странице</p>
+                @foreach ($headings as $h)
+                    <a href="#{{ $h['id'] }}" @class(['docs-toc__h3' => $h['level'] === 3])>{{ $h['text'] }}</a>
+                @endforeach
+            </nav>
+        </aside>
+    @endif
     <div id="docs-lightbox" class="docs-lightbox" role="dialog" aria-modal="true" aria-label="Просмотр скриншота" aria-hidden="true">
         <div class="docs-lightbox__backdrop" data-docs-lightbox-close tabindex="-1"></div>
         <div class="docs-lightbox__panel">

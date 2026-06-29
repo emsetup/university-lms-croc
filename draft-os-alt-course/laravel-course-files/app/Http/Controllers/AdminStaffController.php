@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Learner;
 use App\Models\PortalStaff;
 use App\Models\PortalStaffGroup;
+use App\Services\PortalStaffProfileService;
 use App\Support\PortalStaffPermissionCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -14,6 +15,8 @@ use Illuminate\View\View;
 
 final class AdminStaffController extends Controller
 {
+    public function __construct(private PortalStaffProfileService $profileService) {}
+
     public function index(Request $request): View
     {
         $staffTab = (string) $request->query('tab', 'users');
@@ -69,6 +72,16 @@ final class AdminStaffController extends Controller
             'allStaffForGroups' => $allStaffForGroups,
             'permissionSections' => PortalStaffPermissionCatalog::sections(),
             'assignedPermissionKeys' => PortalStaffPermissionCatalog::ASSIGNED_SCOPE_KEYS,
+        ]);
+    }
+
+    public function show(PortalStaff $staff): View
+    {
+        $profile = $this->profileService->build($staff);
+
+        return view('admin.staff-profile', [
+            'profile' => $profile,
+            'changeLogService' => app(\App\Services\CourseChangeLogService::class),
         ]);
     }
 

@@ -134,6 +134,22 @@ final class StaffRoleGuide
                     settings: ['no', '—'],
                 ),
             ],
+            PortalStaff::ROLE_COURSE_CONTRIBUTOR => [
+                'label' => 'Соавтор курса',
+                'badge' => 'editor',
+                'summary' => 'Совместная работа над курсом: только назначенные модули и разделы.',
+                'admin_note' => 'Доступ к /adm по грантам, без публикации',
+                'capabilities' => self::cells(
+                    admin: ['partial', 'По грантам'],
+                    courses: ['assigned', 'С грантами'],
+                    content: ['partial', 'Назначенные разделы'],
+                    learners: ['no', '—'],
+                    people: ['no', '—'],
+                    docker: ['no', '—'],
+                    staff: ['no', '—'],
+                    settings: ['no', '—'],
+                ),
+            ],
         ];
     }
 

@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use App\Models\CourseModule;
+use App\Models\CourseSection;
+use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
 use App\Services\CourseSectionService;
+use App\Services\PortalStaffAccess;
 use App\Services\PracticeLabDaemonClient;
 use App\Services\PracticeLabService;
 use App\Support\AdminCourseContentInspector;
@@ -44,20 +47,26 @@ class AdminTheoryController extends Controller
         $isAltCourse = $course && $course->isLegacyAltCourse();
         $useDbModules = $courseId > 0 && Schema::hasTable('course_modules')
             && CourseModule::query()->where('course_id', $courseId)->exists();
+        $contentColumns = AdminCourseContentInspector::contentColumnsForCourse($courseId, (bool) $isAltCourse);
 
         $client = PracticeLabDaemonClient::fromConfig();
         $lab = PracticeLabService::make();
+        $moduleSvc = app(CourseModuleService::class);
+        $gate = app(PortalStaffAccess::class);
 
         if ($useDbModules) {
             foreach (CourseModule::query()->where('course_id', $courseId)->orderBy('sort')->orderBy('id')->get() as $ent) {
+                if ($gate->usesGrantBasedAccess($courseId) && ! $gate->canViewModuleInAdmin((int) $ent->id)) {
+                    continue;
+                }
                 $m = $ent->effectiveContentIndex();
-                $title = $ent->title.' · пакет №'.$m;
-                $rows[] = $this->theoryIndexRow($m, $title, $isAltCourse, $ent, $lab);
+                $title = (string) ($ent->title !== '' ? $ent->title : 'Модуль '.$moduleSvc->sequenceForModule($ent));
+                $rows[] = $this->theoryIndexRow($m, $title, $isAltCourse, $ent, $lab, $contentColumns);
                 $labStateMap[$m] = $this->adminLabState($key, $m);
             }
         } elseif ($isAltCourse) {
             for ($m = 1; $m <= 9; $m++) {
-                $rows[] = $this->theoryIndexRow($m, '', true, null, $lab);
+                $rows[] = $this->theoryIndexRow($m, '', true, null, $lab, $contentColumns);
                 $labStateMap[$m] = $this->adminLabState($key, $m);
             }
         }
@@ -81,6 +90,7 @@ class AdminTheoryController extends Controller
 
         return view('admin.theory-index', [
             'rows' => $rows,
+            'contentColumns' => $contentColumns,
             'selectedCourse' => $course,
             'adminLabStates' => $labStateMap,
             'finalLabState' => $this->adminLabState($key, 10),
@@ -172,6 +182,7 @@ class AdminTheoryController extends Controller
     public function edit(Request $request, Course $adminCourse, int $module): View|RedirectResponse
     {
         abort_unless($module >= 1 && $module <= 9, 404);
+        $this->assertCanEditTheoryModule($module);
         $ref = CourseTheoryPaths::rawTheoryReference($module);
         $snippet = CourseTheoryPaths::snippetBasenameFromReference($ref);
         if ($snippet === null || ! CourseTheoryPaths::snippetBasenameTargetsModule($snippet, $module)) {
@@ -193,6 +204,7 @@ class AdminTheoryController extends Controller
     public function update(Request $request, Course $adminCourse, int $module): RedirectResponse
     {
         abort_unless($module >= 1 && $module <= 9, 404);
+        $this->assertCanEditTheoryModule($module);
         $ref = CourseTheoryPaths::rawTheoryReference($module);
         $snippet = CourseTheoryPaths::snippetBasenameFromReference($ref);
         if ($snippet === null || ! CourseTheoryPaths::snippetBasenameTargetsModule($snippet, $module)) {
@@ -317,11 +329,13 @@ class AdminTheoryController extends Controller
     }
 
     /**
+     * @param  list<array{key: string, label: string}>  $contentColumns
      * @return array<string, mixed>
      */
-    private function theoryIndexRow(int $m, string $titleOverride = '', bool $legacyAlt = true, ?CourseModule $cm = null, ?PracticeLabService $lab = null): array
+    private function theoryIndexRow(int $m, string $titleOverride = '', bool $legacyAlt = true, ?CourseModule $cm = null, ?PracticeLabService $lab = null, array $contentColumns = []): array
     {
         $meta = $legacyAlt ? config('course.modules.'.$m) : null;
+        $moduleSequence = $legacyAlt ? $m : ($cm instanceof CourseModule ? app(CourseModuleService::class)->sequenceForModule($cm) : $m);
         $title = $titleOverride !== ''
             ? $titleOverride
             : (is_array($meta) ? (string) ($meta['title'] ?? 'Модуль '.$m) : '—');
@@ -330,11 +344,14 @@ class AdminTheoryController extends Controller
         $editable = $legacyAlt && $snippet !== null && CourseTheoryPaths::snippetBasenameTargetsModule($snippet, $m);
         $tq = $legacyAlt ? AdminCourseContentInspector::theoryQuizQuestions($m) : [];
         $ex = $legacyAlt ? AdminCourseContentInspector::moduleExamQuestions($m) : [];
+        $survey = [];
         $practiceMd = $legacyAlt ? AdminCourseContentInspector::practiceMarkdown($m) : '';
         $theoryChars = $legacyAlt ? AdminCourseContentInspector::theoryCharacterCount($m) : 0;
         $examTimeMin = $legacyAlt
             ? $this->legacyModuleExamTimeLimitMinutes($m)
             : CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+        $hasPracticeSection = $legacyAlt || $practiceMd !== '';
+        $course = null;
 
         if (! $legacyAlt && $cm instanceof CourseModule) {
             $course = $cm->relationLoaded('course')
@@ -347,13 +364,39 @@ class AdminTheoryController extends Controller
                 $practiceMd = (string) $db['practice_markdown'];
                 $theoryChars = (int) $db['theory_chars'];
                 $examTimeMin = (int) $db['exam_time_min'];
+                $hasPracticeSection = (bool) $db['has_practice_section'];
+                $survey = AdminCourseContentInspector::questionsForModuleSections($cm, CourseSection::TYPE_SURVEY);
             }
         }
 
         $dockerImage = ($cm && $lab) ? $lab->imageForCourseModule($cm, $m) : ($legacyAlt ? AdminCourseContentInspector::practiceLabDockerImageForModule($m) : null);
 
+        if ($contentColumns === []) {
+            $contentColumns = AdminCourseContentInspector::contentColumnsForCourse(
+                $cm instanceof CourseModule ? (int) $cm->course_id : 0,
+                $legacyAlt
+            );
+        }
+
+        $cells = $this->buildTheoryContentCells(
+            $m,
+            $contentColumns,
+            $legacyAlt,
+            $course ?? null,
+            $cm,
+            $theoryChars,
+            $tq,
+            $practiceMd,
+            $hasPracticeSection,
+            $ex,
+            $examTimeMin,
+            $survey,
+            $dockerImage
+        );
+
         return [
             'module' => $m,
+            'module_sequence' => $moduleSequence,
             'title' => $title,
             'editable' => $editable,
             'ref' => $ref !== '' ? $ref : '—',
@@ -366,7 +409,283 @@ class AdminTheoryController extends Controller
             'practice_summary' => AdminCourseContentInspector::practiceSummaryLine($practiceMd),
             'has_practice' => $practiceMd !== '',
             'practice_lab_docker_image' => $dockerImage,
+            'cells' => $cells,
         ];
+    }
+
+    /**
+     * @param  list<array{key: string, label: string, type?: string, section_id?: int, course_module_id?: int}>  $contentColumns
+     * @param  list<array<string, mixed>>  $tq
+     * @param  list<array<string, mixed>>  $ex
+     * @param  list<array<string, mixed>>  $survey
+     * @return array<string, array<string, mixed>>
+     */
+    private function buildTheoryContentCells(
+        int $m,
+        array $contentColumns,
+        bool $legacyAlt,
+        ?Course $course,
+        ?CourseModule $cm,
+        int $theoryChars,
+        array $tq,
+        string $practiceMd,
+        bool $hasPracticeSection,
+        array $ex,
+        int $examTimeMin,
+        array $survey,
+        ?string $dockerImage
+    ): array {
+        $rp = AdminNavigation::adminCourseRouteParams();
+        $cells = [];
+
+        foreach ($contentColumns as $col) {
+            $key = (string) $col['key'];
+            if (! $legacyAlt && str_starts_with($key, 'slot') && $course instanceof Course && $cm instanceof CourseModule) {
+                $cells[$key] = AdminCourseContentInspector::cellForModuleColumn(
+                    $course,
+                    $cm,
+                    $m,
+                    $col,
+                    $dockerImage
+                );
+
+                continue;
+            }
+
+            $cells[$key] = match ($key) {
+                'text' => [
+                    'has_section' => $legacyAlt || ($cm && AdminCourseContentInspector::moduleHasSectionType((int) $cm->id, CourseSection::TYPE_TEXT)),
+                    'filled' => $theoryChars > 0,
+                    'meta' => $theoryChars > 0
+                        ? number_format($theoryChars, 0, ',', ' ').' симв.'
+                        : '0 симв.',
+                    'preview_url' => route('admin.theory.preview-theory', array_merge($rp, ['module' => $m])),
+                    'preview_title' => 'Просмотр теории',
+                    'stats_url' => null,
+                    'stats_label' => null,
+                    'col_type' => 'text',
+                    'docker_image' => null,
+                ],
+                'quiz' => [
+                    'has_section' => $legacyAlt || ($cm && AdminCourseContentInspector::moduleHasSectionType((int) $cm->id, CourseSection::TYPE_QUIZ)),
+                    'filled' => count($tq) > 0,
+                    'meta' => $this->quizCellMeta(count($tq), AdminCourseContentInspector::countMatchDrag($tq)),
+                    'preview_url' => route('admin.theory.preview-theory-quiz', array_merge($rp, ['module' => $m])),
+                    'preview_title' => 'Просмотр теста по теории',
+                    'stats_url' => null,
+                    'stats_label' => null,
+                    'col_type' => 'quiz',
+                    'docker_image' => null,
+                ],
+                'practice' => [
+                    'has_section' => $legacyAlt ? true : $hasPracticeSection,
+                    'filled' => $practiceMd !== '',
+                    'meta' => AdminCourseContentInspector::practiceSummaryLine($practiceMd),
+                    'preview_url' => route('admin.theory.preview-practice', array_merge($rp, ['module' => $m])),
+                    'preview_title' => 'Просмотр практики',
+                    'stats_url' => null,
+                    'stats_label' => null,
+                    'col_type' => 'practice',
+                    'docker_image' => $dockerImage,
+                ],
+                'exam' => [
+                    'has_section' => $legacyAlt || ($cm && AdminCourseContentInspector::moduleHasSectionType((int) $cm->id, CourseSection::TYPE_EXAM)),
+                    'filled' => count($ex) > 0,
+                    'meta' => $this->examCellMeta(count($ex), $examTimeMin, AdminCourseContentInspector::countMatchDrag($ex)),
+                    'preview_url' => route('admin.theory.preview-module-exam', array_merge($rp, ['module' => $m])),
+                    'preview_title' => 'Просмотр итогового теста',
+                    'stats_url' => null,
+                    'stats_label' => null,
+                    'col_type' => 'exam',
+                    'docker_image' => null,
+                ],
+                'survey' => [
+                    'has_section' => $legacyAlt || ($cm && AdminCourseContentInspector::moduleHasSectionType((int) $cm->id, CourseSection::TYPE_SURVEY)),
+                    'filled' => count($survey) > 0,
+                    'meta' => $this->quizCellMeta(count($survey), AdminCourseContentInspector::countMatchDrag($survey)),
+                    'preview_url' => null,
+                    'preview_title' => null,
+                    'stats_url' => null,
+                    'stats_label' => null,
+                    'col_type' => 'survey',
+                    'docker_image' => null,
+                ],
+                'docker' => [
+                    'has_section' => $legacyAlt ? true : $hasPracticeSection,
+                    'filled' => $dockerImage !== null && $dockerImage !== '',
+                    'meta' => $dockerImage ?? '',
+                    'preview_url' => null,
+                    'preview_title' => null,
+                    'stats_url' => null,
+                    'stats_label' => null,
+                    'col_type' => 'docker',
+                    'docker_image' => $dockerImage,
+                ],
+                default => [
+                    'has_section' => false,
+                    'filled' => false,
+                    'meta' => '',
+                    'preview_url' => null,
+                    'preview_title' => null,
+                    'stats_url' => null,
+                    'stats_label' => null,
+                    'col_type' => '',
+                    'docker_image' => null,
+                ],
+            };
+        }
+
+        return $cells;
+    }
+
+    /**
+     * Предпросмотр содержимого конкретного раздела модуля (теория, тест, экзамен, опрос, практика).
+     */
+    public function previewSection(Request $request, Course $adminCourse, int $module, CourseSection $section): View|RedirectResponse
+    {
+        abort_unless($module >= 1 && $module <= 9, 404);
+        $cm = $this->courseModuleForContentIndex($adminCourse, $module);
+        abort_unless(
+            $cm !== null
+            && (int) $section->course_module_id === (int) $cm->id
+            && (int) $section->course_id === (int) $adminCourse->id
+            && $section->is_enabled,
+            404
+        );
+
+        $meta = $this->previewModuleMeta($adminCourse, $module);
+        $meta['section_title'] = (string) $section->title;
+
+        return match ((string) $section->type) {
+            CourseSection::TYPE_TEXT => $this->previewSectionTheory($request, $module, $meta),
+            CourseSection::TYPE_PRACTICE => $this->previewSectionPractice($request, $module, $meta),
+            CourseSection::TYPE_QUIZ => $this->previewSectionQuizBank($request, $module, $section, $meta, 'admin.content-theory-quiz', 'Тест'),
+            CourseSection::TYPE_EXAM => $this->previewSectionExam($request, $adminCourse, $module, $section, $meta),
+            CourseSection::TYPE_SURVEY => $this->previewSectionQuizBank($request, $module, $section, $meta, 'admin.content-survey', 'Опрос'),
+            default => redirect()
+                ->route('admin.theory.index', $this->theoryRouteQuery($request))
+                ->with('err', 'Неподдерживаемый тип раздела.'),
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    private function previewSectionTheory(Request $request, int $module, array $meta): View|RedirectResponse
+    {
+        $theoryRaw = (string) ($meta['theory'] ?? '');
+        if (trim($theoryRaw) === '') {
+            return redirect()
+                ->route('admin.theory.index', $this->theoryRouteQuery($request))
+                ->with('err', 'Модуль '.$module.': нет текста теории для предпросмотра.');
+        }
+
+        return view('admin.theory-preview', [
+            'module' => $module,
+            'meta' => $meta,
+            'isReadOnly' => $this->isReadOnlyAccess($request),
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    private function previewSectionPractice(Request $request, int $module, array $meta): View|RedirectResponse
+    {
+        $markdown = PracticeHintMarkdown::stripBlockquoteHintsUnlessVisible(
+            (string) ($meta['practice'] ?? ''),
+            true
+        );
+        if ($markdown === '') {
+            return redirect()
+                ->route('admin.theory.index', $this->theoryRouteQuery($request))
+                ->with('err', 'Модуль '.$module.': нет текста практики.');
+        }
+
+        return view('admin.content-practice', [
+            'module' => $module,
+            'meta' => $meta,
+            'practiceMarkdown' => $markdown,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    private function previewSectionQuizBank(
+        Request $request,
+        int $module,
+        CourseSection $section,
+        array $meta,
+        string $view,
+        string $label
+    ): View|RedirectResponse {
+        $questions = AdminCourseContentInspector::questionsForSection($section);
+        if ($questions === []) {
+            return redirect()
+                ->route('admin.theory.index', $this->theoryRouteQuery($request))
+                ->with('err', 'Раздел «'.$section->title.'»: нет вопросов.');
+        }
+
+        return view($view, [
+            'module' => $module,
+            'meta' => $meta,
+            'section' => $section,
+            'questions' => $questions,
+            'sectionLabel' => $label,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    private function previewSectionExam(Request $request, Course $course, int $module, CourseSection $section, array $meta): View|RedirectResponse
+    {
+        $questions = AdminCourseContentInspector::questionsForSection($section);
+        if ($questions === []) {
+            return redirect()
+                ->route('admin.theory.index', $this->theoryRouteQuery($request))
+                ->with('err', 'Раздел «'.$section->title.'»: нет вопросов итогового теста.');
+        }
+
+        $cm = $this->courseModuleForContentIndex($course, $module);
+        $timeLimit = $cm
+            ? app(CourseSectionService::class)->examTimeLimitMinutes((int) $cm->id, $module, false)
+            : CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+
+        return view('admin.content-module-exam', [
+            'module' => $module,
+            'meta' => $meta,
+            'section' => $section,
+            'questions' => $questions,
+            'timeLimitMinutes' => $timeLimit,
+        ]);
+    }
+
+    private function quizCellMeta(int $count, int $matchCount): string
+    {
+        if ($count < 1) {
+            return '0 вопр.';
+        }
+        $meta = $count.' вопр.';
+        if ($matchCount > 0) {
+            $meta .= ' · '.$matchCount.' сопост.';
+        }
+
+        return $meta;
+    }
+
+    private function examCellMeta(int $count, int $timeMin, int $matchCount): string
+    {
+        if ($count < 1) {
+            return '0 вопр.';
+        }
+        $meta = $count.' вопр. · '.$timeMin.' мин';
+        if ($matchCount > 0) {
+            $meta .= ' · '.$matchCount.' сопост.';
+        }
+
+        return $meta;
     }
 
     private function legacyModuleExamTimeLimitMinutes(int $module): int
@@ -567,5 +886,22 @@ class AdminTheoryController extends Controller
             'Content-Type' => 'application/zip',
             'Content-Disposition' => 'attachment; filename="'.$name.'"',
         ]);
+    }
+
+    private function assertCanEditTheoryModule(int $contentModuleIndex): void
+    {
+        $courseId = (int) session('admin_course_id', 0);
+        if ($courseId < 1) {
+            abort(403);
+        }
+        $cm = CourseModule::query()
+            ->where('course_id', $courseId)
+            ->orderBy('sort')
+            ->orderBy('id')
+            ->get()
+            ->first(fn (CourseModule $m) => $m->effectiveContentIndex() === $contentModuleIndex);
+        if ($cm !== null) {
+            app(PortalStaffAccess::class)->assertCanEditModuleContent((int) $cm->id);
+        }
     }
 }

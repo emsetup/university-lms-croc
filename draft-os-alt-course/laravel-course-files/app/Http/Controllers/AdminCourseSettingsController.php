@@ -14,6 +14,7 @@ use App\Models\ModuleProgress;
 use App\Models\PracticeImage;
 use App\Models\CourseQuizBank;
 use App\Services\CourseContentService;
+use App\Services\CourseChangeLogService;
 use App\Services\CourseSectionService;
 use App\Services\SurveyQuickLinkService;
 use App\Services\LegacyAltPracticeImagesBootstrap;
@@ -30,11 +31,30 @@ use Illuminate\View\View;
 
 final class AdminCourseSettingsController extends Controller
 {
+    public function __construct(private CourseChangeLogService $changeLog) {}
+
     public function courseSettings(Request $request, Course $adminCourse): View
     {
         $courseId = (int) $adminCourse->id;
         abort_unless($courseId > 0, 404);
-        app(PortalStaffAccess::class)->assertCanEditCourseMeta($courseId);
+        $gate = app(PortalStaffAccess::class);
+
+        $t = (string) $request->query('tab', '');
+        $settingsTab = match ($t) {
+            'kurs' => 'kurs',
+            'sertifikat' => 'sertifikat',
+            'istoriya' => 'istoriya',
+            'soavtory' => 'soavtory',
+            default => 'moduli',
+        };
+
+        if ($settingsTab === 'soavtory') {
+            $gate->assertCanManageCollaborators($courseId);
+        } elseif ($settingsTab === 'moduli') {
+            $gate->assertCanAccessCourseModulesTab($courseId);
+        } else {
+            $gate->assertCanEditCourseMeta($courseId);
+        }
 
         $course = $adminCourse;
         $course->loadMissing('finalLabPracticeImage:id,title,docker_tag');
@@ -72,13 +92,6 @@ final class AdminCourseSettingsController extends Controller
             $status = 'published';
         }
 
-        $t = (string) $request->query('tab', '');
-        $settingsTab = match ($t) {
-            'kurs' => 'kurs',
-            'sertifikat' => 'sertifikat',
-            default => 'moduli',
-        };
-
         $modules = CourseModule::query()
             ->where('course_id', $courseId)
             ->with([
@@ -91,7 +104,30 @@ final class AdminCourseSettingsController extends Controller
             ->orderBy('id')
             ->get();
 
-        return view('admin.course-settings', [
+        $accessibleModuleIds = $gate->accessibleModulesForCourse($courseId)->flip()->all();
+        if ($gate->usesGrantBasedAccess($courseId)) {
+            $modules = $modules->filter(fn (CourseModule $m) => isset($accessibleModuleIds[(int) $m->id]))->values();
+        }
+
+        $changeLogEntries = $settingsTab === 'istoriya'
+            ? $this->changeLog->entriesForCourse($courseId)
+            : collect();
+
+        $courseCreator = $this->changeLog->creatorForCourse($course);
+
+        $collaboratorPayload = [];
+        if ($settingsTab === 'soavtory') {
+            $collabSvc = app(\App\Services\CourseCollaboratorService::class);
+            $collaboratorPayload = [
+                'collaborators' => $collabSvc->collaboratorsForCourse($course),
+                'grantsByStaff' => $collabSvc->grantsGroupedByStaff($course),
+                'grantTree' => $collabSvc->courseGrantTree($course),
+                'collaboratorLimit' => $collabSvc->collaboratorLimit(),
+                'collaboratorCount' => $collabSvc->countCollaboratorsWithEdit($course),
+            ];
+        }
+
+        return view('admin.course-settings', array_merge([
             'course' => $course,
             'courseStatus' => $status,
             'finalQuestionCount' => $finalQuestionCount,
@@ -99,7 +135,14 @@ final class AdminCourseSettingsController extends Controller
             'settingsTab' => $settingsTab,
             'modules' => $modules,
             'adminKey' => (string) $request->query('key', ''),
-        ]);
+            'changeLogEntries' => $changeLogEntries,
+            'courseCreator' => $courseCreator,
+            'changeLogService' => $this->changeLog,
+            'canViewStaffProfiles' => $gate->canManageStaff(),
+            'canManageCollaborators' => $gate->canManageCollaborators($courseId),
+            'canEditCourseMeta' => $gate->canEditCourseMeta($courseId),
+            'canEditCourseStructure' => $gate->canEditCourseStructure($courseId),
+        ], $collaboratorPayload));
     }
 
     public function saveCourseSettings(Request $request): RedirectResponse
@@ -207,6 +250,7 @@ final class AdminCourseSettingsController extends Controller
             }
         }
 
+        $this->changeLog->logCourseDirty($course);
         $course->save();
 
         if ((int) session('admin_course_id', 0) === (int) $course->id) {
@@ -245,6 +289,8 @@ final class AdminCourseSettingsController extends Controller
     public function storeModule(Request $request): RedirectResponse
     {
         $courseId = (int) session('admin_course_id');
+        abort_unless($courseId > 0, 404);
+        app(PortalStaffAccess::class)->assertCanEditCourseStructure($courseId);
         $data = $request->validate([
             'title' => 'required|string|max:200',
             'summary' => 'nullable|string|max:5000',
@@ -272,6 +318,7 @@ final class AdminCourseSettingsController extends Controller
             $this->seedDefaultSectionsForModule($courseId, $mod);
         }
         app(\App\Services\CourseSectionService::class)->clearCache();
+        $this->changeLog->logModuleCreated($courseId, (string) $mod->title, (int) $mod->id);
 
         return $this->redirectToCourseSettings($request, 'ap-mod-'.$mod->id)
             ->with('ok', 'Модуль добавлен. Настройте разделы при необходимости.');
@@ -280,6 +327,12 @@ final class AdminCourseSettingsController extends Controller
     public function updateModule(Request $request, Course $adminCourse, CourseModule $courseModule): RedirectResponse
     {
         $this->assertModuleCourse($courseModule);
+        $gate = app(PortalStaffAccess::class);
+        abort_unless(
+            $gate->canEditCourseMeta((int) $courseModule->course_id)
+            || $gate->canEditModuleContent((int) $courseModule->id),
+            403
+        );
         $data = $request->validate([
             'title' => 'required|string|max:200',
             'summary' => 'nullable|string|max:5000',
@@ -290,8 +343,20 @@ final class AdminCourseSettingsController extends Controller
         $courseModule->summary = (string) ($data['summary'] ?? '');
         $courseModule->letter = isset($data['letter']) && $data['letter'] !== '' ? (string) $data['letter'] : null;
         $courseModule->content_source_index = isset($data['content_source_index']) ? (int) $data['content_source_index'] : null;
+        $moduleChanges = $this->changeLog->describeModelDirty($courseModule, [
+            'title' => 'Название',
+            'summary' => 'Описание',
+            'letter' => 'Буква',
+            'content_source_index' => 'Пакет контента №',
+        ]);
         $courseModule->save();
         app(\App\Services\CourseSectionService::class)->clearCache();
+        $this->changeLog->logModuleUpdated(
+            (int) $courseModule->course_id,
+            (string) $courseModule->title,
+            (int) $courseModule->id,
+            $moduleChanges,
+        );
 
         return $this->redirectToCourseSettings($request, 'ap-mod-'.$courseModule->id)
             ->with('ok', 'Модуль обновлён.');
@@ -300,12 +365,16 @@ final class AdminCourseSettingsController extends Controller
     public function destroyModule(Request $request, Course $adminCourse, CourseModule $courseModule): RedirectResponse
     {
         $this->assertModuleCourse($courseModule);
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) $courseModule->course_id);
         if (ModuleProgress::query()->where('course_module_id', $courseModule->id)->exists()) {
             return $this->redirectToCourseSettings($request)
                 ->with('err', 'Нельзя удалить модуль: есть сохранённый прогресс обучающихся. Сбросьте прогресс или отключите модуль.');
         }
+        $moduleTitle = (string) $courseModule->title;
+        $moduleId = (int) $courseModule->id;
         $courseModule->delete();
         app(\App\Services\CourseSectionService::class)->clearCache();
+        $this->changeLog->logModuleDeleted((int) session('admin_course_id'), $moduleTitle, $moduleId);
 
         return $this->redirectToCourseSettings($request)
             ->with('ok', 'Модуль удалён.');
@@ -317,6 +386,7 @@ final class AdminCourseSettingsController extends Controller
         $courseId = $routeCourse instanceof Course
             ? (int) $routeCourse->id
             : (int) session('admin_course_id');
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta($courseId);
         $data = $request->validate([
             'order' => 'required|array',
             'order.*' => 'integer|distinct',
@@ -335,6 +405,7 @@ final class AdminCourseSettingsController extends Controller
             }
         });
         app(\App\Services\CourseSectionService::class)->clearCache();
+        $this->changeLog->logModulesReordered($courseId, count($ids));
 
         return $this->redirectToCourseSettings($request)
             ->with('ok', 'Порядок модулей сохранён.');
@@ -371,6 +442,7 @@ final class AdminCourseSettingsController extends Controller
     public function saveModulePractice(Request $request, Course $adminCourse, CourseModule $courseModule): RedirectResponse
     {
         $this->assertModuleCourse($courseModule);
+        app(PortalStaffAccess::class)->assertCanEditModuleContent((int) $courseModule->id);
         $adminKey = (string) $request->query('key', '');
         $data = $request->validate([
             'practice_image_id' => 'nullable|integer|min:1',
@@ -397,6 +469,11 @@ final class AdminCourseSettingsController extends Controller
                 'daemon_image_key_override' => isset($data['daemon_image_key_override']) ? (int) $data['daemon_image_key_override'] : null,
             ]
         );
+        $this->changeLog->logModulePracticeSaved(
+            (int) $courseModule->course_id,
+            (int) $courseModule->id,
+            $practiceImageId,
+        );
 
         return redirect()
             ->route('admin.course.module.practice', array_merge($this->adminCourseRouteParams(), ['courseModule' => $courseModule->id, 'key' => $adminKey]))
@@ -406,6 +483,7 @@ final class AdminCourseSettingsController extends Controller
     public function storeSection(Request $request, Course $adminCourse, CourseModule $courseModule): RedirectResponse
     {
         $this->assertModuleCourse($courseModule);
+        app(PortalStaffAccess::class)->assertCanEditModuleContent((int) $courseModule->id);
         $courseId = (int) session('admin_course_id');
         $data = $request->validate([
             'type' => 'required|in:text,quiz,practice,exam,survey',
@@ -426,6 +504,13 @@ final class AdminCourseSettingsController extends Controller
             'settings' => self::defaultSettingsForType($data['type']),
         ]);
         app(\App\Services\CourseSectionService::class)->clearCache();
+        $this->changeLog->logSectionCreated(
+            $courseId,
+            (string) $sec->title,
+            (string) $sec->type,
+            (int) $sec->id,
+            (int) $courseModule->id,
+        );
 
         return $this->redirectToCourseSettings($request, 'ap-mod-'.$courseModule->id)
             ->with('ok', 'Раздел добавлен.');
@@ -434,6 +519,7 @@ final class AdminCourseSettingsController extends Controller
     public function updateSection(Request $request, Course $adminCourse, CourseModule $courseModule, CourseSection $section): RedirectResponse
     {
         $this->assertSectionInModule($courseModule, $section);
+        app(PortalStaffAccess::class)->assertCanEditSection((int) $section->id);
         $data = $request->validate([
             'title' => 'required|string|max:200',
             'is_enabled' => 'nullable|in:0,1',
@@ -442,8 +528,18 @@ final class AdminCourseSettingsController extends Controller
         if ($request->has('is_enabled')) {
             $section->is_enabled = (string) $request->input('is_enabled') === '1';
         }
+        $sectionChanges = $this->changeLog->describeModelDirty($section, [
+            'title' => 'Название',
+            'is_enabled' => 'Включён',
+        ]);
         $section->save();
         app(\App\Services\CourseSectionService::class)->clearCache();
+        $this->changeLog->logSectionUpdated(
+            (int) $section->course_id,
+            (string) $section->title,
+            (int) $section->id,
+            $sectionChanges,
+        );
 
         return $this->redirectToCourseSettings($request, 'ap-mod-'.$courseModule->id)
             ->with('ok', 'Раздел обновлён.');
@@ -452,8 +548,13 @@ final class AdminCourseSettingsController extends Controller
     public function destroySection(Request $request, Course $adminCourse, CourseModule $courseModule, CourseSection $section): RedirectResponse
     {
         $this->assertSectionInModule($courseModule, $section);
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) session('admin_course_id'));
+        $sectionTitle = (string) $section->title;
+        $sectionId = (int) $section->id;
+        $courseId = (int) $section->course_id;
         $section->delete();
         app(\App\Services\CourseSectionService::class)->clearCache();
+        $this->changeLog->logSectionDeleted($courseId, $sectionTitle, $sectionId);
 
         return $this->redirectToCourseSettings($request, 'ap-mod-'.$courseModule->id)
             ->with('ok', 'Раздел удалён.');
@@ -463,6 +564,7 @@ final class AdminCourseSettingsController extends Controller
     {
         abort_unless((int) $courseModule->course_id === (int) $adminCourse->id, 403);
         $this->assertModuleCourse($courseModule);
+        app(PortalStaffAccess::class)->assertCanEditModuleContent((int) $courseModule->id);
         $data = $request->validate([
             'order' => 'required|array',
             'order.*' => 'integer|distinct',
@@ -481,6 +583,7 @@ final class AdminCourseSettingsController extends Controller
             }
         });
         app(\App\Services\CourseSectionService::class)->clearCache();
+        $this->changeLog->logSectionsReordered((int) session('admin_course_id'), (int) $courseModule->id, count($ids));
 
         return $this->redirectToCourseSettings($request, 'ap-mod-'.$courseModule->id)
             ->with('ok', 'Порядок разделов сохранён.');
@@ -490,6 +593,7 @@ final class AdminCourseSettingsController extends Controller
     {
         $adminKey = (string) $request->query('key', '');
         $this->assertSectionInModule($courseModule, $section);
+        app(PortalStaffAccess::class)->assertCanViewSectionInAdmin((int) $section->id);
         $section->loadMissing('sectionSettings');
         $settings = $section->sectionSettings?->settings;
         if (! is_array($settings)) {
@@ -508,6 +612,7 @@ final class AdminCourseSettingsController extends Controller
     {
         $adminKey = (string) $request->query('key', '');
         $this->assertSectionInModule($courseModule, $section);
+        app(PortalStaffAccess::class)->assertCanEditSection((int) $section->id);
         $merged = match ($section->type) {
             CourseSection::TYPE_TEXT => $request->validate([
                 'min_read_seconds' => 'nullable|integer|min:0|max:86400',
@@ -570,6 +675,12 @@ final class AdminCourseSettingsController extends Controller
         $row->settings = $merged;
         $row->save();
         app(\App\Services\CourseSectionService::class)->clearCache();
+        $this->changeLog->logSectionSettingsSaved(
+            (int) $section->course_id,
+            (string) $section->title,
+            (int) $section->id,
+            (string) $section->type,
+        );
 
         return redirect()
             ->route('admin.course.module.section.settings', array_merge($this->adminCourseRouteParams(), [
@@ -582,8 +693,9 @@ final class AdminCourseSettingsController extends Controller
     public function sectionPanelData(Request $request, Course $adminCourse, CourseModule $courseModule, CourseSection $section): JsonResponse
     {
         $this->assertSectionInModule($courseModule, $section);
+        app(PortalStaffAccess::class)->assertCanViewSectionInAdmin((int) $section->id);
         $courseId = (int) session('admin_course_id');
-        app(PortalStaffAccess::class)->assertCanEditCourseMeta($courseId);
+        abort_unless($courseId > 0, 404);
 
         $course = Course::query()->findOrFail((int) $section->course_id);
         $isLegacy = $course->isLegacyAltCourse();
@@ -752,7 +864,7 @@ final class AdminCourseSettingsController extends Controller
     public function sectionPanelSave(Request $request, Course $adminCourse, CourseModule $courseModule, CourseSection $section): JsonResponse
     {
         $this->assertSectionInModule($courseModule, $section);
-        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) session('admin_course_id'));
+        app(PortalStaffAccess::class)->assertCanEditSection((int) $section->id);
 
         $payload = $request->json()->all();
         if ($payload === []) {
@@ -936,6 +1048,12 @@ final class AdminCourseSettingsController extends Controller
         }
 
         app(CourseSectionService::class)->clearCache();
+        $this->changeLog->logSectionPanelSaved(
+            (int) $section->course_id,
+            (string) $section->title,
+            (int) $section->id,
+            (string) $section->type,
+        );
 
         return response()->json(['ok' => true]);
     }

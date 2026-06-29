@@ -149,28 +149,37 @@
             <h1 class="ap-report-mod-page-title">{{ $panel['title'] }}</h1>
             @if (is_array($rep))
                 @php
+                    $reportParts = (array) ($rep['parts'] ?? []);
                     $summaryBits = [$ptsWord];
-                    if ($hasTheoryQuiz) {
-                        $summaryBits[] = 'Тест '.$tqPct.'%';
-                    }
-                    if ($hasPractice) {
-                        $summaryBits[] = 'Практика '.(int) $prPct.'%';
-                    }
-                    if ($hasExam) {
-                        $summaryBits[] = 'Экзамен '.$exPct.'%';
+                    if ($reportParts !== []) {
+                        foreach ($reportParts as $rp) {
+                            $summaryBits[] = ((string) ($rp['label'] ?? 'Этап')).' '.(int) ($rp['pct'] ?? 0).'%';
+                        }
+                    } else {
+                        if ($hasTheoryQuiz) {
+                            $summaryBits[] = 'Тест '.$tqPct.'%';
+                        }
+                        if ($hasPractice) {
+                            $summaryBits[] = 'Практика '.(int) $prPct.'%';
+                        }
+                        if ($hasExam) {
+                            $summaryBits[] = 'Экзамен '.$exPct.'%';
+                        }
                     }
                     $timeBits = [];
-                    if (isset($presentBk['theory'])) {
-                        $timeBits[] = 'теория '.DurationFormat::fromSeconds($secTheory);
-                    }
-                    if ($hasTheoryQuiz) {
-                        $timeBits[] = 'тест '.DurationFormat::fromSeconds($secTq);
-                    }
-                    if ($hasPractice) {
-                        $timeBits[] = 'практика '.DurationFormat::fromSeconds($secPr);
-                    }
-                    if ($hasExam) {
-                        $timeBits[] = 'экзамен '.DurationFormat::fromSeconds($secEx);
+                    foreach ($sectionRows as $_sr) {
+                        $srBk = (string) ($_sr['backend_key'] ?? '');
+                        $srLabel = mb_strtolower((string) ($_sr['label'] ?? 'раздел'));
+                        $secVal = match ($srBk) {
+                            'theory' => $secTheory,
+                            'theory_quiz' => $secTq,
+                            'practice' => $secPr,
+                            'module_exam' => $secEx,
+                            default => 0,
+                        };
+                        if ($secVal > 0) {
+                            $timeBits[] = $srLabel.' '.DurationFormat::fromSeconds($secVal);
+                        }
                     }
                 @endphp
                 <p class="ap-report-mod-summary-line">{{ implode(' · ', $summaryBits) }}</p>

@@ -139,6 +139,9 @@ final class PortalStaffPermissionCatalog
             PortalStaff::ROLE_COURSE_TESTER => [
                 self::COURSES_MANAGE_ASSIGNED,
             ],
+            PortalStaff::ROLE_COURSE_CONTRIBUTOR => [
+                self::CONTENT_EDIT_ASSIGNED,
+            ],
             default => [],
         };
     }

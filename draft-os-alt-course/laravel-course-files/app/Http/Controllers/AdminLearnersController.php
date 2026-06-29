@@ -138,7 +138,7 @@ final class AdminLearnersController extends Controller
         app(PortalStaffAccess::class)->assertCanViewCourseLearnerStats($courseId);
         $course = Course::query()->findOrFail($courseId);
         $moduleCount = CourseScoringService::moduleCount($courseId);
-        $maxCoursePoints = $moduleCount * CourseScoringService::MAX_POINTS_PER_MODULE + CourseScoringService::MAX_FINAL_LAB_POINTS;
+        $scoringMeta = app(CourseScoringService::class)->courseScoringReportMeta($courseId);
 
         return view('teacher-course-report', [
             'layout' => 'layouts.admin',
@@ -147,7 +147,8 @@ final class AdminLearnersController extends Controller
             'learnerRows' => $this->analytics->learnerRowsForCourse($courseId),
             'adminCourseSlug' => $course->slug,
             'courseModuleCount' => $moduleCount,
-            'maxCoursePoints' => $maxCoursePoints,
+            'maxCoursePoints' => (int) $scoringMeta['max_course_points'],
+            'scoringMeta' => $scoringMeta,
         ]);
     }
 

@@ -923,4 +923,69 @@ final class CourseSectionService
             default => 0,
         };
     }
+
+    public static function legacyTypeColorKey(string $legacyType): string
+    {
+        return match ($legacyType) {
+            'theory_quiz' => 'tq',
+            'practice' => 'pr',
+            'module_exam' => 'ex',
+            default => preg_replace('/[^a-z0-9_]/', '', $legacyType) ?: 'part',
+        };
+    }
+
+    /**
+     * Оцениваемые этапы модуля для итоговой статистики (только quiz / practice / exam).
+     *
+     * @return list<array{key: string, color_key: string, label: string, pct: int, attempts: int|null, weight_pct: int, legacy_key: string}>
+     */
+    public function assessmentPartsForModule(
+        ?ModuleProgress $p,
+        int $courseModuleId,
+        int $contentSourceIndex,
+        bool $legacyAlt = true
+    ): array {
+        $titles = config('course.step_titles', []);
+        $defaultLabels = [
+            'theory_quiz' => (string) ($titles['theory_quiz'] ?? 'Тест по теории'),
+            'practice' => (string) ($titles['practice'] ?? 'Практика'),
+            'module_exam' => (string) ($titles['module_exam'] ?? 'Итоговый тест'),
+        ];
+        $weights = $this->moduleScoreWeights($courseModuleId, $contentSourceIndex, $legacyAlt);
+        $parts = [];
+
+        foreach ($this->scorableBackendKeys($courseModuleId, $contentSourceIndex, $legacyAlt) as $bk) {
+            $sec = $this->findSectionByStepKey($courseModuleId, $bk);
+            $legacyKey = $sec?->legacyTypeKey() ?? $bk;
+            $label = $sec !== null && (string) $sec->title !== ''
+                ? (string) $sec->title
+                : ($defaultLabels[$legacyKey] ?? $legacyKey);
+            $pct = $p !== null
+                ? $this->scorePercentForBackendKey($p, $bk, $courseModuleId, $contentSourceIndex, $legacyAlt)
+                : 0;
+            $attempts = null;
+            if ($p !== null && $sec !== null && in_array($sec->type, [CourseSection::TYPE_QUIZ, CourseSection::TYPE_EXAM], true)) {
+                $sole = $this->isSoleSectionOfType($sec);
+                $attempts = (int) (SectionProgress::quizState($p, $sec, $sole)['attempts'] ?? 0);
+            } elseif ($p !== null) {
+                $attempts = match ($legacyKey) {
+                    'theory_quiz' => (int) ($p->theory_quiz_attempts ?? 0),
+                    'module_exam' => (int) ($p->module_exam_attempts ?? 0),
+                    default => null,
+                };
+            }
+
+            $parts[] = [
+                'key' => $bk,
+                'color_key' => self::legacyTypeColorKey($legacyKey),
+                'label' => $label,
+                'pct' => $pct,
+                'attempts' => $attempts,
+                'weight_pct' => isset($weights[$bk]) ? (int) round($weights[$bk] * 100) : 0,
+                'legacy_key' => $legacyKey,
+            ];
+        }
+
+        return $parts;
+    }
 }

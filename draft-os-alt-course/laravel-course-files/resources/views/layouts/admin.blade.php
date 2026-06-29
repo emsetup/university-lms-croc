@@ -119,6 +119,9 @@
                                 <span class="ap-badge ap-badge--published">Опубликован</span>
                             @else
                                 <span class="ap-badge ap-badge--draft">Черновик</span>
+                                @if ($psa && $cid > 0 && $psa->isCollaboratorOnCourse($cid))
+                                    <span class="ap-badge ap-badge--draft">соавтор</span>
+                                @endif
                             @endif
                         </div>
                         <a class="ap-course-context__back" href="{{ route('admin.courses.index') }}">← Курсы</a>

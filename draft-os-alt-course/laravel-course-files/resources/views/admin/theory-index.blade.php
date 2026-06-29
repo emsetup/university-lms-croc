@@ -226,6 +226,7 @@
         $isReadOnly = (bool) ($isReadOnly ?? false);
         $adminKey = (string) ($adminKey ?? request()->query('key', ''));
         $rp = array_merge(\App\Support\AdminNavigation::adminCourseRouteParams(), $adminKey !== '' ? ['key' => $adminKey] : []);
+        $contentColumns = is_array($contentColumns ?? null) ? $contentColumns : [];
     @endphp
 
     <div class="admin-theory-content-page">
@@ -246,120 +247,35 @@
                     <table class="admin-table content-table admin-theory-content-table">
                         <thead>
                             <tr>
-                                <th>Пакет №</th>
                                 <th>Модуль</th>
-                                <th>Теория</th>
-                                <th>Тест</th>
-                                <th>Практика</th>
-                                <th>Итоговый тест</th>
-                                <th>Docker</th>
+                                <th>Название</th>
+                                @foreach ($contentColumns as $col)
+                                    <th>{{ $col['label'] }}</th>
+                                @endforeach
                             </tr>
                         </thead>
                         <tbody>
                             @foreach ($rows as $r)
                                 <tr>
-                                    <td class="mono">{{ $r['module'] }}</td>
-                                    <td class="module-name">{{ $r['title'] }}</td>
-                                    <td class="content-icon-cell">
-                                        @php
-                                            $__theoryChars = (int) ($r['theory_chars'] ?? 0);
-                                        @endphp
-                                        @if ($__theoryChars > 0)
-                                            <span class="content-icon-ok">@include('partials.ap-icon', ['name' => 'check-circle', 'size' => 'sm'])</span>
-                                            <div class="cell-meta">{{ number_format($__theoryChars, 0, ',', ' ') }} симв.</div>
-                                            <div style="margin-top:8px;">
-                                                <button type="button" class="btn btn-secondary btn-sm btn-admin-content-preview js-admin-content-preview" data-preview-title="Просмотр теории" data-preview-url="{{ route('admin.theory.preview-theory', array_merge($rp, ['module' => $r['module']])) }}">
-                                                    @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
-                                                    <span>Просмотр</span>
-                                                </button>
-                                            </div>
-                                        @else
-                                            <span class="content-icon-muted">@include('partials.ap-icon', ['name' => 'minus', 'size' => 'sm'])</span>
-                                            <div class="cell-meta">0 симв.</div>
+                                    <td class="mono">{{ $r['module_sequence'] ?? $r['module'] }}</td>
+                                    <td class="module-name">
+                                        {{ $r['title'] }}
+                                        @if (($r['module'] ?? 0) !== ($r['module_sequence'] ?? $r['module']))
+                                            <div class="cell-meta">пакет №{{ $r['module'] }}</div>
                                         @endif
                                     </td>
-                                    <td class="content-icon-cell">
-                                        @if ($r['theory_quiz_count'] > 0)
-                                            <span class="content-icon-ok">@include('partials.ap-icon', ['name' => 'check-circle', 'size' => 'sm'])</span>
-                                            <div class="cell-meta">
-                                                {{ $r['theory_quiz_count'] }} вопр.@if ($r['theory_quiz_match'] > 0) · {{ $r['theory_quiz_match'] }} сопост.@endif
-                                            </div>
-                                            <div style="margin-top:8px;">
-                                                <button type="button" class="btn btn-secondary btn-sm btn-admin-content-preview js-admin-content-preview" data-preview-title="Просмотр теста по теории" data-preview-url="{{ route('admin.theory.preview-theory-quiz', array_merge($rp, ['module' => $r['module']])) }}">
-                                                    @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
-                                                    <span>Просмотр</span>
-                                                </button>
-                                            </div>
-                                        @else
-                                            <span class="content-icon-muted">@include('partials.ap-icon', ['name' => 'minus', 'size' => 'sm'])</span>
-                                        @endif
-                                    </td>
-                                    <td class="content-icon-cell">
-                                        @if ($r['has_practice'])
-                                            <span class="content-icon-ok">@include('partials.ap-icon', ['name' => 'check-circle', 'size' => 'sm'])</span>
-                                            @if (($r['practice_summary'] ?? '') !== '')
-                                                <div class="cell-meta">{{ $r['practice_summary'] }}</div>
-                                            @endif
-                                            <div style="margin-top:8px;">
-                                                <button type="button" class="btn btn-secondary btn-sm btn-admin-content-preview js-admin-content-preview" data-preview-title="Просмотр практики" data-preview-url="{{ route('admin.theory.preview-practice', array_merge($rp, ['module' => $r['module']])) }}">
-                                                    @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
-                                                    <span>Просмотр</span>
-                                                </button>
-                                            </div>
-                                        @else
-                                            <span class="content-icon-muted">@include('partials.ap-icon', ['name' => 'minus', 'size' => 'sm'])</span>
-                                        @endif
-                                    </td>
-                                    <td class="content-icon-cell">
-                                        @if ($r['exam_count'] > 0)
-                                            <span class="content-icon-ok">@include('partials.ap-icon', ['name' => 'check-circle', 'size' => 'sm'])</span>
-                                            <div class="cell-meta">
-                                                {{ $r['exam_count'] }} вопр. · {{ $r['exam_time_min'] }} мин@if ($r['exam_match'] > 0) · {{ $r['exam_match'] }} сопост.@endif
-                                            </div>
-                                            <div style="margin-top:8px;">
-                                                <button type="button" class="btn btn-secondary btn-sm btn-admin-content-preview js-admin-content-preview" data-preview-title="Просмотр итогового теста" data-preview-url="{{ route('admin.theory.preview-module-exam', array_merge($rp, ['module' => $r['module']])) }}">
-                                                    @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
-                                                    <span>Просмотр</span>
-                                                </button>
-                                            </div>
-                                        @else
-                                            <span class="content-icon-muted">@include('partials.ap-icon', ['name' => 'minus', 'size' => 'sm'])</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if ($r['practice_lab_docker_image'])
-                                            @php
-                                                $ls = $adminLabStates[$r['module']] ?? null;
-                                                $st = is_array($imageStatsByImage[$r['practice_lab_docker_image']] ?? null) ? $imageStatsByImage[$r['practice_lab_docker_image']] : null;
-                                            @endphp
-                                            <span class="docker-tag" title="{{ $r['practice_lab_docker_image'] }}">{{ $r['practice_lab_docker_image'] }}</span>
-                                            @if ($st)
-                                                <div class="docker-meta">
-                                                    {{ $st['size_human'] ?? '—' }}@if (! empty($st['layers_count'])) · {{ (int) $st['layers_count'] }} слоёв@endif
-                                                </div>
-                                            @endif
-                                            @if (! $isReadOnly)
-                                                <div class="content-docker-actions">
-                                                    @if ($ls && ! empty($ls['lab_id']))
-                                                        @if (! empty($ls['terminal_url']))
-                                                            <a class="btn btn-secondary btn-sm" href="{{ $ls['terminal_url'] }}" target="_blank" rel="noopener">Открыть</a>
-                                                        @endif
-                                                        <form method="post" action="{{ route('admin.theory.container.finish', array_merge($rp, ['module' => $r['module']])) }}" class="admin-inline-form">
-                                                            @csrf
-                                                            <button type="submit" class="btn btn-secondary btn-sm">Завершить</button>
-                                                        </form>
-                                                    @else
-                                                        <form method="post" action="{{ route('admin.theory.container.start', array_merge($rp, ['module' => $r['module']])) }}" class="admin-inline-form">
-                                                            @csrf
-                                                            <button type="submit" class="btn btn-primary btn-sm">Запустить</button>
-                                                        </form>
-                                                    @endif
-                                                </div>
-                                            @endif
-                                        @else
-                                            <span class="content-docker-unset">Не задан</span>
-                                        @endif
-                                    </td>
+                                    @foreach ($contentColumns as $col)
+                                        @include('admin.partials.theory-content-cell', [
+                                            'colKey' => $col['key'],
+                                            'cell' => $r['cells'][$col['key']] ?? [],
+                                            'module' => $r['module'],
+                                            'isReadOnly' => $isReadOnly,
+                                            'adminLabStates' => $adminLabStates ?? [],
+                                            'imageStatsByImage' => $imageStatsByImage ?? [],
+                                            'rp' => $rp,
+                                            'dockerImage' => $r['practice_lab_docker_image'] ?? '',
+                                        ])
+                                    @endforeach
                                 </tr>
                             @endforeach
                         </tbody>

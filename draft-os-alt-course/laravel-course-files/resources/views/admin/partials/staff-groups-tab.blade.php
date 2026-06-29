@@ -27,7 +27,15 @@
                     $memberPreview = $group->members->take(4)->map(function ($m) {
                         $email = (string) ($m->learner?->email ?? '');
                         $name = $m->learner ? LearnerDisplay::portalDisplayName($m->learner) : '';
-                        return $name !== '' ? $name : $email;
+                        $label = $name !== '' ? $name : $email;
+                        if ($label === '') {
+                            return null;
+                        }
+
+                        return [
+                            'id' => (int) $m->id,
+                            'label' => $label,
+                        ];
                     })->filter()->values()->all();
                 @endphp
                 <article class="ap-staff-group-card ap-staff-group-row"
@@ -77,7 +85,13 @@
                         </ul>
                     @endif
                     @if ($memberPreview !== [])
-                        <p class="ap-staff-group-card__members ap-muted">{{ implode(' · ', $memberPreview) }}@if ($group->members_count > 4) … @endif</p>
+                        <p class="ap-staff-group-card__members ap-muted">
+                            @foreach ($memberPreview as $i => $member)
+                                @if ($i > 0)<span class="ap-staff-group-card__dot">·</span>@endif
+                                <a class="ap-staff-group-card__member-link" href="{{ route('admin.staff.show', ['staff' => $member['id']]) }}">{{ $member['label'] }}</a>
+                            @endforeach
+                            @if ($group->members_count > 4) … @endif
+                        </p>
                     @endif
                 </article>
             @endforeach

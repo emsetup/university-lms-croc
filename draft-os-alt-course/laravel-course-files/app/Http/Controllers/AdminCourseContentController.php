@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\CourseModule;
 use App\Services\CourseContentService;
+use App\Services\PortalStaffAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -19,6 +20,7 @@ final class AdminCourseContentController extends Controller
     public function edit(Request $request, Course $adminCourse, CourseModule $courseModule): View|RedirectResponse
     {
         $this->assertModuleCourse($courseModule);
+        app(PortalStaffAccess::class)->assertCanEditModuleContent((int) $courseModule->id);
 
         $courseId = (int) session('admin_course_id', 0);
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
@@ -40,6 +42,7 @@ final class AdminCourseContentController extends Controller
     public function update(Request $request, Course $adminCourse, CourseModule $courseModule): RedirectResponse
     {
         $this->assertModuleCourse($courseModule);
+        app(PortalStaffAccess::class)->assertCanEditModuleContent((int) $courseModule->id);
 
         $courseId = (int) session('admin_course_id', 0);
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;

@@ -22,6 +22,7 @@ final class Course extends Model
         'tags',
         'is_published',
         'is_archived',
+        'strict_grants',
         'sort',
         'default_attempt_limit',
         'default_quiz_time_minutes',
@@ -46,6 +47,7 @@ final class Course extends Model
     protected $casts = [
         'is_published' => 'bool',
         'is_archived' => 'bool',
+        'strict_grants' => 'bool',
         'sort' => 'int',
         'tags' => 'array',
         'default_attempt_limit' => 'integer',
@@ -87,6 +89,16 @@ final class Course extends Model
     public function finalLabPracticeImage(): BelongsTo
     {
         return $this->belongsTo(PracticeImage::class, 'final_lab_practice_image_id');
+    }
+
+    public function changeLogs(): HasMany
+    {
+        return $this->hasMany(CourseChangeLog::class)->orderByDesc('created_at')->orderByDesc('id');
+    }
+
+    public function contentGrants(): HasMany
+    {
+        return $this->hasMany(CourseContentGrant::class);
     }
 }
 

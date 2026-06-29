@@ -33,7 +33,14 @@
 
     <div class="admin-card ap-wide-page">
         <h2 class="admin-card__title">Модули</h2>
-        <p class="admin-card__lead">Для каждого модуля доступны два банка: тест по теории и итоговый экзамен.</p>
+        @php
+            $quizColumns = is_array($quizColumns ?? null) ? $quizColumns : [];
+        @endphp
+        @if ($quizColumns !== [])
+            <p class="admin-card__lead">Для каждого модуля доступны банки вопросов по включённым типам разделов.</p>
+        @else
+            <p class="admin-card__lead">В курсе нет разделов с тестами или экзаменами.</p>
+        @endif
 
         @if (empty($rows) || count($rows) === 0)
             <div class="empty-state" role="status">
@@ -51,36 +58,72 @@
                 <table class="admin-table">
                         <thead>
                             <tr>
-                                <th>Пакет / модуль</th>
-                                <th>Тест по теории</th>
-                                <th>Итоговый экзамен</th>
+                                <th>Модуль</th>
+                                <th>Название</th>
+                                @foreach ($quizColumns as $col)
+                                    <th>{{ $col['label'] }}</th>
+                                @endforeach
                             </tr>
                         </thead>
                         <tbody>
                             @foreach ($rows as $r)
                                 <tr>
+                                    <td class="mono">{{ $r['module_sequence'] ?? $r['module'] }}</td>
                                     <td>
-                                        <strong>{{ $r['module'] }}</strong>
                                         @if (! empty($r['label']))
-                                            <div class="admin-table__meta">{{ $r['label'] }}</div>
+                                            {{ $r['label'] }}
+                                        @else
+                                            Модуль {{ $r['module_sequence'] ?? $r['module'] }}
+                                        @endif
+                                        @if (($r['module'] ?? 0) !== ($r['module_sequence'] ?? $r['module']))
+                                            <div class="admin-table__meta">пакет №{{ $r['module'] }}</div>
                                         @endif
                                     </td>
-                                    <td>
-                                        <div class="admin-table__actions">
-                                            <a class="icon-btn" href="{{ route('admin.quiz.edit.module', ['module' => $r['module'], 'kind' => 'theory_quiz']) }}" data-tip="Редактировать" aria-label="Редактировать тест по теории">
-                                                @include('partials.ap-icon', ['name' => 'pencil', 'size' => 'md'])
-                                            </a>
-                                            <span class="badge badge-gray">{{ (int) $r['theory_quiz_count'] }} вопр.</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="admin-table__actions">
-                                            <a class="icon-btn" href="{{ route('admin.quiz.edit.module', ['module' => $r['module'], 'kind' => 'module_exam']) }}" data-tip="Редактировать" aria-label="Редактировать итоговый экзамен">
-                                                @include('partials.ap-icon', ['name' => 'pencil', 'size' => 'md'])
-                                            </a>
-                                            <span class="badge badge-gray">{{ (int) $r['module_exam_count'] }} вопр.</span>
-                                        </div>
-                                    </td>
+                                    @foreach ($quizColumns as $col)
+                                        @php
+                                            $count = 0;
+                                            $moduleId = (int) ($r['course_module_id'] ?? 0);
+                                            $slot = isset($col['slot']) ? (int) $col['slot'] : -1;
+                                            if ($moduleId > 0 && $slot >= 0) {
+                                                $cmCol = \App\Models\CourseModule::query()->find($moduleId);
+                                                $sec = $cmCol
+                                                    ? \App\Support\AdminCourseContentInspector::sectionAtSlot($cmCol, $slot)
+                                                    : null;
+                                                $colType = (string) ($col['type'] ?? '');
+                                                $expectedKind = (string) ($col['kind'] ?? '');
+                                                if ($sec && (
+                                                    ($expectedKind === 'theory_quiz' && $colType === \App\Models\CourseSection::TYPE_QUIZ)
+                                                    || ($expectedKind === 'module_exam' && $colType === \App\Models\CourseSection::TYPE_EXAM)
+                                                )) {
+                                                    $count = count(\App\Support\AdminCourseContentInspector::questionsForSection($sec));
+                                                }
+                                            } elseif ((int) ($col['section_id'] ?? 0) > 0
+                                                && (int) ($col['course_module_id'] ?? 0) === $moduleId) {
+                                                $sec = \App\Models\CourseSection::query()->find((int) $col['section_id']);
+                                                $count = $sec ? count(\App\Support\AdminCourseContentInspector::questionsForSection($sec)) : 0;
+                                            } else {
+                                                $count = ($col['kind'] ?? '') === 'module_exam'
+                                                    ? (int) ($r['module_exam_count'] ?? 0)
+                                                    : (int) ($r['theory_quiz_count'] ?? 0);
+                                            }
+                                        @endphp
+                                        <td>
+                                            <div class="admin-table__actions">
+                                                @php
+                                                    $moduleId = (int) ($r['course_module_id'] ?? 0);
+                                                    $canEditCol = empty($isReadOnly)
+                                                        && $moduleId > 0
+                                                        && ($portalStaffAccess ?? null)?->canEditModuleQuiz($moduleId, (string) ($col['kind'] ?? ''));
+                                                @endphp
+                                                @if ($canEditCol)
+                                                    <a class="icon-btn" href="{{ route('admin.quiz.edit.module', array_merge($tp, ['module' => $r['module'], 'kind' => $col['kind']])) }}" data-tip="Редактировать" aria-label="Редактировать {{ $col['label'] }}">
+                                                        @include('partials.ap-icon', ['name' => 'pencil', 'size' => 'md'])
+                                                    </a>
+                                                @endif
+                                                <span class="badge badge-gray">{{ $count }} вопр.</span>
+                                            </div>
+                                        </td>
+                                    @endforeach
                                 </tr>
                             @endforeach
                         </tbody>

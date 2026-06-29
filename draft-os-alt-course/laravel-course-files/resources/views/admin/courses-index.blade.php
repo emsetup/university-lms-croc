@@ -2,6 +2,10 @@
 
 @section('title', 'Курсы портала — Трек знаний')
 
+@push('scripts')
+    <script src="{{ asset('js/admin-course-catalog-stats.js') }}" defer></script>
+@endpush
+
 @section('content')
     <div class="ap-page ap-fade ap-catalog">
         <div class="ap-catalog__toolbar">
@@ -37,7 +41,7 @@
             </div>
         @endif
 
-        <div class="ap-catalog__grid" id="ap-course-catalog-grid">
+        <div class="ap-catalog__grid" id="ap-course-catalog-grid" data-ap-stats-url="{{ route('admin.courses.catalog-stats') }}">
             @forelse ($courses as $c)
                 @php
                     $cid = (int) $c['id'];
@@ -52,11 +56,11 @@
                     $enrolled = (int) $c['enrolled'];
                     $completed = (int) ($c['completed'] ?? 0);
                     $ratePct = (int) ($c['completed_rate_pct'] ?? 0);
-                    $avgPct = (int) ($c['avg_progress_pct'] ?? 0);
                 @endphp
                 <article
                     class="ap-catalog-card"
                     style="--ap-stagger: {{ $loop->index }}"
+                    data-course-id="{{ $cid }}"
                     data-ap-title="{{ e($titleLower) }}"
                     data-ap-bucket="{{ $bucket }}"
                     data-ap-visible="1"
@@ -65,27 +69,50 @@
                         <span class="ap-catalog-card__icon" aria-hidden="true">
                             @include('partials.ap-icon', ['name' => 'book-open', 'size' => 'lg'])
                         </span>
-                        <div class="ap-catalog-card__head-text">
-                            <h2 class="ap-catalog-card__name">{{ $c['title'] }}</h2>
-                            @if (! empty($c['is_archived']))
-                                <span class="ap-badge ap-badge--archive">Архив</span>
-                            @elseif (! empty($c['is_published']))
-                                <span class="ap-badge ap-badge--published">Опубликован</span>
-                            @else
-                                <span class="ap-badge ap-badge--draft">Черновик</span>
-                            @endif
+                        <div class="ap-catalog-card__head-main">
+                            <h2 class="ap-catalog-card__name" title="{{ $c['title'] }}">{{ $c['title'] }}</h2>
+                            <div class="ap-catalog-card__status">
+                                @if (! empty($c['is_archived']))
+                                    <span class="ap-badge ap-badge--archive">Архив</span>
+                                @elseif (! empty($c['is_published']))
+                                    <span class="ap-badge ap-badge--published">Опубликован</span>
+                                @else
+                                    <span class="ap-badge ap-badge--draft">Черновик</span>
+                                    @if (! empty($c['is_collaborator']))
+                                        <span class="ap-badge ap-badge--draft">соавтор</span>
+                                    @endif
+                                @endif
+                            </div>
                         </div>
                     </div>
-                    <p class="ap-catalog-card__slug"><code>{{ $c['slug'] }}</code></p>
-                    <p class="ap-catalog-card__stats">
-                        Участников {{ $enrolled }}
-                        · Завершили {{ $completed }} ({{ $ratePct }}%)
-                    </p>
-                    <div class="ap-catalog-card__progress-label">Средний прогресс участников: {{ $avgPct }}%</div>
-                    <div class="ap-mini-progress ap-catalog-card__progress" role="progressbar"
-                         aria-valuenow="{{ $avgPct }}" aria-valuemin="0" aria-valuemax="100"
-                         aria-label="Средний прогресс по курсу">
-                        <div class="ap-mini-progress__bar" style="width: {{ $avgPct }}%"></div>
+                    <div class="ap-catalog-card__body">
+                        <div class="ap-catalog-card__meta">
+                            <p class="ap-catalog-card__slug" title="{{ $c['slug'] }}"><code>{{ $c['slug'] }}</code></p>
+                            <div class="ap-catalog-card__creator">
+                                @include('partials.staff-person-chip', [
+                                    'staffId' => $c['creator_staff_id'] ?? null,
+                                    'name' => $c['creator_name'] ?? '—',
+                                    'email' => $c['creator_email'] ?? '',
+                                    'initials' => $c['creator_initials'] ?? '—',
+                                    'canLinkToProfile' => ! empty($canViewStaffProfiles),
+                                    'size' => 'sm',
+                                ])
+                            </div>
+                        </div>
+                        <div class="ap-catalog-card__stats-block">
+                            <p class="ap-catalog-card__stats">
+                                Участников {{ $enrolled }}
+                                · Завершили {{ $completed }} ({{ $ratePct }}%)
+                            </p>
+                            <div class="ap-catalog-card__progress-label">
+                                Средний прогресс участников: <span class="js-ap-catalog-avg-label">—</span>%
+                            </div>
+                            <div class="ap-mini-progress ap-catalog-card__progress is-loading" role="progressbar"
+                                 aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"
+                                 aria-label="Средний прогресс по курсу">
+                                <div class="ap-mini-progress__bar" style="width: 0"></div>
+                            </div>
+                        </div>
                     </div>
                     <div class="ap-catalog-card__actions">
                         <a
@@ -96,10 +123,12 @@
                             @include('partials.ap-icon', ['name' => 'chevron-right', 'size' => 'sm'])
                         </a>
                         @if ($canPublish)
-                            <form method="post" action="{{ route('admin.courses.publish', ['course' => $cid]) }}" style="margin:0">
+                            <form method="post" action="{{ route('admin.courses.publish', ['course' => $cid]) }}" class="ap-catalog-card__publish-form">
                                 @csrf
                                 <button type="submit" class="btn btn-ghost ap-catalog-card__publish">Опубликовать</button>
                             </form>
+                        @else
+                            <span class="ap-catalog-card__actions-spacer" aria-hidden="true"></span>
                         @endif
                     </div>
                 </article>

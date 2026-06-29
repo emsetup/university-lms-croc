@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\CourseModule;
 use App\Models\CourseQuizBank;
+use App\Models\CourseSection;
 use App\Services\CourseContentService;
+use App\Services\CourseModuleService;
 use App\Services\PortalStaffAccess;
 use App\Support\AdminCourseContentInspector;
 use App\Support\CourseQuizBankLoader;
@@ -32,16 +34,18 @@ final class AdminQuizController extends Controller
             && CourseModule::query()->where('course_id', $courseId)->exists();
 
         if ($useDbModules) {
+            $moduleSvc = app(CourseModuleService::class);
             foreach (CourseModule::query()->where('course_id', $courseId)->orderBy('sort')->orderBy('id')->get() as $ent) {
                 $m = $ent->effectiveContentIndex();
-                $dbTq = $this->dbQuestionCount($courseId, (int) $ent->id, 'theory_quiz');
-                $dbEx = $this->dbQuestionCount($courseId, (int) $ent->id, 'module_exam');
+                $dbTq = AdminCourseContentInspector::dbQuestionCountForModule($courseId, (int) $ent->id, 'theory_quiz');
+                $dbEx = AdminCourseContentInspector::dbQuestionCountForModule($courseId, (int) $ent->id, 'module_exam');
                 $legacyTq = count(AdminCourseContentInspector::theoryQuizQuestions($m));
                 $legacyEx = count(AdminCourseContentInspector::moduleExamQuestions($m));
                 $rows[] = [
                     'course_module_id' => (int) $ent->id,
                     'module' => $m,
-                    'label' => $ent->title.' · пакет №'.$m,
+                    'module_sequence' => $moduleSvc->sequenceForModule($ent),
+                    'label' => (string) ($ent->title !== '' ? $ent->title : 'Модуль '.$moduleSvc->sequenceForModule($ent)),
                     'theory_quiz_count' => $dbTq > 0 ? $dbTq : ($isAltCourse ? $legacyTq : 0),
                     'module_exam_count' => $dbEx > 0 ? $dbEx : ($isAltCourse ? $legacyEx : 0),
                     'mode' => ($dbTq > 0 || $dbEx > 0) ? 'db' : ($isAltCourse ? 'legacy' : 'db'),
@@ -52,6 +56,7 @@ final class AdminQuizController extends Controller
                 $rows[] = [
                     'course_module_id' => null,
                     'module' => $m,
+                    'module_sequence' => $m,
                     'label' => null,
                     'theory_quiz_count' => count(AdminCourseContentInspector::theoryQuizQuestions($m)),
                     'module_exam_count' => count(AdminCourseContentInspector::moduleExamQuestions($m)),
@@ -60,12 +65,25 @@ final class AdminQuizController extends Controller
             }
         }
 
-        $ro = app(PortalStaffAccess::class)->isReadOnlyCourseContent();
+        $quizColumns = $this->quizColumnsForCourse($courseId, (bool) $isAltCourse);
+
+        $gate = app(PortalStaffAccess::class);
+        if ($courseId > 0 && $gate->usesGrantBasedAccess($courseId)) {
+            $allowedModules = $gate->accessibleModulesForCourse($courseId)->flip()->all();
+            $rows = array_values(array_filter(
+                $rows,
+                fn (array $r) => isset($r['course_module_id']) && isset($allowedModules[(int) $r['course_module_id']])
+            ));
+        }
+
+        $ro = $gate->isReadOnlyCourseContent();
 
         return view('admin.quiz-index', [
             'rows' => $rows,
+            'quizColumns' => $quizColumns,
             'selectedCourse' => $course,
             'isReadOnly' => $ro,
+            'ap' => \App\Support\AdminNavigation::adminCourseRouteParams(),
         ]);
     }
 
@@ -80,9 +98,10 @@ final class AdminQuizController extends Controller
 
         $cm = $this->findCourseModuleByContentPackageIndex($courseId, $module);
         abort_unless($cm !== null, 404);
+        app(PortalStaffAccess::class)->assertCanEditModuleQuiz((int) $cm->id, $kind);
 
         $dbCount = Schema::hasTable('course_quiz_banks')
-            ? $this->dbQuestionCount($courseId, (int) $cm->id, $kind)
+            ? AdminCourseContentInspector::dbQuestionCountForModule($courseId, (int) $cm->id, $kind)
             : 0;
         $useDbEditor = ! $isAlt || $dbCount > 0;
 
@@ -100,7 +119,9 @@ final class AdminQuizController extends Controller
                 ]);
             }
             $questions = $this->content->questionsForBank($bank);
-            $ro = app(PortalStaffAccess::class)->isReadOnlyCourseContent();
+            $gate = app(PortalStaffAccess::class);
+            $ro = $gate->isReadOnlyCourseContent()
+                || ! $gate->canEditModuleQuiz((int) $cm->id, $kind);
 
             return view('admin.quiz-edit-db', [
                 'course' => $course,
@@ -115,7 +136,9 @@ final class AdminQuizController extends Controller
 
         [$jsonPath, $phpPath] = $this->bankPaths($module, $kind);
         $questions = CourseQuizBankLoader::loadBankWithFallback($jsonPath, $phpPath);
-        $ro = app(PortalStaffAccess::class)->isReadOnlyCourseContent();
+        $gate = app(PortalStaffAccess::class);
+        $ro = $gate->isReadOnlyCourseContent()
+            || ! $gate->canEditModuleQuiz((int) $cm->id, $kind);
 
         return view('admin.quiz-edit', [
             'scope' => 'module',
@@ -196,7 +219,7 @@ final class AdminQuizController extends Controller
         $cm = $this->findCourseModuleByContentPackageIndex($courseId, $module);
         if ($cm !== null && Schema::hasTable('course_quiz_banks')) {
             $bank = $this->content->quizBankFor($course, $cm, $kind);
-            if ($bank !== null && $this->dbQuestionCount($courseId, (int) $cm->id, $kind) > 0) {
+            if ($bank !== null && AdminCourseContentInspector::dbQuestionCountForModule($courseId, (int) $cm->id, $kind) > 0) {
                 return $this->saveDbBank($request, $course, $module, $kind);
             }
         }
@@ -242,21 +265,46 @@ final class AdminQuizController extends Controller
             ->first(fn (CourseModule $cm) => $cm->effectiveContentIndex() === $contentIdx);
     }
 
-    private function dbQuestionCount(int $courseId, int $courseModuleId, string $kind): int
+    /**
+     * @return list<array{key: string, label: string, kind: string}>
+     */
+    private function quizColumnsForCourse(int $courseId, bool $legacyAlt): array
     {
-        if (! Schema::hasTable('course_quiz_banks') || ! Schema::hasTable('course_quiz_questions')) {
-            return 0;
-        }
-        $bankId = CourseQuizBank::query()
-            ->where('course_id', $courseId)
-            ->where('course_module_id', $courseModuleId)
-            ->where('kind', $kind)
-            ->value('id');
-        if (! $bankId) {
-            return 0;
+        $all = AdminCourseContentInspector::contentColumnsForCourse($courseId, $legacyAlt);
+        $map = [
+            CourseSection::TYPE_QUIZ => ['key' => 'quiz', 'label' => 'Тест по теории', 'kind' => 'theory_quiz'],
+            CourseSection::TYPE_EXAM => ['key' => 'exam', 'label' => 'Итоговый экзамен', 'kind' => 'module_exam'],
+        ];
+        $out = [];
+        foreach ($all as $col) {
+            $type = (string) ($col['type'] ?? $col['key'] ?? '');
+            if (! isset($map[$type])) {
+                continue;
+            }
+            $out[] = [
+                'key' => (string) ($col['key'] ?? $map[$type]['key']),
+                'label' => $col['label'] ?? $map[$type]['label'],
+                'kind' => $map[$type]['kind'],
+                'slot' => isset($col['slot']) ? (int) $col['slot'] : null,
+                'type' => $type,
+                'section_id' => (int) ($col['section_id'] ?? 0),
+                'course_module_id' => (int) ($col['course_module_id'] ?? 0),
+            ];
         }
 
-        return (int) \App\Models\CourseQuizQuestion::query()->where('quiz_bank_id', (int) $bankId)->count();
+        if ($out === [] && $legacyAlt) {
+            return [
+                ['key' => 'quiz', 'label' => 'Тест по теории', 'kind' => 'theory_quiz', 'section_id' => 0, 'course_module_id' => 0],
+                ['key' => 'exam', 'label' => 'Итоговый экзамен', 'kind' => 'module_exam', 'section_id' => 0, 'course_module_id' => 0],
+            ];
+        }
+
+        return $out;
+    }
+
+    private function dbQuestionCount(int $courseId, int $courseModuleId, string $kind): int
+    {
+        return AdminCourseContentInspector::dbQuestionCountForModule($courseId, $courseModuleId, $kind);
     }
 
     private function saveDbBank(Request $request, ?Course $course, int $contentIdx, string $kind): RedirectResponse|JsonResponse
@@ -266,6 +314,7 @@ final class AdminQuizController extends Controller
 
         $cm = $this->findCourseModuleByContentPackageIndex($courseId, $contentIdx);
         abort_unless($cm !== null, 404);
+        app(PortalStaffAccess::class)->assertCanEditModuleQuiz((int) $cm->id, $kind);
 
         if (! Schema::hasTable('course_quiz_banks')) {
             return $this->fail($request, 'Таблицы банков вопросов не найдены. Выполните миграции.');

@@ -23,10 +23,10 @@
     $modsDone = (int) ($summaryRow['modules_passed_count'] ?? 0);
     $gt = (int) ($summaryRow['grand_total'] ?? 0);
     $maxGt = (int) ($summaryRow['max_grand_total'] ?? 0);
-    if ($maxGt < 1) {
-        $maxGt = $modCount * \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE + \App\Services\CourseScoringService::MAX_FINAL_LAB_POINTS;
+    if ($maxGt < 1 && $cid > 0) {
+        $maxGt = (int) (app(\App\Services\CourseScoringService::class)->courseScoringReportMeta($cid)['max_course_points'] ?? 0);
     }
-    $gtPct = min(100, (int) round(100 * $gt / max(1, $maxGt)));
+    $gtPct = $maxGt > 0 ? min(100, (int) round(100 * $gt / $maxGt)) : 0;
     $timeTotal = (int) ($summaryRow['time_tracked']['total'] ?? 0);
     $timeStr = DurationFormat::fromSeconds($timeTotal);
 

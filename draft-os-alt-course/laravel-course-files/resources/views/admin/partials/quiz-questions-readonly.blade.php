@@ -14,7 +14,12 @@
             <span class="muted">{{ $i + 1 }}.</span>
             {!! \App\Support\AdminContentMarkdown::toHtml((string) ($q['q'] ?? '')) !!}
         </div>
-        @if (! empty($q['match_drag']))
+        @if (! empty($q['open_text']))
+            <p class="muted small" style="margin:0 0 0.5rem">Тип вопроса: открытый ответ (текстовое поле).</p>
+            @if (! empty($q['placeholder']))
+                <p class="muted small" style="margin:0">Подсказка в поле: {{ $q['placeholder'] }}</p>
+            @endif
+        @elseif (! empty($q['match_drag']))
             @php
                 $left = is_array($q['left'] ?? null) ? $q['left'] : [];
                 $right = is_array($q['right'] ?? null) ? $q['right'] : [];

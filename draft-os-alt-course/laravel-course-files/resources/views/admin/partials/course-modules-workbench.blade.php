@@ -1,6 +1,13 @@
 @php
     $tp = $ap ?? ['adminCourse' => $course->slug];
     $rp = array_merge($tp, isset($adminKey) && $adminKey !== '' ? ['key' => $adminKey] : []);
+    $canEditCourseMeta = ! empty($canEditCourseMeta);
+    $canEditCourseStructure = ! empty($canEditCourseStructure);
+    $courseIdWorkbench = (int) $course->id;
+    if ($portalStaffAccess ?? null) {
+        $canEditCourseMeta = $canEditCourseMeta || $portalStaffAccess->canEditCourseMeta($courseIdWorkbench);
+        $canEditCourseStructure = $canEditCourseStructure || $portalStaffAccess->canEditCourseStructure($courseIdWorkbench);
+    }
     $sectionTypeLabels = [
         'text' => 'Теория',
         'quiz' => 'Тест',
@@ -46,8 +53,14 @@
             <p class="ap-page-lead ap-muted ap-mod-workbench__lead">Порядок модулей и разделов, пакеты контента и цепочка этапов.</p>
         </div>
         <div class="ap-mod-workbench__head-actions">
-            <button type="button" class="btn btn-primary" id="ap-open-add-module">+ Добавить модуль</button>
-            <button type="submit" form="ap-modules-reorder-form" class="btn btn-ghost ap-mod-workbench__save-order" id="ap-save-module-order" hidden>Сохранить порядок</button>
+            @if ($canEditCourseStructure)
+                <button type="button" class="btn btn-primary" id="ap-open-add-module">+ Добавить модуль</button>
+            @else
+                <p class="ap-muted small ap-m0">Добавление модулей доступно владельцу курса или соавтору с уровнем «Управление» или «Редактирование» на <strong>весь курс</strong>.</p>
+            @endif
+            @if ($canEditCourseMeta)
+                <button type="submit" form="ap-modules-reorder-form" class="btn btn-ghost ap-mod-workbench__save-order" id="ap-save-module-order" hidden>Сохранить порядок</button>
+            @endif
         </div>
     </div>
 
@@ -75,7 +88,9 @@
                 data-section-store-url="{{ route('admin.course.module.sections.store', array_merge($rp, ['courseModule' => $m->id])) }}"
                 data-section-reorder-url="{{ route('admin.course.module.sections.reorder', array_merge($rp, ['courseModule' => $m->id])) }}">
                 <div class="ap-mod-card__main">
+                    @if ($canEditCourseMeta)
                     <span class="ap-mod-drag-handle ap-mod-drag-handle--module" title="Перетащить" aria-hidden="true">≡</span>
+                    @endif
                     <div class="ap-mod-card__body">
                         <div class="ap-mod-card__title-row">
                             <button type="button" class="ap-mod-card__toggle" data-ap-mod-toggle aria-expanded="false" aria-controls="ap-mod-body-{{ $m->id }}">
@@ -92,20 +107,26 @@
                         </div>
                         <div class="ap-mod-card__actions">
                             <button type="button" class="btn btn-secondary btn-sm" data-ap-open-sections>Разделы</button>
-                            <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn" title="Настройки модуля" data-ap-open-module-settings aria-label="Настройки">
-                                @include('partials.ap-icon', ['name' => 'cog', 'size' => 'md'])
-                            </button>
-                            <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn ap-mod-icon-btn--danger" title="Удалить модуль" data-ap-open-delete-module aria-label="Удалить">
-                                @include('partials.ap-icon', ['name' => 'trash', 'size' => 'md'])
-                            </button>
+                            @if ($canEditCourseStructure || ($portalStaffAccess ?? null)?->canEditModuleContent((int) $m->id))
+                                <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn" title="Настройки модуля" data-ap-open-module-settings aria-label="Настройки">
+                                    @include('partials.ap-icon', ['name' => 'cog', 'size' => 'md'])
+                                </button>
+                            @endif
+                            @if ($canEditCourseMeta)
+                                <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn ap-mod-icon-btn--danger" title="Удалить модуль" data-ap-open-delete-module aria-label="Удалить">
+                                    @include('partials.ap-icon', ['name' => 'trash', 'size' => 'md'])
+                                </button>
+                            @endif
                         </div>
                     </div>
                 </div>
                 <div id="ap-mod-body-{{ $m->id }}" class="ap-mod-card__accordion" hidden data-ap-mod-accordion>
                     <div class="ap-mod-card__accordion-inner">
                         <div class="ap-mod-sections-head">
-                            <button type="button" class="btn btn-primary btn-sm" data-ap-open-add-section>+ Добавить раздел</button>
-                            <button type="submit" form="ap-sections-reorder-{{ $m->id }}" class="btn btn-ghost btn-sm" data-ap-save-section-order hidden>Сохранить порядок разделов</button>
+                            @if ($canEditCourseStructure || ($portalStaffAccess ?? null)?->canEditModuleContent((int) $m->id))
+                                <button type="button" class="btn btn-primary btn-sm" data-ap-open-add-section>+ Добавить раздел</button>
+                                <button type="submit" form="ap-sections-reorder-{{ $m->id }}" class="btn btn-ghost btn-sm" data-ap-save-section-order hidden>Сохранить порядок разделов</button>
+                            @endif
                         </div>
                         <form id="ap-sections-reorder-{{ $m->id }}" method="post" action="{{ route('admin.course.module.sections.reorder', array_merge($rp, ['courseModule' => $m->id])) }}" class="ap-sec-reorder-form">
                             @csrf
@@ -177,6 +198,7 @@
 </div>
 
 {{-- Модалка: новый модуль --}}
+@if ($canEditCourseStructure)
 <div id="ap-modal-add-module" class="ap-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
     <div class="ap-modal__backdrop" data-ap-modal-close tabindex="-1"></div>
     <div class="ap-modal__panel">
@@ -202,6 +224,7 @@
         </form>
     </div>
 </div>
+@endif
 
 {{-- Модалка: тип раздела --}}
 <div id="ap-modal-add-section" class="ap-modal" role="dialog" aria-modal="true" aria-hidden="true" hidden>
@@ -757,6 +780,7 @@
         });
     }
 
+    @if ($canEditCourseMeta)
     if (document.getElementById('ap-modules-sortable')) {
         document.querySelectorAll('#ap-modules-sortable .ap-mod-card[data-module-id]').forEach(function (li) {
             initialModuleOrder += (initialModuleOrder ? ',' : '') + li.getAttribute('data-module-id');
@@ -769,6 +793,7 @@
         );
     }
     if (modOrderForm) modOrderForm.addEventListener('submit', fillModuleOrderFields);
+    @endif
 
     function fillSecOrderFields(ul) {
         var acc = ul.closest('.ap-mod-card__accordion');

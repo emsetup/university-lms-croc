@@ -32,13 +32,22 @@
             </p>
         @endif
         @php
-            $reportModuleCount = (int) ($courseModuleCount ?? \App\Services\CourseScoringService::moduleCount());
-            $reportMaxCoursePoints = (int) ($maxCoursePoints ?? ($reportModuleCount * \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE + \App\Services\CourseScoringService::MAX_FINAL_LAB_POINTS));
-            $reportMaxModulePoints = $reportModuleCount * \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE;
+            $scoringMeta = is_array($scoringMeta ?? null) ? $scoringMeta : [];
+            $reportModuleCount = (int) ($courseModuleCount ?? ($scoringMeta['module_count'] ?? \App\Services\CourseScoringService::moduleCount()));
+            $reportMaxModulePoints = (int) ($scoringMeta['max_module_points'] ?? ($reportModuleCount * \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE));
+            $reportMaxFinalPoints = (int) ($scoringMeta['max_final_lab_points'] ?? 0);
+            $reportMaxCoursePoints = (int) ($maxCoursePoints ?? ($scoringMeta['max_course_points'] ?? ($reportMaxModulePoints + $reportMaxFinalPoints)));
+            $reportHasScoring = (bool) ($scoringMeta['has_scoring'] ?? ($reportMaxCoursePoints > 0));
+            $reportFinalEnabled = (bool) ($scoringMeta['final_lab_enabled'] ?? ($reportMaxFinalPoints > 0));
+            $reportScoringHint = (string) ($scoringMeta['scoring_hint'] ?? '');
         @endphp
-        <p class="muted small" style="margin:0.5rem 0 0">
-            <strong>Баллы за модуль:</strong> взвешенное среднее процентов теста по теории, практики и итогового теста (веса {{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_THEORY_QUIZ * 100) }}/{{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_PRACTICE * 100) }}/{{ (int) (\App\Services\CourseScoringService::MODULE_SCORE_WEIGHT_EXAM * 100) }}), максимум {{ \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE }} за модуль; сумма по курсу — до {{ $reportMaxModulePoints }}; финальная лаба — до {{ \App\Services\CourseScoringService::MAX_FINAL_LAB_POINTS }}. «Итого курс» — модули + финал (макс. {{ $reportMaxCoursePoints }}).
-        </p>
+        @if ($reportScoringHint !== '')
+            <p class="muted small" style="margin:0.5rem 0 0">{{ $reportScoringHint }}</p>
+        @else
+            <p class="muted small" style="margin:0.5rem 0 0">
+                <strong>Баллы за модуль:</strong> взвешенное среднее процентов оцениваемых этапов, максимум {{ \App\Services\CourseScoringService::MAX_POINTS_PER_MODULE }} за модуль; сумма по курсу — до {{ $reportMaxModulePoints }}@if ($reportFinalEnabled); финальная лаба — до {{ $reportMaxFinalPoints }}@endif. «Итого курс» — максимум {{ $reportMaxCoursePoints }}.
+            </p>
+        @endif
     </div>
 
     <div class="card teacher-report-summary" style="margin-top:0">
@@ -62,7 +71,9 @@
                     <th>Модули сданы</th>
                     <th>Баллы (модули)</th>
                     <th>Итого курс</th>
-                    <th>Финал (баллы)</th>
+                    @if ($reportFinalEnabled)
+                        <th>Финал (баллы)</th>
+                    @endif
                     <th>Период (дн.)</th>
                     <th>Время в курсе (учёт)</th>
                     <th>Ориент. мин. тесты</th>
@@ -91,19 +102,29 @@
                         </td>
                         <td>{{ $row['modules_passed_count'] }} / {{ (int) ($row['module_count'] ?? $reportModuleCount) }}</td>
                         <td>
-                            {{ $row['total_module_points'] }} / {{ $row['max_module_points'] }}
-                            <span class="muted small">({{ $row['module_points_percent'] }}%)</span>
-                        </td>
-                        <td>
-                            <strong>{{ $row['grand_total'] }} / {{ $row['max_grand_total'] }}</strong>
-                            <span class="muted small">({{ $row['grand_total_percent'] }}%)</span>
-                        </td>
-                        <td>
-                            {{ $row['final_lab_points'] }} / {{ $row['max_final_lab_points'] }}
-                            @if ($row['final_lab'])
-                                <span class="muted small"><br>{{ $row['final_lab']['passed'] ? 'зачтено' : 'нет' }}, лучший {{ $row['final_lab']['best_score'] }}%</span>
+                            @if ($reportHasScoring)
+                                {{ $row['total_module_points'] }} / {{ $row['max_module_points'] }}
+                                <span class="muted small">({{ $row['module_points_percent'] }}%)</span>
+                            @else
+                                —
                             @endif
                         </td>
+                        <td>
+                            @if ($reportHasScoring)
+                                <strong>{{ $row['grand_total'] }} / {{ $row['max_grand_total'] }}</strong>
+                                <span class="muted small">({{ $row['grand_total_percent'] }}%)</span>
+                            @else
+                                —
+                            @endif
+                        </td>
+                        @if ($reportFinalEnabled)
+                            <td>
+                                {{ $row['final_lab_points'] }} / {{ $row['max_final_lab_points'] }}
+                                @if ($row['final_lab'])
+                                    <span class="muted small"><br>{{ $row['final_lab']['passed'] ? 'зачтено' : 'нет' }}, лучший {{ $row['final_lab']['best_score'] }}%</span>
+                                @endif
+                            </td>
+                        @endif
                         <td>{{ $row['time']['span_days'] !== null ? $row['time']['span_days'] : '—' }}</td>
                         <td class="teacher-report-nowrap">{{ DurationFormat::fromSeconds($row['time_tracked']['total'] ?? 0) }}</td>
                         <td>{{ $row['time']['estimated_test_minutes'] }}</td>

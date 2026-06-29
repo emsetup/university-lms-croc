@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PortalStaff extends Model
 {
@@ -20,12 +21,15 @@ class PortalStaff extends Model
 
     public const ROLE_COURSE_TESTER = 'course_tester';
 
+    public const ROLE_COURSE_CONTRIBUTOR = 'course_contributor';
+
     /** @var list<string> */
     public const ROLES = [
         self::ROLE_PORTAL_ADMIN,
         self::ROLE_COURSE_MODERATOR,
         self::ROLE_COURSE_CREATOR,
         self::ROLE_COURSE_EDITOR,
+        self::ROLE_COURSE_CONTRIBUTOR,
         self::ROLE_INSTRUCTOR,
         self::ROLE_COURSE_TESTER,
     ];
@@ -79,5 +83,15 @@ class PortalStaff extends Model
     public function isCourseTester(): bool
     {
         return $this->role === self::ROLE_COURSE_TESTER;
+    }
+
+    public function isCourseContributor(): bool
+    {
+        return $this->role === self::ROLE_COURSE_CONTRIBUTOR;
+    }
+
+    public function contentGrants(): HasMany
+    {
+        return $this->hasMany(CourseContentGrant::class);
     }
 }

@@ -57,6 +57,11 @@ if [[ -f "${LCF}/config/portal_changelog.php" ]]; then
   rsync -az "${LCF}/config/portal_changelog.php" "${STAND_SSH}:${REMOTE}/config/portal_changelog.php"
 fi
 
+if [[ -f "${LCF}/config/portal.php" ]]; then
+  echo "[deploy-laravel] portal.php (лимит соавторов и настройки портала)"
+  rsync -az "${LCF}/config/portal.php" "${STAND_SSH}:${REMOTE}/config/portal.php"
+fi
+
 if [[ -f "${LCF}/routes/web.php" ]]; then
   echo "[deploy-laravel] routes/web.php"
   rsync -az "${LCF}/routes/web.php" "${STAND_SSH}:${REMOTE}/routes/web.php"
@@ -71,6 +76,7 @@ for f in \
   app/Http/Controllers/AdminSettingsController.php \
   app/Http/Controllers/AdminCoursesController.php \
   app/Http/Controllers/AdminCourseSettingsController.php \
+  app/Http/Controllers/AdminCourseCollaboratorsController.php \
   app/Http/Controllers/AdminCourseContentController.php \
   app/Http/Controllers/AdminPracticeImagesController.php \
   app/Http/Controllers/Concerns/ScopesPracticeImagesForStaff.php \
@@ -109,6 +115,7 @@ for f in \
   app/Http/Middleware/EnsurePortalStaff.php \
   app/Http/Middleware/EnsureStaffAbility.php \
   app/Http/Middleware/DenyCourseTester.php \
+  app/Http/Middleware/EnsureSectionEditAccess.php \
   app/Http/Middleware/ValidateTeacherReportToken.php \
   app/Http/Middleware/SyncAdminCourseFromSlug.php \
   app/Http/Middleware/LogAdminActivity.php \
@@ -118,6 +125,10 @@ for f in \
   app/Services/CourseSectionService.php \
   app/Services/CourseModuleService.php \
   app/Services/CourseContentService.php \
+  app/Services/CourseChangeLogService.php \
+  app/Services/CourseCollaboratorService.php \
+  app/Services/CourseContentGrantResolver.php \
+  app/Services/PortalStaffProfileService.php \
   app/Services/LegacyAltCourseContentBootstrap.php \
   app/Services/LegacyAltPracticeImagesBootstrap.php \
   app/Support/LegacyAltPracticeImageCatalog.php \
@@ -177,6 +188,8 @@ for f in \
   app/Support/PortalStaffPermissionCatalog.php \
   app/Support/PortalStaffFromEmail.php \
   app/Models/Course.php \
+  app/Models/CourseContentGrant.php \
+  app/Models/CourseChangeLog.php \
   app/Models/CourseModule.php \
   app/Models/CourseModuleContent.php \
   app/Models/CourseQuizBank.php \
@@ -271,6 +284,30 @@ if [[ -f "${LCF}/database/migrations/2026_06_09_140000_add_audience_plaque_to_co
   echo "[deploy-laravel] database/migrations/…audience_plaque…"
   rsync -az "${LCF}/database/migrations/2026_06_09_140000_add_audience_plaque_to_courses_table.php" \
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_09_140000_add_audience_plaque_to_courses_table.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_06_09_150000_create_course_change_logs_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…create_course_change_logs…"
+  rsync -az "${LCF}/database/migrations/2026_06_09_150000_create_course_change_logs_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_09_150000_create_course_change_logs_table.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_06_09_160000_backfill_course_creators_mednikov.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…backfill_course_creators_mednikov…"
+  rsync -az "${LCF}/database/migrations/2026_06_09_160000_backfill_course_creators_mednikov.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_09_160000_backfill_course_creators_mednikov.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_06_09_170000_backfill_practice_image_creators_mednikov.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…backfill_practice_image_creators_mednikov…"
+  rsync -az "${LCF}/database/migrations/2026_06_09_170000_backfill_practice_image_creators_mednikov.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_09_170000_backfill_practice_image_creators_mednikov.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_06_26_100000_create_course_content_grants_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…create_course_content_grants…"
+  rsync -az "${LCF}/database/migrations/2026_06_26_100000_create_course_content_grants_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_26_100000_create_course_content_grants_table.php"
 fi
 
 if [[ -f "${LCF}/database/migrations/2026_06_03_100000_add_unlock_all_modules_to_courses_table.php" ]]; then
@@ -505,6 +542,18 @@ if [[ -f "${LCF}/public/js/admin-create-course-modal.js" ]]; then
   echo "[deploy-laravel] public/js/admin-create-course-modal.js"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
   rsync -az "${LCF}/public/js/admin-create-course-modal.js" "${STAND_SSH}:${REMOTE}/public/js/admin-create-course-modal.js"
+fi
+
+if [[ -f "${LCF}/public/js/admin-course-catalog-stats.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-course-catalog-stats.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-course-catalog-stats.js" "${STAND_SSH}:${REMOTE}/public/js/admin-course-catalog-stats.js"
+fi
+
+if [[ -f "${LCF}/public/js/admin-course-collaborators.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-course-collaborators.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-course-collaborators.js" "${STAND_SSH}:${REMOTE}/public/js/admin-course-collaborators.js"
 fi
 
 if [[ -f "${LCF}/public/js/admin-command-palette.js" ]]; then
