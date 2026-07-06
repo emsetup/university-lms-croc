@@ -10,7 +10,10 @@
     }
 
     function formatChangelogHtml(s) {
-        return escHtml(s).replace(/«([^»]+)»/g, '<strong>«$1»</strong>');
+        return escHtml(s)
+            .replace(/«([^»]+)»/g, '<strong>«$1»</strong>')
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>');
     }
 
     var BODY_SEP = '\x1e';

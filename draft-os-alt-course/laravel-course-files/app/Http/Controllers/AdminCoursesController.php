@@ -208,6 +208,7 @@ final class AdminCoursesController extends Controller
             'is_published' => isset($data['is_published']) ? ((string) $data['is_published'] === '1') : false,
             'is_archived' => isset($data['is_archived']) ? ((string) $data['is_archived'] === '1') : false,
             'strict_grants' => true,
+            'final_lab_enabled' => false,
         ]);
 
         $this->changeLog->logCourseCreated($course);

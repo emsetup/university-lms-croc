@@ -28,6 +28,12 @@ final class LearnerPreviewContext
             return (int) session(StaffImpersonation::SESSION_COURSE_ID, 0);
         }
 
+        if (CourseStaffPreview::isActive($request)) {
+            $fromSession = CourseStaffPreview::courseIdFromSession();
+
+            return $fromSession > 0 ? $fromSession : CourseStaffPreview::previewCourseId($request);
+        }
+
         return (int) session('course_id', 0);
     }
 
@@ -37,6 +43,10 @@ final class LearnerPreviewContext
             $title = session(StaffImpersonation::SESSION_COURSE_TITLE);
 
             return is_string($title) && $title !== '' ? $title : null;
+        }
+
+        if (CourseStaffPreview::isActive($request)) {
+            return CourseStaffPreview::courseTitleFromSession();
         }
 
         $title = session('course_title');
@@ -52,6 +62,12 @@ final class LearnerPreviewContext
                 $payload[StaffImpersonation::SESSION_COURSE_TITLE] = $courseTitle;
             }
             session($payload);
+
+            return;
+        }
+
+        if (CourseStaffPreview::isActive()) {
+            CourseStaffPreview::selectCourse($courseId, $courseTitle);
 
             return;
         }

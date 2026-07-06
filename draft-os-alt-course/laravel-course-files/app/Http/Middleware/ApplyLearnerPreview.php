@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\CourseStaffPreview;
 use App\Support\StaffImpersonation;
 use Closure;
 use Illuminate\Http\Request;
@@ -28,6 +29,8 @@ final class ApplyLearnerPreview
         if ($token === null) {
             return $next($request);
         }
+
+        CourseStaffPreview::clearSession();
 
         $ctx = StaffImpersonation::resolvePreview($token);
         if ($ctx === null) {

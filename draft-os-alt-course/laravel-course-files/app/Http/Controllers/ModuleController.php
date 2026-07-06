@@ -11,6 +11,7 @@ use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
 use App\Services\CourseContentService;
 use App\Services\CourseSectionService;
+use App\Services\LearnerContentVisibilityService;
 use App\Services\ModuleAccessGate;
 use App\Services\PracticeLabService;
 use App\Support\CourseModuleMeta;
@@ -29,6 +30,7 @@ class ModuleController extends Controller
         private CourseSectionService $sectionService,
         private CourseModuleService $courseModules,
         private CourseContentService $courseContent,
+        private LearnerContentVisibilityService $visibility,
     ) {}
 
     private function theoryQuizDeadlineKey(int $learnerId, int $courseModuleId): string
@@ -472,14 +474,15 @@ class ModuleController extends Controller
             && $this->sectionService->useDbSectionsForModule($mid)) {
             $legacyAlt = $this->courseModules->selectedCourseIsLegacyAlt();
             $hubPresent = [];
-            foreach ($this->sectionService->enabledSectionsForCourseModule($mid) as $sec) {
+            foreach ($this->visibility->visibleSectionsForLearner($mid, (int) $learner->id) as $sec) {
                 $bk = $sec->backendStepKey();
                 $waived = $sec->legacyTypeKey() === 'practice' && $this->sectionService->isPracticeWaived($mid, $contentIdx, $legacyAlt);
                 $blocked = $waived ? null : $this->sectionService->firstBlockedPrerequisite($p, $mid, $contentIdx, $bk, $legacyAlt);
+                $previewOpen = \App\Support\CourseStaffPreview::isActive($request);
                 $hubPresent[] = [
                     'section' => $sec,
                     'waived' => $waived,
-                    'accessible' => $blocked === null && ! $waived,
+                    'accessible' => $previewOpen ? ! $waived : ($blocked === null && ! $waived),
                 ];
             }
         }
@@ -1287,7 +1290,7 @@ class ModuleController extends Controller
         if ($courseId > 0 && Schema::hasTable('course_sections') && $this->sectionService->useDbSectionsForModule($mid)) {
             $legacyAlt = $this->courseModules->selectedCourseIsLegacyAlt();
             $allowed = [];
-            foreach ($this->sectionService->enabledSectionsForCourseModule($mid) as $sec) {
+            foreach ($this->visibility->visibleSectionsForLearner($mid, (int) $this->learner()->id) as $sec) {
                 $bk = (string) $sec->backendStepKey();
                 if ($bk === 'practice' && $this->sectionService->isPracticeWaived($mid, $contentIdx, $legacyAlt)) {
                     continue;

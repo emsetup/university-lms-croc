@@ -7,6 +7,7 @@
         'sertifikat' => 'Сертификат — '.$course->title,
         'istoriya' => 'История — '.$course->title,
         'soavtory' => 'Соавторы — '.$course->title,
+        'gruppy' => 'Группы — '.$course->title,
         default => 'Модули курса — '.$course->title,
     };
 @endphp
@@ -22,7 +23,10 @@
         $certUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'sertifikat']));
         $historyUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'istoriya']));
         $soavtoryUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'soavtory']));
+        $gruppyUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'gruppy']));
         $showCollaboratorsTab = ! empty($canManageCollaborators);
+        $showGroupsTab = ! empty($canEditCourseMeta);
+        $learnerSearchUrl = route('admin.course.learners.search', $tp);
     @endphp
 
     <div class="ap-course-settings-page">
@@ -32,6 +36,9 @@
             <a href="{{ $certUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'sertifikat') is-active @endif">Сертификат</a>
             @if ($showCollaboratorsTab)
                 <a href="{{ $soavtoryUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'soavtory') is-active @endif">Соавторы</a>
+            @endif
+            @if ($showGroupsTab)
+                <a href="{{ $gruppyUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'gruppy') is-active @endif">Группы</a>
             @endif
             <a href="{{ $historyUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'istoriya') is-active @endif">История</a>
         </nav>
@@ -69,6 +76,14 @@
                 'collaboratorLimit' => $collaboratorLimit ?? 5,
                 'collaboratorCount' => $collaboratorCount ?? 0,
                 'canManageCollaborators' => ! empty($canManageCollaborators),
+                'ap' => $tp,
+            ])
+        @elseif ($tab === 'gruppy')
+            @include('admin.partials.learner-groups-manager', [
+                'course' => $course,
+                'groups' => $courseLearnerGroups ?? collect(),
+                'learners' => $courseEnrolledLearners ?? collect(),
+                'groupScope' => 'course',
                 'ap' => $tp,
             ])
         @else

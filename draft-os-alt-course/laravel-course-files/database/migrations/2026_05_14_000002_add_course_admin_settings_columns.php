@@ -23,7 +23,7 @@ return new class extends Migration
                 $table->unsignedTinyInteger('default_pass_percent')->nullable()->after('default_quiz_time_minutes');
             }
             if (! Schema::hasColumn('courses', 'final_lab_enabled')) {
-                $table->boolean('final_lab_enabled')->default(true)->after('default_pass_percent');
+                $table->boolean('final_lab_enabled')->default(false)->after('default_pass_percent');
             }
             if (! Schema::hasColumn('courses', 'final_lab_practice_image_id')) {
                 $table->unsignedBigInteger('final_lab_practice_image_id')->nullable()->after('final_lab_enabled');

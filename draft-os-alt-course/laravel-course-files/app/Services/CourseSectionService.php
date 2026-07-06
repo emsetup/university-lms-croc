@@ -28,6 +28,15 @@ final class CourseSectionService
     /**
      * @return Collection<int, CourseSection>
      */
+    public function visibleSectionsForLearner(int $courseModuleId, int $learnerId): Collection
+    {
+        return app(LearnerContentVisibilityService::class)
+            ->visibleSectionsForLearner($courseModuleId, $learnerId);
+    }
+
+    /**
+     * @return Collection<int, CourseSection>
+     */
     public function enabledSectionsForCourseModule(int $courseModuleId): Collection
     {
         if ($courseModuleId < 1 || ! Schema::hasTable('course_sections')) {

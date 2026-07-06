@@ -194,6 +194,36 @@ final class CourseChangeLogService
         );
     }
 
+    public function logContentVisibilityChanged(
+        int $courseId,
+        string $resourceType,
+        int $resourceId,
+        string $viewAudience,
+        int $ruleCount,
+    ): void {
+        $target = match ($resourceType) {
+            'course' => 'курсу',
+            'module' => 'модулю #'.$resourceId,
+            'section' => 'разделу #'.$resourceId,
+            default => $resourceType.' #'.$resourceId,
+        };
+        $mode = $viewAudience === 'restricted'
+            ? 'ограниченный ('.$ruleCount.' правил)'
+            : 'все обучающиеся';
+        $this->log(
+            $courseId,
+            'visibility.updated',
+            $resourceType,
+            'Доступ к '.$target.': '.$mode,
+            [
+                'resource_type' => $resourceType,
+                'resource_id' => $resourceId,
+                'view_audience' => $viewAudience,
+                'rule_count' => $ruleCount,
+            ],
+        );
+    }
+
     public function logSectionCreated(int $courseId, string $sectionTitle, string $type, int $sectionId, int $moduleId): void
     {
         $typeLabel = self::SECTION_TYPE_LABELS[$type] ?? $type;

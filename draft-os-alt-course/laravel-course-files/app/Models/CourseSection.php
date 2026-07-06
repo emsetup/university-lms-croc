@@ -18,6 +18,10 @@ final class CourseSection extends Model
 
     public const TYPE_SURVEY = 'survey';
 
+    public const VIEW_AUDIENCE_ALL = 'all';
+
+    public const VIEW_AUDIENCE_RESTRICTED = 'restricted';
+
     protected $fillable = [
         'course_id',
         'course_module_id',
@@ -25,6 +29,7 @@ final class CourseSection extends Model
         'title',
         'sort',
         'is_enabled',
+        'view_audience',
     ];
 
     protected function casts(): array

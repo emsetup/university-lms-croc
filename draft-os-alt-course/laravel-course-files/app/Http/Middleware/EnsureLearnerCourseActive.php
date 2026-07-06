@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Course;
 use App\Services\LearnerCourseAvailability;
+use App\Support\CourseStaffPreview;
 use App\Support\LearnerPreviewContext;
 use App\Support\StaffImpersonation;
 use Closure;
@@ -36,6 +37,8 @@ final class EnsureLearnerCourseActive
                     StaffImpersonation::SESSION_COURSE_ID,
                     StaffImpersonation::SESSION_COURSE_TITLE,
                 ]);
+            } elseif (CourseStaffPreview::isActiveForCourse($courseId, $request)) {
+                CourseStaffPreview::clearSession();
             } else {
                 session()->forget(['course_id', 'course_title']);
             }
@@ -44,6 +47,14 @@ final class EnsureLearnerCourseActive
         }
 
         if (! LearnerCourseAvailability::isOpenForLearning($course)) {
+            if (CourseStaffPreview::isActiveForCourse((int) $course->id, $request)) {
+                if (LearnerPreviewContext::courseId($request) !== (int) $course->id) {
+                    LearnerPreviewContext::selectCourse((int) $course->id, (string) $course->title);
+                }
+
+                return $next($request);
+            }
+
             if (LearnerPreviewContext::isActive($request)) {
                 session()->forget([
                     StaffImpersonation::SESSION_COURSE_ID,

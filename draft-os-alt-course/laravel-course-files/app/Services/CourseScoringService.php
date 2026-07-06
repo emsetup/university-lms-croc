@@ -18,6 +18,7 @@ final class CourseScoringService
     public function __construct(
         private CourseSectionService $courseSections,
         private CourseModuleService $courseModules,
+        private LearnerContentVisibilityService $visibility,
     ) {}
 
     public const PASS_THRESHOLD = 70;
@@ -69,7 +70,10 @@ final class CourseScoringService
         if ($courseId > 0 && Schema::hasTable('course_modules')) {
             $legacyAlt = (bool) Course::query()->find($courseId)?->isLegacyAltCourse();
             $total = 0;
-            $modules = $this->courseModules->orderedModulesForCourse($courseId);
+            $learnerId = (int) session('learner_id', 0);
+            $modules = $learnerId > 0
+                ? $this->visibility->visibleModulesForLearner($courseId, $learnerId)
+                : $this->courseModules->orderedModulesForCourse($courseId);
             if ($modules->isNotEmpty()) {
                 foreach ($modules as $mod) {
                     $mid = (int) $mod->id;
@@ -222,7 +226,7 @@ final class CourseScoringService
         if ($courseId < 1 || ! Schema::hasTable('course_modules')) {
             return false;
         }
-        $ids = $this->courseModules->orderedModuleIdsForCourse($courseId);
+        $ids = $this->visibility->visibleModuleIdsForLearner($courseId, (int) $learner->id);
         if ($ids === []) {
             return false;
         }
@@ -246,7 +250,11 @@ final class CourseScoringService
         if ($courseId < 1 || ! Schema::hasTable('course_modules')) {
             return $out;
         }
+        $visibleIds = $this->visibility->visibleModuleIdsForLearner($courseId, (int) $learner->id);
         foreach ($this->courseModules->orderedModulesForCourse($courseId) as $mod) {
+            if (! in_array((int) $mod->id, $visibleIds, true)) {
+                continue;
+            }
             $p = $learner->progressExisting((int) $mod->id, $courseId);
             $idx = $mod->effectiveContentIndex();
             $mid = (int) $mod->id;

@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Models\Learner;
 use App\Models\CourseSection;
 use App\Support\CourseModuleMeta;
+use App\Support\CourseStaffPreview;
 use App\Support\LearnerPreviewContext;
 use App\Support\LearnerRoute;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +23,7 @@ final class ModuleAccessGate
     public function __construct(
         private CourseSectionService $sections,
         private CourseModuleService $modules,
+        private LearnerContentVisibilityService $visibility,
     ) {}
 
     private function courseId(Learner $learner): int
@@ -34,10 +36,10 @@ final class ModuleAccessGate
     public function isModuleUnlocked(Learner $learner, int $courseModuleId, ?int $courseId = null): bool
     {
         $courseId = $courseId ?? $this->courseId($learner);
-        if ($courseId < 1) {
-            return false;
-        }
-        if ($this->courseUnlocksAllModules($courseId)) {
+        if (CourseStaffPreview::isActive()) {
+            if ($courseId < 1) {
+                return false;
+            }
             $ordered = $this->modules->orderedModuleIdsForCourse($courseId);
             if ($ordered === []) {
                 return $courseModuleId >= 1;
@@ -45,7 +47,21 @@ final class ModuleAccessGate
 
             return in_array($courseModuleId, $ordered, true);
         }
-        $ordered = $this->modules->orderedModuleIdsForCourse($courseId);
+        if ($courseId < 1) {
+            return false;
+        }
+        if (! $this->visibility->isModuleVisibleToLearner($courseModuleId, (int) $learner->id, $courseId)) {
+            return false;
+        }
+        if ($this->courseUnlocksAllModules($courseId)) {
+            $ordered = $this->visibleOrderedModuleIdsForLearner($learner, $courseId);
+            if ($ordered === []) {
+                return $courseModuleId >= 1;
+            }
+
+            return in_array($courseModuleId, $ordered, true);
+        }
+        $ordered = $this->visibleOrderedModuleIdsForLearner($learner, $courseId);
         if ($ordered === []) {
             return $courseModuleId >= 1;
         }
@@ -90,6 +106,14 @@ final class ModuleAccessGate
 
     public function redirectIfModuleLocked(Learner $learner, int $courseModuleId): ?RedirectResponse
     {
+        if (CourseStaffPreview::isActive()) {
+            return null;
+        }
+
+        if ($r = $this->redirectIfModuleHidden($learner, $courseModuleId)) {
+            return $r;
+        }
+
         if (! $this->isModuleUnlocked($learner, $courseModuleId)) {
             $cid = $this->courseId($learner);
 
@@ -100,8 +124,52 @@ final class ModuleAccessGate
         return null;
     }
 
+    public function redirectIfModuleHidden(Learner $learner, int $courseModuleId): ?RedirectResponse
+    {
+        if (CourseStaffPreview::isActive()) {
+            return null;
+        }
+
+        $courseId = $this->courseId($learner);
+        if ($courseId < 1 || $this->visibility->isModuleVisibleToLearner($courseModuleId, (int) $learner->id, $courseId)) {
+            return null;
+        }
+
+        return redirect()->route('course.dashboard', ['course' => $courseId])
+            ->with('err', 'Этот модуль недоступен для вашей учётной записи.');
+    }
+
+    public function redirectIfSectionHidden(Learner $learner, int $sectionId, int $courseModuleId): ?RedirectResponse
+    {
+        if (CourseStaffPreview::isActive()) {
+            return null;
+        }
+
+        if ($this->visibility->isSectionVisibleToLearner($sectionId, (int) $learner->id, $courseModuleId)) {
+            return null;
+        }
+
+        $courseId = $this->courseId($learner);
+        $seq = $this->moduleSequenceForId($courseModuleId);
+
+        return redirect()->route('course.module.hub', LearnerRoute::hub($courseId, $seq))
+            ->with('err', 'Этот раздел недоступен для вашей учётной записи.');
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function visibleOrderedModuleIdsForLearner(Learner $learner, int $courseId): array
+    {
+        return $this->visibility->visibleModuleIdsForLearner($courseId, (int) $learner->id);
+    }
+
     public function redirectIfStepBlocked(Learner $learner, int $courseModuleId, string $targetBackendKey): ?RedirectResponse
     {
+        if (CourseStaffPreview::isActive()) {
+            return null;
+        }
+
         $courseId = $this->courseId($learner);
         $cm = $this->modules->findForCourse($courseId, $courseModuleId);
         $contentIdx = $cm?->effectiveContentIndex() ?? 1;

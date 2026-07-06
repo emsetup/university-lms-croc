@@ -190,6 +190,7 @@
         @endif
     </header>
     @include('partials.impersonation-banner')
+    @include('partials.course-staff-preview-banner')
     @if (session('ok'))
         <div class="flash ok">{{ session('ok') }}</div>
     @endif

@@ -51,6 +51,7 @@
                     $isInstructor = $portalStaffAccess && $portalStaffAccess->isInstructor();
                     $canPublish = $editable && $portalStaffAccess && ! $portalStaffAccess->isCourseTester()
                         && empty($c['is_published']) && empty($c['is_archived']);
+                    $canPreviewCourse = $portalStaffAccess && $portalStaffAccess->canPreviewCourse($cid);
                     $bucket = ! empty($c['is_archived']) ? 'archive' : (! empty($c['is_published']) ? 'published' : 'draft');
                     $titleLower = mb_strtolower((string) $c['title'], 'UTF-8');
                     $enrolled = (int) $c['enrolled'];
@@ -122,12 +123,19 @@
                             {{ $isInstructor ? 'Обучающиеся' : 'Управлять курсом' }}
                             @include('partials.ap-icon', ['name' => 'chevron-right', 'size' => 'sm'])
                         </a>
+                        @if ($canPreviewCourse)
+                            @include('partials.course-preview-launch', [
+                                'previewUrl' => route('admin.course.preview', ['adminCourse' => $c['slug']]),
+                                'previewLabel' => 'Предпросмотр',
+                                'previewClass' => 'btn btn-ghost ap-catalog-card__publish',
+                            ])
+                        @endif
                         @if ($canPublish)
                             <form method="post" action="{{ route('admin.courses.publish', ['course' => $cid]) }}" class="ap-catalog-card__publish-form">
                                 @csrf
                                 <button type="submit" class="btn btn-ghost ap-catalog-card__publish">Опубликовать</button>
                             </form>
-                        @else
+                        @elseif (! $canPreviewCourse)
                             <span class="ap-catalog-card__actions-spacer" aria-hidden="true"></span>
                         @endif
                     </div>

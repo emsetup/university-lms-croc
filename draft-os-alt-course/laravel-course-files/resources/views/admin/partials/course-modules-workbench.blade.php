@@ -3,10 +3,12 @@
     $rp = array_merge($tp, isset($adminKey) && $adminKey !== '' ? ['key' => $adminKey] : []);
     $canEditCourseMeta = ! empty($canEditCourseMeta);
     $canEditCourseStructure = ! empty($canEditCourseStructure);
+    $canPreviewCourse = ! empty($canPreviewCourse);
     $courseIdWorkbench = (int) $course->id;
     if ($portalStaffAccess ?? null) {
         $canEditCourseMeta = $canEditCourseMeta || $portalStaffAccess->canEditCourseMeta($courseIdWorkbench);
         $canEditCourseStructure = $canEditCourseStructure || $portalStaffAccess->canEditCourseStructure($courseIdWorkbench);
+        $canPreviewCourse = $canPreviewCourse || $portalStaffAccess->canPreviewCourse($courseIdWorkbench);
     }
     $sectionTypeLabels = [
         'text' => 'Теория',
@@ -44,6 +46,9 @@
         'exam' => 'Итоговый тест',
         'survey' => 'Опрос',
     ];
+    $visibilitySvc = app(\App\Services\LearnerContentVisibilityService::class);
+    $learnerSearchUrl = route('admin.course.learners.search', $rp);
+    $learnerResolveUrl = route('admin.course.learners.resolve', $rp);
 @endphp
 
 <div class="ap-mod-workbench" data-ap-workbench data-ap-csrf="{{ csrf_token() }}">
@@ -103,11 +108,34 @@
                             </button>
                             <div class="ap-mod-card__meta">
                                 Пакет №{{ $m->effectiveContentIndex() }} · {{ $nSec }} {{ $nSec === 1 ? 'раздел' : ($nSec > 1 && $nSec < 5 ? 'раздела' : 'разделов') }}
+                                @php $modAudience = $visibilitySvc->audienceSummaryForResource(\App\Models\ContentViewAudienceRule::RESOURCE_MODULE, (int) $m->id, $courseIdWorkbench); @endphp
+                                <span class="ap-mod-card__audience-badge" data-audience-badge-for="mod-{{ $m->id }}" @if (! $modAudience) hidden @endif>{{ $modAudience }}</span>
                             </div>
                         </div>
                         <div class="ap-mod-card__actions">
                             <button type="button" class="btn btn-secondary btn-sm" data-ap-open-sections>Разделы</button>
+                            @if ($canPreviewCourse)
+                                @include('partials.course-preview-launch', [
+                                    'previewUrl' => route('admin.course.preview.module', array_merge($tp, ['module' => $m->effectiveContentIndex()])),
+                                    'previewLabel' => 'Предпросмотр',
+                                    'previewClass' => 'btn btn-ghost btn-sm',
+                                    'previewShowIcon' => true,
+                                ])
+                            @endif
                             @if ($canEditCourseStructure || ($portalStaffAccess ?? null)?->canEditModuleContent((int) $m->id))
+                                <button type="button"
+                                        class="btn btn-ghost btn-sm ap-mod-icon-btn"
+                                        title="Доступ к модулю"
+                                        data-ap-open-audience
+                                        data-audience-title="Доступ: {{ $m->title }}"
+                                        data-audience-target="mod-{{ $m->id }}"
+                                        data-audience-load-url="{{ route('admin.course.module.visibility', array_merge($rp, ['courseModule' => $m->id])) }}"
+                                        data-audience-save-url="{{ route('admin.course.module.visibility.update', array_merge($rp, ['courseModule' => $m->id])) }}"
+                                        data-audience-search-url="{{ $learnerSearchUrl }}"
+                                        data-audience-resolve-url="{{ $learnerResolveUrl }}"
+                                        aria-label="Доступ">
+                                    @include('partials.ap-icon', ['name' => 'users', 'size' => 'md'])
+                                </button>
                                 <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn" title="Настройки модуля" data-ap-open-module-settings aria-label="Настройки">
                                     @include('partials.ap-icon', ['name' => 'cog', 'size' => 'md'])
                                 </button>
@@ -154,8 +182,24 @@
                                     @if ($sec->type === 'practice' && $m->practiceSetting?->practiceImage)
                                         <span class="ap-sec-row__docker mono" title="Docker-образ практики">{{ $m->practiceSetting->practiceImage->docker_tag }}</span>
                                     @endif
-                                    <span class="ap-sec-row__meta">{{ $sec->is_enabled ? 'Включён' : 'Выключен' }}</span>
+                                    <span class="ap-sec-row__meta">{{ $sec->is_enabled ? 'Включён' : 'Выключен' }}
+                                        @php $secAudience = $visibilitySvc->audienceSummaryForResource(\App\Models\ContentViewAudienceRule::RESOURCE_SECTION, (int) $sec->id, $courseIdWorkbench); @endphp
+                                        @if ($secAudience)<span class="ap-sec-row__audience" data-audience-badge-for="sec-{{ $sec->id }}">· {{ $secAudience }}</span>@endif
+                                    </span>
                                     <div class="ap-sec-row__actions">
+                                        <button type="button"
+                                                class="btn btn-ghost btn-sm ap-mod-icon-btn"
+                                                title="Доступ к разделу"
+                                                data-ap-open-audience
+                                                data-audience-title="Доступ: {{ $sec->title }}"
+                                                data-audience-target="sec-{{ $sec->id }}"
+                                                data-audience-load-url="{{ route('admin.course.section.visibility', array_merge($rp, ['courseModule' => $m->id, 'section' => $sec->id])) }}"
+                                                data-audience-save-url="{{ route('admin.course.section.visibility.update', array_merge($rp, ['courseModule' => $m->id, 'section' => $sec->id])) }}"
+                                                data-audience-search-url="{{ $learnerSearchUrl }}"
+                                        data-audience-resolve-url="{{ $learnerResolveUrl }}"
+                                                aria-label="Доступ">
+                                            @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
+                                        </button>
                                         <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn" title="Редактировать раздел" data-ap-open-section-panel
                                             data-ap-panel-data-url="{{ route('admin.course.section.panel.data', array_merge($rp, ['courseModule' => $m->id, 'section' => $sec->id])) }}"><span class="ap-mod-icon-btn__ic" aria-hidden="true">@include('partials.ap-icon', ['name' => 'chevron-right', 'size' => 'sm'])</span></button>
                                         <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn ap-mod-icon-btn--danger" title="Удалить раздел" data-ap-open-delete-section
@@ -354,10 +398,15 @@
                 <button type="button" id="ap-sec-tab-questions" class="ap-sec-edit-panel__tab" role="tab" data-ap-sec-tab="questions" aria-selected="false" hidden>Вопросы</button>
                 <button type="button" id="ap-sec-tab-content" class="ap-sec-edit-panel__tab is-active" role="tab" data-ap-sec-tab="content" aria-selected="true">Содержимое</button>
                 <button type="button" id="ap-sec-tab-settings" class="ap-sec-edit-panel__tab" role="tab" data-ap-sec-tab="settings" aria-selected="false">Настройки раздела</button>
+                <button type="button" id="ap-sec-tab-access" class="ap-sec-edit-panel__tab" role="tab" data-ap-sec-tab="access" aria-selected="false">Доступ</button>
             </div>
         </header>
         <div id="ap-sec-panel-meta" class="panel-meta-info" hidden aria-live="polite"></div>
         <div class="ap-sec-edit-panel__body">
+            <div id="ap-sec-edit-panel-pane-access" class="ap-sec-edit-panel__pane" hidden role="tabpanel">
+                <p class="ap-muted small ap-sec-access-hint">Ограничьте, кто из обучающихся увидит этот раздел. Для опросов удобно назначить конкретных людей.</p>
+                <div id="ap-sec-access-picker-root"></div>
+            </div>
             <div id="ap-sec-edit-panel-pane-settings" class="ap-sec-edit-panel__pane" hidden role="tabpanel">
                 <label class="ap-settings-label" for="ap-sec-set-title">Название</label>
                 <input id="ap-sec-set-title" class="ap-modal__input" type="text" maxlength="200">
@@ -581,7 +630,12 @@
     </div>
 </div>
 
+@include('admin.partials.content-audience-modal', ['learnerSearchUrl' => $learnerSearchUrl])
+
+<script src="{{ asset('js/content-audience-picker.js') }}"></script>
+<script src="{{ asset('js/admin-content-visibility.js') }}"></script>
 <script src="{{ asset('js/section-edit-panel.js') }}"></script>
+
 <script>
 (function () {
     var root = document.querySelector('[data-ap-workbench]');

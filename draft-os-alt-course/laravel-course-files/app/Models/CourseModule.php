@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 final class CourseModule extends Model
 {
+    public const VIEW_AUDIENCE_ALL = 'all';
+
+    public const VIEW_AUDIENCE_RESTRICTED = 'restricted';
+
     protected $fillable = [
         'course_id',
         'sort',
@@ -16,6 +20,7 @@ final class CourseModule extends Model
         'summary',
         'letter',
         'content_source_index',
+        'view_audience',
     ];
 
     protected function casts(): array

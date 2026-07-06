@@ -25,7 +25,7 @@ class CertificateController extends Controller
         if ($course && ! $course->certificate_enabled) {
             return redirect()->route('dashboard')->with('err', 'Сертификат для этого курса отключён.');
         }
-        $finalLabEnabled = $course ? (bool) ($course->final_lab_enabled ?? true) : true;
+        $finalLabEnabled = $course ? (bool) ($course->final_lab_enabled ?? false) : true;
         $final = $this->resolveCertificateFinalRow($learner, $courseId, $finalLabEnabled);
         if ($finalLabEnabled && ! $final->passed) {
             return redirect()->route('final-lab')->with('err', 'Сначала сдайте финальную лабораторную работу.');
@@ -62,7 +62,7 @@ class CertificateController extends Controller
         if ($course && ! $course->certificate_enabled) {
             return redirect()->route('dashboard')->with('err', 'Сертификат для этого курса отключён.');
         }
-        $finalLabEnabled = $course ? (bool) ($course->final_lab_enabled ?? true) : true;
+        $finalLabEnabled = $course ? (bool) ($course->final_lab_enabled ?? false) : true;
         $final = $this->resolveCertificateFinalRow($learner, $courseId, $finalLabEnabled);
         if ($finalLabEnabled && ! $final->passed) {
             return redirect()->route('final-lab')->with('err', 'Сначала сдайте финальную лабораторную работу.');

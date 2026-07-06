@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Models\Learner;
 use App\Services\CourseModuleService;
 use App\Services\CourseScoringService;
+use App\Services\LearnerContentVisibilityService;
 use App\Services\ModuleAccessGate;
 use App\Support\CourseAudiencePlaque;
 use App\Support\LearnerPreviewContext;
@@ -19,6 +20,7 @@ class DashboardController extends Controller
         private CourseScoringService $scoring,
         private ModuleAccessGate $accessGate,
         private CourseModuleService $courseModules,
+        private LearnerContentVisibilityService $visibility,
     ) {}
 
     public function __invoke(): View
@@ -31,7 +33,7 @@ class DashboardController extends Controller
 
         $courseId = LearnerPreviewContext::courseId();
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
-        $finalLabEnabled = $course ? (bool) ($course->final_lab_enabled ?? true) : true;
+        $finalLabEnabled = $course ? (bool) ($course->final_lab_enabled ?? false) : true;
         $certificateEnabled = $course ? (bool) ($course->certificate_enabled ?? true) : true;
         $showModuleProgress = ! $course
             || ! Schema::hasColumn('courses', 'show_module_progress')
@@ -44,7 +46,7 @@ class DashboardController extends Controller
         $modulesPassed = 0;
 
         if ($courseId > 0 && Schema::hasTable('course_modules')) {
-            $mods = $this->courseModules->orderedModulesForCourse($courseId);
+            $mods = $this->visibility->visibleModulesForLearner($courseId, (int) $learner->id);
             foreach ($mods as $idx => $mod) {
                 $id = (int) $mod->id;
                 $meta = $this->courseModules->displayMeta($mod);

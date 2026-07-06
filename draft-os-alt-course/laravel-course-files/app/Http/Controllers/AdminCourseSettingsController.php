@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\AdminQuizController;
 use App\Models\Course;
+use App\Models\ContentViewAudienceRule;
+use App\Models\CourseLearnerGroup;
 use App\Models\CourseModule;
+use App\Models\Learner;
 use App\Models\CourseModuleContent;
 use App\Models\CourseModulePracticeSetting;
 use App\Models\CourseQuizQuestion;
@@ -16,6 +19,7 @@ use App\Models\CourseQuizBank;
 use App\Services\CourseContentService;
 use App\Services\CourseChangeLogService;
 use App\Services\CourseSectionService;
+use App\Services\LearnerContentVisibilityService;
 use App\Services\SurveyQuickLinkService;
 use App\Services\LegacyAltPracticeImagesBootstrap;
 use App\Services\PortalStaffAccess;
@@ -45,11 +49,14 @@ final class AdminCourseSettingsController extends Controller
             'sertifikat' => 'sertifikat',
             'istoriya' => 'istoriya',
             'soavtory' => 'soavtory',
+            'gruppy' => 'gruppy',
             default => 'moduli',
         };
 
         if ($settingsTab === 'soavtory') {
             $gate->assertCanManageCollaborators($courseId);
+        } elseif ($settingsTab === 'gruppy') {
+            $gate->assertCanEditCourseMeta($courseId);
         } elseif ($settingsTab === 'moduli') {
             $gate->assertCanAccessCourseModulesTab($courseId);
         } else {
@@ -127,6 +134,23 @@ final class AdminCourseSettingsController extends Controller
             ];
         }
 
+        $groupsPayload = [];
+        if ($settingsTab === 'gruppy') {
+            $enrolledIds = $course->enrollments()->pluck('learner_id')->map(fn ($id) => (int) $id)->all();
+            $groupsPayload = [
+                'courseLearnerGroups' => CourseLearnerGroup::query()
+                    ->where('course_id', $courseId)
+                    ->with('members:id,email,sso_display_name')
+                    ->withCount('members')
+                    ->orderBy('sort')
+                    ->orderBy('name')
+                    ->get(),
+                'courseEnrolledLearners' => $enrolledIds !== []
+                    ? Learner::query()->whereIn('id', $enrolledIds)->orderBy('email')->get(['id', 'email', 'sso_display_name'])
+                    : collect(),
+            ];
+        }
+
         return view('admin.course-settings', array_merge([
             'course' => $course,
             'courseStatus' => $status,
@@ -142,7 +166,7 @@ final class AdminCourseSettingsController extends Controller
             'canManageCollaborators' => $gate->canManageCollaborators($courseId),
             'canEditCourseMeta' => $gate->canEditCourseMeta($courseId),
             'canEditCourseStructure' => $gate->canEditCourseStructure($courseId),
-        ], $collaboratorPayload));
+        ], $collaboratorPayload, $groupsPayload));
     }
 
     public function saveCourseSettings(Request $request): RedirectResponse
@@ -827,6 +851,14 @@ final class AdminCourseSettingsController extends Controller
                     route('admin.course.section.quick-link.revoke', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
                 )
                 : null,
+            'visibility' => app(LearnerContentVisibilityService::class)->audiencePayloadForResource(
+                ContentViewAudienceRule::RESOURCE_SECTION,
+                (int) $section->id,
+                (int) $course->id,
+            ),
+            'visibility_save_url' => route('admin.course.section.visibility.update', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])),
+            'learner_search_url' => route('admin.course.learners.search', $rp),
+            'learner_resolve_url' => route('admin.course.learners.resolve', $rp),
         ]);
     }
 

@@ -211,9 +211,10 @@ final class AdminCourseContentInspector
         ]);
         $type = (string) $section->type;
         $db = self::databaseModuleContentSummary($course, $cm);
+        $trackPreviewUrl = route('admin.course.preview.section', $previewBase);
 
         return match ($type) {
-            CourseSection::TYPE_TEXT => [
+            CourseSection::TYPE_TEXT => self::withTrackPreview([
                 'has_section' => true,
                 'filled' => (int) $db['theory_chars'] > 0,
                 'meta' => ((int) $db['theory_chars'] > 0)
@@ -225,15 +226,15 @@ final class AdminCourseContentInspector
                 'stats_label' => null,
                 'col_type' => $type,
                 'docker_image' => null,
-            ],
-            CourseSection::TYPE_QUIZ => self::quizLikeCell(
+            ], $trackPreviewUrl),
+            CourseSection::TYPE_QUIZ => self::withTrackPreview(self::quizLikeCell(
                 $section,
                 self::questionsForSection($section),
                 route('admin.theory.preview-section', $previewBase),
                 'Просмотр: '.$section->title,
                 $type,
-            ),
-            CourseSection::TYPE_EXAM => self::examLikeCell(
+            ), $trackPreviewUrl),
+            CourseSection::TYPE_EXAM => self::withTrackPreview(self::examLikeCell(
                 $section,
                 self::questionsForSection($section),
                 (int) $cm->id,
@@ -241,8 +242,8 @@ final class AdminCourseContentInspector
                 route('admin.theory.preview-section', $previewBase),
                 'Просмотр: '.$section->title,
                 $type,
-            ),
-            CourseSection::TYPE_SURVEY => self::surveyCell(
+            ), $trackPreviewUrl),
+            CourseSection::TYPE_SURVEY => self::withTrackPreview(self::surveyCell(
                 $section,
                 self::questionsForSection($section),
                 route('admin.theory.preview-section', $previewBase),
@@ -251,8 +252,8 @@ final class AdminCourseContentInspector
                     'section' => $sectionId,
                 ])),
                 $type,
-            ),
-            CourseSection::TYPE_PRACTICE => [
+            ), $trackPreviewUrl),
+            CourseSection::TYPE_PRACTICE => self::withTrackPreview([
                 'has_section' => true,
                 'filled' => (string) $db['practice_markdown'] !== '',
                 'meta' => self::practiceSummaryLine((string) $db['practice_markdown']),
@@ -262,9 +263,20 @@ final class AdminCourseContentInspector
                 'stats_label' => null,
                 'col_type' => $type,
                 'docker_image' => $dockerImage,
-            ],
-            default => array_merge($empty, ['has_section' => true, 'col_type' => $type]),
+            ], $trackPreviewUrl),
+            default => self::withTrackPreview(array_merge($empty, ['has_section' => true, 'col_type' => $type]), $trackPreviewUrl),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $cell
+     * @return array<string, mixed>
+     */
+    private static function withTrackPreview(array $cell, string $trackPreviewUrl): array
+    {
+        $cell['track_preview_url'] = $trackPreviewUrl;
+
+        return $cell;
     }
 
     /**

@@ -8,11 +8,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class Course extends Model
 {
+    public const VIEW_AUDIENCE_ALL = 'all';
+
+    public const VIEW_AUDIENCE_RESTRICTED = 'restricted';
+
     public function isLegacyAltCourse(): bool
     {
         // Единственный курс, который продолжает жить на legacy-контенте из config/course.php и config/snippets.
         return $this->slug === 'alt-os-features';
     }
+
+    protected $attributes = [
+        'final_lab_enabled' => false,
+    ];
 
     protected $fillable = [
         'created_by_portal_staff_id',
@@ -23,6 +31,7 @@ final class Course extends Model
         'is_published',
         'is_archived',
         'strict_grants',
+        'view_audience',
         'sort',
         'default_attempt_limit',
         'default_quiz_time_minutes',

@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Панель администратора — Трек знаний')</title>
     <link rel="icon" type="image/png" href="{{ asset('croc-app-icon.png') }}">
     <link rel="stylesheet" href="{{ asset('css/local-fonts.css') }}">
@@ -102,6 +103,7 @@
                     $canTools = $psa && $psa->canUseCourseAdminTools();
                     $cid = (int) $adminCurrentCourse->id;
                     $canViewLearners = $psa && $psa->canViewCourseLearnerStats($cid);
+                    $canPreviewCourse = $psa && $psa->canPreviewCourse($cid);
                     $en = (int) \App\Models\CourseEnrollment::query()->where('course_id', $cid)->count();
                     $completed = (int) \App\Models\FinalLabResult::query()
                         ->where('course_id', $cid)
@@ -124,6 +126,16 @@
                                 @endif
                             @endif
                         </div>
+                        @if ($canPreviewCourse ?? false)
+                            <div class="ap-course-context__preview">
+                                @include('partials.course-preview-launch', [
+                                    'previewUrl' => route('admin.course.preview', ['adminCourse' => $cslug]),
+                                    'previewLabel' => 'Предпросмотр курса',
+                                    'previewClass' => 'btn btn-secondary btn-sm',
+                                    'previewShowIcon' => true,
+                                ])
+                            </div>
+                        @endif
                         <a class="ap-course-context__back" href="{{ route('admin.courses.index') }}">← Курсы</a>
                     </div>
                     <p class="ap-course-context__meta">

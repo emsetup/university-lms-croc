@@ -36,6 +36,9 @@ final class SurveyController extends Controller
         if ($r = $this->access->redirectIfModuleLocked($learner, $mid)) {
             return $r;
         }
+        if ($r = $this->access->redirectIfSectionHidden($learner, (int) $sec->id, $mid)) {
+            return $r;
+        }
         if ($r = $this->access->redirectIfStepBlocked($learner, $mid, $sec->backendStepKey())) {
             return $r;
         }
@@ -72,6 +75,9 @@ final class SurveyController extends Controller
         $mid = $ctx['mid'];
         $sec = $ctx['section'];
         if ($r = $this->access->redirectIfModuleLocked($learner, $mid)) {
+            return $r;
+        }
+        if ($r = $this->access->redirectIfSectionHidden($learner, (int) $sec->id, $mid)) {
             return $r;
         }
         if ($r = $this->access->redirectIfStepBlocked($learner, $mid, $sec->backendStepKey())) {

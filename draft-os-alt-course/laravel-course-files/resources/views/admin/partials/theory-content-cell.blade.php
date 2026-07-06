@@ -5,6 +5,7 @@
     $filled = (bool) ($cell['filled'] ?? false);
     $meta = (string) ($cell['meta'] ?? '');
     $previewUrl = $cell['preview_url'] ?? null;
+    $trackPreviewUrl = $cell['track_preview_url'] ?? null;
     $previewTitle = (string) ($cell['preview_title'] ?? 'Просмотр');
     $statsUrl = $cell['stats_url'] ?? null;
     $statsLabel = (string) ($cell['stats_label'] ?? 'Ответы');
@@ -27,12 +28,23 @@
                 @if ($colType !== 'docker' && $meta !== '' && $meta !== 'нет текста')
                     <span class="content-icon-ok">@include('partials.ap-icon', ['name' => 'check-circle', 'size' => 'sm'])</span>
                     <div class="cell-meta">{{ $meta }}</div>
-                    @if ($previewUrl)
-                        <div style="margin-top:8px;">
-                            <button type="button" class="btn btn-secondary btn-sm btn-admin-content-preview js-admin-content-preview" data-preview-title="{{ $previewTitle }}" data-preview-url="{{ $previewUrl }}">
-                                @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
-                                <span>Просмотр</span>
-                            </button>
+                    @if ($previewUrl || $trackPreviewUrl)
+                        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+                            @if ($previewUrl)
+                                <button type="button" class="btn btn-secondary btn-sm btn-admin-content-preview js-admin-content-preview" data-preview-title="{{ $previewTitle }}" data-preview-url="{{ $previewUrl }}">
+                                    @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
+                                    <span>Просмотр</span>
+                                </button>
+                            @endif
+                            @if ($trackPreviewUrl)
+                                @include('partials.course-preview-launch', [
+                                    'previewUrl' => $trackPreviewUrl,
+                                    'previewLabel' => 'В курсе',
+                                    'previewClass' => 'btn btn-secondary btn-sm',
+                                    'previewShowIcon' => true,
+                                    'previewIcon' => 'external-link',
+                                ])
+                            @endif
                         </div>
                     @endif
                 @endif
@@ -92,6 +104,15 @@
                             @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
                             <span>Просмотр</span>
                         </button>
+                    @endif
+                    @if ($trackPreviewUrl)
+                        @include('partials.course-preview-launch', [
+                            'previewUrl' => $trackPreviewUrl,
+                            'previewLabel' => 'В курсе',
+                            'previewClass' => 'btn btn-secondary btn-sm',
+                            'previewShowIcon' => true,
+                            'previewIcon' => 'external-link',
+                        ])
                     @endif
                     @if ($statsUrl)
                         <a class="btn btn-secondary btn-sm" href="{{ $statsUrl }}" target="_blank" rel="noopener">

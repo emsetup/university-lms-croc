@@ -521,6 +521,12 @@ final class PortalStaffAccess
         return $this->accessibleModulesForCourse($courseId)->isNotEmpty();
     }
 
+    /** Предпросмотр курса на learner-треке (черновики, архив, свободная навигация). */
+    public function canPreviewCourse(int $courseId): bool
+    {
+        return $this->canViewAnyCourseContent($courseId);
+    }
+
     public function canManageStaff(): bool
     {
         return $this->isPortalAdmin() || $this->perms()->has(Perm::STAFF_MANAGE);

@@ -50,7 +50,7 @@ final class PortalChangelog
         return array_slice(self::entries(), 0, $limit);
     }
 
-    /** Экранирует текст и выделяет фрагменты в «ёлочках» жирным. */
+    /** Экранирует текст и выделяет фрагменты в «ёлочках» и **markdown** жирным. */
     public static function highlightQuotedHtml(string $text): string
     {
         $escaped = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -58,9 +58,19 @@ final class PortalChangelog
             '/«([^»]+)»/u',
             '<strong>«$1»</strong>',
             $escaped
-        );
+        ) ?? $escaped;
+        $highlighted = preg_replace(
+            '/\*\*([^*]+)\*\*/u',
+            '<strong>$1</strong>',
+            $highlighted
+        ) ?? $highlighted;
+        $highlighted = preg_replace(
+            '/`([^`]+)`/u',
+            '<code>$1</code>',
+            $highlighted
+        ) ?? $highlighted;
 
-        return $highlighted ?? $escaped;
+        return $highlighted;
     }
 
     /**

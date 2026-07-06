@@ -69,6 +69,22 @@ final class CourseModuleService
         return $this->orderedModulesForCourse($courseId)->get($sequence - 1);
     }
 
+    public function findByContentIndexForCourse(Course|int $course, int $contentIndex): ?CourseModule
+    {
+        $courseId = $course instanceof Course ? (int) $course->id : $course;
+        if ($courseId < 1 || $contentIndex < 1) {
+            return null;
+        }
+
+        foreach ($this->orderedModulesForCourse($courseId) as $cm) {
+            if ($cm->effectiveContentIndex() === $contentIndex) {
+                return $cm;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * Модуль по порядковому номеру в курсе (1..N) или по legacy id в URL (старые закладки).
      */

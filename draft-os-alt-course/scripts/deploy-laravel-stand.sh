@@ -99,6 +99,9 @@ for f in \
   app/Http/Controllers/AccountController.php \
   app/Http/Controllers/PortalController.php \
   app/Http/Controllers/PortalEnrollController.php \
+  app/Http/Controllers/CourseStaffPreviewController.php \
+  app/Http/Controllers/AdminContentVisibilityController.php \
+  app/Http/Controllers/AdminLearnerGroupsController.php \
   app/Http/Controllers/DocumentationController.php \
   app/Http/Controllers/TeacherCourseReportController.php \
   app/Services/DocumentationCatalog.php \
@@ -108,6 +111,7 @@ for f in \
   app/Http/Middleware/EnsureLearnerCertificateCourse.php \
   app/Http/Middleware/EnsureLearner.php \
   app/Http/Middleware/ApplyLearnerPreview.php \
+  app/Http/Middleware/ApplyCourseStaffPreview.php \
   app/Http/Middleware/ApplyStaffAdminPreview.php \
   app/Http/Middleware/DenyStaffAdminPreviewWrites.php \
   app/Http/Middleware/RestrictInstructorCourseAccess.php \
@@ -154,6 +158,7 @@ for f in \
   app/Services/PracticeImageSandboxService.php \
   app/Services/TeacherCourseAnalyticsService.php \
   app/Services/ModuleAccessGate.php \
+  app/Services/LearnerContentVisibilityService.php \
   app/Services/InstructorProgressResetService.php \
   app/Services/TeacherLearnerProfileDetailService.php \
   app/Services/AdminCourseLearnerDetailService.php \
@@ -174,6 +179,7 @@ for f in \
   app/Support/StaffImpersonation.php \
   app/Support/LearnerPreviewContext.php \
   app/Support/StaffAdminPreview.php \
+  app/Support/CourseStaffPreview.php \
   app/Support/StaffRoleGuide.php \
   app/Support/OidcIdentityClaims.php \
   app/Support/OidcSignInRedirect.php \
@@ -188,6 +194,9 @@ for f in \
   app/Support/PortalStaffPermissionCatalog.php \
   app/Support/PortalStaffFromEmail.php \
   app/Models/Course.php \
+  app/Models/ContentViewAudienceRule.php \
+  app/Models/PortalLearnerGroup.php \
+  app/Models/CourseLearnerGroup.php \
   app/Models/CourseContentGrant.php \
   app/Models/CourseChangeLog.php \
   app/Models/CourseModule.php \
@@ -284,6 +293,18 @@ if [[ -f "${LCF}/database/migrations/2026_06_09_140000_add_audience_plaque_to_co
   echo "[deploy-laravel] database/migrations/…audience_plaque…"
   rsync -az "${LCF}/database/migrations/2026_06_09_140000_add_audience_plaque_to_courses_table.php" \
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_09_140000_add_audience_plaque_to_courses_table.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_07_06_100000_create_learner_content_visibility_tables.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…learner_content_visibility…"
+  rsync -az "${LCF}/database/migrations/2026_07_06_100000_create_learner_content_visibility_tables.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_07_06_100000_create_learner_content_visibility_tables.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_07_06_120000_change_final_lab_enabled_default_to_false.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…final_lab_enabled_default_false…"
+  rsync -az "${LCF}/database/migrations/2026_07_06_120000_change_final_lab_enabled_default_to_false.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_07_06_120000_change_final_lab_enabled_default_to_false.php"
 fi
 
 if [[ -f "${LCF}/database/migrations/2026_06_09_150000_create_course_change_logs_table.php" ]]; then
@@ -526,6 +547,18 @@ if [[ -f "${LCF}/public/js/section-edit-panel.js" ]]; then
   rsync -az "${LCF}/public/js/section-edit-panel.js" "${STAND_SSH}:${REMOTE}/public/js/section-edit-panel.js"
 fi
 
+if [[ -f "${LCF}/public/js/content-audience-picker.js" ]]; then
+  echo "[deploy-laravel] public/js/content-audience-picker.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/content-audience-picker.js" "${STAND_SSH}:${REMOTE}/public/js/content-audience-picker.js"
+fi
+
+if [[ -f "${LCF}/public/js/admin-content-visibility.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-content-visibility.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-content-visibility.js" "${STAND_SSH}:${REMOTE}/public/js/admin-content-visibility.js"
+fi
+
 if [[ -f "${LCF}/public/js/learners-course.js" ]]; then
   echo "[deploy-laravel] public/js/learners-course.js"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
@@ -610,7 +643,7 @@ if [[ -f "${LCF}/public/static/admin/admin.css" ]]; then
 fi
 
 echo "[deploy-laravel] remote: php artisan config:clear cache:clear view:clear migrate"
-ssh -o BatchMode=yes "$STAND_SSH" "set -e; cd '${REMOTE}' && php artisan config:clear && php artisan cache:clear && php artisan view:clear && php artisan migrate --force --no-interaction"
+ssh -o BatchMode=yes "$STAND_SSH" "set -e; cd '${REMOTE}' && php artisan config:clear && php artisan cache:clear && php artisan view:clear && php artisan optimize:clear && php artisan migrate --force --no-interaction"
 
 echo "[deploy-laravel] remote: права storage/app/practice-images для php-fpm"
 ssh -o BatchMode=yes "$STAND_SSH" "set -e; cd '${REMOTE}' && mkdir -p storage/app/practice-images && chgrp -R _webserver storage/app/practice-images 2>/dev/null || true && chmod -R g+rws storage/app/practice-images 2>/dev/null || true && (command -v chown >/dev/null && chown -R _php_fpm:_webserver storage/app/practice-images 2>/dev/null || chown -R www-data:www-data storage/app/practice-images 2>/dev/null || true)"

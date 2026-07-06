@@ -28,6 +28,7 @@ use App\Http\Controllers\PracticeLabController;
 use App\Http\Controllers\TeacherCourseReportController;
 use App\Models\Course;
 use App\Services\PortalStaffAccess;
+use App\Support\CourseStaffPreview;
 use App\Support\PortalIncidentBootstrap;
 use App\Support\StaffAdminPreview;
 use App\Support\StaffImpersonation;
@@ -41,12 +42,23 @@ View::composer(['layouts.course', 'admin.*', 'portal.*', 'docs.*', 'layouts.admi
     if (StaffImpersonation::isPreviewRequest(request())) {
         $view->with('portalStaffAccess', null);
         $view->with('learnerPreviewActive', true);
+        $view->with('courseStaffPreviewActive', false);
+
+        return;
+    }
+    if (CourseStaffPreview::isPreviewRequest(request())) {
+        $id = (int) session('learner_id', 0);
+        $access = $id > 0 ? PortalStaffAccess::fromLearnerId($id) : null;
+        $view->with('portalStaffAccess', $access);
+        $view->with('learnerPreviewActive', false);
+        $view->with('courseStaffPreviewActive', true);
 
         return;
     }
     if (StaffAdminPreview::isPreviewRequest(request()) && app()->bound(PortalStaffAccess::class)) {
         $view->with('portalStaffAccess', app(PortalStaffAccess::class));
         $view->with('learnerPreviewActive', false);
+        $view->with('courseStaffPreviewActive', false);
 
         return;
     }
@@ -54,6 +66,7 @@ View::composer(['layouts.course', 'admin.*', 'portal.*', 'docs.*', 'layouts.admi
     $access = $id > 0 ? PortalStaffAccess::fromLearnerId($id) : null;
     $view->with('portalStaffAccess', $access);
     $view->with('learnerPreviewActive', false);
+    $view->with('courseStaffPreviewActive', false);
 });
 
 View::composer('layouts.admin', function ($view) {
@@ -98,6 +111,7 @@ Route::get('/oidc/callback', [OidcLoginController::class, 'callback'])->name('oi
 
 Route::middleware([
     \App\Http\Middleware\ApplyLearnerPreview::class,
+    \App\Http\Middleware\ApplyCourseStaffPreview::class,
     \App\Http\Middleware\MaintenanceForUsers::class,
     \App\Http\Middleware\LogPortalIncidents::class,
 ])->group(function () {
@@ -107,6 +121,8 @@ Route::middleware([
             ->route('admin.settings')
             ->with('ok', 'Просмотр портала от лица обучающегося завершён.');
     })->name('portal.learner-preview.end');
+    Route::get('/portal/predprosmotr/zavershit', [\App\Http\Controllers\CourseStaffPreviewController::class, 'end'])
+        ->name('portal.course-preview.end');
     Route::post('/portal/enroll/{course}', [\App\Http\Controllers\PortalEnrollController::class, 'store'])
         ->whereNumber('course')
         ->name('portal.enroll');
@@ -142,7 +158,7 @@ Route::middleware([
     ])->group(function () {
     // Dashboard is course-scoped; keep legacy /dashboard as redirect.
     Route::get('/dashboard', function () {
-        return redirect()->route('course.dashboard', ['course' => (int) session('course_id')]);
+        return redirect()->route('course.dashboard', ['course' => \App\Support\LearnerPreviewContext::courseId()]);
     })->name('dashboard');
 
     Route::get('/courses/{course}/dashboard', DashboardController::class)
@@ -158,7 +174,7 @@ Route::middleware([
 
     $legacyModuleRedirect = static function (string $canonicalRoute, array $extra = []): \Closure {
         return static function (int $module) use ($canonicalRoute, $extra): \Illuminate\Http\RedirectResponse {
-            $courseId = (int) session('course_id');
+            $courseId = \App\Support\LearnerPreviewContext::courseId();
             $cm = app(\App\Services\CourseModuleService::class)->findOrFailForCourseRoute($courseId, $module);
             $seq = app(\App\Services\CourseModuleService::class)->sequenceForModule($cm);
             $params = array_merge(\App\Support\LearnerRoute::hub($courseId, $seq), $extra);
@@ -234,7 +250,7 @@ Route::middleware([
 
         Route::prefix('section/{section}')->whereNumber('section')->group(function () {
             Route::get('/survey', static function (int $module, int $section): \Illuminate\Http\RedirectResponse {
-                $courseId = (int) session('course_id');
+                $courseId = \App\Support\LearnerPreviewContext::courseId();
                 $cm = app(\App\Services\CourseModuleService::class)->findOrFailForCourseRoute($courseId, $module);
                 $modSeq = app(\App\Services\CourseModuleService::class)->sequenceForModule($cm);
                 $sec = app(\App\Services\CourseSectionService::class)
@@ -365,6 +381,16 @@ Route::middleware([
 
     Route::middleware([\App\Http\Middleware\EnsureStaffAbility::class.':view_portal_learners'])->group(function () {
         Route::get('/adm/lyudi', [AdminLearnersController::class, 'indexPeople'])->name('admin.learners.portal');
+        Route::get('/adm/lyudi/gruppy', [\App\Http\Controllers\AdminLearnerGroupsController::class, 'portalIndex'])->name('admin.learner-groups.portal');
+        Route::post('/adm/lyudi/gruppy', [\App\Http\Controllers\AdminLearnerGroupsController::class, 'portalStore'])->name('admin.learner-groups.portal.store');
+        Route::get('/adm/lyudi/gruppy/search', [\App\Http\Controllers\AdminLearnerGroupsController::class, 'portalSearchLearners'])
+            ->name('admin.learner-groups.portal.search');
+        Route::post('/adm/lyudi/gruppy/{group}', [\App\Http\Controllers\AdminLearnerGroupsController::class, 'portalUpdate'])
+            ->whereNumber('group')
+            ->name('admin.learner-groups.portal.update');
+        Route::post('/adm/lyudi/gruppy/{group}/udalit', [\App\Http\Controllers\AdminLearnerGroupsController::class, 'portalDestroy'])
+            ->whereNumber('group')
+            ->name('admin.learner-groups.portal.destroy');
         Route::get('/adm/lyudi/{learner}', [AdminLearnersController::class, 'peopleShowJson'])
             ->whereNumber('learner')
             ->name('admin.learners.people.detail');
@@ -579,6 +605,16 @@ Route::middleware([
             \App\Http\Middleware\RestrictInstructorCourseAccess::class,
         ])
         ->group(function () {
+            Route::get('/predprosmotr', [\App\Http\Controllers\CourseStaffPreviewController::class, 'startCourse'])
+                ->name('admin.course.preview');
+            Route::get('/predprosmotr/modul/{module}', [\App\Http\Controllers\CourseStaffPreviewController::class, 'startModule'])
+                ->whereNumber('module')
+                ->name('admin.course.preview.module');
+            Route::get('/predprosmotr/modul/{module}/razdel/{section}', [\App\Http\Controllers\CourseStaffPreviewController::class, 'startSection'])
+                ->whereNumber('module')
+                ->whereNumber('section')
+                ->name('admin.course.preview.section');
+
             Route::get('/soderzhimoe', [AdminTheoryController::class, 'index'])->name('admin.theory.index');
             Route::get('/soderzhimoe/vse-md.zip', [AdminTheoryController::class, 'downloadZip'])->name('admin.theory.zip');
             Route::get('/soderzhimoe/modul/{module}/teoriya', [AdminTheoryController::class, 'previewTheory'])
@@ -688,6 +724,37 @@ Route::middleware([
                     ->whereNumber('courseModule')
                     ->whereNumber('section')
                     ->name('admin.course.section.quick-link.revoke');
+
+                Route::get('/nastroyki/dostup', [\App\Http\Controllers\AdminContentVisibilityController::class, 'showCourse'])
+                    ->name('admin.course.visibility');
+                Route::put('/nastroyki/dostup', [\App\Http\Controllers\AdminContentVisibilityController::class, 'updateCourse'])
+                    ->name('admin.course.visibility.update');
+                Route::get('/nastroyki/obuchayushchiesya/search', [\App\Http\Controllers\AdminContentVisibilityController::class, 'searchLearners'])
+                    ->name('admin.course.learners.search');
+                Route::post('/nastroyki/obuchayushchiesya/resolve', [\App\Http\Controllers\AdminContentVisibilityController::class, 'resolveLearners'])
+                    ->name('admin.course.learners.resolve');
+                Route::get('/nastroyki/modul/{courseModule}/dostup', [\App\Http\Controllers\AdminContentVisibilityController::class, 'showModule'])
+                    ->whereNumber('courseModule')
+                    ->name('admin.course.module.visibility');
+                Route::put('/nastroyki/modul/{courseModule}/dostup', [\App\Http\Controllers\AdminContentVisibilityController::class, 'updateModule'])
+                    ->whereNumber('courseModule')
+                    ->name('admin.course.module.visibility.update');
+                Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/dostup', [\App\Http\Controllers\AdminContentVisibilityController::class, 'showSection'])
+                    ->whereNumber('courseModule')
+                    ->whereNumber('section')
+                    ->name('admin.course.section.visibility');
+                Route::put('/nastroyki/modul/{courseModule}/razdel/{section}/dostup', [\App\Http\Controllers\AdminContentVisibilityController::class, 'updateSection'])
+                    ->whereNumber('courseModule')
+                    ->whereNumber('section')
+                    ->name('admin.course.section.visibility.update');
+                Route::post('/nastroyki/gruppy', [\App\Http\Controllers\AdminLearnerGroupsController::class, 'courseStore'])
+                    ->name('admin.course.learner-groups.store');
+                Route::post('/nastroyki/gruppy/{group}', [\App\Http\Controllers\AdminLearnerGroupsController::class, 'courseUpdate'])
+                    ->whereNumber('group')
+                    ->name('admin.course.learner-groups.update');
+                Route::post('/nastroyki/gruppy/{group}/udalit', [\App\Http\Controllers\AdminLearnerGroupsController::class, 'courseDestroy'])
+                    ->whereNumber('group')
+                    ->name('admin.course.learner-groups.destroy');
                 Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/otvety', [AdminSurveyResponsesController::class, 'index'])
                     ->whereNumber('courseModule')
                     ->whereNumber('section')

@@ -6,6 +6,9 @@
     @php
         $detailBase = url('/adm/lyudi');
     @endphp
+    <div class="ap-page-actions" style="margin-bottom:1rem">
+        <a href="{{ route('admin.learner-groups.portal') }}" class="btn btn-ghost btn-sm">Группы обучающихся</a>
+    </div>
     <div class="ap-people" id="ap-people-root" data-detail-base="{{ e($detailBase) }}">
         <aside class="ap-people__sidebar" aria-label="Список обучающихся">
             <div class="ap-people__sidebar-inner">

@@ -24,6 +24,10 @@
         practiceImageId: null,
         saveUrl: '',
         open: false,
+        secAccessPicker: null,
+        visibilitySaveUrl: '',
+        learnerSearchUrl: '',
+        learnerResolveUrl: '',
     };
 
     var quizAutoSaveTimer = null;
@@ -879,6 +883,23 @@
         showContentForType($('ap-sec-set-type').value);
 
         $('ap-sec-edit-legacy').hidden = !d.is_legacy;
+
+        state.visibilitySaveUrl = d.visibility_save_url || '';
+        state.learnerSearchUrl = d.learner_search_url || '';
+        state.learnerResolveUrl = d.learner_resolve_url || '';
+        var accessRoot = $('ap-sec-access-picker-root');
+        if (accessRoot && typeof window.ContentAudiencePicker === 'function') {
+            if (!state.secAccessPicker) {
+                state.secAccessPicker = new window.ContentAudiencePicker(accessRoot, {
+                    searchUrl: state.learnerSearchUrl,
+                    resolveUrl: state.learnerResolveUrl,
+                });
+            } else {
+                state.secAccessPicker.searchUrl = state.learnerSearchUrl;
+                state.secAccessPicker.resolveUrl = state.learnerResolveUrl;
+            }
+            state.secAccessPicker.setData(d.visibility || { view_audience: 'all', rules: [], groups: { portal: [], course: [] } });
+        }
     }
 
     function renderQuickLinkUi(meta) {
@@ -1010,24 +1031,33 @@
         var panS = $('ap-sec-edit-panel-pane-settings');
         var panC = $('ap-sec-edit-panel-pane-content');
         var panQ = $('ap-sec-edit-panel-pane-questions');
+        var panA = $('ap-sec-edit-panel-pane-access');
         tabs.forEach(function (t) {
             if (t.hidden) return;
             var on = t.getAttribute('data-ap-sec-tab') === which;
             t.classList.toggle('is-active', on);
             t.setAttribute('aria-selected', on ? 'true' : 'false');
         });
-        if (which === 'settings') {
+        if (which === 'access') {
+            if (panS) panS.hidden = true;
+            if (panC) panC.hidden = true;
+            if (panQ) panQ.hidden = true;
+            if (panA) panA.hidden = false;
+        } else if (which === 'settings') {
             if (panS) panS.hidden = false;
             if (panC) panC.hidden = true;
             if (panQ) panQ.hidden = true;
+            if (panA) panA.hidden = true;
         } else if (isQuizExamType(typ) && which === 'questions') {
             if (panS) panS.hidden = true;
             if (panC) panC.hidden = true;
             if (panQ) panQ.hidden = false;
+            if (panA) panA.hidden = true;
         } else {
             if (panS) panS.hidden = true;
             if (panC) panC.hidden = false;
             if (panQ) panQ.hidden = true;
+            if (panA) panA.hidden = true;
         }
         if (!isQuizExamType(typ)) hideQuizEditorChrome();
     }
@@ -1091,7 +1121,36 @@
             return;
         }
         var body = buildPayload();
-        fetch(state.saveUrl, {
+        var visPromise = Promise.resolve({ ok: true });
+        if (state.secAccessPicker && state.visibilitySaveUrl) {
+            var visErr = state.secAccessPicker.validate();
+            if (visErr) {
+                window.alert(visErr);
+                return;
+            }
+            visPromise = fetch(state.visibilitySaveUrl, {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(state.secAccessPicker.getPayload()),
+            }).then(function (r) {
+                return r.json().then(function (j) {
+                    return { ok: r.ok, j: j };
+                });
+            });
+        }
+        visPromise
+            .then(function (visRes) {
+                if (!visRes.ok) {
+                    window.alert((visRes.j && visRes.j.message) || 'Ошибка сохранения доступа.');
+                    return Promise.reject();
+                }
+                return fetch(state.saveUrl, {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -1101,7 +1160,8 @@
                 'X-Requested-With': 'XMLHttpRequest',
             },
             body: JSON.stringify(body),
-        })
+        });
+            })
             .then(function (r) {
                 return r.json().then(function (j) {
                     return { ok: r.ok, j: j };

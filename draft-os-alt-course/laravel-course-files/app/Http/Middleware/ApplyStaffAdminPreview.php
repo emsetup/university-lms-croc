@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Learner;
 use App\Services\PortalStaffAccess;
+use App\Support\CourseStaffPreview;
 use App\Support\StaffAdminPreview;
 use Closure;
 use Illuminate\Http\Request;
@@ -28,6 +29,8 @@ final class ApplyStaffAdminPreview
         if ($token === null) {
             return $next($request);
         }
+
+        CourseStaffPreview::clearSession();
 
         $ctx = StaffAdminPreview::resolvePreview($token);
         if ($ctx === null) {
