@@ -7,7 +7,7 @@
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
             <div>
                 <p class="muted" style="margin:0 0 0.35rem">
-                    <a href="{{ route('admin.quiz.index', $ap ?? []) }}">← К списку банков вопросов</a>
+                    <a href="{{ route('admin.course.settings', $ap ?? []) }}">← К модулям</a>
                 </p>
                 <h1 style="margin:0 0 0.35rem">{{ $title }}</h1>
                 @if ($scope === 'module')

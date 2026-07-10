@@ -90,7 +90,7 @@ final class ModuleAccessGate
         return is_array($last) && $last !== [];
     }
 
-    private function courseUnlocksAllModules(int $courseId): bool
+    public function courseUnlocksAllModules(int $courseId): bool
     {
         if (isset($this->unlockAllModulesCache[$courseId])) {
             return $this->unlockAllModulesCache[$courseId];

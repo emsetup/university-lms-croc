@@ -1,5 +1,9 @@
 @extends('layouts.admin')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('css/media-library.css') }}">
+@endpush
+
 @section('title', 'Контент модуля')
 
 @section('content')
@@ -42,12 +46,22 @@
                     @csrf
 
                     <section class="js-cmce-panel" data-panel="theory">
-                        <div class="muted small" style="margin:0 0 0.35rem">Теория (Markdown)</div>
+                        <div class="muted small" style="margin:0 0 0.35rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
+                            <span>Теория (Markdown)</span>
+                            <button type="button" class="btn btn-ghost btn-sm" data-ap-media-insert-cmce="theory" title="Вставить картинку" aria-label="Вставить картинку">
+                                <span class="ap-media-insert-btn__inner">@include('partials.icons.media-image')<span>Картинка</span></span>
+                            </button>
+                        </div>
                         <textarea class="input js-cmce-textarea" name="theory_markdown" rows="18" spellcheck="false">{{ old('theory_markdown', $theory ?? '') }}</textarea>
                     </section>
 
                     <section class="js-cmce-panel" data-panel="practice" style="display:none">
-                        <div class="muted small" style="margin:0 0 0.35rem">Практика (Markdown)</div>
+                        <div class="muted small" style="margin:0 0 0.35rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
+                            <span>Практика (Markdown)</span>
+                            <button type="button" class="btn btn-ghost btn-sm" data-ap-media-insert-cmce="practice" title="Вставить картинку" aria-label="Вставить картинку">
+                                <span class="ap-media-insert-btn__inner">@include('partials.icons.media-image')<span>Картинка</span></span>
+                            </button>
+                        </div>
                         <textarea class="input js-cmce-textarea" name="practice_markdown" rows="18" spellcheck="false">{{ old('practice_markdown', $practice ?? '') }}</textarea>
                     </section>
 
@@ -171,6 +185,26 @@
             });
 
             setActive('theory');
+
+            var courseId = {{ (int) ($courseModule->course_id ?? session('admin_course_id')) }};
+            document.querySelectorAll('[data-ap-media-insert-cmce]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    if (!window.MediaLibrary) return;
+                    var which = btn.getAttribute('data-ap-media-insert-cmce');
+                    var mde = which === 'practice' ? mdePractice : mdeTheory;
+                    window.MediaLibrary.open({
+                        courseId: courseId,
+                        onInsert: function (md) {
+                            if (mde && mde.codemirror) {
+                                var cm = mde.codemirror;
+                                var doc = cm.getDoc();
+                                var cursor = doc.getCursor();
+                                doc.replaceRange((cursor.ch > 0 ? '\n' : '') + md + '\n', cursor);
+                            }
+                        },
+                    });
+                });
+            });
         })();
     </script>
 @endsection

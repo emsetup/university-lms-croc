@@ -33,8 +33,6 @@
         @if ($canViewContentTabs)
             <a class="ap-course-tabs__a @if($tabKey === 'course_content') ap-course-tabs__a--active @endif"
                href="{{ route('admin.theory.index', $tpTabs) }}">Содержимое</a>
-            <a class="ap-course-tabs__a @if($tabKey === 'course_quiz') ap-course-tabs__a--active @endif"
-               href="{{ route('admin.quiz.index', $tpTabs) }}">Тесты</a>
         @endif
         @if ($canViewLearnersTabs)
             <a class="ap-course-tabs__a @if($tabKey === 'learners') ap-course-tabs__a--active @endif"

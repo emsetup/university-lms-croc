@@ -15,6 +15,7 @@ use App\Services\LearnerContentVisibilityService;
 use App\Services\ModuleAccessGate;
 use App\Services\PracticeLabService;
 use App\Support\CourseModuleMeta;
+use App\Support\CourseStaffPreview;
 use App\Support\LearnerPreviewContext;
 use App\Support\LearnerRoute;
 use Illuminate\Http\RedirectResponse;
@@ -41,6 +42,22 @@ class ModuleController extends Controller
     private function theoryQuizWallStartKey(int $learnerId, int $courseModuleId): string
     {
         return 'theory_quiz_wall_start_l'.$learnerId.'_m'.$courseModuleId;
+    }
+
+    private function staffPreviewWalkthrough(): bool
+    {
+        return CourseStaffPreview::isActive();
+    }
+
+    /** В предпросмотре курса тесты и экзамены — только просмотр вопросов, без записи попыток. */
+    private function redirectIfStaffPreviewAssessmentWrite(Request $request, string $showRoute): ?RedirectResponse
+    {
+        if (! $this->staffPreviewWalkthrough()) {
+            return null;
+        }
+        $ctx = $this->routeContext($request);
+
+        return redirect()->route($showRoute, LearnerRoute::hub($ctx['courseId'], $ctx['moduleSequence']));
     }
 
     /**
@@ -466,8 +483,14 @@ class ModuleController extends Controller
             $p->save();
         }
 
+        $legacyAltForBriefing = $courseId > 0 ? $this->courseModules->selectedCourseIsLegacyAlt() : true;
+        $sequentialSections = $this->sectionService->moduleEnforcesSectionOrder($mid, $contentIdx, $legacyAltForBriefing);
+        $sequentialCourse = $courseId < 1 || ! $this->accessGate->courseUnlocksAllModules($courseId);
         $showBriefing = Schema::hasColumn('module_progress', 'hub_briefing_acknowledged_at')
-            && $p->hub_briefing_acknowledged_at === null;
+            && $p->hub_briefing_acknowledged_at === null
+            && ! CourseStaffPreview::isActive($request)
+            && $sequentialCourse
+            && $sequentialSections;
 
         $hubPresent = null;
         if ($courseId > 0 && Schema::hasTable('course_sections')
@@ -659,8 +682,10 @@ class ModuleController extends Controller
             $ts = null;
         }
 
-        $quizActive = $ts !== null && is_numeric($ts) && (int) $ts > now()->getTimestamp();
-        $expiresAtMs = $quizActive ? ((int) $ts) * 1000 : null;
+        $previewWalkthrough = $this->staffPreviewWalkthrough();
+        $quizActive = $previewWalkthrough
+            || ($ts !== null && is_numeric($ts) && (int) $ts > now()->getTimestamp());
+        $expiresAtMs = $previewWalkthrough || ! $quizActive ? null : ((int) $ts) * 1000;
 
         $tl = $courseId > 0
             ? $this->sectionService->theoryQuizTimeLimitMinutes($mid)
@@ -683,11 +708,15 @@ class ModuleController extends Controller
             'theoryQuizRetakePenalty' => $courseId > 0
                 ? $this->sectionService->theoryQuizPenaltyForAttempt($mid, 2)
                 : CourseScoringService::THEORY_QUIZ_RETAKE_PENALTY_POINTS,
+            'previewWalkthrough' => $previewWalkthrough,
         ]);
     }
 
     public function theoryQuizStart(Request $request): RedirectResponse
     {
+        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.theory-quiz')) {
+            return $r;
+        }
         $ctx = $this->routeContext($request);
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
@@ -736,6 +765,9 @@ class ModuleController extends Controller
 
     public function theoryQuizResult(Request $request): View|RedirectResponse
     {
+        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.theory-quiz')) {
+            return $r;
+        }
         $ctx = $this->routeContext($request);
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
@@ -777,6 +809,9 @@ class ModuleController extends Controller
 
     public function theoryQuizSubmit(Request $request): RedirectResponse
     {
+        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.theory-quiz')) {
+            return $r;
+        }
         $ctx = $this->routeContext($request);
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
@@ -981,7 +1016,8 @@ class ModuleController extends Controller
         if (count($qs) === 0) {
             return redirect()->to($this->hubUrl($ctx))->with('err', 'Итоговый тест для этого модуля не настроен.');
         }
-        if ((int) $p->module_exam_attempts >= $maxAttempts) {
+        $previewWalkthrough = $this->staffPreviewWalkthrough();
+        if (! $previewWalkthrough && (int) $p->module_exam_attempts >= $maxAttempts) {
             return redirect()->route('course.module.exam.result', LearnerRoute::hub($courseId, $moduleSequence))->with(
                 'err',
                 'Исчерпаны все попытки итогового теста ('.$maxAttempts.'). Ниже сохранённый результат.'
@@ -992,12 +1028,13 @@ class ModuleController extends Controller
         $deadline = $p->module_exam_deadline_at;
         $deadlineFor = $p->module_exam_deadline_for_attempt;
 
-        $deadlineValidForAttempt = $deadline !== null
+        $deadlineValidForAttempt = ! $previewWalkthrough
+            && $deadline !== null
             && $deadlineFor !== null
             && (int) $deadlineFor === $attemptNo
             && $deadline->isFuture();
 
-        if ($deadline !== null && $deadlineFor !== null && (int) $deadlineFor === $attemptNo && $deadline->isPast()) {
+        if (! $previewWalkthrough && $deadline !== null && $deadlineFor !== null && (int) $deadlineFor === $attemptNo && $deadline->isPast()) {
             $p->module_exam_deadline_at = null;
             $p->module_exam_deadline_for_attempt = null;
             $p->save();
@@ -1008,8 +1045,10 @@ class ModuleController extends Controller
             );
         }
 
-        $examActive = $deadlineValidForAttempt;
-        $expiresAtMs = $examActive && $deadline !== null ? ($deadline->getTimestamp() * 1000) : null;
+        $examActive = $previewWalkthrough || $deadlineValidForAttempt;
+        $expiresAtMs = $previewWalkthrough || ! $examActive || $deadline === null
+            ? null
+            : ($deadline->getTimestamp() * 1000);
 
         return view('modules.exam', [
             'courseId' => $courseId,
@@ -1025,13 +1064,17 @@ class ModuleController extends Controller
             'timeLimitMinutes' => $this->moduleExamTimeLimitMinutes($cm),
             'examActive' => $examActive,
             'expiresAtMs' => $expiresAtMs,
-            'needsRetakeAck' => (int) $p->module_exam_attempts >= 1,
+            'needsRetakeAck' => ! $previewWalkthrough && (int) $p->module_exam_attempts >= 1,
             'examOneByOne' => $courseId > 0 ? $this->sectionService->examOneByOne($mid) : true,
+            'previewWalkthrough' => $previewWalkthrough,
         ]);
     }
 
     public function examStart(Request $request): RedirectResponse
     {
+        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.exam')) {
+            return $r;
+        }
         $ctx = $this->routeContext($request);
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
@@ -1084,6 +1127,9 @@ class ModuleController extends Controller
 
     public function examResult(Request $request): View|RedirectResponse
     {
+        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.exam')) {
+            return $r;
+        }
         $ctx = $this->routeContext($request);
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
@@ -1120,6 +1166,9 @@ class ModuleController extends Controller
 
     public function examSubmit(Request $request): RedirectResponse
     {
+        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.exam')) {
+            return $r;
+        }
         $ctx = $this->routeContext($request);
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];

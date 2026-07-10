@@ -9,6 +9,7 @@
     <link rel="apple-touch-icon" href="{{ asset('croc-app-icon-512.png') }}">
     <link rel="stylesheet" href="{{ asset('css/local-fonts.css') }}">
     <link rel="stylesheet" href="{{ asset('css/course.css') }}?v={{ file_exists(public_path('css/course.css')) ? filemtime(public_path('css/course.css')) : 1 }}">
+    <link rel="stylesheet" href="{{ asset('css/media-library.css') }}">
     @if (request()->routeIs('admin.*'))
         <link rel="stylesheet" href="{{ asset('css/admin-panel.css') }}">
         <link rel="stylesheet" href="{{ asset('static/admin/admin.css') }}">
@@ -239,5 +240,7 @@
           data-csrf="{{ csrf_token() }}"></span>
     <script src="{{ asset('js/portal-incident-reporter.js') }}" defer></script>
 @endif
+@include('partials.course-lightbox')
+<script src="{{ asset('js/course-lightbox.js') }}" defer></script>
 </body>
 </html>

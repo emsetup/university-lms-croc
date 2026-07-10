@@ -11,18 +11,31 @@
 
     function formatChangelogHtml(s) {
         return escHtml(s)
-            .replace(/«([^»]+)»/g, '<strong>«$1»</strong>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
             .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-            .replace(/`([^`]+)`/g, '<code>$1</code>');
+            .replace(/«([^»]+)»/g, '<strong>«$1»</strong>');
     }
 
     var BODY_SEP = '\x1e';
 
     function parseChangelogItems(trigger) {
+        var json = trigger.getAttribute('data-ap-changelog-items-html');
+        if (json) {
+            try {
+                var parsed = JSON.parse(json);
+                if (Array.isArray(parsed)) {
+                    return parsed.map(function (s) {
+                        return String(s || '').trim();
+                    }).filter(Boolean);
+                }
+            } catch (err) {
+                /* fallback below */
+            }
+        }
         var body = trigger.getAttribute('data-ap-changelog-body');
         if (body) {
             return body.split(BODY_SEP).map(function (s) {
-                return s.trim();
+                return formatChangelogHtml(s.trim());
             }).filter(Boolean);
         }
         return [];
@@ -79,11 +92,11 @@
 
         var html = '';
         if (items.length === 1) {
-            html = '<p class="ap-changelog-modal__text">' + formatChangelogHtml(items[0]) + '</p>';
+            html = '<p class="ap-changelog-modal__text">' + items[0] + '</p>';
         } else if (items.length > 1) {
             html = '<ul class="ap-changelog-modal__list">';
             for (var i = 0; i < items.length; i++) {
-                html += '<li>' + formatChangelogHtml(items[i]) + '</li>';
+                html += '<li>' + items[i] + '</li>';
             }
             html += '</ul>';
         } else {

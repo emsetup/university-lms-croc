@@ -8,6 +8,7 @@
     <link rel="icon" type="image/png" href="{{ asset('croc-app-icon.png') }}">
     <link rel="stylesheet" href="{{ asset('css/local-fonts.css') }}">
     <link rel="stylesheet" href="{{ asset('css/course.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/media-library.css') }}">
     <link rel="stylesheet" href="{{ asset('css/admin-panel.css') }}">
     <link rel="stylesheet" href="{{ asset('static/admin/admin.css') }}">
     <link rel="stylesheet" href="{{ asset('css/portal-typography.css') }}">
@@ -21,5 +22,7 @@
     <main class="admin-preview-iframe-main" id="admin-preview-main">
         @yield('content')
     </main>
+    @include('partials.course-lightbox')
+    <script src="{{ asset('js/course-lightbox.js') }}" defer></script>
 </body>
 </html>

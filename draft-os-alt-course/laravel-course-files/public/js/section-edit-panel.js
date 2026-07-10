@@ -35,8 +35,51 @@
     var ICON_X =
         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>';
 
-    function clamp(n, a, b) {
-        return Math.max(a, Math.min(b, n));
+    function getCourseId() {
+        return state.data && state.data.course && state.data.course.id
+            ? parseInt(state.data.course.id, 10)
+            : null;
+    }
+
+    function openMediaPicker(targetId) {
+        if (!window.MediaLibrary) return;
+        var el = $(targetId);
+        window.MediaLibrary.open({
+            courseId: getCourseId(),
+            onInsert: function (md) {
+                if (el) window.MediaLibrary.insertAtCursor(el, md);
+                if (targetId === 'ap-sec-theory-md') updateTheoryChars();
+                if (targetId === 'ap-sec-q-text') scheduleQuizDraftSave();
+            },
+        });
+    }
+
+    function insertMediaAtInput(inp, md) {
+        if (!inp || !window.MediaLibrary) return;
+        window.MediaLibrary.insertAtCursor(inp, md);
+        scheduleQuizDraftSave();
+    }
+
+    var ICON_MEDIA_IMAGE =
+        '<svg class="ap-icon ap-icon--media" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
+
+    function mediaBtnForInput(inp) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ap-media-insert-btn';
+        btn.title = 'Вставить картинку';
+        btn.setAttribute('aria-label', 'Вставить картинку');
+        btn.innerHTML = ICON_MEDIA_IMAGE;
+        btn.addEventListener('click', function () {
+            if (!window.MediaLibrary) return;
+            window.MediaLibrary.open({
+                courseId: getCourseId(),
+                onInsert: function (md) {
+                    insertMediaAtInput(inp, md);
+                },
+            });
+        });
+        return btn;
     }
 
     function fromServerQuestion(q) {
@@ -511,6 +554,7 @@
                 scheduleQuizDraftSave();
             });
             if (mark) row.appendChild(mark);
+            row.appendChild(mediaBtnForInput(inp));
             row.appendChild(inp);
             row.appendChild(del);
             box.appendChild(row);
@@ -569,7 +613,9 @@
                     renderMatchEditor(item);
                     scheduleQuizDraftSave();
                 });
+                row.appendChild(mediaBtnForInput(left));
                 row.appendChild(left);
+                row.appendChild(mediaBtnForInput(right));
                 row.appendChild(right);
                 row.appendChild(del);
                 box.appendChild(row);
@@ -1286,6 +1332,12 @@
         document.querySelectorAll('[data-ap-theory-cmd]').forEach(function (b) {
             b.addEventListener('click', function () {
                 theoryCmd(b.getAttribute('data-ap-theory-cmd'));
+            });
+        });
+
+        document.querySelectorAll('[data-ap-media-insert-target]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                openMediaPicker(b.getAttribute('data-ap-media-insert-target'));
             });
         });
 

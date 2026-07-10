@@ -136,7 +136,7 @@ final class AdminCoursesController extends Controller
         ]);
 
         if ($next === 'quiz') {
-            return redirect()->route('admin.quiz.index', ['adminCourse' => $c->slug])->with('ok', 'Курс выбран: '.$c->title);
+            return redirect()->route('admin.theory.index', ['adminCourse' => $c->slug])->with('ok', 'Курс выбран: '.$c->title);
         }
         if ($next === 'certificates') {
             return redirect()->route('admin.certificates', ['adminCourse' => $c->slug])->with('ok', 'Курс выбран: '.$c->title);
@@ -164,7 +164,7 @@ final class AdminCoursesController extends Controller
         $gate->assertTesterSelectNext($next);
 
         if ($next === 'quiz') {
-            return redirect()->route('admin.quiz.index', ['adminCourse' => $c->slug]);
+            return redirect()->route('admin.theory.index', ['adminCourse' => $c->slug]);
         }
         if ($next === 'certificates') {
             return redirect()->route('admin.certificates', ['adminCourse' => $c->slug]);

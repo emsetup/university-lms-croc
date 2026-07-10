@@ -5,9 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\CourseModule;
 use App\Models\CourseQuizBank;
-use App\Models\CourseSection;
 use App\Services\CourseContentService;
-use App\Services\CourseModuleService;
 use App\Services\PortalStaffAccess;
 use App\Support\AdminCourseContentInspector;
 use App\Support\CourseQuizBankLoader;
@@ -23,69 +21,6 @@ final class AdminQuizController extends Controller
     public function __construct(
         private CourseContentService $content
     ) {}
-
-    public function index(Request $request): View
-    {
-        $rows = [];
-        $courseId = (int) session('admin_course_id');
-        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
-        $isAltCourse = $course && $course->isLegacyAltCourse();
-        $useDbModules = $courseId > 0 && Schema::hasTable('course_modules')
-            && CourseModule::query()->where('course_id', $courseId)->exists();
-
-        if ($useDbModules) {
-            $moduleSvc = app(CourseModuleService::class);
-            foreach (CourseModule::query()->where('course_id', $courseId)->orderBy('sort')->orderBy('id')->get() as $ent) {
-                $m = $ent->effectiveContentIndex();
-                $dbTq = AdminCourseContentInspector::dbQuestionCountForModule($courseId, (int) $ent->id, 'theory_quiz');
-                $dbEx = AdminCourseContentInspector::dbQuestionCountForModule($courseId, (int) $ent->id, 'module_exam');
-                $legacyTq = count(AdminCourseContentInspector::theoryQuizQuestions($m));
-                $legacyEx = count(AdminCourseContentInspector::moduleExamQuestions($m));
-                $rows[] = [
-                    'course_module_id' => (int) $ent->id,
-                    'module' => $m,
-                    'module_sequence' => $moduleSvc->sequenceForModule($ent),
-                    'label' => (string) ($ent->title !== '' ? $ent->title : 'Модуль '.$moduleSvc->sequenceForModule($ent)),
-                    'theory_quiz_count' => $dbTq > 0 ? $dbTq : ($isAltCourse ? $legacyTq : 0),
-                    'module_exam_count' => $dbEx > 0 ? $dbEx : ($isAltCourse ? $legacyEx : 0),
-                    'mode' => ($dbTq > 0 || $dbEx > 0) ? 'db' : ($isAltCourse ? 'legacy' : 'db'),
-                ];
-            }
-        } elseif ($isAltCourse) {
-            foreach (range(1, 9) as $m) {
-                $rows[] = [
-                    'course_module_id' => null,
-                    'module' => $m,
-                    'module_sequence' => $m,
-                    'label' => null,
-                    'theory_quiz_count' => count(AdminCourseContentInspector::theoryQuizQuestions($m)),
-                    'module_exam_count' => count(AdminCourseContentInspector::moduleExamQuestions($m)),
-                    'mode' => 'legacy',
-                ];
-            }
-        }
-
-        $quizColumns = $this->quizColumnsForCourse($courseId, (bool) $isAltCourse);
-
-        $gate = app(PortalStaffAccess::class);
-        if ($courseId > 0 && $gate->usesGrantBasedAccess($courseId)) {
-            $allowedModules = $gate->accessibleModulesForCourse($courseId)->flip()->all();
-            $rows = array_values(array_filter(
-                $rows,
-                fn (array $r) => isset($r['course_module_id']) && isset($allowedModules[(int) $r['course_module_id']])
-            ));
-        }
-
-        $ro = $gate->isReadOnlyCourseContent();
-
-        return view('admin.quiz-index', [
-            'rows' => $rows,
-            'quizColumns' => $quizColumns,
-            'selectedCourse' => $course,
-            'isReadOnly' => $ro,
-            'ap' => \App\Support\AdminNavigation::adminCourseRouteParams(),
-        ]);
-    }
 
     public function editModule(Request $request, Course $adminCourse, int $module, string $kind): View
     {
@@ -263,48 +198,6 @@ final class AdminQuizController extends Controller
             ->orderBy('id')
             ->get()
             ->first(fn (CourseModule $cm) => $cm->effectiveContentIndex() === $contentIdx);
-    }
-
-    /**
-     * @return list<array{key: string, label: string, kind: string}>
-     */
-    private function quizColumnsForCourse(int $courseId, bool $legacyAlt): array
-    {
-        $all = AdminCourseContentInspector::contentColumnsForCourse($courseId, $legacyAlt);
-        $map = [
-            CourseSection::TYPE_QUIZ => ['key' => 'quiz', 'label' => 'Тест по теории', 'kind' => 'theory_quiz'],
-            CourseSection::TYPE_EXAM => ['key' => 'exam', 'label' => 'Итоговый экзамен', 'kind' => 'module_exam'],
-        ];
-        $out = [];
-        foreach ($all as $col) {
-            $type = (string) ($col['type'] ?? $col['key'] ?? '');
-            if (! isset($map[$type])) {
-                continue;
-            }
-            $out[] = [
-                'key' => (string) ($col['key'] ?? $map[$type]['key']),
-                'label' => $col['label'] ?? $map[$type]['label'],
-                'kind' => $map[$type]['kind'],
-                'slot' => isset($col['slot']) ? (int) $col['slot'] : null,
-                'type' => $type,
-                'section_id' => (int) ($col['section_id'] ?? 0),
-                'course_module_id' => (int) ($col['course_module_id'] ?? 0),
-            ];
-        }
-
-        if ($out === [] && $legacyAlt) {
-            return [
-                ['key' => 'quiz', 'label' => 'Тест по теории', 'kind' => 'theory_quiz', 'section_id' => 0, 'course_module_id' => 0],
-                ['key' => 'exam', 'label' => 'Итоговый экзамен', 'kind' => 'module_exam', 'section_id' => 0, 'course_module_id' => 0],
-            ];
-        }
-
-        return $out;
-    }
-
-    private function dbQuestionCount(int $courseId, int $courseModuleId, string $kind): int
-    {
-        return AdminCourseContentInspector::dbQuestionCountForModule($courseId, $courseModuleId, $kind);
     }
 
     private function saveDbBank(Request $request, ?Course $course, int $contentIdx, string $kind): RedirectResponse|JsonResponse

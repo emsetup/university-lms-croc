@@ -1,3 +1,17 @@
+@php
+    $psa = $portalStaffAccess ?? null;
+    $dockerHref = route('admin.docker.library');
+    $navCourses = request()->routeIs('admin.courses.*')
+        || request()->routeIs('admin.theory.*')
+        || request()->routeIs('admin.quiz.*')
+        || request()->routeIs('admin.course.*')
+        || request()->routeIs('admin.practice.*')
+        || request()->routeIs('admin.certificates*');
+    $navPeople = request()->routeIs('admin.learners.*');
+    $navStaff = request()->routeIs('admin.staff.*');
+    $navDocker = request()->routeIs('admin.docker.*') || request()->routeIs('admin.practice.*');
+    $navMedia = request()->routeIs('admin.media.*');
+@endphp
 <!DOCTYPE html>
 <html class="ap-html" lang="ru">
 <head>
@@ -11,24 +25,13 @@
     <link rel="stylesheet" href="{{ asset('css/admin-panel.css') }}">
     <link rel="stylesheet" href="{{ asset('static/admin/admin.css') }}">
     <link rel="stylesheet" href="{{ asset('css/portal-typography.css') }}">
+    @if ($psa && $psa->canUseCourseAdminTools())
+        <link rel="stylesheet" href="{{ asset('css/media-library.css') }}">
+    @endif
     @stack('styles')
     @stack('head')
 </head>
 <body>
-    @php
-        $psa = $portalStaffAccess ?? null;
-        $dockerHref = route('admin.docker.library');
-        $navCourses = request()->routeIs('admin.courses.*')
-            || request()->routeIs('admin.theory.*')
-            || request()->routeIs('admin.quiz.*')
-            || request()->routeIs('admin.course.*')
-            || request()->routeIs('admin.practice.*')
-            || request()->routeIs('admin.certificates*');
-        $navPeople = request()->routeIs('admin.learners.*');
-        $navStaff = request()->routeIs('admin.staff.*');
-        $navDocker = request()->routeIs('admin.docker.*') || request()->routeIs('admin.practice.*');
-    @endphp
-
     <div
         class="admin-shell"
         data-ap-palette-search="{{ route('admin.command-palette.search') }}"
@@ -51,6 +54,7 @@
                 @endif
                 @if ($psa && $psa->canUseCourseAdminTools())
                     <a class="nav-item @if($navDocker) active @endif" href="{{ $dockerHref }}">Docker</a>
+                    <a class="nav-item @if($navMedia) active @endif" href="{{ route('admin.media.library') }}">Картинки</a>
                 @endif
             </nav>
             <div class="admin-topbar__spacer" aria-hidden="true"></div>
@@ -162,6 +166,12 @@
     </div>
 
     @include('partials.admin-shell-tail')
+    @if ($psa && $psa->canUseCourseAdminTools())
+        @include('partials.media-library-modal')
+        @include('partials.course-lightbox')
+        <script src="{{ asset('js/media-library.js') }}" defer></script>
+        <script src="{{ asset('js/course-lightbox.js') }}" defer></script>
+    @endif
     @stack('scripts')
 </body>
 </html>

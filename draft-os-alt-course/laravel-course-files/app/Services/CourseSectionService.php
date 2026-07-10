@@ -460,6 +460,29 @@ final class CourseSectionService
         return (bool) ($this->mergedSettings($sec)['one_by_one'] ?? true);
     }
 
+    /**
+     * Нужно ли проходить этапы модуля строго по цепочке (есть разделы, блокирующие следующие).
+     */
+    public function moduleEnforcesSectionOrder(int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): bool
+    {
+        if (! $this->useDbSectionsForModule($courseModuleId)) {
+            return true;
+        }
+        $order = $this->orderedBackendKeys($courseModuleId, $contentSourceIndex, $legacyAlt);
+        if (count($order) <= 1) {
+            return false;
+        }
+        for ($i = 1, $n = count($order); $i < $n; $i++) {
+            for ($j = 0; $j < $i; $j++) {
+                if ($this->stepBlocksProgress($courseModuleId, $order[$j])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     public function firstBlockedPrerequisite(ModuleProgress $p, int $courseModuleId, int $contentSourceIndex, string $targetBackendKey, bool $legacyAlt = true): ?string
     {
         $order = $this->orderedBackendKeys($courseModuleId, $contentSourceIndex, $legacyAlt);

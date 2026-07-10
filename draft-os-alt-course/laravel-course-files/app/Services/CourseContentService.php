@@ -11,6 +11,7 @@ use App\Models\CourseQuizCorrectAnswer;
 use App\Models\CourseQuizMatchPair;
 use App\Models\CourseQuizOption;
 use App\Models\CourseQuizQuestion;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Schema;
 
 final class CourseContentService
@@ -70,6 +71,120 @@ final class CourseContentService
         return $query->orderBy('id')->first();
     }
 
+    /**
+     * Банк, принадлежащий только этому разделу (для редактора и сохранения).
+     * Не подставляет банк соседнего раздела того же типа.
+     */
+    public function quizBankOwnedBySection(CourseSection $section): ?CourseQuizBank
+    {
+        if (! Schema::hasTable('course_quiz_banks')) {
+            return null;
+        }
+        if ($section->quizBankKind() === null) {
+            return null;
+        }
+
+        if (Schema::hasColumn('course_quiz_banks', 'course_section_id')) {
+            $owned = CourseQuizBank::query()
+                ->where('course_section_id', (int) $section->id)
+                ->first();
+            if ($owned !== null) {
+                return $owned;
+            }
+        }
+
+        return $this->quizBankForSection($section);
+    }
+
+    /**
+     * Найти или создать банк для сохранения из редактора раздела (без дубликатов по UNIQUE).
+     *
+     * @param  array<string, mixed>  $defaults
+     */
+    public function ensureQuizBankForSection(
+        Course $course,
+        CourseModule $module,
+        CourseSection $section,
+        string $kind,
+        array $defaults
+    ): CourseQuizBank {
+        $courseId = (int) $course->id;
+        $moduleId = (int) $module->id;
+        $sectionId = (int) $section->id;
+
+        if (Schema::hasColumn('course_quiz_banks', 'course_section_id')) {
+            $exact = CourseQuizBank::query()
+                ->where('course_id', $courseId)
+                ->where('course_module_id', $moduleId)
+                ->where('course_section_id', $sectionId)
+                ->where('kind', $kind)
+                ->first();
+            if ($exact !== null) {
+                return $exact;
+            }
+
+            $bySection = CourseQuizBank::query()
+                ->where('course_section_id', $sectionId)
+                ->first();
+            if ($bySection !== null) {
+                return $bySection;
+            }
+
+            $moduleLevel = $this->quizBankForSection($section);
+            if ($moduleLevel !== null && (int) ($moduleLevel->course_section_id ?? 0) < 1) {
+                $moduleLevel->course_section_id = $sectionId;
+                $moduleLevel->save();
+
+                return $moduleLevel;
+            }
+
+            try {
+                /** @var CourseQuizBank $bank */
+                $bank = CourseQuizBank::query()->firstOrCreate(
+                    [
+                        'course_id' => $courseId,
+                        'course_module_id' => $moduleId,
+                        'course_section_id' => $sectionId,
+                        'kind' => $kind,
+                    ],
+                    $defaults
+                );
+
+                return $bank;
+            } catch (UniqueConstraintViolationException) {
+                $retry = CourseQuizBank::query()
+                    ->where('course_id', $courseId)
+                    ->where('course_module_id', $moduleId)
+                    ->where('course_section_id', $sectionId)
+                    ->where('kind', $kind)
+                    ->first();
+                if ($retry !== null) {
+                    return $retry;
+                }
+
+                throw new \RuntimeException(
+                    'Не удалось создать банк вопросов для раздела: в модуле уже есть банк этого типа. '
+                    .'Выполните миграции БД (course_quiz_banks_section_scoped_unique).'
+                );
+            }
+        }
+
+        $existing = $this->quizBankFor($course, $module, $kind);
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        /** @var CourseQuizBank $bank */
+        $bank = CourseQuizBank::query()->create([
+            'course_id' => $courseId,
+            'course_module_id' => $moduleId,
+            'kind' => $kind,
+            ...$defaults,
+        ]);
+
+        return $bank;
+    }
+
     public function quizBankForSection(CourseSection $section): ?CourseQuizBank
     {
         if (! Schema::hasTable('course_quiz_banks')) {
@@ -79,22 +194,41 @@ final class CourseContentService
         if ($kind === null) {
             return null;
         }
-        if (Schema::hasColumn('course_quiz_banks', 'course_section_id')) {
-            $bySection = CourseQuizBank::query()
-                ->where('course_section_id', (int) $section->id)
-                ->first();
-            if ($bySection !== null) {
-                return $bySection;
+
+        if (! Schema::hasColumn('course_quiz_banks', 'course_section_id')) {
+            $module = CourseModule::query()->find((int) $section->course_module_id);
+            $course = Course::query()->find((int) $section->course_id);
+            if (! $module || ! $course) {
+                return null;
             }
+
+            return $this->quizBankFor($course, $module, $kind);
         }
 
-        $module = CourseModule::query()->find((int) $section->course_module_id);
-        $course = Course::query()->find((int) $section->course_id);
-        if (! $module || ! $course) {
+        $bySection = CourseQuizBank::query()
+            ->where('course_section_id', (int) $section->id)
+            ->first();
+        if ($bySection !== null) {
+            return $bySection;
+        }
+
+        // Общий банк модуля (course_section_id = null) — только для единственного раздела этого типа.
+        // Иначе пустые разделы ошибочно получали бы вопросы соседнего теста.
+        $moduleId = (int) $section->course_module_id;
+        $sameTypeCount = app(CourseSectionService::class)
+            ->enabledSectionsForCourseModule($moduleId)
+            ->filter(fn (CourseSection $s): bool => (string) $s->type === (string) $section->type)
+            ->count();
+        if ($sameTypeCount !== 1) {
             return null;
         }
 
-        return $this->quizBankFor($course, $module, $kind);
+        return CourseQuizBank::query()
+            ->where('course_id', (int) $section->course_id)
+            ->where('course_module_id', $moduleId)
+            ->where('kind', $kind)
+            ->whereNull('course_section_id')
+            ->first();
     }
 
     /**

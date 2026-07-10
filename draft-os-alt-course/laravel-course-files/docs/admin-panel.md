@@ -74,7 +74,7 @@
 | Содержимое (теория) | `admin.theory.index`, `admin.theory.zip` | `theory-index` |
 | Редактор теории | `admin.theory.edit` | `theory-edit` |
 | Превью | `admin.theory.preview-*` | `theory-preview`, `content-*` |
-| Тесты | `admin.quiz.index`, `admin.quiz.edit.module`, `admin.quiz.edit.final` | `quiz-index`, `quiz-edit`, `quiz-edit-db` |
+| Редактор вопросов (deep-link) | `admin.quiz.edit.module`, `admin.quiz.edit.final` | `quiz-edit`, `quiz-edit-db` |
 | Образы практики | `admin.practice.images.*` | `practice-images-index`, `practice-image-edit` |
 | Обучающиеся курса | `admin.learners.course`, `admin.learners.course.detail`, `admin.learners.course.learner.*` | `learners-course` |
 | Сертификаты | `admin.certificates`, `admin.certificates.show` | `certificates`, `certificate-preview` |

@@ -133,7 +133,7 @@ final class AdminCourseContentInspector
             return [];
         }
 
-        $bank = app(CourseContentService::class)->quizBankForSection($section);
+        $bank = app(CourseContentService::class)->quizBankOwnedBySection($section);
         if ($bank === null) {
             return [];
         }

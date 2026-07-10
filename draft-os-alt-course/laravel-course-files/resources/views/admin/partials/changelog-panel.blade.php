@@ -36,6 +36,7 @@
                     @foreach ($changelogEntries as $entry)
                         @php
                             $items = $entry['items'] ?? [];
+                            $itemsHtml = $entry['items_html'] ?? [];
                             $changelogBodyPayload = $items !== [] ? implode("\x1e", $items) : '';
                         @endphp
                         <li>
@@ -48,7 +49,9 @@
                                 data-ap-changelog-tag="{{ $entry['tag'] }}"
                                 data-ap-changelog-tag-label="{{ $entry['tag_label'] }}"
                                 data-ap-changelog-title="{{ $entry['title'] }}"
-                                @if ($changelogBodyPayload !== '')
+                                @if ($itemsHtml !== [])
+                                    data-ap-changelog-items-html='@json($itemsHtml, JSON_UNESCAPED_UNICODE)'
+                                @elseif ($changelogBodyPayload !== '')
                                     data-ap-changelog-body="{{ e($changelogBodyPayload) }}"
                                 @endif
                                 @if (! empty($entry['doc_url']))
@@ -61,7 +64,7 @@
                                     <time datetime="{{ $entry['date'] }}">{{ $entry['date_short'] }}</time>
                                 </span>
                                 <span class="ap-changelog-tag ap-changelog-tag--{{ $entry['tag'] }}">{{ $entry['tag_label'] }}</span>
-                                <span class="ap-changelog-list__text">{!! \App\Support\PortalChangelog::highlightQuotedHtml($entry['summary']) !!}</span>
+                                <span class="ap-changelog-list__text">{!! $entry['summary_html'] ?? \App\Support\PortalChangelog::highlightQuotedHtml($entry['summary']) !!}</span>
                             </button>
                         </li>
                     @endforeach

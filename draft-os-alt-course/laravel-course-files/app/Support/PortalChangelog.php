@@ -50,23 +50,26 @@ final class PortalChangelog
         return array_slice(self::entries(), 0, $limit);
     }
 
-    /** Экранирует текст и выделяет фрагменты в «ёлочках» и **markdown** жирным. */
+    /** Экранирует текст и выделяет фрагменты в «ёлочках», **markdown** и `код`. */
     public static function highlightQuotedHtml(string $text): string
     {
         $escaped = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $highlighted = preg_replace(
-            '/«([^»]+)»/u',
-            '<strong>«$1»</strong>',
-            $escaped
-        ) ?? $escaped;
-        $highlighted = preg_replace(
-            '/\*\*([^*]+)\*\*/u',
-            '<strong>$1</strong>',
-            $highlighted
-        ) ?? $highlighted;
-        $highlighted = preg_replace(
             '/`([^`]+)`/u',
             '<code>$1</code>',
+            $escaped
+        ) ?? $escaped;
+        do {
+            $prev = $highlighted;
+            $highlighted = preg_replace(
+                '/\*\*([^*]+)\*\*/u',
+                '<strong>$1</strong>',
+                $highlighted
+            ) ?? $highlighted;
+        } while ($highlighted !== $prev);
+        $highlighted = preg_replace(
+            '/«([^»]+)»/u',
+            '<strong>«$1»</strong>',
             $highlighted
         ) ?? $highlighted;
 
@@ -75,7 +78,7 @@ final class PortalChangelog
 
     /**
      * @param  array<string, mixed>  $row
-     * @return array{date: string, date_label: string, date_short: string, tag: string, tag_label: string, title: string, summary: string, items: list<string>, doc_url: ?string, doc_label: ?string}|null
+     * @return array{date: string, date_label: string, date_short: string, tag: string, tag_label: string, title: string, summary: string, summary_html: string, items: list<string>, items_html: list<string>, doc_url: ?string, doc_label: ?string}|null
      */
     private static function normalizeRow(array $row): ?array
     {
@@ -132,7 +135,12 @@ final class PortalChangelog
             'tag_label' => self::TAG_LABELS[$tag],
             'title' => $title,
             'summary' => $summary,
+            'summary_html' => self::highlightQuotedHtml($summary),
             'items' => $items,
+            'items_html' => array_map(
+                static fn (string $item): string => self::highlightQuotedHtml($item),
+                $items
+            ),
             'doc_url' => $docUrl,
             'doc_label' => $docLabel,
         ];

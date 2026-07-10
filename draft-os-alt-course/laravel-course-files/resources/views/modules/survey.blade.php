@@ -96,7 +96,7 @@
                                     <div class="survey-step" data-step="{{ $i }}" @if ($i !== 0) hidden @endif role="group" aria-label="Вопрос {{ $i + 1 }}">
                                         <div class="survey-step__head">
                                             <span class="survey-step__badge">{{ $i + 1 }}</span>
-                                            <div class="survey-step__text">{!! \Illuminate\Support\Str::markdown($q['q']) !!}</div>
+                                            <div class="survey-step__text">{!! \App\Support\CourseContentMarkdown::toHtml($q['q']) !!}</div>
                                         </div>
 
                                         <div class="survey-step__body">
@@ -119,11 +119,11 @@
                                                 <input type="hidden" name="q{{ $i }}_order" id="survey-order-{{ $i }}" value="">
                                                 @foreach ($left as $li => $ltxt)
                                                     <div class="survey-match-row">
-                                                        <span class="survey-match-row__label">{{ $ltxt }}</span>
+                                                        <span class="survey-match-row__label">{!! \App\Support\CourseContentMarkdown::inlineHtml($ltxt) !!}</span>
                                                         <select class="survey-match-select js-survey-input" data-q="{{ $i }}" required>
                                                             <option value="">— выберите —</option>
                                                             @foreach ($right as $ri => $rtxt)
-                                                                <option value="{{ $ri }}">{{ $rtxt }}</option>
+                                                                <option value="{{ $ri }}">{{ preg_replace('/!\[[^\]]*\]\(\/media\/[^)]+\)/', '[картинка] ', $rtxt) }}</option>
                                                             @endforeach
                                                         </select>
                                                     </div>
@@ -142,7 +142,7 @@
                                                                 <input type="radio" class="js-survey-input" name="q{{ $i }}" value="{{ $j }}" data-q="{{ $i }}" @if($loop->first) required @endif>
                                                             @endif
                                                             <span class="survey-option__letter">{{ chr(65 + $j) }}</span>
-                                                            <span class="survey-option__text">{{ $opt }}</span>
+                                                            <span class="survey-option__text">{!! \App\Support\CourseContentMarkdown::inlineHtml($opt) !!}</span>
                                                         </label>
                                                     @endforeach
                                                 </div>

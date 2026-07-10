@@ -852,7 +852,7 @@ final class PortalStaffAccess
         if (! $this->isCourseTester()) {
             return;
         }
-        abort_unless(in_array($next, ['content', 'quiz'], true), 403);
+        abort_unless($next === 'content', 403);
     }
 
     public function roleLabel(): string

@@ -62,6 +62,11 @@ if [[ -f "${LCF}/config/portal.php" ]]; then
   rsync -az "${LCF}/config/portal.php" "${STAND_SSH}:${REMOTE}/config/portal.php"
 fi
 
+if [[ -f "${LCF}/config/media.php" ]]; then
+  echo "[deploy-laravel] media.php (библиотека картинок)"
+  rsync -az "${LCF}/config/media.php" "${STAND_SSH}:${REMOTE}/config/media.php"
+fi
+
 if [[ -f "${LCF}/routes/web.php" ]]; then
   echo "[deploy-laravel] routes/web.php"
   rsync -az "${LCF}/routes/web.php" "${STAND_SSH}:${REMOTE}/routes/web.php"
@@ -81,6 +86,8 @@ for f in \
   app/Http/Controllers/AdminPracticeImagesController.php \
   app/Http/Controllers/Concerns/ScopesPracticeImagesForStaff.php \
   app/Http/Controllers/AdminDockerLibraryController.php \
+  app/Http/Controllers/AdminMediaLibraryController.php \
+  app/Http/Controllers/MediaServeController.php \
   app/Http/Controllers/AdminLearnersController.php \
   app/Http/Controllers/AdminCourseSurveysController.php \
   app/Http/Controllers/AdminSurveyResponsesController.php \
@@ -140,6 +147,8 @@ for f in \
   app/Support/PracticeCheckOutputParser.php \
   app/Services/LearnerCourseAvailability.php \
   app/Services/PortalStaffAccess.php \
+  app/Services/MediaImageProcessor.php \
+  app/Services/MediaAccessService.php \
   app/Services/PortalStaffPermissionResolver.php \
   app/Services/PortalMaintenance.php \
   app/Services/MaintenanceActivityLogger.php \
@@ -221,6 +230,8 @@ for f in \
   app/Models/PracticeSession.php \
   app/Models/FinalLabResult.php \
   app/Models/PracticeImage.php \
+  app/Models/MediaAsset.php \
+  app/Models/LearnerMediaPin.php \
   app/Providers/AppServiceProvider.php
 do
   if [[ -f "${LCF}/${f}" ]]; then
@@ -305,6 +316,18 @@ if [[ -f "${LCF}/database/migrations/2026_07_06_120000_change_final_lab_enabled_
   echo "[deploy-laravel] database/migrations/…final_lab_enabled_default_false…"
   rsync -az "${LCF}/database/migrations/2026_07_06_120000_change_final_lab_enabled_default_to_false.php" \
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_07_06_120000_change_final_lab_enabled_default_to_false.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_07_06_140000_create_media_tables.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…create_media_tables…"
+  rsync -az "${LCF}/database/migrations/2026_07_06_140000_create_media_tables.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_07_06_140000_create_media_tables.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_07_10_150000_course_quiz_banks_section_scoped_unique.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…course_quiz_banks_section_scoped_unique…"
+  rsync -az "${LCF}/database/migrations/2026_07_10_150000_course_quiz_banks_section_scoped_unique.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_07_10_150000_course_quiz_banks_section_scoped_unique.php"
 fi
 
 if [[ -f "${LCF}/database/migrations/2026_06_09_150000_create_course_change_logs_table.php" ]]; then
@@ -547,6 +570,34 @@ if [[ -f "${LCF}/public/js/section-edit-panel.js" ]]; then
   rsync -az "${LCF}/public/js/section-edit-panel.js" "${STAND_SSH}:${REMOTE}/public/js/section-edit-panel.js"
 fi
 
+for mf in media-library.js course-lightbox.js; do
+  if [[ -f "${LCF}/public/js/${mf}" ]]; then
+    echo "[deploy-laravel] public/js/${mf}"
+    ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+    rsync -az "${LCF}/public/js/${mf}" "${STAND_SSH}:${REMOTE}/public/js/${mf}"
+  fi
+done
+
+if [[ -f "${LCF}/public/css/media-library.css" ]]; then
+  echo "[deploy-laravel] public/css/media-library.css"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/css'"
+  rsync -az "${LCF}/public/css/media-library.css" "${STAND_SSH}:${REMOTE}/public/css/media-library.css"
+fi
+
+if [[ -f "${LCF}/resources/views/admin/media-library.blade.php" ]]; then
+  echo "[deploy-laravel] resources/views/admin/media-library.blade.php"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/resources/views/admin'"
+  rsync -az "${LCF}/resources/views/admin/media-library.blade.php" "${STAND_SSH}:${REMOTE}/resources/views/admin/media-library.blade.php"
+fi
+
+for pv in media-library-modal.blade.php course-lightbox.blade.php; do
+  if [[ -f "${LCF}/resources/views/partials/${pv}" ]]; then
+    echo "[deploy-laravel] resources/views/partials/${pv}"
+    ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/resources/views/partials'"
+    rsync -az "${LCF}/resources/views/partials/${pv}" "${STAND_SSH}:${REMOTE}/resources/views/partials/${pv}"
+  fi
+done
+
 if [[ -f "${LCF}/public/js/content-audience-picker.js" ]]; then
   echo "[deploy-laravel] public/js/content-audience-picker.js"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
@@ -645,7 +696,7 @@ fi
 echo "[deploy-laravel] remote: php artisan config:clear cache:clear view:clear migrate"
 ssh -o BatchMode=yes "$STAND_SSH" "set -e; cd '${REMOTE}' && php artisan config:clear && php artisan cache:clear && php artisan view:clear && php artisan optimize:clear && php artisan migrate --force --no-interaction"
 
-echo "[deploy-laravel] remote: права storage/app/practice-images для php-fpm"
-ssh -o BatchMode=yes "$STAND_SSH" "set -e; cd '${REMOTE}' && mkdir -p storage/app/practice-images && chgrp -R _webserver storage/app/practice-images 2>/dev/null || true && chmod -R g+rws storage/app/practice-images 2>/dev/null || true && (command -v chown >/dev/null && chown -R _php_fpm:_webserver storage/app/practice-images 2>/dev/null || chown -R www-data:www-data storage/app/practice-images 2>/dev/null || true)"
+echo "[deploy-laravel] remote: права storage (practice-images, private/media) для php-fpm"
+ssh -o BatchMode=yes "$STAND_SSH" "set -e; cd '${REMOTE}' && mkdir -p storage/app/practice-images storage/app/private/media && (sudo chgrp -R _webserver storage/app/practice-images storage/app/private/media 2>/dev/null || chgrp -R _webserver storage/app/practice-images storage/app/private/media 2>/dev/null || true) && (sudo chmod -R g+rws storage/app/practice-images storage/app/private/media 2>/dev/null || chmod -R g+rws storage/app/practice-images storage/app/private/media 2>/dev/null || true) && (sudo chown -R _php_fpm:_webserver storage/app/practice-images storage/app/private/media 2>/dev/null || chown -R _php_fpm:_webserver storage/app/practice-images storage/app/private/media 2>/dev/null || chown -R www-data:www-data storage/app/practice-images storage/app/private/media 2>/dev/null || true)"
 
 echo "[deploy-laravel] готово. Обновите страницу практики в браузере (лучше с принудительным сбросом кэша)."

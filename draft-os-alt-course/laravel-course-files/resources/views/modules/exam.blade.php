@@ -15,7 +15,7 @@
         <span>К шагам модуля</span>
     </a>
 
-    @if (! $examActive)
+    @if (! $examActive && empty($previewWalkthrough))
         @if ($needsRetakeAck)
             <dialog class="quiz-modal" id="module-exam-retake-warn" open aria-labelledby="module-exam-retake-title">
                 <div class="quiz-modal-inner">
@@ -96,6 +96,14 @@
             </script>
         @endif
     @else
+        @if (! empty($previewWalkthrough))
+            <div class="impersonation-banner impersonation-banner--course-preview" role="status" style="margin-bottom:1rem;border-radius:8px">
+                <span class="impersonation-banner__text">
+                    <strong>Режим просмотра экзамена.</strong>
+                    <span class="muted">Можно пройти по всем вопросам и посмотреть типы заданий; ответы и попытки не сохраняются.</span>
+                </span>
+            </div>
+        @endif
         <div class="card module-exam-card content-protect" data-integrity-protect>
             <h1 style="margin-top:0">Модуль {{ $modNum }}: {{ config('course.step_titles.module_exam') }}</h1>
             @if ($modNum === 3)
@@ -136,6 +144,7 @@
                 </div>
             @endif
             <p class="muted small content-protect-hint">Текст вопросов нельзя копировать; при уходе с вкладки он скрывается. Снимок экрана ОС не блокируется браузером.</p>
+            @if (empty($previewWalkthrough))
             <p class="muted">
                 Порог зачёта: <strong>{{ $passThreshold }}%</strong>.
                 Попытка <strong>{{ $attemptNumber }}</strong> из {{ $maxAttempts }}.
@@ -144,6 +153,9 @@
                     <span class="module-exam-warn">К результату этой попытки применяется штраф <strong>−{{ $retakePenalty }} п.п.</strong> от сырого процента.</span>
                 @endif
             </p>
+            @else
+            <p class="muted">Порог зачёта у обучающихся: <strong>{{ $passThreshold }}%</strong>. Лимит времени: <strong>{{ $timeLimitMinutes }} мин.</strong></p>
+            @endif
 
             @if ($expiresAtMs)
                 <div class="quiz-timer-bar" id="module-exam-timer-bar" role="status" aria-live="polite">
@@ -172,8 +184,12 @@
                 <div class="module-exam-progress-bar__fill" id="module-exam-progress-fill" style="width: {{ $total > 0 ? round(100 / $total) : 0 }}%"></div>
             </div>
 
+            @if (! empty($previewWalkthrough))
+            <div id="module-exam-form">
+            @else
             <form method="post" action="{{ route('course.module.exam.submit', $lr) }}" id="module-exam-form" novalidate>
                 @csrf
+            @endif
                 @foreach ($questions as $i => $q)
                     @php
                         $matchDrag = ! empty($q['match_drag']);
@@ -181,7 +197,7 @@
                     @endphp
                     <div class="module-exam-step" data-step="{{ $i }}" @if ($i !== 0) hidden @endif role="tabpanel" aria-labelledby="exam-step-tab-{{ $i }}">
                         <div class="module-exam-step__meta muted">Вопрос {{ $i + 1 }} из {{ $total }}@if (!empty($questions[$i]['points'])) · {{ (int) $questions[$i]['points'] }} б.@endif</div>
-                        <div class="module-exam-q module-exam-q--md">{!! \Illuminate\Support\Str::markdown($q['q']) !!}</div>
+                        <div class="module-exam-q module-exam-q--md">{!! \App\Support\CourseContentMarkdown::toHtml($q['q']) !!}</div>
                         @if ($matchDrag)
                             @php
                                 $mLeft = $q['left'] ?? [];
@@ -196,7 +212,7 @@
                                     @foreach ($mLeft as $li => $label)
                                         <div class="module-exam-match__row">
                                             <span class="module-exam-match__ln">{{ $li + 1 }}</span>
-                                            <div class="module-exam-match__cell">{{ $label }}</div>
+                                            <div class="module-exam-match__cell">{!! \App\Support\CourseContentMarkdown::inlineHtml($label) !!}</div>
                                         </div>
                                     @endforeach
                                 </div>
@@ -204,7 +220,7 @@
                                     <div class="muted small" style="margin:0 0 0.35rem">Описания (перетащите в нужный порядок):</div>
                                     <ul class="module-exam-match__list js-match-drag-list" id="match-drag-{{ $i }}" data-q="{{ $i }}">
                                         @foreach ($mPerm as $descIdx)
-                                            <li draggable="true" class="module-exam-match__card" data-desc-idx="{{ (int) $descIdx }}">{{ $mRight[$descIdx] ?? '' }}</li>
+                                            <li draggable="true" class="module-exam-match__card" data-desc-idx="{{ (int) $descIdx }}">{!! \App\Support\CourseContentMarkdown::inlineHtml($mRight[$descIdx] ?? '') !!}</li>
                                         @endforeach
                                     </ul>
                                     <input type="hidden" name="e{{ $i }}_order" class="js-match-order js-exam-input" data-q="{{ $i }}" value="{{ implode(',', $mPerm) }}" autocomplete="off">
@@ -215,14 +231,14 @@
                             @foreach ($q['a'] as $j => $opt)
                                 <label class="choice module-exam-choice">
                                     <input type="checkbox" name="e{{ $i }}[]" value="{{ $j }}" class="js-exam-input" data-q="{{ $i }}">
-                                    <span>{{ $opt }}</span>
+                                    <span>{!! \App\Support\CourseContentMarkdown::inlineHtml($opt) !!}</span>
                                 </label>
                             @endforeach
                         @else
                             @foreach ($q['a'] as $j => $opt)
                                 <label class="choice module-exam-choice">
                                     <input type="radio" name="e{{ $i }}" value="{{ $j }}" class="js-exam-input" data-q="{{ $i }}">
-                                    <span>{{ $opt }}</span>
+                                    <span>{!! \App\Support\CourseContentMarkdown::inlineHtml($opt) !!}</span>
                                 </label>
                             @endforeach
                         @endif
@@ -232,9 +248,17 @@
                 <div class="module-exam-nav">
                     <button type="button" class="btn btn-ghost" id="module-exam-prev" disabled>Назад</button>
                     <button type="button" class="btn btn-primary" id="module-exam-next">Далее</button>
-                    <button type="submit" class="btn btn-primary" id="module-exam-finish" hidden>Завершить и отправить</button>
+                    @if (! empty($previewWalkthrough))
+                        <a class="btn btn-primary" id="module-exam-finish" href="{{ route('course.module.hub', $lr) }}" hidden>К шагам модуля</a>
+                    @else
+                        <button type="submit" class="btn btn-primary" id="module-exam-finish" hidden>Завершить и отправить</button>
+                    @endif
                 </div>
+            @if (! empty($previewWalkthrough))
+            </div>
+            @else
             </form>
+            @endif
         </div>
         @include('partials.assessment-integrity')
 
@@ -353,6 +377,7 @@
                     });
                 });
 
+                @if (empty($previewWalkthrough))
                 form.addEventListener('submit', function (e) {
                     var miss = [];
                     for (var i = 0; i < total; i++) {
@@ -363,6 +388,7 @@
                         alert('Ответьте на вопросы: ' + miss.join(', ') + '. Можно перейти к ним по номерам сверху.');
                     }
                 });
+                @endif
 
                 showStep(0);
 

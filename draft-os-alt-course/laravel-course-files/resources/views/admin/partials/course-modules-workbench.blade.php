@@ -513,6 +513,11 @@
                                 <label class="ap-settings-label" id="ap-sec-q-points-label" for="ap-sec-q-points" hidden>Баллы (points)</label>
                                 <input id="ap-sec-q-points" class="ap-modal__input" type="number" min="0" step="1" placeholder="например, 5" hidden>
                                 <label class="ap-settings-label" for="ap-sec-q-text">Текст вопроса</label>
+                                <div style="display:flex;gap:0.35rem;align-items:flex-start;margin-bottom:0.35rem">
+                                    <button type="button" class="btn btn-ghost btn-sm" data-ap-media-insert-target="ap-sec-q-text" title="Вставить картинку" aria-label="Вставить картинку">
+                                        <span class="ap-media-insert-btn__inner">@include('partials.icons.media-image')</span>
+                                    </button>
+                                </div>
                                 <textarea id="ap-sec-q-text" class="question-text-input" rows="6"></textarea>
                                 <div id="ap-sec-q-answers-wrap">
                                     <div class="ap-sec-q-section-head">
@@ -584,6 +589,9 @@
                         <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="h3">H3</button>
                         <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="code">Code</button>
                         <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="link">Link</button>
+                        <button type="button" class="btn btn-ghost btn-sm" data-ap-media-insert-target="ap-sec-theory-md" title="Вставить картинку" aria-label="Вставить картинку">
+                            <span class="ap-media-insert-btn__inner">@include('partials.icons.media-image')</span>
+                        </button>
                     </div>
                     <textarea id="ap-sec-theory-md" class="ap-modal__input ap-settings-textarea ap-sec-edit-panel__editor" rows="14"></textarea>
                     <div class="ap-sec-edit-panel__theory-foot">
@@ -593,6 +601,11 @@
                 </div>
                 <div id="ap-sec-edit-content-practice" hidden>
                     <h3 class="ap-sec-edit-panel__h3">Задание</h3>
+                    <div class="ap-sec-edit-toolbar" role="toolbar" aria-label="Форматирование практики" style="margin-bottom:0.35rem">
+                        <button type="button" class="btn btn-ghost btn-sm" data-ap-media-insert-target="ap-sec-practice-md" title="Вставить картинку" aria-label="Вставить картинку">
+                            <span class="ap-media-insert-btn__inner">@include('partials.icons.media-image')<span>Картинка</span></span>
+                        </button>
+                    </div>
                     <textarea id="ap-sec-practice-md" class="ap-modal__input ap-settings-textarea" rows="8"></textarea>
                     <h3 class="ap-sec-edit-panel__h3">Docker-образ</h3>
                     <div id="ap-sec-docker-bound" class="ap-sec-docker-card" hidden>

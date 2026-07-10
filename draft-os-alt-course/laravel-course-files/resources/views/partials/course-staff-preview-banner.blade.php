@@ -17,7 +17,7 @@
     <div class="impersonation-banner impersonation-banner--course-preview" role="status">
         <span class="impersonation-banner__text">
             Предпросмотр курса «<strong>{{ $title }}</strong>»
-            <span class="muted">({{ $status }}) — навигация без блокировок. Прогресс сохраняется на вашу учётную запись.</span>
+            <span class="muted">({{ $status }}) — навигация без блокировок. Прогресс по шагам сохраняется; тесты и экзамены — только просмотр без записи попыток.</span>
         </span>
         <div class="impersonation-banner__actions">
             <a class="btn btn-primary impersonation-banner__btn" href="{{ route('portal.course-preview.end') }}">

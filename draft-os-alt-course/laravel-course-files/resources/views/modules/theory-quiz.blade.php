@@ -16,7 +16,43 @@
         <span>К шагам модуля</span>
     </a>
 
-    @if (! $quizActive)
+    @if (! empty($previewWalkthrough))
+        <div class="impersonation-banner impersonation-banner--course-preview" role="status" style="margin-bottom:1rem;border-radius:8px">
+            <span class="impersonation-banner__text">
+                <strong>Режим просмотра теста.</strong>
+                <span class="muted">Вопросы можно пролистать и посмотреть оформление; ответы и попытки не сохраняются.</span>
+            </span>
+        </div>
+
+        <div class="card content-protect">
+            <h1 class="theory-quiz-page-title" style="margin-top:0">Модуль {{ $modNum }}: {{ config('course.step_titles.theory_quiz') }}</h1>
+            <p class="muted">Порог успеха у обучающихся: {{ $passThreshold ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%. Лимит времени: {{ $timeLimitMinutes }} мин.</p>
+
+            @foreach ($questions as $i => $q)
+                @php $multi = isset($q['c']) && is_array($q['c']); @endphp
+                <div class="quiz-q">
+                    <div class="quiz-q-text quiz-q-text--md"><span class="quiz-q-num">{{ $i + 1 }}.</span> {!! \App\Support\CourseContentMarkdown::toHtml($q['q']) !!}</div>
+                    @if ($multi)
+                        <p class="muted small" style="margin:0.35rem 0 0.5rem">Отметьте все верные варианты.</p>
+                        @foreach ($q['a'] as $j => $opt)
+                            <label class="choice">
+                                <input type="checkbox" name="preview_q{{ $i }}[]" value="{{ $j }}">
+                                <span>{!! \App\Support\CourseContentMarkdown::inlineHtml($opt) !!}</span>
+                            </label>
+                        @endforeach
+                    @else
+                        @foreach ($q['a'] as $j => $opt)
+                            <label class="choice">
+                                <input type="radio" name="preview_q{{ $i }}" value="{{ $j }}">
+                                <span>{!! \App\Support\CourseContentMarkdown::inlineHtml($opt) !!}</span>
+                            </label>
+                        @endforeach
+                    @endif
+                </div>
+            @endforeach
+            <a class="btn btn-primary" href="{{ route('course.module.hub', $lr) }}">К шагам модуля</a>
+        </div>
+    @elseif (! $quizActive)
         <dialog class="quiz-modal" id="theory-quiz-intro" open aria-labelledby="theory-quiz-intro-title">
             <div class="quiz-modal-inner">
                 <p class="quiz-modal-badge">Модуль {{ $modNum }}@if (! empty($meta['letter'])) · {{ $meta['letter'] }}@endif</p>
@@ -60,20 +96,20 @@
                 @foreach ($questions as $i => $q)
                     @php $multi = isset($q['c']) && is_array($q['c']); @endphp
                     <div class="quiz-q">
-                        <div class="quiz-q-text quiz-q-text--md"><span class="quiz-q-num">{{ $i + 1 }}.</span> {!! \Illuminate\Support\Str::markdown($q['q']) !!}</div>
+                        <div class="quiz-q-text quiz-q-text--md"><span class="quiz-q-num">{{ $i + 1 }}.</span> {!! \App\Support\CourseContentMarkdown::toHtml($q['q']) !!}</div>
                         @if ($multi)
                             <p class="muted small" style="margin:0.35rem 0 0.5rem">Отметьте все верные варианты.</p>
                             @foreach ($q['a'] as $j => $opt)
                                 <label class="choice">
                                     <input type="checkbox" name="q{{ $i }}[]" value="{{ $j }}">
-                                    <span>{{ $opt }}</span>
+                                    <span>{!! \App\Support\CourseContentMarkdown::inlineHtml($opt) !!}</span>
                                 </label>
                             @endforeach
                         @else
                             @foreach ($q['a'] as $j => $opt)
                                 <label class="choice">
                                     <input type="radio" name="q{{ $i }}" value="{{ $j }}" @if ($loop->first) required @endif>
-                                    <span>{{ $opt }}</span>
+                                    <span>{!! \App\Support\CourseContentMarkdown::inlineHtml($opt) !!}</span>
                                 </label>
                             @endforeach
                         @endif

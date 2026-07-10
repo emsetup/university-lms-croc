@@ -9,6 +9,7 @@ use App\Http\Controllers\AdminSurveyResponsesController;
 use App\Http\Controllers\AdminLearnersController;
 use App\Http\Controllers\AdminPracticeImagesController;
 use App\Http\Controllers\AdminDockerLibraryController;
+use App\Http\Controllers\AdminMediaLibraryController;
 use App\Http\Controllers\AdminCourseContentController;
 use App\Http\Controllers\AdminSettingsController;
 use App\Http\Controllers\AdminStaffController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\EmailLoginController;
 use App\Http\Controllers\FinalLabController;
+use App\Http\Controllers\MediaServeController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\OidcLoginController;
 use App\Http\Controllers\PortalController;
@@ -140,6 +142,12 @@ Route::middleware([
         Route::get('/docs/{slug}', [DocumentationController::class, 'show'])
             ->where('slug', '[a-z0-9\-\/]+')
             ->name('documentation.show');
+        Route::get('/media/{uuid}', [MediaServeController::class, 'show'])
+            ->where('uuid', '[0-9a-fA-F-]{36}')
+            ->name('media.show');
+        Route::get('/media/{uuid}/thumb', [MediaServeController::class, 'thumb'])
+            ->where('uuid', '[0-9a-fA-F-]{36}')
+            ->name('media.thumb');
     });
 
     Route::middleware([
@@ -298,6 +306,22 @@ Route::middleware([
     Route::post('/adm/nastroiki/prosmotr-sotrudnika', [AdminSettingsController::class, 'staffPreview'])->name('admin.settings.staff-preview');
     Route::get('/adm/nastroiki/prosmotr-sotrudnika/zavershit', [AdminSettingsController::class, 'endStaffPreview'])->name('admin.settings.staff-preview.end');
     Route::get('/adm/nastroiki/poisk-sotrudnikov', [AdminSettingsController::class, 'staffSearch'])->name('admin.settings.staff-search');
+
+    Route::get('/adm/media', [AdminMediaLibraryController::class, 'index'])->name('admin.media.library');
+    Route::get('/adm/media/api', [AdminMediaLibraryController::class, 'apiList'])->name('admin.media.api');
+    Route::post('/adm/media/upload', [AdminMediaLibraryController::class, 'upload'])->name('admin.media.upload');
+    Route::get('/adm/media/{uuid}/thumb', [MediaServeController::class, 'thumb'])
+        ->where('uuid', '[0-9a-fA-F-]{36}')
+        ->name('admin.media.thumb');
+    Route::get('/adm/media/{uuid}/file', [MediaServeController::class, 'show'])
+        ->where('uuid', '[0-9a-fA-F-]{36}')
+        ->name('admin.media.file');
+    Route::post('/adm/media/{uuid}/pin', [AdminMediaLibraryController::class, 'pin'])
+        ->where('uuid', '[0-9a-fA-F-]{36}')
+        ->name('admin.media.pin');
+    Route::delete('/adm/media/{uuid}', [AdminMediaLibraryController::class, 'destroy'])
+        ->where('uuid', '[0-9a-fA-F-]{36}')
+        ->name('admin.media.destroy');
 
     Route::middleware([\App\Http\Middleware\DenyCourseTester::class])->group(function () {
         Route::get('/adm/docker', [AdminDockerLibraryController::class, 'index'])->name('admin.docker.library');
@@ -480,7 +504,7 @@ Route::middleware([
                 return redirect()->route('admin.courses.index')->with('err', 'Сначала выберите курс.');
             }
 
-            return redirect()->route('admin.quiz.index', ['adminCourse' => $s], 302);
+            return redirect()->route('admin.theory.index', ['adminCourse' => $s], 302);
         });
         Route::get('/adm/voprosy/modul/{module}/{kind}', function (int $module, string $kind) use ($slugOrCourses) {
             $s = $slugOrCourses();
@@ -636,7 +660,12 @@ Route::middleware([
             Route::get('/soderzhimoe/final-lab', [AdminTheoryController::class, 'previewFinalLab'])
                 ->name('admin.theory.preview-final-lab');
 
-            Route::get('/testy', [AdminQuizController::class, 'index'])->name('admin.quiz.index');
+            Route::get('/testy', function () {
+                return redirect()->route('admin.theory.index', array_merge(
+                    ['adminCourse' => request()->route('adminCourse')->slug],
+                    request()->query('key') !== null && request()->query('key') !== '' ? ['key' => request()->query('key')] : []
+                ), 302);
+            })->name('admin.quiz.index');
             Route::get('/testy/modul/{module}/{kind}', [AdminQuizController::class, 'editModule'])
                 ->whereNumber('module')
                 ->name('admin.quiz.edit.module');

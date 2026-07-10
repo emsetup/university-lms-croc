@@ -39,7 +39,23 @@
                 minHeight: '420px',
                 toolbar: [
                     'bold', 'italic', 'heading', '|', 'quote', 'unordered-list', 'ordered-list', '|',
-                    'link', 'image', '|', 'code', 'table', '|', 'preview', 'side-by-side', 'fullscreen', '|', 'guide'
+                    'link', {
+                        name: 'media-lib',
+                        action: function (editor) {
+                            if (!window.MediaLibrary) return;
+                            window.MediaLibrary.open({
+                                courseId: {{ (int) session('admin_course_id') }},
+                                onInsert: function (md) {
+                                    var cm = editor.codemirror;
+                                    var doc = cm.getDoc();
+                                    var cursor = doc.getCursor();
+                                    doc.replaceRange((cursor.ch > 0 ? '\n' : '') + md + '\n', cursor);
+                                },
+                            });
+                        },
+                        className: 'fa fa-picture-o',
+                        title: 'Библиотека картинок',
+                    }, '|', 'code', 'table', '|', 'preview', 'side-by-side', 'fullscreen', '|', 'guide'
                 ]
             });
             var form = document.getElementById('theory-admin-form');

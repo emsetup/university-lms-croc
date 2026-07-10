@@ -759,7 +759,7 @@ final class AdminCourseSettingsController extends Controller
             default => null,
         };
         if ($kind !== null && Schema::hasTable('course_quiz_banks')) {
-            $bank = $contentSvc->quizBankForSection($section);
+            $bank = $contentSvc->quizBankOwnedBySection($section);
             if ($bank !== null) {
                 $questions = $contentSvc->questionsForBank($bank);
                 $qCount = count($questions);
@@ -816,6 +816,7 @@ final class AdminCourseSettingsController extends Controller
             'ok' => true,
             'is_legacy' => $isLegacyPanel,
             'course' => [
+                'id' => (int) $course->id,
                 'title' => (string) $course->title,
                 'default_attempt_limit' => $course->default_attempt_limit,
                 'default_quiz_time_minutes' => $course->default_quiz_time_minutes,
@@ -1051,21 +1052,12 @@ final class AdminCourseSettingsController extends Controller
                         default => 'theory_quiz',
                     };
                     $contentSvc = app(CourseContentService::class);
-                    $bank = $contentSvc->quizBankForSection($section);
-                    if (! $bank) {
-                        $defaults = match ($kind) {
-                            'theory_quiz' => ['pass_percent' => 70, 'time_limit_minutes' => 30, 'attempt_limit' => null, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 15, 'penalties_json' => ['2' => 10]],
-                            'survey' => ['pass_percent' => 0, 'time_limit_minutes' => null, 'attempt_limit' => 1, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 0, 'penalties_json' => null],
-                            default => ['pass_percent' => 70, 'time_limit_minutes' => 60, 'attempt_limit' => 2, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 30, 'penalties_json' => ['2' => 10]],
-                        };
-                        $bank = CourseQuizBank::query()->create([
-                            'course_id' => (int) $course->id,
-                            'course_module_id' => (int) $courseModule->id,
-                            'course_section_id' => (int) $section->id,
-                            'kind' => $kind,
-                            ...$defaults,
-                        ]);
-                    }
+                    $defaults = match ($kind) {
+                        'theory_quiz' => ['pass_percent' => 70, 'time_limit_minutes' => 30, 'attempt_limit' => null, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 15, 'penalties_json' => ['2' => 10]],
+                        'survey' => ['pass_percent' => 0, 'time_limit_minutes' => null, 'attempt_limit' => 1, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 0, 'penalties_json' => null],
+                        default => ['pass_percent' => 70, 'time_limit_minutes' => 60, 'attempt_limit' => 2, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 30, 'penalties_json' => ['2' => 10]],
+                    };
+                    $bank = $contentSvc->ensureQuizBankForSection($course, $courseModule, $section, $kind, $defaults);
                     $quiz = app(AdminQuizController::class);
                     $allowPoints = $kind === 'module_exam';
                     $v = $quiz->validateQuizBankFormat($p['questions'], $kind, $allowPoints);

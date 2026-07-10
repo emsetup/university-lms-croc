@@ -31,7 +31,7 @@
         <div class="practice-page__head">
             <div>
                 <p class="muted" style="margin:0 0 0.35rem">
-                    <a href="{{ route('admin.quiz.index', $ap ?? []) }}">← К списку банков вопросов</a>
+                    <a href="{{ route('admin.course.settings', $ap ?? []) }}">← К модулям</a>
                     <span class="muted">/</span>
                     <span class="muted">режим: <strong>БД</strong></span>
                 </p>
@@ -167,6 +167,11 @@
 
                     <label class="qb-field">
                         <span class="qb-label">Текст вопроса (Markdown)</span>
+                        <div style="margin-bottom:0.35rem">
+                            <button type="button" class="btn btn-ghost btn-sm" id="qb-media-q" title="Вставить картинку" aria-label="Вставить картинку">
+                                <span class="ap-media-insert-btn__inner">@include('partials.icons.media-image')<span>Картинка</span></span>
+                            </button>
+                        </div>
                         <textarea id="qb-q" class="qb-textarea" rows="7"></textarea>
                     </label>
 
@@ -792,6 +797,20 @@
 
             renderList();
             renderEditor();
+
+            var qbMediaQ = document.getElementById('qb-media-q');
+            if (qbMediaQ && window.MediaLibrary) {
+                qbMediaQ.addEventListener('click', function () {
+                    var ta = document.getElementById('qb-q');
+                    window.MediaLibrary.open({
+                        courseId: {{ (int) ($bank->course_id ?? session('admin_course_id')) }},
+                        onInsert: function (md) {
+                            if (ta) window.MediaLibrary.insertAtCursor(ta, md);
+                            setDirty(true);
+                        },
+                    });
+                });
+            }
         })();
     </script>
 @endsection
