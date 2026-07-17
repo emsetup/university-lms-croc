@@ -4,9 +4,17 @@
     $total = count($questions);
     $modNum = (int) ($moduleSequence ?? $module);
     $lr = \App\Support\LearnerRoute::hub((int) ($courseId ?? session('course_id')), $modNum);
+    $sr = isset($sectionSequence)
+        ? \App\Support\LearnerRoute::section((int) ($courseId ?? session('course_id')), $modNum, (int) $sectionSequence)
+        : $lr;
+    $sectionTitle = isset($section) && (string) $section->title !== ''
+        ? (string) $section->title
+        : config('course.step_titles.module_exam');
+    $quizSt = $quizState ?? [];
+    $examAttempts = (int) ($quizSt['attempts'] ?? ($progress->module_exam_attempts ?? 0));
 @endphp
 
-@section('title', 'Модуль '.$modNum.': '.config('course.step_titles.module_exam'))
+@section('title', 'Модуль '.$modNum.': '.$sectionTitle)
 
 @section('content')
     <div class="page-container">
@@ -42,7 +50,7 @@
         <dialog class="quiz-modal" id="module-exam-intro" aria-labelledby="module-exam-intro-title" @if (! $needsRetakeAck) open @endif>
             <div class="quiz-modal-inner">
                 <p class="quiz-modal-badge">Модуль {{ $meta['letter'] }}</p>
-                <h2 id="module-exam-intro-title" class="quiz-modal-heading">{{ config('course.step_titles.module_exam') }}</h2>
+                <h2 id="module-exam-intro-title" class="quiz-modal-heading">{{ $sectionTitle }}</h2>
                 <ul class="quiz-modal-list">
                     <li>На прохождение отводится <strong>{{ $timeLimitMinutes }} минут</strong> — отсчёт начнётся только после нажатия «Запустить отсчёт».</li>
                     <li>Таймер показывается над вопросами; по истечении времени ответы отправятся автоматически (незаполненные вопросы засчитываются как ошибки).</li>
@@ -54,7 +62,7 @@
                     @endif
                 </ul>
                 <div class="quiz-modal-actions">
-                    <form method="post" action="{{ route('course.module.exam.start', $lr) }}" class="quiz-modal-form">
+                    <form method="post" action="{{ route('course.module.section.exam.start', $sr) }}" class="quiz-modal-form">
                         @csrf
                         <button type="submit" class="btn btn-primary">Запустить отсчёт</button>
                     </form>
@@ -187,7 +195,7 @@
             @if (! empty($previewWalkthrough))
             <div id="module-exam-form">
             @else
-            <form method="post" action="{{ route('course.module.exam.submit', $lr) }}" id="module-exam-form" novalidate>
+            <form method="post" action="{{ route('course.module.section.exam.submit', $sr) }}" id="module-exam-form" novalidate>
                 @csrf
             @endif
                 @foreach ($questions as $i => $q)

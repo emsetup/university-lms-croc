@@ -210,15 +210,18 @@ final class AdminCourseContentInspector
             'section' => $sectionId,
         ]);
         $type = (string) $section->type;
-        $db = self::databaseModuleContentSummary($course, $cm);
+        $contentSvc = app(\App\Services\CourseContentService::class);
+        $sectionMd = in_array($type, [CourseSection::TYPE_TEXT, CourseSection::TYPE_PRACTICE], true)
+            ? $contentSvc->markdownForSection($section)
+            : '';
         $trackPreviewUrl = route('admin.course.preview.section', $previewBase);
 
         return match ($type) {
             CourseSection::TYPE_TEXT => self::withTrackPreview([
                 'has_section' => true,
-                'filled' => (int) $db['theory_chars'] > 0,
-                'meta' => ((int) $db['theory_chars'] > 0)
-                    ? number_format((int) $db['theory_chars'], 0, ',', ' ').' симв.'
+                'filled' => mb_strlen($sectionMd) > 0,
+                'meta' => (mb_strlen($sectionMd) > 0)
+                    ? number_format(mb_strlen($sectionMd), 0, ',', ' ').' симв.'
                     : '0 симв.',
                 'preview_url' => route('admin.theory.preview-section', $previewBase),
                 'preview_title' => 'Просмотр: '.$section->title,
@@ -255,8 +258,8 @@ final class AdminCourseContentInspector
             ), $trackPreviewUrl),
             CourseSection::TYPE_PRACTICE => self::withTrackPreview([
                 'has_section' => true,
-                'filled' => (string) $db['practice_markdown'] !== '',
-                'meta' => self::practiceSummaryLine((string) $db['practice_markdown']),
+                'filled' => $sectionMd !== '',
+                'meta' => self::practiceSummaryLine($sectionMd),
                 'preview_url' => route('admin.theory.preview-section', $previewBase),
                 'preview_title' => 'Просмотр: '.$section->title,
                 'stats_url' => null,

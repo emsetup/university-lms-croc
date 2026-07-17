@@ -3,7 +3,7 @@
     /** @var string|null $previewLabel */
     $label = $previewLabel ?? 'Предпросмотр';
     $class = $previewClass ?? 'btn btn-ghost';
-    $icon = $previewIcon ?? 'external-link';
+    $icon = $previewIcon ?? 'eye';
 @endphp
 <a
     class="{{ $class }}"

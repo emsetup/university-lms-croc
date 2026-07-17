@@ -555,6 +555,15 @@ class AdminTheoryController extends Controller
 
         $meta = $this->previewModuleMeta($adminCourse, $module);
         $meta['section_title'] = (string) $section->title;
+        if (in_array((string) $section->type, [CourseSection::TYPE_TEXT, CourseSection::TYPE_PRACTICE], true)
+            && \Illuminate\Support\Facades\Schema::hasTable('course_section_contents')) {
+            $md = app(\App\Services\CourseContentService::class)->markdownForSection($section);
+            if ((string) $section->type === CourseSection::TYPE_TEXT) {
+                $meta['theory'] = $md;
+            } else {
+                $meta['practice'] = $md;
+            }
+        }
 
         return match ((string) $section->type) {
             CourseSection::TYPE_TEXT => $this->previewSectionTheory($request, $module, $meta),

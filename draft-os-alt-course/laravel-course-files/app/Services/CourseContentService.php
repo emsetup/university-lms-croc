@@ -7,6 +7,7 @@ use App\Models\CourseModule;
 use App\Models\CourseModuleContent;
 use App\Models\CourseQuizBank;
 use App\Models\CourseSection;
+use App\Models\CourseSectionContent;
 use App\Models\CourseQuizCorrectAnswer;
 use App\Models\CourseQuizMatchPair;
 use App\Models\CourseQuizOption;
@@ -29,9 +30,30 @@ final class CourseContentService
             ->where('course_module_id', (int) $cm->id)
             ->first();
 
+        $theory = (string) ($row?->theory_markdown ?? '');
+        $practice = (string) ($row?->practice_markdown ?? '');
+
+        // Предпочитаем markdown первого text/practice раздела, если он уже section-scoped.
+        if (Schema::hasTable('course_section_contents')) {
+            $firstText = $this->firstSectionOfType((int) $cm->id, CourseSection::TYPE_TEXT);
+            if ($firstText !== null) {
+                $owned = $this->ownedMarkdownForSection($firstText);
+                if ($owned !== null) {
+                    $theory = $owned;
+                }
+            }
+            $firstPractice = $this->firstSectionOfType((int) $cm->id, CourseSection::TYPE_PRACTICE);
+            if ($firstPractice !== null) {
+                $owned = $this->ownedMarkdownForSection($firstPractice);
+                if ($owned !== null) {
+                    $practice = $owned;
+                }
+            }
+        }
+
         return [
-            'theory_markdown' => (string) ($row?->theory_markdown ?? ''),
-            'practice_markdown' => (string) ($row?->practice_markdown ?? ''),
+            'theory_markdown' => $theory,
+            'practice_markdown' => $practice,
         ];
     }
 
@@ -43,7 +65,104 @@ final class CourseContentService
         $row->practice_markdown = $practice;
         $row->save();
 
+        // Синхронизация в section-scoped хранилище для первого раздела каждого типа.
+        if (Schema::hasTable('course_section_contents')) {
+            $firstText = $this->firstSectionOfType((int) $cm->id, CourseSection::TYPE_TEXT);
+            if ($firstText !== null) {
+                $this->upsertMarkdownForSection($firstText, $theory);
+            }
+            $firstPractice = $this->firstSectionOfType((int) $cm->id, CourseSection::TYPE_PRACTICE);
+            if ($firstPractice !== null) {
+                $this->upsertMarkdownForSection($firstPractice, $practice);
+            }
+        }
+
         return $row;
+    }
+
+    /**
+     * Markdown раздела: своя строка, иначе legacy модуля только при единственном разделе этого типа.
+     */
+    public function markdownForSection(CourseSection $section): string
+    {
+        $owned = $this->ownedMarkdownForSection($section);
+        if ($owned !== null) {
+            return $owned;
+        }
+
+        if (! in_array($section->type, [CourseSection::TYPE_TEXT, CourseSection::TYPE_PRACTICE], true)) {
+            return '';
+        }
+
+        $moduleId = (int) $section->course_module_id;
+        $sameTypeCount = app(CourseSectionService::class)
+            ->enabledSectionsForCourseModule($moduleId)
+            ->filter(fn (CourseSection $s): bool => (string) $s->type === (string) $section->type)
+            ->count();
+        if ($sameTypeCount !== 1) {
+            return '';
+        }
+
+        if (! Schema::hasTable('course_module_contents')) {
+            return '';
+        }
+
+        $row = CourseModuleContent::query()
+            ->where('course_module_id', $moduleId)
+            ->first();
+        if ($row === null) {
+            return '';
+        }
+
+        return $section->type === CourseSection::TYPE_TEXT
+            ? (string) ($row->theory_markdown ?? '')
+            : (string) ($row->practice_markdown ?? '');
+    }
+
+    public function upsertMarkdownForSection(CourseSection $section, string $markdown): CourseSectionContent
+    {
+        if (! Schema::hasTable('course_section_contents')) {
+            throw new \RuntimeException('Таблица course_section_contents отсутствует.');
+        }
+
+        /** @var CourseSectionContent $row */
+        $row = CourseSectionContent::query()->firstOrNew([
+            'course_section_id' => (int) $section->id,
+        ]);
+        $row->body_markdown = $markdown;
+        $row->save();
+
+        return $row;
+    }
+
+    private function ownedMarkdownForSection(CourseSection $section): ?string
+    {
+        if (! Schema::hasTable('course_section_contents')) {
+            return null;
+        }
+
+        $row = CourseSectionContent::query()
+            ->where('course_section_id', (int) $section->id)
+            ->first();
+        if ($row === null) {
+            return null;
+        }
+
+        return (string) ($row->body_markdown ?? '');
+    }
+
+    private function firstSectionOfType(int $courseModuleId, string $type): ?CourseSection
+    {
+        if (! Schema::hasTable('course_sections')) {
+            return null;
+        }
+
+        return CourseSection::query()
+            ->where('course_module_id', $courseModuleId)
+            ->where('type', $type)
+            ->orderBy('sort')
+            ->orderBy('id')
+            ->first();
     }
 
     public function quizBankFor(Course $course, ?CourseModule $cm, string $kind): ?CourseQuizBank

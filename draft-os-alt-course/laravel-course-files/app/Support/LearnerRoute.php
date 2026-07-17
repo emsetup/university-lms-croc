@@ -45,7 +45,7 @@ final class LearnerRoute
         $sections ??= app(CourseSectionService::class);
         $sectionSeq = $sections->sequenceForSection($section);
         $routeName = $section->learnerRouteName();
-        if ($routeName === 'course.module.section.survey') {
+        if ($routeName !== null && str_contains($routeName, '.section.')) {
             return self::section($courseId, $moduleSequence, $sectionSeq);
         }
 

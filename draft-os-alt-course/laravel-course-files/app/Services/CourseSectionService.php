@@ -240,6 +240,159 @@ final class CourseSectionService
         return CourseScoringService::PASS_THRESHOLD;
     }
 
+    public function theoryQuizTimeLimitMinutesForSection(CourseSection $section): int
+    {
+        $m = $this->mergedSettings($section);
+        if (($m['time_from_course'] ?? false) === true) {
+            $course = Course::query()->find((int) $section->course_id);
+            $def = $course?->default_quiz_time_minutes;
+            if (is_numeric($def) && (int) $def > 0) {
+                return (int) $def;
+            }
+
+            return CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
+        }
+        $v = $m['time_limit_minutes'] ?? null;
+        if (is_numeric($v) && (int) $v > 0) {
+            return (int) $v;
+        }
+        $course = Course::query()->find((int) $section->course_id);
+        $def = $course?->default_quiz_time_minutes;
+        if (is_numeric($def) && (int) $def > 0) {
+            return (int) $def;
+        }
+
+        return CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
+    }
+
+    public function theoryQuizAttemptLimitForSection(CourseSection $section): ?int
+    {
+        $m = $this->mergedSettings($section);
+        if (($m['attempts_from_course'] ?? false) === true) {
+            $course = Course::query()->find((int) $section->course_id);
+            $def = $course?->default_attempt_limit;
+            if ($def !== null && is_numeric($def) && (int) $def > 0) {
+                return (int) $def;
+            }
+
+            return null;
+        }
+        $v = $m['attempt_limit'] ?? null;
+        if ($v !== null && $v !== '' && is_numeric($v) && (int) $v > 0) {
+            return (int) $v;
+        }
+
+        return null;
+    }
+
+    public function theoryQuizPenaltyForAttemptForSection(CourseSection $section, int $attemptNo): int
+    {
+        if ($attemptNo <= 1) {
+            return 0;
+        }
+        $pen = $this->mergedSettings($section)['penalties'] ?? [];
+        if (! is_array($pen)) {
+            return CourseScoringService::THEORY_QUIZ_RETAKE_PENALTY_POINTS;
+        }
+        $key = (string) $attemptNo;
+
+        return isset($pen[$key]) && is_numeric($pen[$key]) ? max(0, (int) $pen[$key]) : CourseScoringService::THEORY_QUIZ_RETAKE_PENALTY_POINTS;
+    }
+
+    public function theoryQuizShuffleForSection(CourseSection $section): bool
+    {
+        return (bool) ($this->mergedSettings($section)['shuffle'] ?? false);
+    }
+
+    public function theoryQuizBreakdownVisibleMinutesForSection(CourseSection $section): int
+    {
+        $v = $this->mergedSettings($section)['breakdown_visible_minutes'] ?? null;
+
+        return is_numeric($v) && (int) $v >= 0 ? (int) $v : CourseScoringService::THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES;
+    }
+
+    public function examTimeLimitMinutesForSection(CourseSection $section, int $contentSourceIndex, bool $legacyAlt = true): int
+    {
+        if ($legacyAlt) {
+            $fromConfig = config('course.modules.'.$contentSourceIndex.'.module_exam_time_limit_minutes');
+            if (is_numeric($fromConfig) && (int) $fromConfig > 0) {
+                return (int) $fromConfig;
+            }
+        }
+        $m = $this->mergedSettings($section);
+        if (($m['time_from_course'] ?? false) === true) {
+            $course = Course::query()->find((int) $section->course_id);
+            $def = $course?->default_quiz_time_minutes;
+            if (is_numeric($def) && (int) $def > 0) {
+                return (int) $def;
+            }
+
+            return CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+        }
+        $v = $m['time_limit_minutes'] ?? null;
+        if (is_numeric($v) && (int) $v > 0) {
+            return (int) $v;
+        }
+        $course = Course::query()->find((int) $section->course_id);
+        $def = $course?->default_quiz_time_minutes;
+        if (is_numeric($def) && (int) $def > 0) {
+            return (int) $def;
+        }
+
+        return CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+    }
+
+    public function examMaxAttemptsForSection(CourseSection $section): int
+    {
+        $m = $this->mergedSettings($section);
+        if (($m['attempts_from_course'] ?? false) === true) {
+            $course = Course::query()->find((int) $section->course_id);
+            $def = $course?->default_attempt_limit;
+            if (is_numeric($def) && (int) $def > 0) {
+                return (int) $def;
+            }
+
+            return CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS;
+        }
+        $v = $m['attempt_limit'] ?? null;
+        if (is_numeric($v) && (int) $v > 0) {
+            return (int) $v;
+        }
+        $course = Course::query()->find((int) $section->course_id);
+        $def = $course?->default_attempt_limit;
+        if (is_numeric($def) && (int) $def > 0) {
+            return (int) $def;
+        }
+
+        return CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS;
+    }
+
+    public function examPenaltyForAttemptForSection(CourseSection $section, int $attemptNo): int
+    {
+        if ($attemptNo <= 1) {
+            return 0;
+        }
+        $pen = $this->mergedSettings($section)['penalties'] ?? [];
+        if (! is_array($pen)) {
+            return CourseScoringService::MODULE_EXAM_RETAKE_PENALTY_POINTS;
+        }
+        $key = (string) $attemptNo;
+
+        return isset($pen[$key]) && is_numeric($pen[$key]) ? max(0, (int) $pen[$key]) : CourseScoringService::MODULE_EXAM_RETAKE_PENALTY_POINTS;
+    }
+
+    public function examBreakdownVisibleMinutesForSection(CourseSection $section): int
+    {
+        $v = $this->mergedSettings($section)['breakdown_visible_minutes'] ?? null;
+
+        return is_numeric($v) && (int) $v >= 0 ? (int) $v : CourseScoringService::MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES;
+    }
+
+    public function examOneByOneForSection(CourseSection $section): bool
+    {
+        return (bool) ($this->mergedSettings($section)['one_by_one'] ?? true);
+    }
+
     public function passPercentForQuiz(int $courseModuleId): int
     {
         $sec = $this->findSectionByStepKey($courseModuleId, 'theory_quiz');

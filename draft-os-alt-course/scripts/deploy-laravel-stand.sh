@@ -217,6 +217,7 @@ for f in \
   app/Models/CourseQuizMatchPair.php \
   app/Models/CourseModulePracticeSetting.php \
   app/Models/CourseSection.php \
+  app/Models/CourseSectionContent.php \
   app/Models/CourseSectionSetting.php \
   app/Models/CourseEnrollment.php \
   app/Models/CourseSurveyLink.php \
@@ -328,6 +329,12 @@ if [[ -f "${LCF}/database/migrations/2026_07_10_150000_course_quiz_banks_section
   echo "[deploy-laravel] database/migrations/…course_quiz_banks_section_scoped_unique…"
   rsync -az "${LCF}/database/migrations/2026_07_10_150000_course_quiz_banks_section_scoped_unique.php" \
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_07_10_150000_course_quiz_banks_section_scoped_unique.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_07_17_120000_create_course_section_contents_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…create_course_section_contents…"
+  rsync -az "${LCF}/database/migrations/2026_07_17_120000_create_course_section_contents_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_07_17_120000_create_course_section_contents_table.php"
 fi
 
 if [[ -f "${LCF}/database/migrations/2026_06_09_150000_create_course_change_logs_table.php" ]]; then

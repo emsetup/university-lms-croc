@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use App\Models\CourseModule;
+use App\Models\CourseSection;
 use App\Models\Learner;
 use App\Models\ModuleProgress;
 use App\Models\PracticeSession;
@@ -18,6 +19,7 @@ use App\Support\CourseModuleMeta;
 use App\Support\CourseStaffPreview;
 use App\Support\LearnerPreviewContext;
 use App\Support\LearnerRoute;
+use App\Support\SectionProgress;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -34,14 +36,24 @@ class ModuleController extends Controller
         private LearnerContentVisibilityService $visibility,
     ) {}
 
-    private function theoryQuizDeadlineKey(int $learnerId, int $courseModuleId): string
+    private function theoryQuizDeadlineKey(int $learnerId, int $courseModuleId, int $sectionId): string
     {
-        return 'theory_quiz_deadline_l'.$learnerId.'_m'.$courseModuleId;
+        return 'theory_quiz_deadline_l'.$learnerId.'_m'.$courseModuleId.'_s'.$sectionId;
     }
 
-    private function theoryQuizWallStartKey(int $learnerId, int $courseModuleId): string
+    private function theoryQuizWallStartKey(int $learnerId, int $courseModuleId, int $sectionId): string
     {
-        return 'theory_quiz_wall_start_l'.$learnerId.'_m'.$courseModuleId;
+        return 'theory_quiz_wall_start_l'.$learnerId.'_m'.$courseModuleId.'_s'.$sectionId;
+    }
+
+    private function theoryQuizResultSessionKey(int $sectionId): string
+    {
+        return 'theory_quiz_result_s'.$sectionId;
+    }
+
+    private function moduleExamResultSessionKey(int $sectionId): string
+    {
+        return 'module_exam_result_s'.$sectionId;
     }
 
     private function staffPreviewWalkthrough(): bool
@@ -55,9 +67,168 @@ class ModuleController extends Controller
         if (! $this->staffPreviewWalkthrough()) {
             return null;
         }
-        $ctx = $this->routeContext($request);
+        $ctx = $this->assessmentSectionContext($request);
+        if ($ctx instanceof RedirectResponse) {
+            return $ctx;
+        }
 
-        return redirect()->route($showRoute, LearnerRoute::hub($ctx['courseId'], $ctx['moduleSequence']));
+        return redirect()->route($showRoute, $this->sectionRouteParams($ctx));
+    }
+
+    /**
+     * @param  array{courseId: int, moduleSequence: int, sectionSequence: int}  $ctx
+     * @return array{course: int, module: int, section: int}
+     */
+    private function sectionRouteParams(array $ctx): array
+    {
+        return LearnerRoute::section($ctx['courseId'], $ctx['moduleSequence'], $ctx['sectionSequence']);
+    }
+
+    public function theoryQuizLegacyRedirect(Request $request): RedirectResponse
+    {
+        return $this->legacyAssessmentRedirect($request, CourseSection::TYPE_QUIZ, 'course.module.section.theory-quiz');
+    }
+
+    public function theoryLegacyRedirect(Request $request): RedirectResponse
+    {
+        return $this->legacyAssessmentRedirect($request, CourseSection::TYPE_TEXT, 'course.module.section.theory');
+    }
+
+    public function theoryQuizLegacyResultRedirect(Request $request): RedirectResponse
+    {
+        return $this->legacyAssessmentRedirect($request, CourseSection::TYPE_QUIZ, 'course.module.section.theory-quiz.result');
+    }
+
+    public function examLegacyRedirect(Request $request): RedirectResponse
+    {
+        return $this->legacyAssessmentRedirect($request, CourseSection::TYPE_EXAM, 'course.module.section.exam');
+    }
+
+    public function examLegacyResultRedirect(Request $request): RedirectResponse
+    {
+        return $this->legacyAssessmentRedirect($request, CourseSection::TYPE_EXAM, 'course.module.section.exam.result');
+    }
+
+    private function legacyAssessmentRedirect(Request $request, string $type, string $targetRoute): RedirectResponse
+    {
+        $ctx = $this->routeContext($request);
+        $sec = $this->resolveSoleSectionOfType($ctx['mid'], $type);
+        if ($sec === null) {
+            if ($this->sectionService->countEnabledSectionsOfType($ctx['mid'], $type) === 0) {
+                abort(404);
+            }
+
+            return redirect()->to($this->hubUrl($ctx))
+                ->with('err', 'Выберите конкретный раздел в списке шагов модуля.');
+        }
+
+        return redirect()->route(
+            $targetRoute,
+            LearnerRoute::section(
+                $ctx['courseId'],
+                $ctx['moduleSequence'],
+                $this->sectionService->sequenceForSection($sec),
+            ),
+        );
+    }
+
+    private function resolveSoleSectionOfType(int $courseModuleId, string $type): ?CourseSection
+    {
+        $secs = $this->sectionService->enabledSectionsForCourseModule($courseModuleId)
+            ->where('type', $type);
+        if ($secs->count() !== 1) {
+            return null;
+        }
+
+        return $secs->first();
+    }
+
+    /**
+     * @return array{
+     *     cm: CourseModule,
+     *     mid: int,
+     *     moduleSequence: int,
+     *     courseId: int,
+     *     section: CourseSection,
+     *     sectionSequence: int,
+     *     sole: bool
+     * }|RedirectResponse
+     */
+    private function assessmentSectionContext(Request $request, ?string $expectedType = null): array|RedirectResponse
+    {
+        $ctx = $this->routeContext($request);
+        $sectionRoute = $request->route('section');
+        if ($sectionRoute !== null) {
+            $sec = $this->sectionService->findOrFailBySequenceForModuleRoute($ctx['mid'], (int) $sectionRoute);
+            if ($expectedType !== null) {
+                abort_unless($sec->type === $expectedType && $sec->is_enabled, 404);
+            }
+        } else {
+            if ($expectedType === null) {
+                abort(404);
+            }
+            $sec = $this->resolveSoleSectionOfType($ctx['mid'], $expectedType);
+            if ($sec === null) {
+                return redirect()->to($this->hubUrl($ctx))
+                    ->with('err', 'Выберите конкретный раздел в списке шагов модуля.');
+            }
+        }
+
+        return array_merge($ctx, [
+            'section' => $sec,
+            'sectionSequence' => $this->sectionService->sequenceForSection($sec),
+            'sole' => $this->sectionService->isSoleSectionOfType($sec),
+        ]);
+    }
+
+    /**
+     * @return array<int, array{q:string,a:array,c:int|array<int>}>
+     */
+    private function questionsForSection(CourseSection $section, int $contentSourceIndex): array
+    {
+        $kind = $section->quizBankKind();
+        if ($kind === null) {
+            return [];
+        }
+
+        if ($this->courseModules->selectedCourseIsLegacyAlt()) {
+            $cm = $this->courseModuleOrAbort((int) request()->route('module'));
+            $course = $cm->loadMissing('course:id,slug')->course;
+            if ($course instanceof Course && Schema::hasTable('course_quiz_banks')) {
+                $bank = $this->courseContent->quizBankForSection($section);
+                if ($bank !== null) {
+                    $fromDb = $this->courseContent->questionsForBank($bank);
+                    if ($fromDb !== []) {
+                        return $fromDb;
+                    }
+                }
+            }
+
+            return config('course.module_quizzes.'.$contentSourceIndex.'.'.$kind, []);
+        }
+
+        $bank = $this->courseContent->quizBankForSection($section);
+        if ($bank === null) {
+            return [];
+        }
+
+        return $this->courseContent->questionsForBank($bank);
+    }
+
+    protected function moduleExamTimeLimitMinutesForSection(CourseSection $section, CourseModule $cm): int
+    {
+        $courseModuleId = (int) $cm->id;
+        $idx = $cm->effectiveContentIndex();
+        $legacyAlt = $this->courseModules->selectedCourseIsLegacyAlt();
+        if (LearnerPreviewContext::courseId() > 0 && Schema::hasTable('course_sections')
+            && $this->sectionService->useDbSectionsForModule($courseModuleId)) {
+            return $this->sectionService->examTimeLimitMinutesForSection($section, $idx, $legacyAlt);
+        }
+        $v = $legacyAlt ? config('course.modules.'.$idx.'.module_exam_time_limit_minutes') : null;
+
+        return (is_numeric($v) && (int) $v > 0)
+            ? (int) $v
+            : CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
     }
 
     /**
@@ -601,21 +772,34 @@ class ModuleController extends Controller
 
     public function theory(Request $request): View|RedirectResponse
     {
-        $ctx = $this->routeContext($request);
+        $ctx = $this->assessmentSectionContext($request, CourseSection::TYPE_TEXT);
+        if ($ctx instanceof RedirectResponse) {
+            return $ctx;
+        }
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
         $moduleSequence = $ctx['moduleSequence'];
         $courseId = $ctx['courseId'];
-        if ($r = $this->accessGate->redirectIfModuleLocked($this->learner(), $mid)) {
+        $sec = $ctx['section'];
+        $sole = $ctx['sole'];
+        $learner = $this->learner();
+        if ($r = $this->accessGate->redirectIfModuleLocked($learner, $mid)) {
             return $r;
         }
-        if ($r = $this->accessGate->redirectIfStepBlocked($this->learner(), $mid, 'theory')) {
+        if ($r = $this->accessGate->redirectIfSectionHidden($learner, (int) $sec->id, $mid)) {
+            return $r;
+        }
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, $sec->backendStepKey())) {
             return $r;
         }
         $meta = $this->courseModules->displayMeta($cm);
-        $p = $this->learner()->progressFor($mid);
-        if (! $p->theory_read_at) {
-            $sk = 'theory_time_start_'.$mid;
+        $meta['theory'] = $this->courseContent->markdownForSection($sec);
+        if (! empty($sec->title)) {
+            $meta['section_title'] = (string) $sec->title;
+        }
+        $p = $learner->progressFor($mid);
+        if (! SectionProgress::isTextRead($p, $sec, $sole)) {
+            $sk = 'theory_time_start_'.$mid.'_s'.$sec->id;
             if (! session()->has($sk)) {
                 session([$sk => now()->getTimestamp()]);
             }
@@ -625,6 +809,8 @@ class ModuleController extends Controller
             'courseId' => $courseId,
             'module' => $moduleSequence,
             'moduleSequence' => $moduleSequence,
+            'sectionSequence' => $ctx['sectionSequence'],
+            'section' => $sec,
             'meta' => $meta,
             'progress' => $p,
         ]);
@@ -632,21 +818,29 @@ class ModuleController extends Controller
 
     public function markTheoryRead(Request $request): RedirectResponse
     {
-        $ctx = $this->routeContext($request);
+        $ctx = $this->assessmentSectionContext($request, CourseSection::TYPE_TEXT);
+        if ($ctx instanceof RedirectResponse) {
+            return $ctx;
+        }
         $mid = $ctx['mid'];
+        $sec = $ctx['section'];
+        $sole = $ctx['sole'];
         if ($r = $this->accessGate->redirectIfModuleLocked($this->learner(), $mid)) {
             return $r;
         }
         $p = $this->learner()->progressFor($mid);
-        $sk = 'theory_time_start_'.$mid;
+        $sk = 'theory_time_start_'.$mid.'_s'.$sec->id;
         $ts = session()->pull($sk);
+        if ($ts === null) {
+            $ts = session()->pull('theory_time_start_'.$mid);
+        }
         if ($ts !== null && is_numeric($ts)) {
             $elapsed = max(0, min(86400 * 7, now()->getTimestamp() - (int) $ts));
             if ($elapsed > 0) {
                 $p->seconds_theory = (int) ($p->seconds_theory ?? 0) + $elapsed;
             }
         }
-        $p->theory_read_at = now();
+        SectionProgress::markTextRead($p, $sec, $sole);
         $p->save();
 
         return redirect()->to($this->hubUrl($ctx))->with('ok', 'Теория отмечена как просмотренная.');
@@ -654,28 +848,37 @@ class ModuleController extends Controller
 
     public function theoryQuizShow(Request $request): View|RedirectResponse
     {
-        $ctx = $this->routeContext($request);
+        $ctx = $this->assessmentSectionContext($request, CourseSection::TYPE_QUIZ);
+        if ($ctx instanceof RedirectResponse) {
+            return $ctx;
+        }
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
         $moduleSequence = $ctx['moduleSequence'];
         $courseId = $ctx['courseId'];
+        $sec = $ctx['section'];
+        $sole = $ctx['sole'];
+        $sectionId = (int) $sec->id;
         $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $mid)) {
             return $r;
         }
+        if ($r = $this->accessGate->redirectIfSectionHidden($learner, $sectionId, $mid)) {
+            return $r;
+        }
         if ($r = $this->accessGate->redirectIfTheoryNotRead($learner, $mid)) {
             return $r;
         }
-        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, 'theory_quiz')) {
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, $sec->backendStepKey())) {
             return $r;
         }
-        $qs = $this->questions($contentIdx, 'theory_quiz');
-        if ($courseId > 0 && $this->sectionService->theoryQuizShuffle($mid)) {
+        $qs = $this->questionsForSection($sec, $contentIdx);
+        if ($courseId > 0 && $this->sectionService->theoryQuizShuffleForSection($sec)) {
             $qs = collect($qs)->shuffle()->values()->all();
         }
 
-        $deadlineKey = $this->theoryQuizDeadlineKey((int) $learner->id, $mid);
+        $deadlineKey = $this->theoryQuizDeadlineKey((int) $learner->id, $mid, $sectionId);
         $ts = session($deadlineKey);
         if ($ts !== null && is_numeric($ts) && (int) $ts <= now()->getTimestamp()) {
             session()->forget($deadlineKey);
@@ -688,25 +891,29 @@ class ModuleController extends Controller
         $expiresAtMs = $previewWalkthrough || ! $quizActive ? null : ((int) $ts) * 1000;
 
         $tl = $courseId > 0
-            ? $this->sectionService->theoryQuizTimeLimitMinutes($mid)
+            ? $this->sectionService->theoryQuizTimeLimitMinutesForSection($sec)
             : CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
         $passTh = $courseId > 0
-            ? $this->sectionService->passPercentForQuiz($mid)
+            ? $this->sectionService->passPercentForSection($sec)
             : CourseScoringService::PASS_THRESHOLD;
+        $quizSt = SectionProgress::quizState($this->learner()->progressFor($mid), $sec, $sole);
 
         return view('modules.theory-quiz', [
             'courseId' => $courseId,
             'module' => $moduleSequence,
             'moduleSequence' => $moduleSequence,
+            'section' => $sec,
+            'sectionSequence' => $ctx['sectionSequence'],
             'meta' => $this->courseModules->displayMeta($cm),
             'questions' => $qs,
             'progress' => $this->learner()->progressFor($mid),
+            'quizState' => $quizSt,
             'quizActive' => $quizActive,
             'expiresAtMs' => $expiresAtMs,
             'timeLimitMinutes' => $tl,
             'passThreshold' => $passTh,
             'theoryQuizRetakePenalty' => $courseId > 0
-                ? $this->sectionService->theoryQuizPenaltyForAttempt($mid, 2)
+                ? $this->sectionService->theoryQuizPenaltyForAttemptForSection($sec, 2)
                 : CourseScoringService::THEORY_QUIZ_RETAKE_PENALTY_POINTS,
             'previewWalkthrough' => $previewWalkthrough,
         ]);
@@ -714,81 +921,100 @@ class ModuleController extends Controller
 
     public function theoryQuizStart(Request $request): RedirectResponse
     {
-        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.theory-quiz')) {
+        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.section.theory-quiz')) {
             return $r;
         }
-        $ctx = $this->routeContext($request);
+        $ctx = $this->assessmentSectionContext($request, CourseSection::TYPE_QUIZ);
+        if ($ctx instanceof RedirectResponse) {
+            return $ctx;
+        }
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
+        $sec = $ctx['section'];
+        $sole = $ctx['sole'];
+        $sectionId = (int) $sec->id;
         $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         $courseId = $ctx['courseId'];
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $mid)) {
             return $r;
         }
+        if ($r = $this->accessGate->redirectIfSectionHidden($learner, $sectionId, $mid)) {
+            return $r;
+        }
         if ($r = $this->accessGate->redirectIfTheoryNotRead($learner, $mid)) {
             return $r;
         }
-        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, 'theory_quiz')) {
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, $sec->backendStepKey())) {
             return $r;
         }
-        $qs = $this->questions($contentIdx, 'theory_quiz');
+        $qs = $this->questionsForSection($sec, $contentIdx);
         if (count($qs) === 0) {
             return redirect()->to($this->hubUrl($ctx))->with('err', 'Тест по теории для этого модуля не настроен.');
         }
         $p = $this->learner()->progressFor($mid);
-        $attemptLimit = $courseId > 0 ? $this->sectionService->theoryQuizAttemptLimit($mid) : null;
-        if ($attemptLimit !== null && (int) $p->theory_quiz_attempts >= $attemptLimit) {
+        $quizSt = SectionProgress::quizState($p, $sec, $sole);
+        $attemptLimit = $courseId > 0 ? $this->sectionService->theoryQuizAttemptLimitForSection($sec) : null;
+        if ($attemptLimit !== null && (int) ($quizSt['attempts'] ?? 0) >= $attemptLimit) {
             return redirect()->to($this->hubUrl($ctx))->with(
                 'err',
                 'Исчерпан лимит попыток теста по теории ('.$attemptLimit.').'
             );
         }
 
-        $deadlineKey = $this->theoryQuizDeadlineKey((int) $learner->id, $mid);
+        $deadlineKey = $this->theoryQuizDeadlineKey((int) $learner->id, $mid, $sectionId);
         $tlMin = $courseId > 0
-            ? $this->sectionService->theoryQuizTimeLimitMinutes($mid)
+            ? $this->sectionService->theoryQuizTimeLimitMinutesForSection($sec)
             : CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
         session([
             $deadlineKey => now()->addMinutes($tlMin)->getTimestamp(),
-            $this->theoryQuizWallStartKey((int) $learner->id, $mid) => now()->getTimestamp(),
+            $this->theoryQuizWallStartKey((int) $learner->id, $mid, $sectionId) => now()->getTimestamp(),
         ]);
 
-        if ($p->theory_quiz_attempts >= 1 || $p->theory_quiz_best_score > 0 || $p->theory_quiz_passed) {
-            $p->theory_quiz_passed = false;
-            // Лучший процент не обнуляем: при пересдаче доступ к практике не блокируется до завершения новой попытки.
+        if (($quizSt['attempts'] ?? 0) >= 1 || ($quizSt['best_score'] ?? 0) > 0 || ($quizSt['passed'] ?? false)) {
+            SectionProgress::saveQuizState($p, $sec, $sole, ['passed' => false]);
             $p->save();
         }
 
-        return redirect()->route('course.module.theory-quiz', LearnerRoute::hub($ctx['courseId'], $ctx['moduleSequence']));
+        return redirect()->route('course.module.section.theory-quiz', $this->sectionRouteParams($ctx));
     }
 
     public function theoryQuizResult(Request $request): View|RedirectResponse
     {
-        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.theory-quiz')) {
+        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.section.theory-quiz')) {
             return $r;
         }
-        $ctx = $this->routeContext($request);
+        $ctx = $this->assessmentSectionContext($request, CourseSection::TYPE_QUIZ);
+        if ($ctx instanceof RedirectResponse) {
+            return $ctx;
+        }
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
         $moduleSequence = $ctx['moduleSequence'];
         $courseId = $ctx['courseId'];
+        $sec = $ctx['section'];
+        $sole = $ctx['sole'];
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $mid)) {
+            return $r;
+        }
+        if ($r = $this->accessGate->redirectIfSectionHidden($learner, (int) $sec->id, $mid)) {
             return $r;
         }
         if ($r = $this->accessGate->redirectIfTheoryNotRead($learner, $mid)) {
             return $r;
         }
-        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, 'theory_quiz')) {
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, $sec->backendStepKey())) {
             return $r;
         }
-        $data = session('theory_quiz_result');
-        if (! is_array($data) || (int) ($data['module'] ?? 0) !== $mid) {
+        $resultKey = $this->theoryQuizResultSessionKey((int) $sec->id);
+        $data = session($resultKey);
+        if (! is_array($data) || (int) ($data['section_id'] ?? 0) !== (int) $sec->id) {
             $p = $this->learner()->progressFor($mid);
-            $data = $p->theory_quiz_last_result;
+            $quizSt = SectionProgress::quizState($p, $sec, $sole);
+            $data = $quizSt['last_result'] ?? null;
         }
-        if (! is_array($data) || (int) ($data['module'] ?? 0) !== $mid) {
+        if (! is_array($data) || (int) ($data['section_id'] ?? 0) !== (int) $sec->id) {
             return redirect()->to($this->hubUrl($ctx))->with('err', 'Нет сохранённого разбора. Сначала завершите тест с отправкой ответов.');
         }
 
@@ -798,6 +1024,8 @@ class ModuleController extends Controller
             'courseId' => $courseId,
             'module' => $moduleSequence,
             'moduleSequence' => $moduleSequence,
+            'section' => $sec,
+            'sectionSequence' => $ctx['sectionSequence'],
             'meta' => $this->courseModules->displayMeta($cm),
             'result' => $breakdownView['result'],
             'showBreakdown' => $breakdownView['showBreakdown'],
@@ -809,52 +1037,62 @@ class ModuleController extends Controller
 
     public function theoryQuizSubmit(Request $request): RedirectResponse
     {
-        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.theory-quiz')) {
+        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.section.theory-quiz')) {
             return $r;
         }
-        $ctx = $this->routeContext($request);
+        $ctx = $this->assessmentSectionContext($request, CourseSection::TYPE_QUIZ);
+        if ($ctx instanceof RedirectResponse) {
+            return $ctx;
+        }
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
+        $sec = $ctx['section'];
+        $sole = $ctx['sole'];
+        $sectionId = (int) $sec->id;
         $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         $courseId = $ctx['courseId'];
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $mid)) {
             return $r;
         }
+        if ($r = $this->accessGate->redirectIfSectionHidden($learner, $sectionId, $mid)) {
+            return $r;
+        }
         if ($r = $this->accessGate->redirectIfTheoryNotRead($learner, $mid)) {
             return $r;
         }
-        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, 'theory_quiz')) {
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, $sec->backendStepKey())) {
             return $r;
         }
-        $deadlineKey = $this->theoryQuizDeadlineKey((int) $learner->id, $mid);
+        $deadlineKey = $this->theoryQuizDeadlineKey((int) $learner->id, $mid, $sectionId);
         $ts = session($deadlineKey);
         if ($ts === null || ! is_numeric($ts) || now()->getTimestamp() > (int) $ts) {
             session()->forget($deadlineKey);
 
-            return redirect()->route('course.module.theory-quiz', LearnerRoute::hub($courseId, $ctx['moduleSequence']))
+            return redirect()->route('course.module.section.theory-quiz', $this->sectionRouteParams($ctx))
                 ->with('err', 'Время на прохождение теста истекло. Начните попытку снова.');
         }
 
-        $qs = $this->questions($contentIdx, 'theory_quiz');
+        $qs = $this->questionsForSection($sec, $contentIdx);
         $p = $this->learner()->progressFor($mid);
-        $attemptsBefore = (int) $p->theory_quiz_attempts;
+        $quizSt = SectionProgress::quizState($p, $sec, $sole);
+        $attemptsBefore = (int) ($quizSt['attempts'] ?? 0);
         $attemptNo = $attemptsBefore + 1;
         $penalty = $courseId > 0
-            ? $this->sectionService->theoryQuizPenaltyForAttempt($mid, $attemptNo)
+            ? $this->sectionService->theoryQuizPenaltyForAttemptForSection($sec, $attemptNo)
             : ($attemptsBefore >= 1 ? CourseScoringService::THEORY_QUIZ_RETAKE_PENALTY_POINTS : 0);
         $threshold = $courseId > 0
-            ? $this->sectionService->passPercentForQuiz($mid)
+            ? $this->sectionService->passPercentForSection($sec)
             : CourseScoringService::PASS_THRESHOLD;
 
         $breakdown = $this->scoreTheoryQuizBreakdown($qs, $request, 'q');
         $rawPercent = $breakdown['raw_percent'];
         $finalPercent = max(0, $rawPercent - $penalty);
 
-        $wallStart = session()->pull($this->theoryQuizWallStartKey((int) $learner->id, $mid));
+        $wallStart = session()->pull($this->theoryQuizWallStartKey((int) $learner->id, $mid, $sectionId));
         if ($wallStart !== null && is_numeric($wallStart)) {
             $cap = ($courseId > 0
-                ? $this->sectionService->theoryQuizTimeLimitMinutes($mid)
+                ? $this->sectionService->theoryQuizTimeLimitMinutesForSection($sec)
                 : CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES) * 60;
             $elapsed = min($cap, max(0, now()->getTimestamp() - (int) $wallStart));
             if ($elapsed > 0) {
@@ -863,11 +1101,12 @@ class ModuleController extends Controller
         }
 
         $breakdownMinutes = $courseId > 0
-            ? $this->sectionService->theoryQuizBreakdownVisibleMinutes($mid)
+            ? $this->sectionService->theoryQuizBreakdownVisibleMinutesForSection($sec)
             : CourseScoringService::THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES;
 
         $payload = [
             'module' => $mid,
+            'section_id' => $sectionId,
             'raw_percent' => $rawPercent,
             'penalty_points' => $penalty,
             'final_percent' => $finalPercent,
@@ -879,23 +1118,25 @@ class ModuleController extends Controller
             'items' => $breakdown['items'],
             'breakdown_visible_until' => now()->addMinutes($breakdownMinutes)->getTimestamp(),
             'recorded_at' => now()->toIso8601String(),
-            'attempt_no' => $attemptsBefore + 1,
+            'attempt_no' => $attemptNo,
         ];
 
-        $p->theory_quiz_last_result = $payload;
-        $hist = $p->theory_quiz_history ?? [];
+        $hist = $quizSt['history'] ?? [];
         $hist[] = $payload;
-        $p->theory_quiz_history = $hist;
-        $p->theory_quiz_attempts = $attemptsBefore + 1;
-        $p->theory_quiz_best_score = max((int) $p->theory_quiz_best_score, $finalPercent);
-        if ($finalPercent >= $threshold) {
-            $p->theory_quiz_passed = true;
-        }
+        SectionProgress::saveQuizState($p, $sec, $sole, [
+            'last_result' => $payload,
+            'history' => $hist,
+            'attempts' => $attemptNo,
+            'best_score' => max((int) ($quizSt['best_score'] ?? 0), $finalPercent),
+            'passed' => ($quizSt['passed'] ?? false) || $finalPercent >= $threshold,
+        ]);
         $p->save();
         session()->forget($deadlineKey);
 
-        return redirect()->route('course.module.theory-quiz.result', LearnerRoute::hub($courseId, $ctx['moduleSequence']))
-            ->with('theory_quiz_result', $payload);
+        $resultKey = $this->theoryQuizResultSessionKey($sectionId);
+
+        return redirect()->route('course.module.section.theory-quiz.result', $this->sectionRouteParams($ctx))
+            ->with($resultKey, $payload);
     }
 
     public function practiceShow(Request $request): View|RedirectResponse
@@ -986,62 +1227,71 @@ class ModuleController extends Controller
 
     public function examShow(Request $request): View|RedirectResponse
     {
-        $ctx = $this->routeContext($request);
+        $ctx = $this->assessmentSectionContext($request, CourseSection::TYPE_EXAM);
+        if ($ctx instanceof RedirectResponse) {
+            return $ctx;
+        }
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
         $moduleSequence = $ctx['moduleSequence'];
         $courseId = $ctx['courseId'];
+        $sec = $ctx['section'];
+        $sole = $ctx['sole'];
         $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $mid)) {
             return $r;
         }
+        if ($r = $this->accessGate->redirectIfSectionHidden($learner, (int) $sec->id, $mid)) {
+            return $r;
+        }
         if ($r = $this->accessGate->redirectIfExamPrerequisitesMissing($learner, $mid)) {
             return $r;
         }
-        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, 'module_exam')) {
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, $sec->backendStepKey())) {
             return $r;
         }
         $p = $learner->progressFor($mid);
+        $quizSt = SectionProgress::quizState($p, $sec, $sole);
         $maxAttempts = $courseId > 0
-            ? $this->sectionService->examMaxAttempts($mid)
+            ? $this->sectionService->examMaxAttemptsForSection($sec)
             : CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS;
         $passTh = $courseId > 0
-            ? $this->sectionService->passPercentForExam($mid)
+            ? $this->sectionService->passPercentForSection($sec)
             : CourseScoringService::PASS_THRESHOLD;
         $retakePen = $courseId > 0
-            ? $this->sectionService->examPenaltyForAttempt($mid, 2)
+            ? $this->sectionService->examPenaltyForAttemptForSection($sec, 2)
             : CourseScoringService::MODULE_EXAM_RETAKE_PENALTY_POINTS;
-        $qs = $this->questions($contentIdx, 'module_exam');
+        $qs = $this->questionsForSection($sec, $contentIdx);
         if (count($qs) === 0) {
             return redirect()->to($this->hubUrl($ctx))->with('err', 'Итоговый тест для этого модуля не настроен.');
         }
         $previewWalkthrough = $this->staffPreviewWalkthrough();
-        if (! $previewWalkthrough && (int) $p->module_exam_attempts >= $maxAttempts) {
-            return redirect()->route('course.module.exam.result', LearnerRoute::hub($courseId, $moduleSequence))->with(
+        if (! $previewWalkthrough && (int) ($quizSt['attempts'] ?? 0) >= $maxAttempts) {
+            return redirect()->route('course.module.section.exam.result', $this->sectionRouteParams($ctx))->with(
                 'err',
                 'Исчерпаны все попытки итогового теста ('.$maxAttempts.'). Ниже сохранённый результат.'
             );
         }
 
-        $attemptNo = (int) $p->module_exam_attempts + 1;
-        $deadline = $p->module_exam_deadline_at;
-        $deadlineFor = $p->module_exam_deadline_for_attempt;
+        $attemptNo = (int) ($quizSt['attempts'] ?? 0) + 1;
+        $deadlineInfo = SectionProgress::examDeadline($p, $sec, $sole);
+        $deadline = $deadlineInfo['deadline'];
+        $deadlineFor = $deadlineInfo['for_attempt'];
 
         $deadlineValidForAttempt = ! $previewWalkthrough
             && $deadline !== null
-            && $deadlineFor !== null
-            && (int) $deadlineFor === $attemptNo
+            && $deadlineFor > 0
+            && $deadlineFor === $attemptNo
             && $deadline->isFuture();
 
-        if (! $previewWalkthrough && $deadline !== null && $deadlineFor !== null && (int) $deadlineFor === $attemptNo && $deadline->isPast()) {
-            $p->module_exam_deadline_at = null;
-            $p->module_exam_deadline_for_attempt = null;
+        if (! $previewWalkthrough && $deadline !== null && $deadlineFor === $attemptNo && $deadline->isPast()) {
+            SectionProgress::clearExamDeadline($p, $sec, $sole);
             $p->save();
 
             return redirect()->to($this->hubUrl($ctx))->with(
                 'err',
-                'Отведённое на итоговый тест время ('.$this->moduleExamTimeLimitMinutes($cm).' мин.) истекло. Начните попытку снова.'
+                'Отведённое на итоговый тест время ('.$this->moduleExamTimeLimitMinutesForSection($sec, $cm).' мин.) истекло. Начните попытку снова.'
             );
         }
 
@@ -1054,98 +1304,124 @@ class ModuleController extends Controller
             'courseId' => $courseId,
             'module' => $moduleSequence,
             'moduleSequence' => $moduleSequence,
+            'section' => $sec,
+            'sectionSequence' => $ctx['sectionSequence'],
             'meta' => $this->courseModules->displayMeta($cm),
             'questions' => $qs,
             'progress' => $p,
+            'quizState' => $quizSt,
             'attemptNumber' => $attemptNo,
             'maxAttempts' => $maxAttempts,
             'retakePenalty' => $retakePen,
             'passThreshold' => $passTh,
-            'timeLimitMinutes' => $this->moduleExamTimeLimitMinutes($cm),
+            'timeLimitMinutes' => $this->moduleExamTimeLimitMinutesForSection($sec, $cm),
             'examActive' => $examActive,
             'expiresAtMs' => $expiresAtMs,
-            'needsRetakeAck' => ! $previewWalkthrough && (int) $p->module_exam_attempts >= 1,
-            'examOneByOne' => $courseId > 0 ? $this->sectionService->examOneByOne($mid) : true,
+            'needsRetakeAck' => ! $previewWalkthrough && (int) ($quizSt['attempts'] ?? 0) >= 1,
+            'examOneByOne' => $courseId > 0 ? $this->sectionService->examOneByOneForSection($sec) : true,
             'previewWalkthrough' => $previewWalkthrough,
         ]);
     }
 
     public function examStart(Request $request): RedirectResponse
     {
-        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.exam')) {
+        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.section.exam')) {
             return $r;
         }
-        $ctx = $this->routeContext($request);
+        $ctx = $this->assessmentSectionContext($request, CourseSection::TYPE_EXAM);
+        if ($ctx instanceof RedirectResponse) {
+            return $ctx;
+        }
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
         $courseId = $ctx['courseId'];
-        $moduleSequence = $ctx['moduleSequence'];
+        $sec = $ctx['section'];
+        $sole = $ctx['sole'];
         $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $mid)) {
             return $r;
         }
+        if ($r = $this->accessGate->redirectIfSectionHidden($learner, (int) $sec->id, $mid)) {
+            return $r;
+        }
         if ($r = $this->accessGate->redirectIfExamPrerequisitesMissing($learner, $mid)) {
             return $r;
         }
-        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, 'module_exam')) {
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, $sec->backendStepKey())) {
             return $r;
         }
         $p = $learner->progressFor($mid);
+        $quizSt = SectionProgress::quizState($p, $sec, $sole);
         $maxAttempts = $courseId > 0
-            ? $this->sectionService->examMaxAttempts($mid)
+            ? $this->sectionService->examMaxAttemptsForSection($sec)
             : CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS;
-        $qs = $this->questions($contentIdx, 'module_exam');
+        $qs = $this->questionsForSection($sec, $contentIdx);
         if (count($qs) === 0) {
             return redirect()->to($this->hubUrl($ctx))->with('err', 'Итоговый тест для этого модуля не настроен.');
         }
-        if ((int) $p->module_exam_attempts >= $maxAttempts) {
-            return redirect()->route('course.module.exam.result', LearnerRoute::hub($courseId, $moduleSequence))->with(
+        if ((int) ($quizSt['attempts'] ?? 0) >= $maxAttempts) {
+            return redirect()->route('course.module.section.exam.result', $this->sectionRouteParams($ctx))->with(
                 'err',
                 'Исчерпаны все попытки итогового теста ('.$maxAttempts.').'
             );
         }
 
-        $attemptNo = (int) $p->module_exam_attempts + 1;
-        $deadline = $p->module_exam_deadline_at;
-        $deadlineFor = $p->module_exam_deadline_for_attempt;
+        $attemptNo = (int) ($quizSt['attempts'] ?? 0) + 1;
+        $deadlineInfo = SectionProgress::examDeadline($p, $sec, $sole);
+        $deadline = $deadlineInfo['deadline'];
+        $deadlineFor = $deadlineInfo['for_attempt'];
         $alreadyActive = $deadline !== null
-            && $deadlineFor !== null
-            && (int) $deadlineFor === $attemptNo
+            && $deadlineFor === $attemptNo
             && $deadline->isFuture();
 
         if ($alreadyActive) {
-            return redirect()->route('course.module.exam', LearnerRoute::hub($courseId, $moduleSequence));
+            return redirect()->route('course.module.section.exam', $this->sectionRouteParams($ctx));
         }
 
-        $p->module_exam_deadline_at = now()->addMinutes($this->moduleExamTimeLimitMinutes($cm));
-        $p->module_exam_deadline_for_attempt = $attemptNo;
+        SectionProgress::setExamDeadline(
+            $p,
+            $sec,
+            $sole,
+            now()->addMinutes($this->moduleExamTimeLimitMinutesForSection($sec, $cm)),
+            $attemptNo,
+        );
         $p->save();
 
-        return redirect()->route('course.module.exam', LearnerRoute::hub($courseId, $moduleSequence));
+        return redirect()->route('course.module.section.exam', $this->sectionRouteParams($ctx));
     }
 
     public function examResult(Request $request): View|RedirectResponse
     {
-        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.exam')) {
+        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.section.exam')) {
             return $r;
         }
-        $ctx = $this->routeContext($request);
+        $ctx = $this->assessmentSectionContext($request, CourseSection::TYPE_EXAM);
+        if ($ctx instanceof RedirectResponse) {
+            return $ctx;
+        }
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
         $moduleSequence = $ctx['moduleSequence'];
         $courseId = $ctx['courseId'];
+        $sec = $ctx['section'];
+        $sole = $ctx['sole'];
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $mid)) {
             return $r;
         }
+        if ($r = $this->accessGate->redirectIfSectionHidden($learner, (int) $sec->id, $mid)) {
+            return $r;
+        }
         $p = $learner->progressFor($mid);
-        $data = session('module_exam_result');
-        if (! is_array($data)) {
-            $data = $p->module_exam_last_result;
+        $resultKey = $this->moduleExamResultSessionKey((int) $sec->id);
+        $data = session($resultKey);
+        if (! is_array($data) || (int) ($data['section_id'] ?? 0) !== (int) $sec->id) {
+            $quizSt = SectionProgress::quizState($p, $sec, $sole);
+            $data = $quizSt['last_result'] ?? null;
         }
         if (empty($data) || ! is_array($data)) {
-            return redirect()->to($this->hubUrl($ctx))->with('err', 'Пока нет результата итогового теста. Пройдите тест с шага4.');
+            return redirect()->to($this->hubUrl($ctx))->with('err', 'Пока нет результата итогового теста. Пройдите тест с шага модуля.');
         }
 
         $breakdownView = $this->prepareLearnerQuizBreakdownView($data);
@@ -1154,6 +1430,8 @@ class ModuleController extends Controller
             'courseId' => $courseId,
             'module' => $moduleSequence,
             'moduleSequence' => $moduleSequence,
+            'section' => $sec,
+            'sectionSequence' => $ctx['sectionSequence'],
             'meta' => $this->courseModules->displayMeta($cm),
             'r' => $breakdownView['result'],
             'progress' => $p,
@@ -1166,49 +1444,56 @@ class ModuleController extends Controller
 
     public function examSubmit(Request $request): RedirectResponse
     {
-        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.exam')) {
+        if ($r = $this->redirectIfStaffPreviewAssessmentWrite($request, 'course.module.section.exam')) {
             return $r;
         }
-        $ctx = $this->routeContext($request);
+        $ctx = $this->assessmentSectionContext($request, CourseSection::TYPE_EXAM);
+        if ($ctx instanceof RedirectResponse) {
+            return $ctx;
+        }
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
         $courseId = $ctx['courseId'];
-        $moduleSequence = $ctx['moduleSequence'];
+        $sec = $ctx['section'];
+        $sole = $ctx['sole'];
         $contentIdx = $cm->effectiveContentIndex();
         $learner = $this->learner();
         if ($r = $this->accessGate->redirectIfModuleLocked($learner, $mid)) {
             return $r;
         }
+        if ($r = $this->accessGate->redirectIfSectionHidden($learner, (int) $sec->id, $mid)) {
+            return $r;
+        }
         if ($r = $this->accessGate->redirectIfExamPrerequisitesMissing($learner, $mid)) {
             return $r;
         }
-        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, 'module_exam')) {
+        if ($r = $this->accessGate->redirectIfStepBlocked($learner, $mid, $sec->backendStepKey())) {
             return $r;
         }
         $maxAttempts = $courseId > 0
-            ? $this->sectionService->examMaxAttempts($mid)
+            ? $this->sectionService->examMaxAttemptsForSection($sec)
             : CourseScoringService::MODULE_EXAM_MAX_ATTEMPTS;
         $passTh = $courseId > 0
-            ? $this->sectionService->passPercentForExam($mid)
+            ? $this->sectionService->passPercentForSection($sec)
             : CourseScoringService::PASS_THRESHOLD;
-        $qs = $this->questions($contentIdx, 'module_exam');
+        $qs = $this->questionsForSection($sec, $contentIdx);
         $p = $learner->progressFor($mid);
+        $quizSt = SectionProgress::quizState($p, $sec, $sole);
         if (count($qs) === 0) {
             return redirect()->to($this->hubUrl($ctx))->with('err', 'Тест не настроен.');
         }
-        if ((int) $p->module_exam_attempts >= $maxAttempts) {
-            return redirect()->route('course.module.exam.result', LearnerRoute::hub($courseId, $moduleSequence))->with('err', 'Попытки исчерпаны.');
+        if ((int) ($quizSt['attempts'] ?? 0) >= $maxAttempts) {
+            return redirect()->route('course.module.section.exam.result', $this->sectionRouteParams($ctx))->with('err', 'Попытки исчерпаны.');
         }
 
-        $attemptNo = (int) $p->module_exam_attempts + 1;
-        $deadline = $p->module_exam_deadline_at;
-        $deadlineFor = $p->module_exam_deadline_for_attempt;
+        $attemptNo = (int) ($quizSt['attempts'] ?? 0) + 1;
+        $deadlineInfo = SectionProgress::examDeadline($p, $sec, $sole);
+        $deadline = $deadlineInfo['deadline'];
+        $deadlineFor = $deadlineInfo['for_attempt'];
         if ($deadline === null
-            || $deadlineFor === null
-            || (int) $deadlineFor !== $attemptNo
+            || $deadlineFor !== $attemptNo
             || $deadline->isPast()) {
-            $p->module_exam_deadline_at = null;
-            $p->module_exam_deadline_for_attempt = null;
+            SectionProgress::clearExamDeadline($p, $sec, $sole);
             $p->save();
 
             return redirect()->to($this->hubUrl($ctx))->with(
@@ -1218,22 +1503,23 @@ class ModuleController extends Controller
         }
 
         $breakdown = $this->scoreModuleExamBreakdown($qs, $request);
-        $attemptAfter = (int) $p->module_exam_attempts + 1;
-        $examDeadline = $p->module_exam_deadline_at;
+        $attemptAfter = $attemptNo;
+        $examDeadline = $deadline;
         $raw = $breakdown['raw_percent'];
         $penaltyPts = $courseId > 0
-            ? $this->sectionService->examPenaltyForAttempt($mid, $attemptAfter)
+            ? $this->sectionService->examPenaltyForAttemptForSection($sec, $attemptAfter)
             : ($attemptAfter >= 2 ? CourseScoringService::MODULE_EXAM_RETAKE_PENALTY_POINTS : 0);
         $penaltyApplied = $attemptAfter >= 2 && $penaltyPts > 0;
         $final = $penaltyPts > 0
             ? max(0, $raw - $penaltyPts)
             : $raw;
-        $wasPassed = $p->module_exam_passed;
+        $wasPassed = (bool) ($quizSt['passed'] ?? false);
         $passedThisAttempt = $final >= $passTh;
         $modulePassed = $wasPassed || $passedThisAttempt;
 
         $payload = [
             'module' => $mid,
+            'section_id' => (int) $sec->id,
             'raw_percent' => $raw,
             'final_percent' => $final,
             'passed' => $modulePassed,
@@ -1250,22 +1536,23 @@ class ModuleController extends Controller
             'earned_points' => $breakdown['earned_points'] ?? null,
             'breakdown_visible_until' => now()->addMinutes(
                 $courseId > 0
-                    ? $this->sectionService->examBreakdownVisibleMinutes($mid)
+                    ? $this->sectionService->examBreakdownVisibleMinutesForSection($sec)
                     : CourseScoringService::MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES
             )->getTimestamp(),
             'recorded_at' => now()->toIso8601String(),
         ];
 
-        $p->module_exam_attempts = $attemptAfter;
-        // Итог для зачёта и UI — только последняя завершённая попытка (пересдача заменяет предыдущий %, без max с прошлым).
-        $p->module_exam_best_score = (int) $final;
-        $p->module_exam_passed = $modulePassed;
-        $p->module_exam_last_result = $payload;
-        $examHist = $p->module_exam_history ?? [];
+        $examHist = $quizSt['history'] ?? [];
         $examHist[] = $payload;
-        $p->module_exam_history = $examHist;
+        SectionProgress::saveQuizState($p, $sec, $sole, [
+            'attempts' => $attemptAfter,
+            'best_score' => (int) $final,
+            'passed' => $modulePassed,
+            'last_result' => $payload,
+            'history' => $examHist,
+        ]);
         if ($examDeadline !== null) {
-            $lim = $this->moduleExamTimeLimitMinutes($cm);
+            $lim = $this->moduleExamTimeLimitMinutesForSection($sec, $cm);
             $start = $examDeadline->copy()->subMinutes($lim);
             $cap = $lim * 60;
             $elapsed = min($cap, max(0, now()->diffInSeconds($start)));
@@ -1276,12 +1563,13 @@ class ModuleController extends Controller
         if ($modulePassed && $p->module_cleared_at === null && Schema::hasColumn('module_progress', 'module_cleared_at')) {
             $p->module_cleared_at = now();
         }
-        $p->module_exam_deadline_at = null;
-        $p->module_exam_deadline_for_attempt = null;
+        SectionProgress::clearExamDeadline($p, $sec, $sole);
         $p->save();
 
-        return redirect()->route('course.module.exam.result', LearnerRoute::hub($courseId, $moduleSequence))
-            ->with('module_exam_result', $payload);
+        $resultKey = $this->moduleExamResultSessionKey((int) $sec->id);
+
+        return redirect()->route('course.module.section.exam.result', $this->sectionRouteParams($ctx))
+            ->with($resultKey, $payload);
     }
 
     private function practiceSegmentSessionKey(int $courseModuleId): string

@@ -736,18 +736,35 @@ final class AdminCourseSettingsController extends Controller
         $contentSvc = app(CourseContentService::class);
         $contentRowExists = Schema::hasTable('course_module_contents')
             && CourseModuleContent::query()->where('course_module_id', $courseModule->id)->exists();
+        if (! $contentRowExists && Schema::hasTable('course_section_contents')) {
+            $contentRowExists = \App\Models\CourseSectionContent::query()
+                ->where('course_section_id', $section->id)
+                ->exists();
+        }
 
         $theoryMd = '';
         $practiceMd = '';
-        if (Schema::hasTable('course_module_contents')) {
+        if (in_array($section->type, [CourseSection::TYPE_TEXT, CourseSection::TYPE_PRACTICE], true)
+            && (Schema::hasTable('course_section_contents') || Schema::hasTable('course_module_contents'))) {
+            $md = $contentSvc->markdownForSection($section);
+            if ($section->type === CourseSection::TYPE_TEXT) {
+                $theoryMd = $md;
+            } else {
+                $practiceMd = $md;
+            }
+        } elseif (Schema::hasTable('course_module_contents')) {
             $c = $contentSvc->contentForModule($courseModule);
             $theoryMd = (string) ($c['theory_markdown'] ?? '');
             $practiceMd = (string) ($c['practice_markdown'] ?? '');
         }
         if ($isLegacy && ! $contentRowExists) {
             $meta = CourseModuleMeta::resolved($courseModule->effectiveContentIndex());
-            $theoryMd = (string) ($meta['theory'] ?? '');
-            $practiceMd = (string) ($meta['practice'] ?? '');
+            if ($section->type === CourseSection::TYPE_TEXT && $theoryMd === '') {
+                $theoryMd = (string) ($meta['theory'] ?? '');
+            }
+            if ($section->type === CourseSection::TYPE_PRACTICE && $practiceMd === '') {
+                $practiceMd = (string) ($meta['practice'] ?? '');
+            }
         }
 
         $questions = [];
@@ -1012,7 +1029,16 @@ final class AdminCourseSettingsController extends Controller
                     ['settings' => $merged]
                 );
 
-                if (Schema::hasTable('course_module_contents')) {
+                if (Schema::hasTable('course_section_contents')
+                    && ($section->type === CourseSection::TYPE_TEXT || $section->type === CourseSection::TYPE_PRACTICE)) {
+                    $contentSvc = app(CourseContentService::class);
+                    if ($section->type === CourseSection::TYPE_TEXT && array_key_exists('theory_markdown', $payload)) {
+                        $contentSvc->upsertMarkdownForSection($section, (string) $p['theory_markdown']);
+                    }
+                    if ($section->type === CourseSection::TYPE_PRACTICE && array_key_exists('practice_markdown', $payload)) {
+                        $contentSvc->upsertMarkdownForSection($section, (string) $p['practice_markdown']);
+                    }
+                } elseif (Schema::hasTable('course_module_contents')) {
                     $contentSvc = app(CourseContentService::class);
                     $row = $contentSvc->contentForModule($courseModule);
                     $t = (string) ($row['theory_markdown'] ?? '');

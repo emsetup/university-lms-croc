@@ -57,6 +57,11 @@ final class CourseSection extends Model
         return $this->hasOne(CourseSectionSetting::class, 'course_section_id');
     }
 
+    public function sectionContent(): HasOne
+    {
+        return $this->hasOne(CourseSectionContent::class, 'course_section_id');
+    }
+
     /** Уникальный ключ этапа в порядке модуля (один раздел — один ключ). */
     public function backendStepKey(): string
     {
@@ -98,10 +103,10 @@ final class CourseSection extends Model
     public function learnerRouteName(): ?string
     {
         return match ($this->type) {
-            self::TYPE_TEXT => 'course.module.theory',
-            self::TYPE_QUIZ => 'course.module.theory-quiz',
+            self::TYPE_TEXT => 'course.module.section.theory',
+            self::TYPE_QUIZ => 'course.module.section.theory-quiz',
             self::TYPE_PRACTICE => 'course.module.practice',
-            self::TYPE_EXAM => 'course.module.exam',
+            self::TYPE_EXAM => 'course.module.section.exam',
             self::TYPE_SURVEY => 'course.module.section.survey',
             default => null,
         };
@@ -112,7 +117,7 @@ final class CourseSection extends Model
      */
     public function learnerRouteParams(int $courseId, int $moduleSequence, ?int $sectionSequence = null): array
     {
-        if ($this->type === self::TYPE_SURVEY) {
+        if (in_array($this->type, [self::TYPE_TEXT, self::TYPE_QUIZ, self::TYPE_EXAM, self::TYPE_SURVEY], true)) {
             $sectionSequence ??= app(\App\Services\CourseSectionService::class)->sequenceForSection($this);
 
             return \App\Support\LearnerRoute::section($courseId, $moduleSequence, $sectionSequence);

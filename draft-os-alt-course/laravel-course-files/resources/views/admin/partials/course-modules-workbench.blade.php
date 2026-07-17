@@ -134,7 +134,7 @@
                                         data-audience-search-url="{{ $learnerSearchUrl }}"
                                         data-audience-resolve-url="{{ $learnerResolveUrl }}"
                                         aria-label="Доступ">
-                                    @include('partials.ap-icon', ['name' => 'users', 'size' => 'md'])
+                                    @include('partials.ap-icon', ['name' => 'lock', 'size' => 'md'])
                                 </button>
                                 <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn" title="Настройки модуля" data-ap-open-module-settings aria-label="Настройки">
                                     @include('partials.ap-icon', ['name' => 'cog', 'size' => 'md'])
@@ -198,7 +198,7 @@
                                                 data-audience-search-url="{{ $learnerSearchUrl }}"
                                         data-audience-resolve-url="{{ $learnerResolveUrl }}"
                                                 aria-label="Доступ">
-                                            @include('partials.ap-icon', ['name' => 'eye', 'size' => 'sm'])
+                                            @include('partials.ap-icon', ['name' => 'lock', 'size' => 'sm'])
                                         </button>
                                         <button type="button" class="btn btn-ghost btn-sm ap-mod-icon-btn" title="Редактировать раздел" data-ap-open-section-panel
                                             data-ap-panel-data-url="{{ route('admin.course.section.panel.data', array_merge($rp, ['courseModule' => $m->id, 'section' => $sec->id])) }}"><span class="ap-mod-icon-btn__ic" aria-hidden="true">@include('partials.ap-icon', ['name' => 'chevron-right', 'size' => 'sm'])</span></button>

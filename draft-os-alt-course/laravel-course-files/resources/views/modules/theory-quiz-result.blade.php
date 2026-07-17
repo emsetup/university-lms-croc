@@ -7,13 +7,16 @@
     @php
         $modNum = (int) ($moduleSequence ?? $module);
         $lr = \App\Support\LearnerRoute::hub((int) ($courseId ?? session('course_id')), $modNum);
+        $sectionTitle = isset($section) && (string) $section->title !== ''
+            ? (string) $section->title
+            : 'тест по теории';
     @endphp
     <a class="back-link" href="{{ route('course.module.hub', $lr) }}">
         @include('partials.ap-icon', ['name' => 'arrow-left'])
         <span>К шагам модуля</span>
     </a>
     <div class="card">
-        <h1 style="margin-top:0">Модуль {{ $modNum }}: тест по теории</h1>
+        <h1 style="margin-top:0">Модуль {{ $modNum }}: {{ $sectionTitle }}</h1>
         <p>Итог: <strong>{{ $result['final_percent'] ?? '—' }}%</strong>
             (порог {{ $result['threshold'] ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%)
             @if (!empty($result['passed']))

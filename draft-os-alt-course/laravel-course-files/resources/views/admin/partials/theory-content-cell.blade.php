@@ -42,7 +42,7 @@
                                     'previewLabel' => 'В курсе',
                                     'previewClass' => 'btn btn-secondary btn-sm',
                                     'previewShowIcon' => true,
-                                    'previewIcon' => 'external-link',
+                                    'previewIcon' => 'eye',
                                 ])
                             @endif
                         </div>
@@ -111,7 +111,7 @@
                             'previewLabel' => 'В курсе',
                             'previewClass' => 'btn btn-secondary btn-sm',
                             'previewShowIcon' => true,
-                            'previewIcon' => 'external-link',
+                            'previewIcon' => 'eye',
                         ])
                     @endif
                     @if ($statsUrl)

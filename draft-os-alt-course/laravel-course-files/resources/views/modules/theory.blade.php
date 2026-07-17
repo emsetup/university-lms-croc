@@ -4,7 +4,11 @@
     $st = config('course.step_titles', []);
     $tTheory = $st['theory'] ?? 'Теория';
     $modNum = (int) ($moduleSequence ?? $module);
+    $sectionTitle = (string) ($meta['section_title'] ?? $tTheory);
     $lr = \App\Support\LearnerRoute::hub((int) ($courseId ?? session('course_id')), $modNum);
+    $sr = isset($sectionSequence)
+        ? \App\Support\LearnerRoute::section((int) ($courseId ?? session('course_id')), $modNum, (int) $sectionSequence)
+        : $lr;
 @endphp
 
 @section('title', 'Модуль '.$modNum.': '.($meta['title'] ?? $tTheory))
@@ -19,7 +23,7 @@
         <header class="card module-step-header">
             <div class="tag module-step-header__badge">Модуль {{ $modNum }}@if (! empty($meta['letter'])) · {{ $meta['letter'] }}@endif</div>
             <h1 class="module-step-page-title">Модуль {{ $modNum }}: {{ $meta['title'] ?? 'Без названия' }}</h1>
-            <p class="muted module-step-header__step">{{ $tTheory }}</p>
+            <p class="muted module-step-header__step">{{ $sectionTitle }}</p>
         </header>
 
         @php
@@ -72,7 +76,7 @@
             })();
         </script>
 
-        <form method="post" action="{{ route('course.module.theory.read', $lr) }}" style="margin-top: 1.5rem">
+        <form method="post" action="{{ route('course.module.section.theory.read', $sr) }}" style="margin-top: 1.5rem">
             @csrf
             <button type="submit" class="btn btn-primary">Отметить теорию как просмотренную</button>
         </form>

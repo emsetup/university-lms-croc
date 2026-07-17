@@ -191,4 +191,56 @@ final class SectionProgress
 
         return self::isPracticeDone($p, $section, false) ? 100 : 0;
     }
+
+    /**
+     * @return array{deadline: ?\Carbon\CarbonInterface, for_attempt: int}
+     */
+    public static function examDeadline(ModuleProgress $p, CourseSection $section, bool $soleExamInModule): array
+    {
+        $st = self::stateFor($p, (int) $section->id);
+        if (! empty($st['exam_deadline_at'])) {
+            try {
+                $deadline = \Carbon\Carbon::parse((string) $st['exam_deadline_at']);
+
+                return [
+                    'deadline' => $deadline,
+                    'for_attempt' => (int) ($st['exam_deadline_for_attempt'] ?? 0),
+                ];
+            } catch (\Throwable) {
+                // fall through
+            }
+        }
+        if ($soleExamInModule && $section->type === CourseSection::TYPE_EXAM) {
+            return [
+                'deadline' => $p->module_exam_deadline_at,
+                'for_attempt' => (int) ($p->module_exam_deadline_for_attempt ?? 0),
+            ];
+        }
+
+        return ['deadline' => null, 'for_attempt' => 0];
+    }
+
+    public static function setExamDeadline(ModuleProgress $p, CourseSection $section, bool $soleExamInModule, \Carbon\CarbonInterface $deadline, int $forAttempt): void
+    {
+        self::mergeState($p, (int) $section->id, [
+            'exam_deadline_at' => $deadline->toIso8601String(),
+            'exam_deadline_for_attempt' => $forAttempt,
+        ]);
+        if ($soleExamInModule && $section->type === CourseSection::TYPE_EXAM) {
+            $p->module_exam_deadline_at = $deadline;
+            $p->module_exam_deadline_for_attempt = $forAttempt;
+        }
+    }
+
+    public static function clearExamDeadline(ModuleProgress $p, CourseSection $section, bool $soleExamInModule): void
+    {
+        self::mergeState($p, (int) $section->id, [
+            'exam_deadline_at' => null,
+            'exam_deadline_for_attempt' => null,
+        ]);
+        if ($soleExamInModule && $section->type === CourseSection::TYPE_EXAM) {
+            $p->module_exam_deadline_at = null;
+            $p->module_exam_deadline_for_attempt = null;
+        }
+    }
 }
