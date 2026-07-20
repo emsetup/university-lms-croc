@@ -107,6 +107,20 @@ final class SurveyResponseService
                 }
                 continue;
             }
+            if ($type === 'multi_other') {
+                $sel = $request->input($key, []);
+                $other = trim((string) $request->input($key.'_other', ''));
+                $hasSel = is_array($sel) && $sel !== [];
+                if (! $hasSel && $other === '') {
+                    return ['ok' => false, 'message' => 'Ответьте на вопрос '.($i + 1).'.'];
+                }
+                $settings = is_array($qModel->settings_json) ? $qModel->settings_json : [];
+                $max = isset($settings['max_length']) ? (int) $settings['max_length'] : 8000;
+                if ($other !== '' && $max > 0 && mb_strlen($other) > $max) {
+                    return ['ok' => false, 'message' => 'Свой вариант в вопросе '.($i + 1).' слишком длинный (макс. '.$max.' символов).'];
+                }
+                continue;
+            }
             if ($type === 'multi') {
                 $sel = $request->input($key, []);
                 if (! is_array($sel) || $sel === []) {
@@ -161,6 +175,16 @@ final class SurveyResponseService
                     $rawOrder = (string) $request->input($key.'_order', '');
                     $parts = array_values(array_map('intval', array_filter(explode(',', $rawOrder), static fn ($v) => $v !== '')));
                     $answerJson = ['order' => $parts];
+                } elseif ($type === 'multi_other') {
+                    $sel = $request->input($key, []);
+                    $other = trim((string) $request->input($key.'_other', ''));
+                    $answerJson = [
+                        'indexes' => array_values(array_map('intval', is_array($sel) ? $sel : [])),
+                    ];
+                    if ($other !== '') {
+                        $answerJson['other'] = $other;
+                        $answerText = $other;
+                    }
                 } elseif ($type === 'multi') {
                     $sel = $request->input($key, []);
                     $answerJson = ['indexes' => array_values(array_map('intval', is_array($sel) ? $sel : []))];
@@ -241,14 +265,25 @@ final class SurveyResponseService
             return $parts !== [] ? implode('; ', $parts) : '—';
         }
         $opts = $qModel->options->pluck('option_text')->values()->all();
-        if ($type === 'multi') {
+        if ($type === 'multi' || $type === 'multi_other') {
             $idxs = is_array($json['indexes'] ?? null) ? $json['indexes'] : [];
             $picked = [];
             foreach ($idxs as $ix) {
                 $picked[] = (string) ($opts[(int) $ix] ?? '#'.(int) $ix);
             }
+            if ($type === 'multi') {
+                return $picked !== [] ? implode(', ', $picked) : '—';
+            }
+            $other = trim((string) ($json['other'] ?? $ans->answer_text ?? ''));
+            $parts = [];
+            if ($picked !== []) {
+                $parts[] = implode(', ', $picked);
+            }
+            if ($other !== '') {
+                $parts[] = 'свой вариант: '.$other;
+            }
 
-            return $picked !== [] ? implode(', ', $picked) : '—';
+            return $parts !== [] ? implode('; ', $parts) : '—';
         }
         $ix = (int) ($json['index'] ?? -1);
 

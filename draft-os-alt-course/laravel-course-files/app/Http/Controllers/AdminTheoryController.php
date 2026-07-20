@@ -11,6 +11,7 @@ use App\Services\CourseSectionService;
 use App\Services\PortalStaffAccess;
 use App\Services\PracticeLabDaemonClient;
 use App\Services\PracticeLabService;
+use App\Support\AdminContentMarkdown;
 use App\Support\AdminCourseContentInspector;
 use App\Support\AdminNavigation;
 use App\Support\CourseModuleMeta;
@@ -18,6 +19,7 @@ use App\Support\CourseTheoryPaths;
 use App\Support\PracticeHintMarkdown;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -176,6 +178,20 @@ class AdminTheoryController extends Controller
             'module' => $module,
             'meta' => $meta,
             'isReadOnly' => $this->isReadOnlyAccess($request),
+        ]);
+    }
+
+    /**
+     * Live-предпросмотр Markdown как у обучающегося (callouts, media, GFM).
+     */
+    public function previewMarkdown(Request $request, Course $adminCourse): JsonResponse
+    {
+        $data = $request->validate([
+            'markdown' => ['nullable', 'string', 'max:'.self::MAX_BYTES],
+        ]);
+
+        return response()->json([
+            'html' => AdminContentMarkdown::toHtml((string) ($data['markdown'] ?? '')),
         ]);
     }
 

@@ -12,6 +12,7 @@
         <p class="ap-muted">Модуль {{ $module->title }} · {{ $anonymous ? 'анонимный режим' : 'с привязкой к обучающимся' }}</p>
         <p>
             <a class="btn btn-primary" href="{{ route('admin.course.module.section.survey-responses.export', array_merge($tp, ['courseModule' => $module->id, 'section' => $section->id])) }}">Скачать CSV</a>
+            <a class="btn btn-ghost" href="{{ route('admin.course.module.section.participants', array_merge($tp, ['courseModule' => $module->id, 'section' => $section->id])) }}">Участники</a>
         </p>
         @if (count($rows) === 0)
             <p class="ap-muted">Пока нет отправленных ответов.</p>

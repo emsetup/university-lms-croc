@@ -32,4 +32,11 @@ final class LearnerContentVisibilityContractTest extends TestCase
         $this->assertSame('all', Course::VIEW_AUDIENCE_ALL);
         $this->assertSame('restricted', Course::VIEW_AUDIENCE_RESTRICTED);
     }
+
+    public function test_section_participants_status_constants(): void
+    {
+        $this->assertSame('completed', \App\Services\SectionParticipantsAnalyticsService::STATUS_COMPLETED);
+        $this->assertSame('attempted', \App\Services\SectionParticipantsAnalyticsService::STATUS_ATTEMPTED);
+        $this->assertSame('pending', \App\Services\SectionParticipantsAnalyticsService::STATUS_PENDING);
+    }
 }

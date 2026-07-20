@@ -122,6 +122,16 @@
                                     'previewShowIcon' => true,
                                 ])
                             @endif
+                            @if ($canEditCourseMeta)
+                                <button type="button"
+                                        class="btn btn-ghost btn-sm ap-mod-icon-btn"
+                                        title="Поделиться модулем"
+                                        data-ap-share-link
+                                        data-ap-share-meta-url="{{ route('admin.course.share-link.meta', array_merge($rp, ['type' => 'module', 'id' => $m->id])) }}"
+                                        aria-label="Поделиться">
+                                    @include('partials.ap-icon', ['name' => 'share', 'size' => 'md'])
+                                </button>
+                            @endif
                             @if ($canEditCourseStructure || ($portalStaffAccess ?? null)?->canEditModuleContent((int) $m->id))
                                 <button type="button"
                                         class="btn btn-ghost btn-sm ap-mod-icon-btn"
@@ -187,6 +197,16 @@
                                         @if ($secAudience)<span class="ap-sec-row__audience" data-audience-badge-for="sec-{{ $sec->id }}">· {{ $secAudience }}</span>@endif
                                     </span>
                                     <div class="ap-sec-row__actions">
+                                        @if ($canEditCourseMeta)
+                                            <button type="button"
+                                                    class="btn btn-ghost btn-sm ap-mod-icon-btn"
+                                                    title="Поделиться разделом"
+                                                    data-ap-share-link
+                                                    data-ap-share-meta-url="{{ route('admin.course.share-link.meta', array_merge($rp, ['type' => $sec->type === 'survey' ? 'survey' : 'section', 'id' => $sec->id])) }}"
+                                                    aria-label="Поделиться">
+                                                @include('partials.ap-icon', ['name' => 'share', 'size' => 'sm'])
+                                            </button>
+                                        @endif
                                         <button type="button"
                                                 class="btn btn-ghost btn-sm ap-mod-icon-btn"
                                                 title="Доступ к разделу"
@@ -391,6 +411,10 @@
             <div class="ap-sec-edit-panel__head-row">
                 <span id="ap-sec-edit-panel-chip" class="ap-sec-edit-panel__chip">Теория</span>
                 <h2 id="ap-sec-edit-panel-heading" class="ap-sec-edit-panel__heading">Раздел</h2>
+                <button type="button" id="ap-sec-share-btn" class="btn btn-ghost btn-sm ap-sec-edit-panel__share" title="Поделиться" hidden>
+                    @include('partials.ap-icon', ['name' => 'share', 'size' => 'sm'])
+                    Поделиться
+                </button>
                 <button type="button" id="ap-sec-edit-panel-close" class="btn btn-ghost ap-sec-edit-panel__close" aria-label="Закрыть">@include('partials.ap-icon', ['name' => 'x', 'size' => 'sm'])</button>
             </div>
             <p id="ap-sec-edit-panel-sub" class="ap-sec-edit-panel__sub ap-muted"></p>
@@ -399,6 +423,7 @@
                 <button type="button" id="ap-sec-tab-content" class="ap-sec-edit-panel__tab is-active" role="tab" data-ap-sec-tab="content" aria-selected="true">Содержимое</button>
                 <button type="button" id="ap-sec-tab-settings" class="ap-sec-edit-panel__tab" role="tab" data-ap-sec-tab="settings" aria-selected="false">Настройки раздела</button>
                 <button type="button" id="ap-sec-tab-access" class="ap-sec-edit-panel__tab" role="tab" data-ap-sec-tab="access" aria-selected="false">Доступ</button>
+                <button type="button" id="ap-sec-tab-participants" class="ap-sec-edit-panel__tab" role="tab" data-ap-sec-tab="participants" aria-selected="false">Участники</button>
             </div>
         </header>
         <div id="ap-sec-panel-meta" class="panel-meta-info" hidden aria-live="polite"></div>
@@ -406,6 +431,20 @@
             <div id="ap-sec-edit-panel-pane-access" class="ap-sec-edit-panel__pane" hidden role="tabpanel">
                 <p class="ap-muted small ap-sec-access-hint">Ограничьте, кто из обучающихся увидит этот раздел. Для опросов удобно назначить конкретных людей.</p>
                 <div id="ap-sec-access-picker-root"></div>
+            </div>
+            <div id="ap-sec-edit-panel-pane-participants" class="ap-sec-edit-panel__pane" hidden role="tabpanel">
+                <div class="ap-sec-participants" id="ap-sec-participants-root">
+                    <p class="ap-muted small" id="ap-sec-participants-hint">Кто имеет доступ к разделу и кто уже прошёл его.</p>
+                    <p class="ap-sec-participants__actions">
+                        <a class="btn btn-ghost btn-sm" href="#" id="ap-sec-participants-page-link" target="_blank" rel="noopener">Открыть на странице</a>
+                        <a class="btn btn-ghost btn-sm" href="#" id="ap-sec-participants-csv-link" target="_blank" rel="noopener" hidden>Сводная / CSV</a>
+                    </p>
+                    <div id="ap-sec-participants-counters" class="ap-sec-participants__counters" hidden></div>
+                    <div id="ap-sec-participants-list" class="ap-sec-participants__list">
+                        <p class="ap-muted">Откройте вкладку, чтобы загрузить список.</p>
+                    </div>
+                    <div id="ap-sec-participants-detail" class="ap-sec-participants__detail" hidden></div>
+                </div>
             </div>
             <div id="ap-sec-edit-panel-pane-settings" class="ap-sec-edit-panel__pane" hidden role="tabpanel">
                 <label class="ap-settings-label" for="ap-sec-set-title">Название</label>
@@ -460,20 +499,9 @@
                         </label>
                     </div>
                     <p class="ap-muted small">Если выключено — опрос необязателен для прогресса по модулю. Быстрая ссылка всё равно открывает опрос без прохождения курса.</p>
-                    <div id="ap-sec-quick-link-wrap" class="ap-sec-quick-link" hidden>
-                        <span class="ap-settings-label">Быстрая ссылка</span>
-                        <p class="ap-muted small">Сотрудник открывает ссылку → вход → опрос → «Спасибо», без хаба модуля. Доступ только авторизованным.</p>
-                        <div id="ap-sec-quick-link-active" class="ap-sec-quick-link__active" hidden>
-                            <input type="text" class="ap-modal__input ap-sec-quick-link__url" id="ap-sec-quick-link-url" readonly>
-                            <div class="ap-sec-quick-link__actions">
-                                <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-quick-link-copy">Копировать</button>
-                                <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-quick-link-regen">Новая ссылка</button>
-                                <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-quick-link-off">Отключить</button>
-                            </div>
-                        </div>
-                        <button type="button" class="btn btn-primary btn-sm" id="ap-sec-quick-link-gen" hidden>Создать быструю ссылку</button>
-                    </div>
+                    <p class="ap-muted small" id="ap-sec-share-hint" hidden>Чтобы поделиться разделом — кнопка <strong>Поделиться</strong> в шапке панели.</p>
                     <p class="ap-muted small" id="ap-sec-survey-responses-link-wrap" hidden><a href="#" id="ap-sec-survey-responses-link" target="_blank" rel="noopener">Ответы опроса и выгрузка CSV</a></p>
+                    <p class="ap-muted small" id="ap-sec-participants-settings-link-wrap" hidden><a href="#" id="ap-sec-participants-settings-link" target="_blank" rel="noopener">Участники раздела</a></p>
                 </div>
             </div>
             <div id="ap-sec-edit-panel-pane-questions" class="ap-sec-edit-panel__pane ap-sec-edit-panel__pane--questions" hidden role="tabpanel">
@@ -509,6 +537,7 @@
                                     <option value="multi">Несколько ответов</option>
                                     <option value="match">Сопоставление (drag)</option>
                                     <option value="open_text" id="ap-sec-q-type-open">Открытый ответ</option>
+                                    <option value="multi_other" id="ap-sec-q-type-mixed">Смешанный</option>
                                 </select>
                                 <label class="ap-settings-label" id="ap-sec-q-points-label" for="ap-sec-q-points" hidden>Баллы (points)</label>
                                 <input id="ap-sec-q-points" class="ap-modal__input" type="number" min="0" step="1" placeholder="например, 5" hidden>
@@ -528,9 +557,9 @@
                                     <div id="ap-sec-q-answers" class="answer-list"></div>
                                 </div>
                                 <div id="ap-sec-q-open-wrap" hidden>
-                                    <label class="ap-settings-label" for="ap-sec-q-placeholder">Подсказка в поле</label>
+                                    <label class="ap-settings-label" for="ap-sec-q-placeholder">Подсказка в поле «Свой вариант» / открытый ответ</label>
                                     <input id="ap-sec-q-placeholder" class="ap-modal__input" type="text" maxlength="200" placeholder="Например: Опишите кратко…">
-                                    <label class="ap-settings-label" for="ap-sec-q-maxlen">Макс. длина ответа</label>
+                                    <label class="ap-settings-label" for="ap-sec-q-maxlen">Макс. длина своего / открытого ответа</label>
                                     <input id="ap-sec-q-maxlen" class="ap-modal__input" type="number" min="1" max="50000" placeholder="8000">
                                 </div>
                                 <div id="ap-sec-q-match-wrap" hidden>
@@ -555,6 +584,7 @@
                                             <option value="multi">Несколько ответов</option>
                                             <option value="match">Сопоставление</option>
                                             <option value="open_text" id="ap-new-q-type-open">Открытый ответ</option>
+                                            <option value="multi_other" id="ap-new-q-type-mixed">Смешанный</option>
                                         </select>
                                     </div>
                                     <button type="button" class="btn btn-primary btn-sm" id="ap-new-q-submit">Добавить в список</button>
@@ -582,17 +612,7 @@
             <div id="ap-sec-edit-panel-pane-content" class="ap-sec-edit-panel__pane" role="tabpanel">
                 <div id="ap-sec-edit-legacy" class="ap-sec-edit-panel__legacy ap-muted" hidden>Курс в legacy-режиме: откройте классические редакторы через «Содержимое».</div>
                 <div id="ap-sec-edit-content-theory" hidden>
-                    <div class="ap-sec-edit-toolbar" role="toolbar" aria-label="Форматирование">
-                        <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="bold"><strong>B</strong></button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="italic"><em>I</em></button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="h2">H2</button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="h3">H3</button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="code">Code</button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-ap-theory-cmd="link">Link</button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-ap-media-insert-target="ap-sec-theory-md" title="Вставить картинку" aria-label="Вставить картинку">
-                            <span class="ap-media-insert-btn__inner">@include('partials.icons.media-image')</span>
-                        </button>
-                    </div>
+                    <p class="cmde-editor-hint">Плашки: <strong>Важно</strong>, <strong>Подсказка</strong>, <strong>Примечание</strong>, <strong>Зачем</strong> — или <code>&gt; **Важно:** …</code>. Preview — как у обучающегося.</p>
                     <textarea id="ap-sec-theory-md" class="ap-modal__input ap-settings-textarea ap-sec-edit-panel__editor" rows="14"></textarea>
                     <div class="ap-sec-edit-panel__theory-foot">
                         <span id="ap-sec-theory-chars" class="ap-muted small">0 символов</span>
@@ -601,11 +621,7 @@
                 </div>
                 <div id="ap-sec-edit-content-practice" hidden>
                     <h3 class="ap-sec-edit-panel__h3">Задание</h3>
-                    <div class="ap-sec-edit-toolbar" role="toolbar" aria-label="Форматирование практики" style="margin-bottom:0.35rem">
-                        <button type="button" class="btn btn-ghost btn-sm" data-ap-media-insert-target="ap-sec-practice-md" title="Вставить картинку" aria-label="Вставить картинку">
-                            <span class="ap-media-insert-btn__inner">@include('partials.icons.media-image')<span>Картинка</span></span>
-                        </button>
-                    </div>
+                    <p class="cmde-editor-hint">Плашки, таблицы и картинки — кнопки панели редактора.</p>
                     <textarea id="ap-sec-practice-md" class="ap-modal__input ap-settings-textarea" rows="8"></textarea>
                     <h3 class="ap-sec-edit-panel__h3">Docker-образ</h3>
                     <div id="ap-sec-docker-bound" class="ap-sec-docker-card" hidden>
@@ -645,6 +661,10 @@
 
 @include('admin.partials.content-audience-modal', ['learnerSearchUrl' => $learnerSearchUrl])
 
+@include('partials.course-markdown-editor-assets', [
+    'cmdeCourseId' => $courseIdWorkbench,
+    'ap' => $rp,
+])
 <script src="{{ asset('js/content-audience-picker.js') }}"></script>
 <script src="{{ asset('js/admin-content-visibility.js') }}"></script>
 <script src="{{ asset('js/section-edit-panel.js') }}"></script>

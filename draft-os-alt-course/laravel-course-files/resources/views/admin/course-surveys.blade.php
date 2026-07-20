@@ -88,6 +88,10 @@
                             </div>
                         @endif
                         <div class="ap-surveys-detail__export">
+                            <a class="btn btn-ghost btn-sm"
+                               href="{{ route('admin.course.module.section.participants', array_merge($tp, ['courseModule' => $selectedMeta['module_id'], 'section' => $selectedSection->id])) }}">
+                                Участники
+                            </a>
                             <a class="btn btn-primary btn-sm"
                                href="{{ route('admin.course.surveys.export.wide', array_merge($tp, ['section' => $selectedSection->id])) }}">
                                 Excel: сводная

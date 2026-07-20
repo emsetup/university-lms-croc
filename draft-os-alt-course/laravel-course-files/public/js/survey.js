@@ -26,6 +26,13 @@
         var step = stepEl(idx);
         if (!step) return false;
 
+        var otherInp = step.querySelector('.survey-other-input');
+        if (otherInp) {
+            var mixedCbs = step.querySelectorAll('input[type="checkbox"]:checked');
+            if (mixedCbs.length) return true;
+            return otherInp.value.trim().length > 0;
+        }
+
         var textarea = step.querySelector('textarea.js-survey-input');
         if (textarea && textarea.value.trim().length > 0) return true;
 

@@ -436,9 +436,11 @@ final class AdminQuizController extends Controller
             foreach (array_values($items) as $i => $q) {
                 $type = ! empty($q['open_text'])
                     ? 'open_text'
-                    : (! empty($q['match_drag'])
-                        ? 'match_drag'
-                        : (is_array($q['c'] ?? null) ? 'multi' : 'single'));
+                    : (! empty($q['multi_other'])
+                        ? 'multi_other'
+                        : (! empty($q['match_drag'])
+                            ? 'match_drag'
+                            : (is_array($q['c'] ?? null) ? 'multi' : 'single')));
 
                 /** @var \App\Models\CourseQuizQuestion $qq */
                 $create = [
@@ -448,7 +450,7 @@ final class AdminQuizController extends Controller
                     'type' => $type,
                     'points' => isset($q['points']) ? (int) $q['points'] : null,
                 ];
-                if ($type === 'open_text') {
+                if ($type === 'open_text' || $type === 'multi_other') {
                     $settings = [];
                     if (! empty($q['placeholder'])) {
                         $settings['placeholder'] = trim((string) $q['placeholder']);
@@ -491,6 +493,10 @@ final class AdminQuizController extends Controller
                         'option_text' => (string) $text,
                     ]);
                     $optIds[$oi] = (int) $o->id;
+                }
+
+                if ($type === 'multi_other') {
+                    continue;
                 }
 
                 $corr = $q['c'] ?? null;
@@ -537,6 +543,37 @@ final class AdminQuizController extends Controller
                     return ['ok' => false, 'message' => "Вопрос #".($i + 1).": открытый ответ только для опросов.", 'data' => []];
                 }
                 $qq['open_text'] = true;
+                if (! empty($q['placeholder'])) {
+                    $qq['placeholder'] = trim((string) $q['placeholder']);
+                }
+                if (! empty($q['max_length']) && is_numeric($q['max_length'])) {
+                    $ml = (int) $q['max_length'];
+                    if ($ml < 1 || $ml > 50000) {
+                        return ['ok' => false, 'message' => "Вопрос #".($i + 1).": max_length 1..50000.", 'data' => []];
+                    }
+                    $qq['max_length'] = $ml;
+                }
+                $out[] = $qq;
+                continue;
+            }
+            $isMultiOther = ! empty($q['multi_other']);
+            if ($isMultiOther) {
+                if ($kind !== 'survey') {
+                    return ['ok' => false, 'message' => "Вопрос #".($i + 1).": смешанный ответ только для опросов.", 'data' => []];
+                }
+                $a = is_array($q['a'] ?? null) ? array_values($q['a']) : [];
+                $a = array_map(static fn ($v) => (string) $v, $a);
+                $a = array_values(array_map('trim', $a));
+                $a = array_values(array_filter($a, static fn ($v) => $v !== ''));
+                if (count($a) < 2) {
+                    return ['ok' => false, 'message' => "Вопрос #".($i + 1).": нужно минимум 2 варианта ответа.", 'data' => []];
+                }
+                if (count($a) > 12) {
+                    return ['ok' => false, 'message' => "Вопрос #".($i + 1).": слишком много вариантов (максимум 12).", 'data' => []];
+                }
+                $qq['multi_other'] = true;
+                $qq['a'] = $a;
+                $qq['c'] = [];
                 if (! empty($q['placeholder'])) {
                     $qq['placeholder'] = trim((string) $q['placeholder']);
                 }

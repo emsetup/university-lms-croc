@@ -20,6 +20,7 @@ use App\Services\CourseContentService;
 use App\Services\CourseChangeLogService;
 use App\Services\CourseSectionService;
 use App\Services\LearnerContentVisibilityService;
+use App\Services\ShareLinkService;
 use App\Services\SurveyQuickLinkService;
 use App\Services\LegacyAltPracticeImagesBootstrap;
 use App\Services\PortalStaffAccess;
@@ -46,6 +47,7 @@ final class AdminCourseSettingsController extends Controller
         $t = (string) $request->query('tab', '');
         $settingsTab = match ($t) {
             'kurs' => 'kurs',
+            'ssylki' => 'ssylki',
             'sertifikat' => 'sertifikat',
             'istoriya' => 'istoriya',
             'soavtory' => 'soavtory',
@@ -151,6 +153,13 @@ final class AdminCourseSettingsController extends Controller
             ];
         }
 
+        $shareLinksPayload = [];
+        if ($settingsTab === 'ssylki') {
+            $shareLinksPayload = [
+                'shareLinkItems' => app(ShareLinkService::class)->listForCourse($course, (string) $course->slug),
+            ];
+        }
+
         return view('admin.course-settings', array_merge([
             'course' => $course,
             'courseStatus' => $status,
@@ -166,7 +175,7 @@ final class AdminCourseSettingsController extends Controller
             'canManageCollaborators' => $gate->canManageCollaborators($courseId),
             'canEditCourseMeta' => $gate->canEditCourseMeta($courseId),
             'canEditCourseStructure' => $gate->canEditCourseStructure($courseId),
-        ], $collaboratorPayload, $groupsPayload));
+        ], $collaboratorPayload, $groupsPayload, $shareLinksPayload));
     }
 
     public function saveCourseSettings(Request $request): RedirectResponse
@@ -862,6 +871,9 @@ final class AdminCourseSettingsController extends Controller
             'survey_responses_url' => $section->type === CourseSection::TYPE_SURVEY
                 ? route('admin.course.module.section.survey-responses', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
                 : null,
+            'participants_url' => route('admin.course.module.section.participants', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])),
+            'participants_json_url' => route('admin.course.module.section.participants.json', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])),
+            'participants_detail_url_tpl' => route('admin.course.module.section.participants.detail', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id, 'learner' => 0])),
             'quick_link' => $section->type === CourseSection::TYPE_SURVEY
                 ? app(SurveyQuickLinkService::class)->metaForSection(
                     $section,
@@ -869,6 +881,15 @@ final class AdminCourseSettingsController extends Controller
                     route('admin.course.section.quick-link.revoke', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
                 )
                 : null,
+            'share_link' => app(ShareLinkService::class)->metaForSection(
+                $section,
+                $section->type === CourseSection::TYPE_SURVEY
+                    ? route('admin.course.section.quick-link.generate', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
+                    : route('admin.course.section.share-link.generate', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])),
+                $section->type === CourseSection::TYPE_SURVEY
+                    ? route('admin.course.section.quick-link.revoke', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
+                    : route('admin.course.section.share-link.revoke', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
+            ),
             'visibility' => app(LearnerContentVisibilityService::class)->audiencePayloadForResource(
                 ContentViewAudienceRule::RESOURCE_SECTION,
                 (int) $section->id,
@@ -909,6 +930,121 @@ final class AdminCourseSettingsController extends Controller
         app(SurveyQuickLinkService::class)->revoke($section);
 
         return response()->json(['ok' => true]);
+    }
+
+    public function courseShareLinkGenerate(Course $adminCourse): JsonResponse
+    {
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) $adminCourse->id);
+        $link = app(ShareLinkService::class)->generateForCourse($adminCourse);
+
+        return response()->json([
+            'ok' => true,
+            'url' => app(ShareLinkService::class)->learnerUrl($link),
+        ]);
+    }
+
+    public function courseShareLinkRevoke(Course $adminCourse): JsonResponse
+    {
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) $adminCourse->id);
+        app(ShareLinkService::class)->revokeForCourse($adminCourse);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function moduleShareLinkGenerate(Course $adminCourse, CourseModule $courseModule): JsonResponse
+    {
+        $this->assertModuleCourse($courseModule);
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) $adminCourse->id);
+        $link = app(ShareLinkService::class)->generateForModule($courseModule);
+
+        return response()->json([
+            'ok' => true,
+            'url' => app(ShareLinkService::class)->learnerUrl($link),
+        ]);
+    }
+
+    public function moduleShareLinkRevoke(Course $adminCourse, CourseModule $courseModule): JsonResponse
+    {
+        $this->assertModuleCourse($courseModule);
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) $adminCourse->id);
+        app(ShareLinkService::class)->revokeForModule($courseModule);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function sectionShareLinkGenerate(Course $adminCourse, CourseModule $courseModule, CourseSection $section): JsonResponse
+    {
+        $this->assertSectionInModule($courseModule, $section);
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) $adminCourse->id);
+
+        if ($section->type === CourseSection::TYPE_SURVEY) {
+            $link = app(SurveyQuickLinkService::class)->generate($section);
+
+            return response()->json([
+                'ok' => true,
+                'url' => app(SurveyQuickLinkService::class)->learnerUrl($link),
+            ]);
+        }
+
+        $link = app(ShareLinkService::class)->generateForSection($section);
+
+        return response()->json([
+            'ok' => true,
+            'url' => app(ShareLinkService::class)->learnerUrl($link),
+        ]);
+    }
+
+    public function sectionShareLinkRevoke(Course $adminCourse, CourseModule $courseModule, CourseSection $section): JsonResponse
+    {
+        $this->assertSectionInModule($courseModule, $section);
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) $adminCourse->id);
+        app(ShareLinkService::class)->revokeForSection($section);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function shareLinkMeta(Request $request, Course $adminCourse): JsonResponse
+    {
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) $adminCourse->id);
+        $rp = ['adminCourse' => $adminCourse->slug];
+        $type = (string) $request->query('type', 'course');
+        $id = (int) $request->query('id', 0);
+        $svc = app(ShareLinkService::class);
+
+        if ($type === 'course') {
+            return response()->json(['ok' => true, 'meta' => $svc->metaForCourse(
+                $adminCourse,
+                route('admin.course.share-link.generate', $rp),
+                route('admin.course.share-link.revoke', $rp),
+            )]);
+        }
+
+        if ($type === 'module') {
+            $module = CourseModule::query()->whereKey($id)->where('course_id', $adminCourse->id)->firstOrFail();
+            $modRp = array_merge($rp, ['courseModule' => $module->id]);
+
+            return response()->json(['ok' => true, 'meta' => $svc->metaForModule(
+                $module,
+                route('admin.course.module.share-link.generate', $modRp),
+                route('admin.course.module.share-link.revoke', $modRp),
+            )]);
+        }
+
+        if ($type === 'section' || $type === 'survey') {
+            $section = CourseSection::query()->whereKey($id)->where('course_id', $adminCourse->id)->firstOrFail();
+            $moduleId = (int) $section->course_module_id;
+            $secRp = array_merge($rp, ['courseModule' => $moduleId, 'section' => $section->id]);
+            $gen = $section->type === CourseSection::TYPE_SURVEY
+                ? route('admin.course.section.quick-link.generate', $secRp)
+                : route('admin.course.section.share-link.generate', $secRp);
+            $rev = $section->type === CourseSection::TYPE_SURVEY
+                ? route('admin.course.section.quick-link.revoke', $secRp)
+                : route('admin.course.section.share-link.revoke', $secRp);
+
+            return response()->json(['ok' => true, 'meta' => $svc->metaForSection($section, $gen, $rev)]);
+        }
+
+        return response()->json(['ok' => false, 'message' => 'Неизвестный тип.'], 422);
     }
 
     public function sectionPanelSave(Request $request, Course $adminCourse, CourseModule $courseModule, CourseSection $section): JsonResponse

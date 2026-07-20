@@ -136,6 +136,9 @@ Route::middleware([
         Route::post('/opros/{token}', [\App\Http\Controllers\SurveyQuickLinkController::class, 'submit'])
             ->where('token', '[A-Za-z0-9_-]+')
             ->name('survey.quick.submit');
+        Route::get('/s/{token}', [\App\Http\Controllers\ShareLinkController::class, 'show'])
+            ->where('token', '[A-Za-z0-9_-]+')
+            ->name('share.quick');
         Route::post('/portal/incident', [AdminIncidentLogsController::class, 'storeClient'])->name('portal.incident.store');
         Route::get('/account', AccountController::class)->name('account');
         Route::get('/docs', [DocumentationController::class, 'index'])->name('documentation.index');
@@ -796,6 +799,26 @@ Route::middleware([
                     ->whereNumber('courseModule')
                     ->whereNumber('section')
                     ->name('admin.course.section.quick-link.revoke');
+                Route::post('/nastroyki/bystraya-ssylka', [AdminCourseSettingsController::class, 'courseShareLinkGenerate'])
+                    ->name('admin.course.share-link.generate');
+                Route::post('/nastroyki/bystraya-ssylka/off', [AdminCourseSettingsController::class, 'courseShareLinkRevoke'])
+                    ->name('admin.course.share-link.revoke');
+                Route::post('/nastroyki/modul/{courseModule}/bystraya-ssylka', [AdminCourseSettingsController::class, 'moduleShareLinkGenerate'])
+                    ->whereNumber('courseModule')
+                    ->name('admin.course.module.share-link.generate');
+                Route::post('/nastroyki/modul/{courseModule}/bystraya-ssylka/off', [AdminCourseSettingsController::class, 'moduleShareLinkRevoke'])
+                    ->whereNumber('courseModule')
+                    ->name('admin.course.module.share-link.revoke');
+                Route::post('/nastroyki/modul/{courseModule}/razdel/{section}/share-ssylka', [AdminCourseSettingsController::class, 'sectionShareLinkGenerate'])
+                    ->whereNumber('courseModule')
+                    ->whereNumber('section')
+                    ->name('admin.course.section.share-link.generate');
+                Route::post('/nastroyki/modul/{courseModule}/razdel/{section}/share-ssylka/off', [AdminCourseSettingsController::class, 'sectionShareLinkRevoke'])
+                    ->whereNumber('courseModule')
+                    ->whereNumber('section')
+                    ->name('admin.course.section.share-link.revoke');
+                Route::get('/nastroyki/ssylka-meta', [AdminCourseSettingsController::class, 'shareLinkMeta'])
+                    ->name('admin.course.share-link.meta');
 
                 Route::get('/nastroyki/dostup', [\App\Http\Controllers\AdminContentVisibilityController::class, 'showCourse'])
                     ->name('admin.course.visibility');
@@ -835,6 +858,19 @@ Route::middleware([
                     ->whereNumber('courseModule')
                     ->whereNumber('section')
                     ->name('admin.course.module.section.survey-responses.export');
+                Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/uchastniki', [\App\Http\Controllers\AdminSectionParticipantsController::class, 'index'])
+                    ->whereNumber('courseModule')
+                    ->whereNumber('section')
+                    ->name('admin.course.module.section.participants');
+                Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/uchastniki.json', [\App\Http\Controllers\AdminSectionParticipantsController::class, 'indexJson'])
+                    ->whereNumber('courseModule')
+                    ->whereNumber('section')
+                    ->name('admin.course.module.section.participants.json');
+                Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/uchastniki/{learner}', [\App\Http\Controllers\AdminSectionParticipantsController::class, 'detailJson'])
+                    ->whereNumber('courseModule')
+                    ->whereNumber('section')
+                    ->whereNumber('learner')
+                    ->name('admin.course.module.section.participants.detail');
                 Route::get('/oprosy', [\App\Http\Controllers\AdminCourseSurveysController::class, 'index'])->name('admin.course.surveys');
                 Route::get('/oprosy/razdel/{section}/export.xls', [\App\Http\Controllers\AdminCourseSurveysController::class, 'exportWide'])
                     ->whereNumber('section')
@@ -869,6 +905,8 @@ Route::middleware([
                 Route::post('/soderzhimoe/modul/{module}/container/finish', [AdminTheoryController::class, 'finishPracticeLabProbe'])
                     ->whereNumber('module')
                     ->name('admin.theory.container.finish');
+                Route::post('/soderzhimoe/markdown-preview', [AdminTheoryController::class, 'previewMarkdown'])
+                    ->name('admin.theory.markdown-preview');
                 Route::get('/soderzhimoe/modul/{module}', [AdminTheoryController::class, 'edit'])
                     ->whereNumber('module')
                     ->name('admin.theory.edit');

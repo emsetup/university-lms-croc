@@ -136,7 +136,7 @@ final class PortalActivityFeedService
                     (string) ($en->learner?->email ?? ''),
                     $text,
                     $kind,
-                    $en->last_seen_at !== null && $en->last_seen_at->isToday(),
+                    $en->last_seen_at !== null && $this->isActiveToday($en->last_seen_at),
                 ));
             }
         }
@@ -169,7 +169,7 @@ final class PortalActivityFeedService
                     (string) ($fl->learner?->email ?? ''),
                     $text,
                     $kind,
-                    $at instanceof Carbon && $at->isToday(),
+                    $at instanceof Carbon && $this->isActiveToday($at),
                 ));
             }
         }
@@ -268,7 +268,7 @@ final class PortalActivityFeedService
                 (string) ($ev->learner?->email ?? ''),
                 $this->adminPanelText($path),
                 self::KIND_ADMIN_PANEL,
-                $at->isToday(),
+                $this->isActiveToday($at),
                 ['route' => $this->humanizeAdminPath($path)],
             );
         }
@@ -280,7 +280,7 @@ final class PortalActivityFeedService
                 (string) ($ev->learner?->email ?? ''),
                 'Попал на заглушку обновления портала',
                 self::KIND_MAINTENANCE,
-                $at->isToday(),
+                $this->isActiveToday($at),
             );
         }
 
@@ -391,7 +391,7 @@ final class PortalActivityFeedService
         $kind = (string) ($newest['kind'] ?? '');
         $ids = array_map(static fn (array $r) => (string) ($r['id'] ?? ''), $items);
         $steps = [];
-        $tz = config('app.timezone');
+        $tz = $this->displayTimezone();
 
         foreach ($items as $item) {
             $label = trim((string) ($item['route'] ?? ''));
@@ -493,6 +493,20 @@ final class PortalActivityFeedService
         return trim(str_replace('/adm/', '', $path), '/') ?: 'раздел';
     }
 
+    private function displayTimezone(): string
+    {
+        $tz = (string) config('portal.display_timezone', 'Europe/Moscow');
+
+        return $tz !== '' ? $tz : 'Europe/Moscow';
+    }
+
+    private function isActiveToday(Carbon $at): bool
+    {
+        $tz = $this->displayTimezone();
+
+        return $at->copy()->timezone($tz)->isSameDay(Carbon::now($tz));
+    }
+
     private function parseDate(?string $value, bool $startOfDay): ?Carbon
     {
         $value = trim((string) $value);
@@ -500,7 +514,7 @@ final class PortalActivityFeedService
             return null;
         }
         try {
-            $d = Carbon::parse($value, config('app.timezone'));
+            $d = Carbon::parse($value, $this->displayTimezone());
         } catch (\Throwable) {
             return null;
         }
@@ -527,7 +541,7 @@ final class PortalActivityFeedService
      */
     public function serializeForJson(Collection $items): array
     {
-        $tz = config('app.timezone');
+        $tz = $this->displayTimezone();
 
         return $items->map(function (array $r) use ($tz) {
             $at = $r['at'];
@@ -546,10 +560,12 @@ final class PortalActivityFeedService
             ];
             if (! empty($r['grouped']) && $at instanceof Carbon && isset($r['steps'][0]['at_iso'])) {
                 $first = Carbon::parse((string) $r['steps'][0]['at_iso']);
-                if ($first->format('Y-m-d') !== $at->format('Y-m-d')) {
-                    $payload['at_range'] = $first->timezone($tz)->format('d.m H:i').' — '.$at->timezone($tz)->format('d.m H:i');
+                $firstLocal = $first->copy()->timezone($tz);
+                $atLocal = $at->copy()->timezone($tz);
+                if ($firstLocal->format('Y-m-d') !== $atLocal->format('Y-m-d')) {
+                    $payload['at_range'] = $firstLocal->format('d.m H:i').' — '.$atLocal->format('d.m H:i');
                 } else {
-                    $payload['at_range'] = $first->timezone($tz)->format('H:i').' — '.$at->timezone($tz)->format('H:i');
+                    $payload['at_range'] = $firstLocal->format('H:i').' — '.$atLocal->format('H:i');
                 }
             }
 

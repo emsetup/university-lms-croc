@@ -223,6 +223,7 @@ final class DocumentationCatalog
             'slug' => $slug,
             'title' => (string) ($meta['title'] ?? $slug),
             'summary' => (string) ($meta['summary'] ?? ''),
+            'keywords' => (string) ($meta['keywords'] ?? ''),
             'audience' => $this->normalizeAudience((string) ($meta['audience'] ?? 'learner')),
             'order' => (int) ($meta['order'] ?? 0),
             'section' => (string) ($meta['section'] ?? 'Обучающийся'),
@@ -230,6 +231,60 @@ final class DocumentationCatalog
             'body' => (string) $m[2],
             'path' => $path,
         ];
+    }
+
+    /**
+     * Индекс для клиентского быстрого поиска (видимые статьи).
+     *
+     * @return list<array{slug: string, title: string, summary: string, section: string, url: string, haystack: string}>
+     */
+    public function searchIndex(?PortalStaffAccess $psa): array
+    {
+        $out = [];
+        foreach ($this->visibleArticles($psa) as $article) {
+            $slug = (string) $article['slug'];
+            $title = (string) $article['title'];
+            $summary = (string) $article['summary'];
+            $section = (string) $article['section'];
+            $keywords = (string) ($article['keywords'] ?? '');
+            $bodyPlain = $this->plainSearchText((string) $article['body']);
+            $haystack = mb_strtolower(trim(implode(' ', [
+                $title,
+                $summary,
+                $section,
+                str_replace(['/', '-'], ' ', $slug),
+                $keywords,
+                $bodyPlain,
+            ])));
+
+            $out[] = [
+                'slug' => $slug,
+                'title' => $title,
+                'summary' => $summary,
+                'section' => $section,
+                'url' => route('documentation.show', ['slug' => $slug]),
+                'haystack' => $haystack,
+            ];
+        }
+
+        return $out;
+    }
+
+    private function plainSearchText(string $markdown): string
+    {
+        $t = preg_replace('/```[\s\S]*?```/', ' ', $markdown) ?? $markdown;
+        $t = preg_replace('/`[^`]+`/', ' ', $t) ?? $t;
+        $t = preg_replace('/!\[[^\]]*\]\([^)]+\)/', ' ', $t) ?? $t;
+        $t = preg_replace('/\[([^\]]+)\]\([^)]+\)/', '$1', $t) ?? $t;
+        $t = preg_replace('/<\/?[^>]+>/', ' ', $t) ?? $t;
+        $t = preg_replace('/[#>*_|\\\\`~\-]+/u', ' ', $t) ?? $t;
+        $t = preg_replace('/\s+/u', ' ', $t) ?? $t;
+        $t = trim($t);
+        if (mb_strlen($t) > 12000) {
+            $t = mb_substr($t, 0, 12000);
+        }
+
+        return $t;
     }
 
     /** @return array<string, string|int> */

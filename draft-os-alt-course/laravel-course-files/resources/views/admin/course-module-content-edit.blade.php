@@ -19,7 +19,7 @@
             </div>
             <h1 style="margin:0">Контент модуля: {{ $courseModule->title }}</h1>
             <p class="muted small" style="margin-top:0.35rem;line-height:1.5">
-                Теория и практика хранятся в БД и изолированы по курсу. Markdown поддерживает Mermaid-блоки как у обучающегося.
+                Теория и практика в Markdown. Плашки (Важно / Подсказка / …), таблицы, картинки и Mermaid — кнопки панели; предпросмотр совпадает с видом у обучающегося.
             </p>
 
             @if (session('err'))
@@ -37,40 +37,19 @@
                     <button type="button" class="icon-btn js-cmce-tab" data-tab="practice" title="Практика" aria-label="Практика">
                         <span class="icon-btn__icon">P</span>
                     </button>
-                    <button type="button" class="icon-btn js-cmce-tab" data-tab="preview" title="Предпросмотр" aria-label="Предпросмотр">
-                        <span class="icon-btn__icon" aria-hidden="true">@include('partials.ap-icon', ['name' => 'eye', 'size' => 'md'])</span>
-                    </button>
                 </div>
 
-                <form method="post" action="{{ route('admin.course.module.content.update', array_merge($apNav, ['courseModule' => $courseModule->id])) }}">
+                <form method="post" action="{{ route('admin.course.module.content.update', array_merge($apNav, ['courseModule' => $courseModule->id])) }}" id="cmce-content-form">
                     @csrf
 
                     <section class="js-cmce-panel" data-panel="theory">
-                        <div class="muted small" style="margin:0 0 0.35rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
-                            <span>Теория (Markdown)</span>
-                            <button type="button" class="btn btn-ghost btn-sm" data-ap-media-insert-cmce="theory" title="Вставить картинку" aria-label="Вставить картинку">
-                                <span class="ap-media-insert-btn__inner">@include('partials.icons.media-image')<span>Картинка</span></span>
-                            </button>
-                        </div>
-                        <textarea class="input js-cmce-textarea" name="theory_markdown" rows="18" spellcheck="false">{{ old('theory_markdown', $theory ?? '') }}</textarea>
+                        <p class="cmde-editor-hint">Плашки: кнопки <strong>Важно</strong> / <strong>Подсказка</strong> / <strong>Примечание</strong> / <strong>Зачем</strong> — или <code>&gt; **Важно:** …</code>. Preview / Side-by-side — как у студента.</p>
+                        <textarea class="input js-cmce-textarea" id="cmce-theory-md" name="theory_markdown" rows="18" spellcheck="false">{{ old('theory_markdown', $theory ?? '') }}</textarea>
                     </section>
 
                     <section class="js-cmce-panel" data-panel="practice" style="display:none">
-                        <div class="muted small" style="margin:0 0 0.35rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem">
-                            <span>Практика (Markdown)</span>
-                            <button type="button" class="btn btn-ghost btn-sm" data-ap-media-insert-cmce="practice" title="Вставить картинку" aria-label="Вставить картинку">
-                                <span class="ap-media-insert-btn__inner">@include('partials.icons.media-image')<span>Картинка</span></span>
-                            </button>
-                        </div>
-                        <textarea class="input js-cmce-textarea" name="practice_markdown" rows="18" spellcheck="false">{{ old('practice_markdown', $practice ?? '') }}</textarea>
-                    </section>
-
-                    <section class="js-cmce-panel" data-panel="preview" style="display:none">
-                        <div class="muted small" style="margin:0 0 0.5rem">Предпросмотр</div>
-                        <div class="card" style="margin:0;padding:0.9rem;border:1px solid var(--line,#e5e7eb);background:var(--surface,#fff)">
-                            <article class="prose-course practice-block" id="cmce-preview" style="max-width:none"></article>
-                        </div>
-                        <p class="muted small" style="margin:0.5rem 0 0">Подсказка: Mermaid-блоки рендерятся после открытия вкладки предпросмотра.</p>
+                        <p class="cmde-editor-hint">То же форматирование, что у теории (плашки, таблицы, картинки, Mermaid).</p>
+                        <textarea class="input js-cmce-textarea" id="cmce-practice-md" name="practice_markdown" rows="18" spellcheck="false">{{ old('practice_markdown', $practice ?? '') }}</textarea>
                     </section>
 
                     <div style="display:flex;gap:0.5rem;align-items:center;justify-content:space-between;margin-top:1rem">
@@ -82,100 +61,43 @@
         </div>
     </div>
 
-    <link rel="stylesheet" href="{{ asset('vendor/easymde/2.18.0/easymde.min.css') }}">
+    @include('partials.course-markdown-editor-assets', [
+        'cmdeCourseId' => (int) ($courseModule->course_id ?? session('admin_course_id')),
+        'ap' => $apNav,
+    ])
     <style>
         .theory-mermaid-wrap { margin: 1rem 0 1.25rem; overflow-x: auto; text-align: center; }
         .theory-mermaid-wrap svg { max-width: 100%; height: auto; }
     </style>
-    <script src="{{ asset('vendor/easymde/2.18.0/easymde.min.js') }}"></script>
-    <script src="{{ asset('vendor/marked/12.0.2/marked.min.js') }}"></script>
-    @include('partials.vendor-mermaid-importmap')
-    <script type="module">
-        (async function () {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
             var panels = Array.from(document.querySelectorAll('.js-cmce-panel'));
             var tabs = Array.from(document.querySelectorAll('.js-cmce-tab'));
-            var previewEl = document.getElementById('cmce-preview');
-            var theoryTa = document.querySelector('textarea[name="theory_markdown"]');
-            var practiceTa = document.querySelector('textarea[name="practice_markdown"]');
-            if (!panels.length || !tabs.length || !previewEl || !theoryTa || !practiceTa || typeof EasyMDE === 'undefined' || typeof marked === 'undefined') {
+            var theoryTa = document.getElementById('cmce-theory-md');
+            var practiceTa = document.getElementById('cmce-practice-md');
+            var cfg = window.CourseMarkdownEditorPage || {};
+            if (!panels.length || !tabs.length || !theoryTa || !practiceTa || !window.CourseMarkdownEditor) {
                 return;
             }
 
-            var lastEditTab = 'theory';
-            var mdeOpts = {
-                spellChecker: false,
-                autosave: { enabled: false },
-                status: ['lines', 'words'],
+            var shared = {
+                courseId: cfg.courseId,
+                previewUrl: cfg.previewUrl,
+                csrf: cfg.csrf,
                 minHeight: '360px',
             };
-            var mdeTheory = new EasyMDE(Object.assign({}, mdeOpts, { element: theoryTa }));
-            var mdePractice = new EasyMDE(Object.assign({}, mdeOpts, { element: practiceTa }));
-
-            var mermaidMod = null;
-
-            function markdownForPreview() {
-                var ta = lastEditTab === 'practice' ? practiceTa : theoryTa;
-                return ta ? (ta.value || '') : '';
-            }
+            var mdeTheory = window.CourseMarkdownEditor.create(theoryTa, shared);
+            var mdePractice = window.CourseMarkdownEditor.create(practiceTa, shared);
 
             function setActive(tab) {
-                if (tab === 'theory' || tab === 'practice') {
-                    lastEditTab = tab;
-                }
                 tabs.forEach(function (t) {
                     t.classList.toggle('is-active', t.dataset.tab === tab);
                 });
                 panels.forEach(function (p) {
                     p.style.display = (p.dataset.panel === tab) ? '' : 'none';
                 });
-                if (tab === 'theory' && mdeTheory.codemirror) {
-                    mdeTheory.codemirror.refresh();
-                }
-                if (tab === 'practice' && mdePractice.codemirror) {
-                    mdePractice.codemirror.refresh();
-                }
-                if (tab === 'preview') {
-                    renderPreview();
-                }
-            }
-
-            async function renderPreview() {
-                previewEl.innerHTML = marked.parse(markdownForPreview());
-                var codes = previewEl.querySelectorAll('pre code.language-mermaid');
-                if (!codes.length) {
-                    return;
-                }
-                if (!mermaidMod) {
-                    mermaidMod = (await import('mermaid')).default;
-                    mermaidMod.initialize({
-                        startOnLoad: false,
-                        theme: 'base',
-                        securityLevel: 'strict',
-                        fontFamily: 'Manrope, system-ui, sans-serif',
-                        flowchart: { curve: 'basis', padding: 12 },
-                    });
-                }
-                var i = 0;
-                codes.forEach(async function (code) {
-                    var pre = code.parentElement;
-                    if (!pre || pre.tagName !== 'PRE') {
-                        return;
-                    }
-                    var graph = (code.textContent || '').trim();
-                    if (!graph) {
-                        return;
-                    }
-                    var id = 'cmce-mermaid-' + (i++) + '-' + Math.random().toString(36).slice(2, 8);
-                    try {
-                        var out = await mermaidMod.render(id, graph);
-                        var wrap = document.createElement('div');
-                        wrap.className = 'theory-mermaid-wrap';
-                        wrap.innerHTML = out.svg;
-                        pre.replaceWith(wrap);
-                    } catch (e) {
-                        console.warn('mermaid', e);
-                    }
-                });
+                if (tab === 'theory' && mdeTheory) mdeTheory.refresh();
+                if (tab === 'practice' && mdePractice) mdePractice.refresh();
             }
 
             tabs.forEach(function (t) {
@@ -186,25 +108,13 @@
 
             setActive('theory');
 
-            var courseId = {{ (int) ($courseModule->course_id ?? session('admin_course_id')) }};
-            document.querySelectorAll('[data-ap-media-insert-cmce]').forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    if (!window.MediaLibrary) return;
-                    var which = btn.getAttribute('data-ap-media-insert-cmce');
-                    var mde = which === 'practice' ? mdePractice : mdeTheory;
-                    window.MediaLibrary.open({
-                        courseId: courseId,
-                        onInsert: function (md) {
-                            if (mde && mde.codemirror) {
-                                var cm = mde.codemirror;
-                                var doc = cm.getDoc();
-                                var cursor = doc.getCursor();
-                                doc.replaceRange((cursor.ch > 0 ? '\n' : '') + md + '\n', cursor);
-                            }
-                        },
-                    });
+            var form = document.getElementById('cmce-content-form');
+            if (form) {
+                form.addEventListener('submit', function () {
+                    if (mdeTheory) mdeTheory.syncToTextarea();
+                    if (mdePractice) mdePractice.syncToTextarea();
                 });
-            });
-        })();
+            }
+        });
     </script>
 @endsection

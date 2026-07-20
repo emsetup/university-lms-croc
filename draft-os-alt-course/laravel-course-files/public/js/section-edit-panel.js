@@ -28,6 +28,9 @@
         visibilitySaveUrl: '',
         learnerSearchUrl: '',
         learnerResolveUrl: '',
+        participantsUrl: '',
+        participantsJsonUrl: '',
+        participantsDetailTpl: '',
     };
 
     var quizAutoSaveTimer = null;
@@ -43,6 +46,24 @@
 
     function openMediaPicker(targetId) {
         if (!window.MediaLibrary) return;
+        var handle = window.CourseMarkdownEditor && window.CourseMarkdownEditor.get(targetId);
+        if (handle) {
+            window.MediaLibrary.open({
+                courseId: getCourseId(),
+                onInsert: function (md) {
+                    var cm = handle.mde && handle.mde.codemirror;
+                    if (cm) {
+                        var doc = cm.getDoc();
+                        var cursor = doc.getCursor();
+                        var prefix = cursor.ch > 0 ? '\n' : '';
+                        doc.replaceRange(prefix + md + '\n', cursor);
+                        cm.focus();
+                    }
+                    if (targetId === 'ap-sec-theory-md') updateTheoryChars();
+                },
+            });
+            return;
+        }
         var el = $(targetId);
         window.MediaLibrary.open({
             courseId: getCourseId(),
@@ -52,6 +73,87 @@
                 if (targetId === 'ap-sec-q-text') scheduleQuizDraftSave();
             },
         });
+    }
+
+    function cmdeConfig() {
+        var page = window.CourseMarkdownEditorPage || {};
+        return {
+            courseId: getCourseId() || page.courseId || null,
+            previewUrl: page.previewUrl || '',
+            csrf: page.csrf || '',
+            compact: true,
+        };
+    }
+
+    function ensureMarkdownEditors() {
+        if (!window.CourseMarkdownEditor) return;
+        var cfg = cmdeConfig();
+        var th = $('ap-sec-theory-md');
+        var pr = $('ap-sec-practice-md');
+        if (th && !window.CourseMarkdownEditor.get(th)) {
+            window.CourseMarkdownEditor.create(th, Object.assign({}, cfg, {
+                minHeight: '280px',
+                status: ['lines', 'words'],
+                onChange: function () {
+                    updateTheoryChars();
+                },
+            }));
+        }
+        if (pr && !window.CourseMarkdownEditor.get(pr)) {
+            window.CourseMarkdownEditor.create(pr, Object.assign({}, cfg, {
+                minHeight: '220px',
+                status: ['lines', 'words'],
+            }));
+        }
+    }
+
+    function refreshMarkdownEditors() {
+        ensureMarkdownEditors();
+        var th = window.CourseMarkdownEditor && window.CourseMarkdownEditor.get('ap-sec-theory-md');
+        var pr = window.CourseMarkdownEditor && window.CourseMarkdownEditor.get('ap-sec-practice-md');
+        if (th) {
+            setTimeout(function () { th.refresh(); }, 40);
+        }
+        if (pr) {
+            setTimeout(function () { pr.refresh(); }, 40);
+        }
+    }
+
+    function theoryMarkdownValue() {
+        if (window.CourseMarkdownEditor) {
+            return window.CourseMarkdownEditor.valueOf('ap-sec-theory-md');
+        }
+        var ta = $('ap-sec-theory-md');
+        return ta ? ta.value : '';
+    }
+
+    function practiceMarkdownValue() {
+        if (window.CourseMarkdownEditor) {
+            return window.CourseMarkdownEditor.valueOf('ap-sec-practice-md');
+        }
+        var ta = $('ap-sec-practice-md');
+        return ta ? ta.value : '';
+    }
+
+    function setTheoryMarkdown(v) {
+        if (window.CourseMarkdownEditor) {
+            ensureMarkdownEditors();
+            window.CourseMarkdownEditor.setValueOf('ap-sec-theory-md', v || '');
+        } else {
+            var ta = $('ap-sec-theory-md');
+            if (ta) ta.value = v || '';
+        }
+        updateTheoryChars();
+    }
+
+    function setPracticeMarkdown(v) {
+        if (window.CourseMarkdownEditor) {
+            ensureMarkdownEditors();
+            window.CourseMarkdownEditor.setValueOf('ap-sec-practice-md', v || '');
+        } else {
+            var ta = $('ap-sec-practice-md');
+            if (ta) ta.value = v || '';
+        }
     }
 
     function insertMediaAtInput(inp, md) {
@@ -89,6 +191,18 @@
             if (q.points != null && Number(q.points) > 0) item.points = Number(q.points);
             return item;
         }
+        if (q.multi_other) {
+            item = {
+                type: 'multi_other',
+                q: q.q || '',
+                options: (q.a || []).slice(),
+                correct: [],
+                placeholder: q.placeholder || '',
+                max_length: q.max_length || null,
+            };
+            if (q.points != null && Number(q.points) > 0) item.points = Number(q.points);
+            return item;
+        }
         if (q.match_drag || (Array.isArray(q.left) && Array.isArray(q.right))) {
             item = {
                 type: 'match',
@@ -122,6 +236,12 @@
             if (item.max_length) out.max_length = item.max_length;
             return out;
         }
+        if (item.type === 'multi_other') {
+            out = { q: item.q, a: item.options, c: [], multi_other: true };
+            if (item.placeholder) out.placeholder = item.placeholder;
+            if (item.max_length) out.max_length = item.max_length;
+            return out;
+        }
         if (item.type === 'match') {
             out = { q: item.q, match_drag: true, left: item.left, right: item.right };
         } else if (item.type === 'multi') {
@@ -151,6 +271,7 @@
 
     function typeMetaLabel(t) {
         if (t === 'open_text') return 'open';
+        if (t === 'multi_other') return 'mixed';
         if (t === 'match') return 'match';
         if (t === 'multi') return 'multi';
         return 'single';
@@ -248,21 +369,6 @@
         ta.focus();
     }
 
-    function theoryCmd(cmd) {
-        var ta = $('ap-sec-theory-md');
-        if (!ta) return;
-        if (cmd === 'bold') wrapTextareaSelection(ta, '**', '**');
-        else if (cmd === 'italic') wrapTextareaSelection(ta, '*', '*');
-        else if (cmd === 'h2') wrapTextareaSelection(ta, '## ', '');
-        else if (cmd === 'h3') wrapTextareaSelection(ta, '### ', '');
-        else if (cmd === 'code') wrapTextareaSelection(ta, '`', '`');
-        else if (cmd === 'link') {
-            var url = window.prompt('URL ссылки', 'https://');
-            if (url) wrapTextareaSelection(ta, '[', '](' + url + ')');
-        }
-        ta.dispatchEvent(new Event('input'));
-    }
-
     function setInheritRadios(name, inherit) {
         var v = inherit ? 'inherit' : 'own';
         var nodes = document.querySelectorAll('input[name="' + name + '"]');
@@ -283,10 +389,9 @@
     }
 
     function updateTheoryChars() {
-        var ta = $('ap-sec-theory-md');
         var el = $('ap-sec-theory-chars');
-        if (!ta || !el) return;
-        var n = ta.value.length;
+        if (!el) return;
+        var n = (theoryMarkdownValue() || '').length;
         el.textContent = n + ' ' + (n === 1 ? 'символ' : n > 1 && n < 5 ? 'символа' : 'символов');
     }
 
@@ -462,7 +567,9 @@
         var matchWrap = $('ap-sec-q-match-wrap');
         var openWrap = $('ap-sec-q-open-wrap');
         var typeOpenOpt = $('ap-sec-q-type-open');
+        var typeMixedOpt = $('ap-sec-q-type-mixed');
         if (typeOpenOpt) typeOpenOpt.hidden = !isSurveySection();
+        if (typeMixedOpt) typeMixedOpt.hidden = !isSurveySection();
         if (item.type === 'open_text') {
             if (answersWrap) answersWrap.hidden = true;
             if (matchWrap) matchWrap.hidden = true;
@@ -471,9 +578,19 @@
             var ml = $('ap-sec-q-maxlen');
             if (ph) ph.value = item.placeholder || '';
             if (ml) ml.value = item.max_length != null ? String(item.max_length) : '';
+        } else if (item.type === 'multi_other') {
+            if (answersWrap) answersWrap.hidden = false;
+            if (matchWrap) matchWrap.hidden = true;
+            if (openWrap) openWrap.hidden = false;
+            var ph2 = $('ap-sec-q-placeholder');
+            var ml2 = $('ap-sec-q-maxlen');
+            if (ph2) ph2.value = item.placeholder || '';
+            if (ml2) ml2.value = item.max_length != null ? String(item.max_length) : '';
+            renderAnswerOptions(item);
         } else if (item.type === 'match') {
             if (answersWrap) answersWrap.hidden = true;
             if (matchWrap) matchWrap.hidden = false;
+            if (openWrap) openWrap.hidden = true;
             renderMatchEditor(item);
         } else {
             if (answersWrap) answersWrap.hidden = false;
@@ -491,10 +608,16 @@
         if (!Array.isArray(item.options)) item.options = [''];
         if (survey) {
             if (hint) {
-                hint.textContent =
-                    item.type === 'multi'
-                        ? 'Опрос: можно выбрать несколько вариантов, правильных ответов нет.'
-                        : 'Опрос: правильный ответ не задаётся — только варианты для респондента.';
+                if (item.type === 'multi_other') {
+                    hint.textContent =
+                        'Опрос: несколько вариантов и поле «Свой вариант». Правильных ответов нет.';
+                } else if (item.type === 'multi') {
+                    hint.textContent =
+                        'Опрос: можно выбрать несколько вариантов, правильных ответов нет.';
+                } else {
+                    hint.textContent =
+                        'Опрос: правильный ответ не задаётся — только варианты для респондента.';
+                }
             }
         } else if (item.type === 'multi') {
             if (!Array.isArray(item.correct)) item.correct = [];
@@ -637,11 +760,21 @@
                 item.right = item.right || [''];
                 delete item.options;
                 delete item.correct;
+                delete item.placeholder;
+                delete item.max_length;
+            } else if (newType === 'open_text') {
+                item.type = 'open_text';
+                delete item.options;
+                delete item.correct;
+                delete item.left;
+                delete item.right;
+                if (item.placeholder == null) item.placeholder = '';
+                if (item.max_length == null) item.max_length = null;
             } else {
                 item.type = newType;
                 item.options = item.options && item.options.length ? item.options : ['', ''];
                 if (isSurveySection()) {
-                    if (newType === 'multi') item.correct = [];
+                    if (newType === 'multi' || newType === 'multi_other') item.correct = [];
                     else delete item.correct;
                 } else if (newType === 'multi') {
                     item.correct = Array.isArray(item.correct) ? item.correct : [];
@@ -650,9 +783,27 @@
                 }
                 delete item.left;
                 delete item.right;
+                if (newType === 'multi_other') {
+                    if (item.placeholder == null) item.placeholder = '';
+                    if (item.max_length == null) item.max_length = null;
+                } else {
+                    delete item.placeholder;
+                    delete item.max_length;
+                }
             }
         }
         item.q = qText ? qText.value : item.q;
+        if (item.type === 'open_text' || item.type === 'multi_other') {
+            var ph = $('ap-sec-q-placeholder');
+            var ml = $('ap-sec-q-maxlen');
+            item.placeholder = ph ? ph.value.trim() : item.placeholder || '';
+            if (ml && ml.value !== '') {
+                var mlNum = parseInt(ml.value, 10);
+                item.max_length = Number.isFinite(mlNum) && mlNum > 0 ? mlNum : null;
+            } else {
+                item.max_length = null;
+            }
+        }
         if (isExamSection() && pointsInp) {
             var pts = parseInt(pointsInp.value || '0', 10);
             if (Number.isFinite(pts) && pts > 0) item.points = pts;
@@ -704,8 +855,10 @@
     function toggleNewQBlocks() {
         var t = $('ap-new-q-type').value;
         var openOpt = $('ap-new-q-type-open');
+        var mixedOpt = $('ap-new-q-type-mixed');
         var survey = isSurveySection();
         if (openOpt) openOpt.hidden = !survey;
+        if (mixedOpt) mixedOpt.hidden = !survey;
         $('ap-new-q-block-opts').hidden = t === 'match' || t === 'open_text';
         $('ap-new-q-block-match').hidden = t !== 'match';
         var correctWrap = $('ap-new-q-correct-wrap');
@@ -758,6 +911,13 @@
         if (opts.length < 2) {
             window.alert('Нужно минимум два варианта ответа.');
             return null;
+        }
+        if (t === 'multi_other') {
+            if (!isSurveySection()) {
+                window.alert('Смешанный ответ доступен только в опросах.');
+                return null;
+            }
+            return { type: 'multi_other', q: q, options: opts, correct: [], placeholder: '', max_length: null };
         }
         if (isSurveySection()) {
             if (t === 'multi') {
@@ -887,13 +1047,44 @@
         if (anonEl) anonEl.checked = !!(state.rawSettings.anonymous);
         var blocksEl = $('ap-sec-set-blocks-progress');
         if (blocksEl) blocksEl.checked = state.rawSettings.blocks_progress !== false;
-        renderQuickLinkUi(d.quick_link);
+        renderShareLinkUi(d.share_link || d.quick_link);
         var svLinkWrap = $('ap-sec-survey-responses-link-wrap');
         var svLink = $('ap-sec-survey-responses-link');
         if (svLinkWrap && svLink && d.survey_responses_url) {
             svLink.href = d.survey_responses_url;
             svLinkWrap.hidden = d.section.type !== 'survey';
         } else if (svLinkWrap) svLinkWrap.hidden = true;
+
+        state.participantsUrl = d.participants_url || '';
+        state.participantsJsonUrl = d.participants_json_url || '';
+        state.participantsDetailTpl = d.participants_detail_url_tpl || '';
+        var partPage = $('ap-sec-participants-page-link');
+        if (partPage) {
+            partPage.href = state.participantsUrl || '#';
+            partPage.hidden = !state.participantsUrl;
+        }
+        var partCsv = $('ap-sec-participants-csv-link');
+        if (partCsv) {
+            if (d.survey_responses_url) {
+                partCsv.href = d.survey_responses_url;
+                partCsv.hidden = false;
+            } else {
+                partCsv.hidden = true;
+            }
+        }
+        var partSetWrap = $('ap-sec-participants-settings-link-wrap');
+        var partSetLink = $('ap-sec-participants-settings-link');
+        if (partSetWrap && partSetLink && state.participantsUrl) {
+            partSetLink.href = state.participantsUrl;
+            partSetWrap.hidden = false;
+        } else if (partSetWrap) partSetWrap.hidden = true;
+
+        var partList = $('ap-sec-participants-list');
+        if (partList) partList.innerHTML = '<p class="ap-muted">Откройте вкладку, чтобы загрузить список.</p>';
+        var partDetail = $('ap-sec-participants-detail');
+        if (partDetail) { partDetail.hidden = true; partDetail.innerHTML = ''; }
+        var partCounters = $('ap-sec-participants-counters');
+        if (partCounters) { partCounters.hidden = true; partCounters.innerHTML = ''; }
 
         var st = state.rawSettings;
         setInheritRadios('ap-sec-inherit-att', !!st.attempts_from_course);
@@ -904,9 +1095,8 @@
         $('ap-sec-own-pass').value = st.pass_percent != null ? String(st.pass_percent) : '';
         syncOwnInputs();
 
-        $('ap-sec-theory-md').value = d.theory_markdown || '';
-        $('ap-sec-practice-md').value = d.practice_markdown || '';
-        updateTheoryChars();
+        setTheoryMarkdown(d.theory_markdown || '');
+        setPracticeMarkdown(d.practice_markdown || '');
         $('ap-sec-theory-saved').hidden = true;
 
         renderDockerCard(d);
@@ -930,6 +1120,8 @@
 
         $('ap-sec-edit-legacy').hidden = !d.is_legacy;
 
+        refreshMarkdownEditors();
+
         state.visibilitySaveUrl = d.visibility_save_url || '';
         state.learnerSearchUrl = d.learner_search_url || '';
         state.learnerResolveUrl = d.learner_resolve_url || '';
@@ -948,24 +1140,14 @@
         }
     }
 
-    function renderQuickLinkUi(meta) {
-        var wrap = $('ap-sec-quick-link-wrap');
-        var active = $('ap-sec-quick-link-active');
-        var genBtn = $('ap-sec-quick-link-gen');
-        var urlEl = $('ap-sec-quick-link-url');
-        if (!wrap) return;
-        var isSurvey = state.data && state.data.section && state.data.section.type === 'survey';
-        wrap.hidden = !isSurvey;
-        if (!isSurvey || !meta) {
-            if (active) active.hidden = true;
-            if (genBtn) genBtn.hidden = true;
-            return;
-        }
-        state.quickLink = meta;
-        var hasUrl = !!(meta.active && meta.url);
-        if (active) active.hidden = !hasUrl;
-        if (genBtn) genBtn.hidden = hasUrl;
-        if (urlEl && hasUrl) urlEl.value = meta.url;
+    function renderShareLinkUi(meta) {
+        var shareBtn = $('ap-sec-share-btn');
+        var hint = $('ap-sec-share-hint');
+        state.quickLink = meta || null;
+        state.shareLink = meta || null;
+        var hasMeta = !!(meta && meta.generate_url);
+        if (shareBtn) shareBtn.hidden = !hasMeta;
+        if (hint) hint.hidden = !hasMeta;
     }
 
     function postQuickLink(url, csrf, onOk) {
@@ -995,7 +1177,8 @@
                         state.quickLink.active = false;
                         state.quickLink.url = null;
                     }
-                    renderQuickLinkUi(state.quickLink);
+                    state.shareLink = state.quickLink;
+                    renderShareLinkUi(state.quickLink);
                 }
                 if (typeof onOk === 'function') onOk(d);
             })
@@ -1078,6 +1261,7 @@
         var panC = $('ap-sec-edit-panel-pane-content');
         var panQ = $('ap-sec-edit-panel-pane-questions');
         var panA = $('ap-sec-edit-panel-pane-access');
+        var panP = $('ap-sec-edit-panel-pane-participants');
         tabs.forEach(function (t) {
             if (t.hidden) return;
             var on = t.getAttribute('data-ap-sec-tab') === which;
@@ -1089,23 +1273,195 @@
             if (panC) panC.hidden = true;
             if (panQ) panQ.hidden = true;
             if (panA) panA.hidden = false;
+            if (panP) panP.hidden = true;
+        } else if (which === 'participants') {
+            if (panS) panS.hidden = true;
+            if (panC) panC.hidden = true;
+            if (panQ) panQ.hidden = true;
+            if (panA) panA.hidden = true;
+            if (panP) panP.hidden = false;
+            loadParticipantsTab();
         } else if (which === 'settings') {
             if (panS) panS.hidden = false;
             if (panC) panC.hidden = true;
             if (panQ) panQ.hidden = true;
             if (panA) panA.hidden = true;
+            if (panP) panP.hidden = true;
         } else if (isQuizExamType(typ) && which === 'questions') {
             if (panS) panS.hidden = true;
             if (panC) panC.hidden = true;
             if (panQ) panQ.hidden = false;
             if (panA) panA.hidden = true;
+            if (panP) panP.hidden = true;
         } else {
             if (panS) panS.hidden = true;
             if (panC) panC.hidden = false;
             if (panQ) panQ.hidden = true;
             if (panA) panA.hidden = true;
+            if (panP) panP.hidden = true;
+            refreshMarkdownEditors();
         }
         if (!isQuizExamType(typ)) hideQuizEditorChrome();
+    }
+
+    function escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function participantsDetailUrl(learnerId) {
+        var tpl = state.participantsDetailTpl || '';
+        if (!tpl) return '';
+        return tpl.replace(/\/0(\/?$)/, '/' + learnerId);
+    }
+
+    function loadParticipantsTab() {
+        var list = $('ap-sec-participants-list');
+        var counters = $('ap-sec-participants-counters');
+        var detail = $('ap-sec-participants-detail');
+        if (!list) return;
+        if (!state.participantsJsonUrl) {
+            list.innerHTML = '<p class="ap-muted">Сохраните раздел, чтобы увидеть участников.</p>';
+            return;
+        }
+        list.innerHTML = '<p class="ap-muted">Загрузка…</p>';
+        if (detail) { detail.hidden = true; detail.innerHTML = ''; }
+        fetch(state.participantsJsonUrl, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        }).then(function (r) { return r.json(); }).then(function (d) {
+            if (!d || !d.ok) {
+                list.innerHTML = '<p class="ap-muted">Не удалось загрузить участников.</p>';
+                return;
+            }
+            renderParticipantsPayload(d);
+        }).catch(function () {
+            list.innerHTML = '<p class="ap-muted">Ошибка загрузки участников.</p>';
+        });
+    }
+
+    function renderParticipantsPayload(d) {
+        var list = $('ap-sec-participants-list');
+        var counters = $('ap-sec-participants-counters');
+        if (!list) return;
+        var c = d.counters || {};
+        if (counters) {
+            var htmlC = '';
+            if (d.audience === 'restricted') {
+                htmlC += '<span class="ap-sec-participants__chip"><b>' + escHtml(c.eligible || 0) + '</b> доступно</span>';
+                htmlC += '<span class="ap-sec-participants__chip"><b>' + escHtml(c.completed || 0) + '</b> прошли</span>';
+                htmlC += '<span class="ap-sec-participants__chip"><b>' + escHtml(c.pending || 0) + '</b> не прошли</span>';
+                if (c.attempted != null) {
+                    htmlC += '<span class="ap-sec-participants__chip"><b>' + escHtml(c.attempted) + '</b> с попытками</span>';
+                }
+            } else {
+                htmlC += '<span class="ap-sec-participants__chip"><b>' + escHtml(c.completed || 0) + '</b> прошли</span>';
+            }
+            counters.innerHTML = htmlC;
+            counters.hidden = false;
+        }
+        var rows = d.rows || [];
+        if (!rows.length) {
+            list.innerHTML = '<p class="ap-muted">' +
+                (d.audience === 'restricted'
+                    ? 'Нет допущенных участников. Назначьте доступ во вкладке «Доступ».'
+                    : 'Пока никто не прошёл этот раздел.') +
+                '</p>';
+            return;
+        }
+        var html = '<ul class="ap-sec-participants__ul" role="list">';
+        rows.forEach(function (row) {
+            var stClass = row.status === 'completed' ? 'is-done' : (row.status === 'attempted' ? 'is-attempted' : 'is-pending');
+            var clickable = row.can_open_detail && row.learner_id;
+            html += '<li class="ap-sec-participants__row' + (clickable ? ' is-clickable' : '') + '"' +
+                (clickable ? ' data-learner-id="' + escHtml(row.learner_id) + '"' : '') + '>';
+            html += '<div class="ap-sec-participants__row-main">';
+            html += '<div class="ap-sec-participants__row-name">' + escHtml(row.display_name || '—') + '</div>';
+            if (row.email) html += '<div class="ap-muted small">' + escHtml(row.email) + '</div>';
+            html += '</div>';
+            html += '<div class="ap-sec-participants__row-meta">';
+            html += '<span class="ap-section-participants__status ' + stClass + '">' + escHtml(row.status_label || '') + '</span>';
+            if (row.completed_at) html += '<span class="ap-muted small">' + escHtml(row.completed_at) + '</span>';
+            if (row.meta) html += '<span class="ap-muted small">' + escHtml(row.meta) + '</span>';
+            html += '</div></li>';
+        });
+        html += '</ul>';
+        list.innerHTML = html;
+        list.querySelectorAll('.ap-sec-participants__row[data-learner-id]').forEach(function (li) {
+            li.addEventListener('click', function () {
+                openParticipantDetail(li.getAttribute('data-learner-id'));
+            });
+        });
+    }
+
+    function openParticipantDetail(learnerId) {
+        var detail = $('ap-sec-participants-detail');
+        var url = participantsDetailUrl(learnerId);
+        if (!detail || !url) return;
+        detail.hidden = false;
+        detail.innerHTML = '<p class="ap-muted">Загрузка…</p>';
+        fetch(url, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        }).then(function (r) { return r.json(); }).then(function (d) {
+            if (!d || !d.ok) {
+                detail.innerHTML = '<p class="ap-muted">' + escHtml((d && d.message) || 'Не удалось загрузить') + '</p>';
+                return;
+            }
+            detail.innerHTML = renderParticipantDetailHtml(d);
+        }).catch(function () {
+            detail.innerHTML = '<p class="ap-muted">Ошибка загрузки</p>';
+        });
+    }
+
+    function renderParticipantDetailHtml(d) {
+        var html = '<div class="ap-sp-detail-card">';
+        if (d.learner) {
+            html += '<h3 class="ap-sp-detail-card__title">' + escHtml(d.learner.display_name) + '</h3>';
+            if (d.learner.email) html += '<p class="ap-muted small">' + escHtml(d.learner.email) + '</p>';
+        } else {
+            html += '<h3 class="ap-sp-detail-card__title">Результат</h3>';
+        }
+        html += '<p><span class="ap-section-participants__status">' + escHtml(d.status_label || '') + '</span>';
+        if (d.completed_at) html += ' · ' + escHtml(d.completed_at);
+        html += '</p>';
+        if (d.survey) {
+            if (d.survey.anonymous) {
+                html += '<p class="ap-muted">Анонимный опрос — текст ответов скрыт.</p>';
+            } else if (!d.survey.submitted) {
+                html += '<p class="ap-muted">Ещё не отправил ответы.</p>';
+            } else if (!d.survey.items || !d.survey.items.length) {
+                html += '<p class="ap-muted">Ответов нет.</p>';
+            } else {
+                html += '<ul class="ap-report-survey-answers">';
+                d.survey.items.forEach(function (it) {
+                    html += '<li class="ap-report-survey-answers__item">';
+                    html += '<p class="ap-report-survey-answers__q">' + escHtml(it.question || '') + '</p>';
+                    html += '<p class="ap-report-survey-answers__a">' + escHtml(it.answer || '—') + '</p>';
+                    html += '</li>';
+                });
+                html += '</ul>';
+            }
+        } else if (d.quiz) {
+            html += '<p class="ap-muted small">Лучший результат: ' + escHtml(d.quiz.best_score) + '% · попыток: ' + escHtml(d.quiz.attempts) + '</p>';
+            if (d.quiz.items && d.quiz.items.length) {
+                html += '<ul class="ap-report-survey-answers">';
+                d.quiz.items.forEach(function (it, i) {
+                    var q = it.question_text || it.question || ('Вопрос ' + (i + 1));
+                    var a = it.display || it.answer || it.chosen_label || '—';
+                    if (typeof a === 'object') a = JSON.stringify(a);
+                    html += '<li class="ap-report-survey-answers__item">';
+                    html += '<p class="ap-report-survey-answers__q">' + escHtml(q) + '</p>';
+                    html += '<p class="ap-report-survey-answers__a">' + escHtml(a) + '</p>';
+                    html += '</li>';
+                });
+                html += '</ul>';
+            }
+        } else if (d.simple) {
+            html += '<p>' + escHtml(d.simple.message || '') + '</p>';
+        }
+        html += '</div>';
+        return html;
     }
 
     function buildPayload() {
@@ -1138,10 +1494,10 @@
                 state.rawSettings.breakdown_visible_minutes != null ? state.rawSettings.breakdown_visible_minutes : 30,
         };
         if (typ === 'text') {
-            p.theory_markdown = $('ap-sec-theory-md').value;
+            p.theory_markdown = theoryMarkdownValue();
         }
         if (typ === 'practice') {
-            p.practice_markdown = $('ap-sec-practice-md').value;
+            p.practice_markdown = practiceMarkdownValue();
             p.practice_image_id = state.practiceImageId != null ? state.practiceImageId : null;
         }
         if (typ === 'quiz' || typ === 'exam' || typ === 'survey') {
@@ -1329,20 +1685,13 @@
             }
         });
 
-        document.querySelectorAll('[data-ap-theory-cmd]').forEach(function (b) {
-            b.addEventListener('click', function () {
-                theoryCmd(b.getAttribute('data-ap-theory-cmd'));
-            });
-        });
-
         document.querySelectorAll('[data-ap-media-insert-target]').forEach(function (b) {
             b.addEventListener('click', function () {
                 openMediaPicker(b.getAttribute('data-ap-media-insert-target'));
             });
         });
 
-        var th = $('ap-sec-theory-md');
-        if (th) th.addEventListener('input', updateTheoryChars);
+        ensureMarkdownEditors();
 
         ['ap-sec-inherit-att', 'ap-sec-inherit-time', 'ap-sec-inherit-pass'].forEach(function (name) {
             document.querySelectorAll('input[name="' + name + '"]').forEach(function (r) {
@@ -1374,43 +1723,20 @@
             updateQuizSummary();
         });
 
-        var qlCopy = $('ap-sec-quick-link-copy');
-        if (qlCopy) {
-            qlCopy.addEventListener('click', function () {
-                var urlEl = $('ap-sec-quick-link-url');
-                if (!urlEl || !urlEl.value) return;
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(urlEl.value).catch(function () {
-                        urlEl.select();
-                        document.execCommand('copy');
-                    });
-                } else {
-                    urlEl.select();
-                    document.execCommand('copy');
-                }
-            });
-        }
-        var qlGen = $('ap-sec-quick-link-gen');
-        if (qlGen) {
-            qlGen.addEventListener('click', function () {
-                if (!state.quickLink || !state.quickLink.generate_url) return;
-                postQuickLink(state.quickLink.generate_url, csrf);
-            });
-        }
-        var qlRegen = $('ap-sec-quick-link-regen');
-        if (qlRegen) {
-            qlRegen.addEventListener('click', function () {
-                if (!state.quickLink || !state.quickLink.generate_url) return;
-                if (!window.confirm('Создать новую ссылку? Старая перестанет работать.')) return;
-                postQuickLink(state.quickLink.generate_url, csrf);
-            });
-        }
-        var qlOff = $('ap-sec-quick-link-off');
-        if (qlOff) {
-            qlOff.addEventListener('click', function () {
-                if (!state.quickLink || !state.quickLink.revoke_url) return;
-                if (!window.confirm('Отключить быструю ссылку?')) return;
-                postQuickLink(state.quickLink.revoke_url, csrf);
+        var shareBtn = $('ap-sec-share-btn');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', function () {
+                var meta = state.shareLink || state.quickLink;
+                if (!meta || !window.ApShareLink) return;
+                window.ApShareLink.open({
+                    meta: meta,
+                    csrf: csrf,
+                    onChange: function (updated) {
+                        state.shareLink = updated;
+                        state.quickLink = updated;
+                        renderShareLinkUi(updated);
+                    }
+                });
             });
         }
 
@@ -1427,17 +1753,34 @@
                     item.right = [''];
                     delete item.options;
                     delete item.correct;
+                    delete item.placeholder;
+                    delete item.max_length;
+                } else if (t === 'open_text') {
+                    item.type = 'open_text';
+                    delete item.options;
+                    delete item.correct;
+                    delete item.left;
+                    delete item.right;
+                    item.placeholder = '';
+                    item.max_length = null;
                 } else {
                     item.type = t;
                     item.options = ['', ''];
                     if (isSurveySection()) {
-                        if (t === 'multi') item.correct = [];
+                        if (t === 'multi' || t === 'multi_other') item.correct = [];
                         else delete item.correct;
                     } else {
                         item.correct = t === 'multi' ? [] : 0;
                     }
                     delete item.left;
                     delete item.right;
+                    if (t === 'multi_other') {
+                        item.placeholder = '';
+                        item.max_length = null;
+                    } else {
+                        delete item.placeholder;
+                        delete item.max_length;
+                    }
                 }
                 renderQuizEditor();
                 scheduleQuizDraftSave();
@@ -1446,6 +1789,18 @@
         var qText = $('ap-sec-q-text');
         if (qText) {
             qText.addEventListener('input', function () {
+                scheduleQuizDraftSave();
+            });
+        }
+        var qPh = $('ap-sec-q-placeholder');
+        if (qPh) {
+            qPh.addEventListener('input', function () {
+                scheduleQuizDraftSave();
+            });
+        }
+        var qMl = $('ap-sec-q-maxlen');
+        if (qMl) {
+            qMl.addEventListener('input', function () {
                 scheduleQuizDraftSave();
             });
         }
@@ -1463,7 +1818,7 @@
         if (qAddOpt) {
             qAddOpt.addEventListener('click', function () {
                 var item = state.questions[state.quizActive];
-                if (!item || item.type === 'match') return;
+                if (!item || item.type === 'match' || item.type === 'open_text') return;
                 if (!Array.isArray(item.options)) item.options = [];
                 item.options.push('');
                 renderQuizEditor();

@@ -30,7 +30,11 @@
         </header>
 
         <div class="docs-layout docs-layout--article">
-            @include('docs.partials.sidebar', ['grouped' => $grouped, 'currentSlug' => $article['slug']])
+            @include('docs.partials.sidebar', [
+                'grouped' => $grouped,
+                'currentSlug' => $article['slug'],
+                'docsSearchIndex' => $docsSearchIndex ?? [],
+            ])
 
             <div class="docs-main">
                 <article class="docs-article">
@@ -85,6 +89,7 @@
         </div>
     </div>
     <script src="{{ asset('js/docs-lightbox.js') }}" defer></script>
+    @include('docs.partials.search-boot', ['docsSearchIndex' => $docsSearchIndex ?? []])
     @if ($headings !== [])
         <script>
             (function () {

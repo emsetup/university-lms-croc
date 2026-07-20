@@ -16,7 +16,7 @@
             Просмотр для администратора: {{ count($questions) }} вопр.
             · тип раздела: <strong>опрос</strong> (без оценки и порога прохождения)
         </p>
-        <p class="muted small" style="margin:0 0 1rem">{{ $mTitle }} — список вопросов как у обучающегося.</p>
+        <p class="muted small" style="margin:0 0 1rem">{{ $mTitle }} — список вопросов как у обучающегося. Правильные ответы не отмечаются: в опросе их нет.</p>
         <div class="admin-readonly-quiz">
             @include('admin.partials.quiz-questions-readonly', ['questions' => $questions, 'surveyMode' => true])
         </div>

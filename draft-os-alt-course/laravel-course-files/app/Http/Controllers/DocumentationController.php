@@ -23,6 +23,7 @@ final class DocumentationController extends Controller
             'pageTitle' => (string) config('documentation.title', 'Документация'),
             'pageSubtitle' => (string) config('documentation.subtitle', ''),
             'sectionIntro' => config('documentation.section_intro', []),
+            'docsSearchIndex' => $this->catalog->searchIndex($psa),
         ]);
     }
 
@@ -45,6 +46,7 @@ final class DocumentationController extends Controller
             'navPrev' => $nav['prev'],
             'navNext' => $nav['next'],
             'sectionIntro' => config('documentation.section_intro.'.((string) $article['section']), ''),
+            'docsSearchIndex' => $this->catalog->searchIndex($psa),
         ]);
     }
 

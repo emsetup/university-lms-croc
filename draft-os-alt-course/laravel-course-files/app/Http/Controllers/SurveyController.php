@@ -10,6 +10,7 @@ use App\Services\CourseModuleService;
 use App\Services\CourseSectionService;
 use App\Services\ModuleAccessGate;
 use App\Services\SurveyResponseService;
+use App\Support\CourseStaffPreview;
 use App\Support\LearnerPreviewContext;
 use App\Support\LearnerRoute;
 use Illuminate\Http\RedirectResponse;
@@ -25,6 +26,12 @@ final class SurveyController extends Controller
         private ModuleAccessGate $access,
         private SurveyResponseService $surveys,
     ) {}
+
+    /** В предпросмотре курса опрос — все вопросы сразу, без записи ответов. */
+    private function staffPreviewWalkthrough(): bool
+    {
+        return CourseStaffPreview::isActive();
+    }
 
     public function show(Request $request): View|RedirectResponse
     {
@@ -51,7 +58,10 @@ final class SurveyController extends Controller
         }
 
         $settings = $this->sections->mergedSettings($sec);
-        $existing = $this->surveys->submissionForLearner((int) $sec->id, (int) $learner->id);
+        $previewWalkthrough = $this->staffPreviewWalkthrough();
+        $existing = $previewWalkthrough
+            ? null
+            : $this->surveys->submissionForLearner((int) $sec->id, (int) $learner->id);
 
         return view('modules.survey', [
             'courseId' => $ctx['courseId'],
@@ -64,6 +74,7 @@ final class SurveyController extends Controller
             'anonymous' => (bool) ($settings['anonymous'] ?? false),
             'submitted' => $existing !== null,
             'submission' => $existing,
+            'previewWalkthrough' => $previewWalkthrough,
         ]);
     }
 
@@ -74,6 +85,13 @@ final class SurveyController extends Controller
         $cm = $ctx['cm'];
         $mid = $ctx['mid'];
         $sec = $ctx['section'];
+        $surveyParams = LearnerRoute::section($ctx['courseId'], $ctx['moduleSequence'], $ctx['sectionSequence']);
+
+        if ($this->staffPreviewWalkthrough()) {
+            return redirect()->route('course.module.section.survey', $surveyParams)
+                ->with('err', 'В режиме предпросмотра курса ответы опроса не сохраняются.');
+        }
+
         if ($r = $this->access->redirectIfModuleLocked($learner, $mid)) {
             return $r;
         }
@@ -84,7 +102,6 @@ final class SurveyController extends Controller
             return $r;
         }
 
-        $surveyParams = LearnerRoute::section($ctx['courseId'], $ctx['moduleSequence'], $ctx['sectionSequence']);
         if ($this->surveys->hasSubmission((int) $sec->id, (int) $learner->id)) {
             return redirect()->route('course.module.section.survey', $surveyParams)
                 ->with('err', 'Вы уже отправили ответы на этот опрос.');

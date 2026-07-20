@@ -58,6 +58,10 @@
                                     data-ap-changelog-doc-url="{{ $entry['doc_url'] }}"
                                     data-ap-changelog-doc-label="{{ $entry['doc_label'] ?? 'Документация' }}"
                                 @endif
+                                @if (! empty($entry['image_url']))
+                                    data-ap-changelog-image-url="{{ $entry['image_url'] }}"
+                                    data-ap-changelog-image-alt="{{ $entry['image_alt'] ?? $entry['title'] }}"
+                                @endif
                                 aria-label="Подробнее: {{ $entry['title'] }}"
                             >
                                 <span class="ap-changelog-list__date">

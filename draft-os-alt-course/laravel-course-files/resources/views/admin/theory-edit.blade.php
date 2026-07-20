@@ -11,11 +11,12 @@
         <div class="card">
         <p class="muted"><a href="{{ route('admin.theory.index', $ap ?? []) }}">← К списку модулей</a></p>
         <h1 style="margin-top: 0">Модуль {{ $module }}: {{ $mTitle }}</h1>
-        <p class="muted small">Файл: <code>config/snippets/{{ $filename }}</code>. Панель вносит разметку Markdown (**жирный**, *курсив*, списки, код). Предпросмотр — вкладка справа в редакторе.</p>
+        <p class="muted small">Файл: <code>config/snippets/{{ $filename }}</code>. Плашки, таблицы и картинки — кнопки панели. Предпросмотр — как у обучающегося (вкладка Preview / Side-by-side).</p>
 
-        <form method="post" action="{{ route('admin.theory.update', ['module' => $module]) }}" id="theory-admin-form">
+        <form method="post" action="{{ route('admin.theory.update', array_merge($ap ?? [], ['module' => $module])) }}" id="theory-admin-form">
             @csrf
             <label for="theory-md" class="muted small" style="display: block; margin-bottom: 0.35rem">Содержимое (Markdown)</label>
+            <p class="cmde-editor-hint">Плашки: <strong>Важно</strong>, <strong>Подсказка</strong>, <strong>Примечание</strong>, <strong>Зачем</strong> — или цитата <code>&gt; **Важно:** …</code></p>
             <textarea id="theory-md" name="markdown" rows="24" spellcheck="false">{{ old('markdown', $markdown) }}</textarea>
             <div style="margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center">
                 <button type="submit" class="btn btn-primary">Сохранить</button>
@@ -25,45 +26,25 @@
         </div>
     </div>
 
-    <link rel="stylesheet" href="{{ asset('vendor/easymde/2.18.0/easymde.min.css') }}">
-    <script src="{{ asset('vendor/easymde/2.18.0/easymde.min.js') }}"></script>
+    @include('partials.course-markdown-editor-assets', [
+        'cmdeCourseId' => (int) session('admin_course_id'),
+        'ap' => $ap ?? [],
+    ])
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             var el = document.getElementById('theory-md');
-            if (!el || typeof EasyMDE === 'undefined') return;
-            var mde = new EasyMDE({
-                element: el,
-                spellChecker: false,
-                autosave: { enabled: false },
-                status: ['lines', 'words', 'cursor'],
+            var cfg = window.CourseMarkdownEditorPage || {};
+            if (!el || !window.CourseMarkdownEditor) return;
+            var handle = window.CourseMarkdownEditor.create(el, {
+                courseId: cfg.courseId,
+                previewUrl: cfg.previewUrl,
+                csrf: cfg.csrf,
                 minHeight: '420px',
-                toolbar: [
-                    'bold', 'italic', 'heading', '|', 'quote', 'unordered-list', 'ordered-list', '|',
-                    'link', {
-                        name: 'media-lib',
-                        action: function (editor) {
-                            if (!window.MediaLibrary) return;
-                            window.MediaLibrary.open({
-                                courseId: {{ (int) session('admin_course_id') }},
-                                onInsert: function (md) {
-                                    var cm = editor.codemirror;
-                                    var doc = cm.getDoc();
-                                    var cursor = doc.getCursor();
-                                    doc.replaceRange((cursor.ch > 0 ? '\n' : '') + md + '\n', cursor);
-                                },
-                            });
-                        },
-                        className: 'fa fa-picture-o',
-                        title: 'Библиотека картинок',
-                    }, '|', 'code', 'table', '|', 'preview', 'side-by-side', 'fullscreen', '|', 'guide'
-                ]
             });
             var form = document.getElementById('theory-admin-form');
-            if (form) {
+            if (form && handle) {
                 form.addEventListener('submit', function () {
-                    if (mde && typeof mde.value === 'function') {
-                        el.value = mde.value();
-                    }
+                    handle.syncToTextarea();
                 });
             }
         });

@@ -1,0 +1,127 @@
+/* EasyMDE + плашки callout в тулбаре теории/практики */
+
+.EasyMDEContainer .editor-toolbar {
+  flex-wrap: wrap;
+  opacity: 1;
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+.EasyMDEContainer .CodeMirror {
+  border-color: #e2e8f0;
+  border-radius: 0 0 8px 8px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.EasyMDEContainer .editor-toolbar button.cmde-callout {
+  width: auto !important;
+  min-width: 0;
+  padding: 0 0.45rem !important;
+  margin: 1px 1px;
+  border-radius: 4px;
+  font-style: normal;
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  line-height: 1.9;
+}
+
+.EasyMDEContainer .editor-toolbar button.cmde-callout::before {
+  font-style: normal;
+  font-family: inherit;
+  font-weight: 800;
+}
+
+.EasyMDEContainer .editor-toolbar button.cmde-callout--warn {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+}
+.EasyMDEContainer .editor-toolbar button.cmde-callout--warn::before {
+  content: "Важно";
+}
+
+.EasyMDEContainer .editor-toolbar button.cmde-callout--tip {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #86efac;
+}
+.EasyMDEContainer .editor-toolbar button.cmde-callout--tip::before {
+  content: "Подсказка";
+}
+
+.EasyMDEContainer .editor-toolbar button.cmde-callout--note {
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+.EasyMDEContainer .editor-toolbar button.cmde-callout--note::before {
+  content: "Примечание";
+}
+
+.EasyMDEContainer .editor-toolbar button.cmde-callout--goal {
+  background: #f0fdf4;
+  color: #047857;
+  border: 1px solid #86efac;
+}
+.EasyMDEContainer .editor-toolbar button.cmde-callout--goal::before {
+  content: "Зачем";
+}
+
+.EasyMDEContainer .editor-toolbar button.cmde-callout--mermaid {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+.EasyMDEContainer .editor-toolbar button.cmde-callout--mermaid::before {
+  content: "Mermaid";
+}
+
+.EasyMDEContainer .editor-preview,
+.EasyMDEContainer .editor-preview-side {
+  background: #fff;
+  padding: 1rem 1.15rem;
+}
+
+.cmde-preview-body {
+  max-width: none;
+}
+
+.cmde-preview-loading,
+.cmde-preview-fallback {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85rem;
+}
+
+.cmde-editor-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.cmde-editor-hint code {
+  font-size: 0.78em;
+  background: #f1f5f9;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+
+/* Workbench: компактнее в боковой панели */
+.ap-sec-edit-panel .EasyMDEContainer .editor-toolbar button.cmde-callout {
+  font-size: 0.62rem;
+  padding: 0 0.35rem !important;
+}
+
+.ap-sec-edit-panel .EasyMDEContainer {
+  margin-bottom: 0.5rem;
+}
+
+.ap-sec-edit-panel .EasyMDEContainer .CodeMirror {
+  min-height: 280px;
+}

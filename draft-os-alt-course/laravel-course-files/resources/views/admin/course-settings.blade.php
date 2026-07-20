@@ -4,6 +4,7 @@
     $tab = $settingsTab ?? 'moduli';
     $tabTitle = match ($tab) {
         'kurs' => 'О курсе — '.$course->title,
+        'ssylki' => 'Ссылки — '.$course->title,
         'sertifikat' => 'Сертификат — '.$course->title,
         'istoriya' => 'История — '.$course->title,
         'soavtory' => 'Соавторы — '.$course->title,
@@ -19,6 +20,7 @@
         $finalEditUrl = route('admin.quiz.edit.final', $tp);
         $dockerLibraryUrl = route('admin.docker.library');
         $kursUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'kurs']));
+        $ssylkiUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'ssylki']));
         $moduliUrl = route('admin.course.settings', $tp);
         $certUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'sertifikat']));
         $historyUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'istoriya']));
@@ -33,6 +35,9 @@
         <nav class="ap-course-settings-subtabs" aria-label="Разделы настроек курса">
             <a href="{{ $moduliUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'moduli') is-active @endif">Модули</a>
             <a href="{{ $kursUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'kurs') is-active @endif">О курсе</a>
+            @if (! empty($canEditCourseMeta))
+                <a href="{{ $ssylkiUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'ssylki') is-active @endif">Ссылки</a>
+            @endif
             <a href="{{ $certUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'sertifikat') is-active @endif">Сертификат</a>
             @if ($showCollaboratorsTab)
                 <a href="{{ $soavtoryUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'soavtory') is-active @endif">Соавторы</a>
@@ -52,6 +57,12 @@
                 'tp' => $tp,
                 'dockerLibraryUrl' => $dockerLibraryUrl,
                 'finalEditUrl' => $finalEditUrl,
+            ])
+        @elseif ($tab === 'ssylki')
+            @include('admin.partials.course-settings-share-links', [
+                'course' => $course,
+                'shareLinkItems' => $shareLinkItems ?? [],
+                'tp' => $tp,
             ])
         @elseif ($tab === 'sertifikat')
             @include('admin.partials.course-settings-certificate-form', [

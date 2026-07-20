@@ -140,6 +140,16 @@
                                 ])
                             </div>
                         @endif
+                        @if ($psa && $cid > 0 && $psa->canEditCourseMeta($cid))
+                            <button type="button"
+                                    class="btn btn-ghost btn-sm"
+                                    data-ap-share-link
+                                    data-ap-share-meta-url="{{ route('admin.course.share-link.meta', ['adminCourse' => $cslug, 'type' => 'course']) }}"
+                                    title="Поделиться курсом">
+                                @include('partials.ap-icon', ['name' => 'share', 'size' => 'sm'])
+                                Поделиться
+                            </button>
+                        @endif
                         <a class="ap-course-context__back" href="{{ route('admin.courses.index') }}">← Курсы</a>
                     </div>
                     <p class="ap-course-context__meta">
@@ -171,6 +181,10 @@
         @include('partials.course-lightbox')
         <script src="{{ asset('js/media-library.js') }}" defer></script>
         <script src="{{ asset('js/course-lightbox.js') }}" defer></script>
+    @endif
+    @if (! empty($adminShowCourseChrome) && $adminCurrentCourse)
+        @include('admin.partials.share-link-modal')
+        <script src="{{ asset('js/admin-share-link.js') }}" defer></script>
     @endif
     @stack('scripts')
 </body>

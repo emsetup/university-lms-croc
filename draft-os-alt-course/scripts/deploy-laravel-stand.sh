@@ -91,8 +91,10 @@ for f in \
   app/Http/Controllers/AdminLearnersController.php \
   app/Http/Controllers/AdminCourseSurveysController.php \
   app/Http/Controllers/AdminSurveyResponsesController.php \
+  app/Http/Controllers/AdminSectionParticipantsController.php \
   app/Http/Controllers/SurveyController.php \
   app/Http/Controllers/SurveyQuickLinkController.php \
+  app/Http/Controllers/ShareLinkController.php \
   app/Http/Controllers/AdminQuizController.php \
   app/Http/Controllers/AdminStaffController.php \
   app/Http/Controllers/AdminStaffGroupController.php \
@@ -174,7 +176,9 @@ for f in \
   app/Services/CourseSurveyCatalogService.php \
   app/Services/SurveyResponseService.php \
   app/Services/SurveyResponseExportService.php \
+  app/Services/SectionParticipantsAnalyticsService.php \
   app/Services/SurveyQuickLinkService.php \
+  app/Services/ShareLinkService.php \
   app/Support/AdminCourseContentInspector.php \
   app/Support/AdminContentMarkdown.php \
   app/Support/CourseContentMarkdown.php \
@@ -189,6 +193,7 @@ for f in \
   app/Support/LearnerPreviewContext.php \
   app/Support/StaffAdminPreview.php \
   app/Support/CourseStaffPreview.php \
+  app/Support/ShareLinkEntryContext.php \
   app/Support/StaffRoleGuide.php \
   app/Support/OidcIdentityClaims.php \
   app/Support/OidcSignInRedirect.php \
@@ -221,6 +226,7 @@ for f in \
   app/Models/CourseSectionSetting.php \
   app/Models/CourseEnrollment.php \
   app/Models/CourseSurveyLink.php \
+  app/Models/CourseShareLink.php \
   app/Models/Learner.php \
   app/Models/ModuleProgress.php \
   app/Models/PortalStaff.php \
@@ -287,6 +293,12 @@ if [[ -f "${LCF}/database/migrations/2026_06_09_100000_create_course_survey_link
   echo "[deploy-laravel] database/migrations/…create_course_survey_links_table…"
   rsync -az "${LCF}/database/migrations/2026_06_09_100000_create_course_survey_links_table.php" \
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_09_100000_create_course_survey_links_table.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_07_20_120000_create_course_share_links_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…create_course_share_links_table…"
+  rsync -az "${LCF}/database/migrations/2026_07_20_120000_create_course_share_links_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_07_20_120000_create_course_share_links_table.php"
 fi
 
 if [[ -f "${LCF}/database/migrations/2026_06_09_120000_add_show_module_progress_to_courses_table.php" ]]; then
@@ -534,6 +546,12 @@ if [[ -f "${LCF}/public/js/docs-lightbox.js" ]]; then
   rsync -az "${LCF}/public/js/docs-lightbox.js" "${STAND_SSH}:${REMOTE}/public/js/docs-lightbox.js"
 fi
 
+if [[ -f "${LCF}/public/js/docs-search.js" ]]; then
+  echo "[deploy-laravel] public/js/docs-search.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/docs-search.js" "${STAND_SSH}:${REMOTE}/public/js/docs-search.js"
+fi
+
 if [[ -d "${LCF}/public/images/docs" ]]; then
   echo "[deploy-laravel] public/images/docs/"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/images/docs'"
@@ -575,6 +593,24 @@ if [[ -f "${LCF}/public/js/section-edit-panel.js" ]]; then
   echo "[deploy-laravel] public/js/section-edit-panel.js"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
   rsync -az "${LCF}/public/js/section-edit-panel.js" "${STAND_SSH}:${REMOTE}/public/js/section-edit-panel.js"
+fi
+
+if [[ -f "${LCF}/public/js/admin-share-link.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-share-link.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-share-link.js" "${STAND_SSH}:${REMOTE}/public/js/admin-share-link.js"
+fi
+
+if [[ -f "${LCF}/public/js/course-markdown-editor.js" ]]; then
+  echo "[deploy-laravel] public/js/course-markdown-editor.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/course-markdown-editor.js" "${STAND_SSH}:${REMOTE}/public/js/course-markdown-editor.js"
+fi
+
+if [[ -f "${LCF}/public/css/course-markdown-editor.css" ]]; then
+  echo "[deploy-laravel] public/css/course-markdown-editor.css"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/css'"
+  rsync -az "${LCF}/public/css/course-markdown-editor.css" "${STAND_SSH}:${REMOTE}/public/css/course-markdown-editor.css"
 fi
 
 for mf in media-library.js course-lightbox.js; do

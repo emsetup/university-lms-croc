@@ -1,4 +1,7 @@
-{{-- Админ: только просмотр, с подсветкой верных ответов --}}
+{{-- Админ: только просмотр. У тестов/экзаменов — подсветка верных ответов; у опросов — без «верно». --}}
+@php
+    $surveyMode = ! empty($surveyMode);
+@endphp
 @foreach ($questions as $i => $q)
     @php
         $q = is_array($q) ? $q : [];
@@ -6,7 +9,7 @@
         if (! is_array($opts)) {
             $opts = [];
         }
-        $correct = $q['c'] ?? null;
+        $correct = $surveyMode ? null : ($q['c'] ?? null);
         $multi = is_array($correct);
     @endphp
     <div class="admin-readonly-q" style="margin-bottom:1.5rem;padding-bottom:1.25rem;border-bottom:1px solid rgba(0,0,0,0.08)">
@@ -19,13 +22,30 @@
             @if (! empty($q['placeholder']))
                 <p class="muted small" style="margin:0">Подсказка в поле: {{ $q['placeholder'] }}</p>
             @endif
+        @elseif (! empty($q['multi_other']))
+            <p class="muted small" style="margin:0 0 0.5rem">Тип вопроса: смешанный (несколько вариантов + свой текст).</p>
+            <ul style="list-style:none;padding:0;margin:0">
+                @foreach ($opts as $j => $opt)
+                    <li style="padding:0.35rem 0.5rem;margin:0.25rem 0;border-radius:6px;background:#f8fafc">
+                        <span class="muted" style="margin-right:0.35rem">{{ chr(65 + $j) }}.</span>
+                        {{ is_scalar($opt) ? $opt : json_encode($opt, JSON_UNESCAPED_UNICODE) }}
+                    </li>
+                @endforeach
+            </ul>
+            @if (! empty($q['placeholder']))
+                <p class="muted small" style="margin:0.5rem 0 0">Подсказка для своего варианта: {{ $q['placeholder'] }}</p>
+            @endif
         @elseif (! empty($q['match_drag']))
             @php
                 $left = is_array($q['left'] ?? null) ? $q['left'] : [];
                 $right = is_array($q['right'] ?? null) ? $q['right'] : [];
                 $n = count($left);
             @endphp
-            <p class="muted small" style="margin:0 0 0.5rem">Тип вопроса: сопоставление (перетаскивание). Ожидаемый порядок блоков справа: <strong>1…{{ max(1, $n) }}</strong> по строкам слева.</p>
+            @if ($surveyMode)
+                <p class="muted small" style="margin:0 0 0.5rem">Тип вопроса: сопоставление. Варианты слева и справа — без эталонного порядка (в опросе нет правильных ответов).</p>
+            @else
+                <p class="muted small" style="margin:0 0 0.5rem">Тип вопроса: сопоставление (перетаскивание). Ожидаемый порядок блоков справа: <strong>1…{{ max(1, $n) }}</strong> по строкам слева.</p>
+            @endif
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start">
                 <div>
                     <p class="muted small" style="margin:0 0 0.35rem">Слева</p>
@@ -36,7 +56,7 @@
                     </ol>
                 </div>
                 <div>
-                    <p class="muted small" style="margin:0 0 0.35rem">Справа (эталонный порядок)</p>
+                    <p class="muted small" style="margin:0 0 0.35rem">{{ $surveyMode ? 'Справа' : 'Справа (эталонный порядок)' }}</p>
                     <ol style="margin:0;padding-left:1.2rem">
                         @foreach ($right as $cell)
                             <li>{{ is_scalar($cell) ? $cell : json_encode($cell, JSON_UNESCAPED_UNICODE) }}</li>
@@ -48,11 +68,13 @@
             <ul class="admin-readonly-opts" style="list-style:none;padding:0;margin:0.35rem 0 0">
                 @foreach ($opts as $j => $opt)
                     @php
-                        $isCorrect = $multi
-                            ? in_array($j, $correct, true)
-                            : (int) $correct === (int) $j;
+                        $isCorrect = ! $surveyMode && $correct !== null && (
+                            $multi
+                                ? in_array($j, $correct, true)
+                                : (int) $correct === (int) $j
+                        );
                     @endphp
-                    <li style="margin:0.2rem 0;padding:0.4rem 0.55rem;border-radius:6px;border:1px solid transparent;{{ $isCorrect ? 'background:rgba(22,101,52,0.09);border-color:rgba(22,101,52,0.25);' : '' }}">
+                    <li style="margin:0.2rem 0;padding:0.4rem 0.55rem;border-radius:6px;border:1px solid transparent;{{ $isCorrect ? 'background:rgba(22,101,52,0.09);border-color:rgba(22,101,52,0.25);' : ($surveyMode ? 'background:#f8fafc;' : '') }}">
                         <span class="muted" style="font-size:0.85rem">{{ $j }}.</span>
                         {{ is_scalar($opt) ? $opt : json_encode($opt, JSON_UNESCAPED_UNICODE) }}
                         @if ($isCorrect)
@@ -61,7 +83,7 @@
                     </li>
                 @endforeach
             </ul>
-            @if (isset($q['points']) && (int) $q['points'] > 0)
+            @if (! $surveyMode && isset($q['points']) && (int) $q['points'] > 0)
                 <p class="muted small" style="margin:0.5rem 0 0">Вес вопроса: {{ (int) $q['points'] }} б.</p>
             @endif
         @endif

@@ -14,6 +14,9 @@
             @if (! empty($pageSubtitle))
                 <p>{{ $pageSubtitle }}</p>
             @endif
+            <div class="docs-banner__search">
+                @include('docs.partials.search', ['docsSearchVariant' => 'hero', 'docsSearchIndex' => $docsSearchIndex ?? []])
+            </div>
         </header>
 
         <div class="docs-layout">
@@ -21,6 +24,7 @@
                 'grouped' => $grouped,
                 'currentSlug' => null,
                 'sectionIntro' => $sectionIntro ?? [],
+                'docsSearchIndex' => $docsSearchIndex ?? [],
             ])
 
             <div class="docs-main">
@@ -29,6 +33,10 @@
                         Здесь собраны пошаговые инструкции: не только «что за кнопка», но и <strong>зачем нужен раздел</strong>,
                         <strong>в какой последовательности</strong> действовать и <strong>какой результат</strong> вы получите.
                         Набор статей зависит от вашей роли — администраторы видят блоки про настройку курсов и портала.
+                    </p>
+                    <p class="docs-start-panel__tip">
+                        Не знаете, где статья? Введите в поиск сверху, например <strong>быстрая ссылка</strong>, <strong>опрос</strong>, <strong>плашки</strong> или <strong>соавторы</strong>
+                        (клавиша <kbd>/</kbd>).
                     </p>
                     @if ($firstSlug)
                         <a class="btn btn-primary" href="{{ route('documentation.show', ['slug' => $firstSlug]) }}">Начать с введения</a>
@@ -44,14 +52,18 @@
 
                 <div class="docs-index-grid">
                     @foreach ($grouped as $section => $articles)
-                        <section class="docs-index-section-card">
+                        <section class="docs-index-section-card" data-docs-index-section>
                             <h2>{{ $section }}</h2>
                             @if (! empty(($sectionIntro ?? [])[$section]))
                                 <p class="docs-index-section-desc">{{ $sectionIntro[$section] }}</p>
                             @endif
                             <div class="docs-article-cards">
                                 @foreach ($articles as $item)
-                                    <a class="docs-article-card" href="{{ route('documentation.show', ['slug' => $item['slug']]) }}">
+                                    <a
+                                        class="docs-article-card"
+                                        href="{{ route('documentation.show', ['slug' => $item['slug']]) }}"
+                                        data-docs-slug="{{ $item['slug'] }}"
+                                    >
                                         <p class="docs-article-card__title">{{ $item['title'] }}</p>
                                         @if (! empty($item['summary']))
                                             <p class="docs-article-card__summary">{{ $item['summary'] }}</p>
@@ -66,4 +78,6 @@
             </div>
         </div>
     </div>
+
+    @include('docs.partials.search-boot', ['docsSearchIndex' => $docsSearchIndex ?? []])
 @endsection

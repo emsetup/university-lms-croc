@@ -22,7 +22,7 @@
                 </div>
                 <time class="ap-activity-feed__time"
                       datetime="{{ $ev['at']->toIso8601String() }}">
-                    {{ $ev['at']->timezone(config('app.timezone'))->format('d.m.Y H:i') }}
+                    {{ $ev['at']->timezone(config('portal.display_timezone', 'Europe/Moscow'))->format('d.m.Y H:i') }}
                 </time>
             </div>
         </li>

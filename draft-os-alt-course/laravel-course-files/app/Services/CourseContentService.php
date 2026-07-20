@@ -461,6 +461,17 @@ final class CourseContentService
                 $row['match_drag'] = true;
                 $row['left'] = $pairsByQ[$qid]['left'] ?? [];
                 $row['right'] = $pairsByQ[$qid]['right'] ?? [];
+            } elseif ($type === 'multi_other') {
+                $row['a'] = $optionsByQ[$qid] ?? [];
+                $row['c'] = [];
+                $row['multi_other'] = true;
+                $settings = is_array($q->settings_json) ? $q->settings_json : [];
+                if (! empty($settings['placeholder'])) {
+                    $row['placeholder'] = (string) $settings['placeholder'];
+                }
+                if (! empty($settings['max_length']) && is_numeric($settings['max_length'])) {
+                    $row['max_length'] = (int) $settings['max_length'];
+                }
             } else {
                 $row['a'] = $optionsByQ[$qid] ?? [];
                 $corr = $correctByQ[$qid] ?? [];

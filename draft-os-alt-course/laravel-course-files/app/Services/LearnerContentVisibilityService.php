@@ -302,6 +302,105 @@ final class LearnerContentVisibilityService
         return $parts !== [] ? implode(', ', $parts) : 'Ограничено';
     }
 
+    /**
+     * Режим аудитории раздела (без учёта курса/модуля).
+     */
+    public function sectionAudienceMode(CourseSection $section): string
+    {
+        return $this->viewAudienceForResource(
+            ContentViewAudienceRule::RESOURCE_SECTION,
+            (int) $section->id
+        );
+    }
+
+    /**
+     * Learner id, которым раздел реально виден при ограниченном доступе.
+     * При view_audience=all возвращает [] — для отчётов используйте список прошедших.
+     *
+     * @return list<int>
+     */
+    public function eligibleLearnerIdsForSection(CourseSection $section): array
+    {
+        $sectionId = (int) $section->id;
+        $courseId = (int) $section->course_id;
+        $moduleId = (int) $section->course_module_id;
+
+        if ($sectionId < 1 || $courseId < 1 || $moduleId < 1) {
+            return [];
+        }
+
+        if ($this->sectionAudienceMode($section) !== Course::VIEW_AUDIENCE_RESTRICTED) {
+            return [];
+        }
+
+        $candidateIds = $this->expandRuleLearnerIds(
+            $courseId,
+            ContentViewAudienceRule::RESOURCE_SECTION,
+            $sectionId
+        );
+
+        if ($candidateIds === []) {
+            return [];
+        }
+
+        // Без staff-preview bypass и без is_enabled: для отчёта важны правила аудитории.
+        $out = [];
+        foreach ($candidateIds as $learnerId) {
+            if (! $this->checkResource(ContentViewAudienceRule::RESOURCE_COURSE, $courseId, $courseId, $learnerId)) {
+                continue;
+            }
+            if (! $this->checkResource(ContentViewAudienceRule::RESOURCE_MODULE, $moduleId, $courseId, $learnerId)) {
+                continue;
+            }
+            if (! $this->checkResource(ContentViewAudienceRule::RESOURCE_SECTION, $sectionId, $courseId, $learnerId)) {
+                continue;
+            }
+            $out[] = $learnerId;
+        }
+
+        sort($out);
+
+        return $out;
+    }
+
+    /**
+     * Разворот правил аудитории в уникальные learner_id (без фильтра видимости родителя).
+     *
+     * @return list<int>
+     */
+    public function expandRuleLearnerIds(int $courseId, string $resourceType, int $resourceId): array
+    {
+        $rules = $this->rulesForResource($courseId, $resourceType, $resourceId);
+        if ($rules->isEmpty()) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($rules as $rule) {
+            foreach ($this->learnerIdsFromRule($rule) as $learnerId) {
+                if ($learnerId > 0) {
+                    $ids[$learnerId] = true;
+                }
+            }
+        }
+
+        $out = array_map('intval', array_keys($ids));
+        sort($out);
+
+        return $out;
+    }
+
+    /** @return list<int> */
+    private function learnerIdsFromRule(ContentViewAudienceRule $rule): array
+    {
+        return match ($rule->subject_type) {
+            ContentViewAudienceRule::SUBJECT_LEARNER => [(int) $rule->subject_id],
+            ContentViewAudienceRule::SUBJECT_PORTAL_GROUP => $this->portalGroupMemberIds((int) $rule->subject_id),
+            ContentViewAudienceRule::SUBJECT_COURSE_GROUP => $this->courseGroupMemberIds((int) $rule->subject_id),
+            default => [],
+        };
+    }
+
     private static function pluralGroups(int $n): string
     {
         $mod10 = $n % 10;

@@ -219,6 +219,33 @@
     padding: 0.5rem 0 1.75rem;
 }
 
+.survey-flow__steps--preview {
+    flex-direction: column;
+    align-items: stretch;
+    min-height: 0;
+    gap: 1.5rem;
+    padding: 0.75rem 0 0;
+}
+
+.survey-step--preview {
+    animation: none;
+    padding: 1.25rem 0 1.5rem;
+    border-bottom: 1px solid #e8edf2;
+}
+
+.survey-step--preview:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.survey-shell--preview {
+    padding-top: 0.5rem;
+}
+
+.survey-page--preview .survey-stage__body {
+    padding-bottom: 2rem;
+}
+
 .survey-step {
     width: 100%;
     animation: survey-step-in 0.32s cubic-bezier(0.4, 0, 0.2, 1);
@@ -399,6 +426,19 @@
     font-size: 1.02rem;
     line-height: 1.45;
     color: var(--text-primary, #111827);
+}
+
+.survey-other-block {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.survey-other-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary, #4b5563);
 }
 
 .survey-match-row {

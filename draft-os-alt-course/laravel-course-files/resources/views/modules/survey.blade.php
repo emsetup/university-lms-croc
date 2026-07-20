@@ -2,6 +2,7 @@
 
 @php
     $quickLinkMode = (bool) ($quickLinkMode ?? false);
+    $previewWalkthrough = ! empty($previewWalkthrough);
     $modNum = (int) ($moduleSequence ?? 1);
     $secNum = (int) ($sectionSequence ?? 1);
     $lr = \App\Support\LearnerRoute::hub((int) ($courseId ?? session('course_id')), $modNum);
@@ -22,11 +23,13 @@
 
 @push('head')
     <link rel="stylesheet" href="{{ asset('css/survey.css') }}">
-    <script src="{{ asset('js/survey.js') }}" defer></script>
+    @unless ($previewWalkthrough)
+        <script src="{{ asset('js/survey.js') }}" defer></script>
+    @endunless
 @endpush
 
 @section('content')
-<div class="page-container survey-page @if($quickLinkMode) survey-page--quick @endif">
+<div class="page-container survey-page @if($quickLinkMode) survey-page--quick @endif @if($previewWalkthrough) survey-page--preview @endif">
     <div class="survey-stage">
         @unless ($quickLinkMode)
         <div class="survey-stage__chrome">
@@ -38,7 +41,7 @@
         @endunless
 
         <div class="survey-stage__body">
-            @if (session('ok'))
+            @if (session('ok') && ! $previewWalkthrough)
                 <div class="survey-thanks">
                     <div class="survey-thanks__icon" aria-hidden="true">✓</div>
                     <h2>Спасибо!</h2>
@@ -46,6 +49,45 @@
                     @unless ($quickLinkMode)
                     <p class="survey-thanks__link"><a class="btn btn-primary" href="{{ route('course.module.hub', $lr) }}">Вернуться к модулю</a></p>
                     @endunless
+                </div>
+            @elseif ($previewWalkthrough)
+                <div class="impersonation-banner impersonation-banner--course-preview" role="status" style="margin-bottom:1rem;border-radius:8px">
+                    <span class="impersonation-banner__text">
+                        <strong>Режим просмотра опроса.</strong>
+                        <span class="muted">Все вопросы на одной странице; ответы не сохраняются.</span>
+                    </span>
+                </div>
+
+                @if ($anonymous)
+                    <div class="survey-anon-banner" role="note">
+                        <span class="survey-anon-banner__icon" aria-hidden="true">◇</span>
+                        <span>Анонимный опрос — у обучающихся ответы не привязываются к имени в отчётах.</span>
+                    </div>
+                @endif
+
+                <div class="survey-shell survey-shell--preview">
+                    <div class="survey-flow">
+                        <header class="survey-flow__header">
+                            <h1 class="survey-flow__title">{{ $section->title }}</h1>
+                            <p class="muted" style="margin:0.35rem 0 0">Вопросов: {{ $total }}</p>
+                        </header>
+
+                        <div class="survey-flow__steps survey-flow__steps--preview">
+                            @foreach ($questions as $i => $q)
+                                @include('modules.partials.survey-question', [
+                                    'i' => $i,
+                                    'q' => $q,
+                                    'preview' => true,
+                                ])
+                            @endforeach
+                        </div>
+
+                        @unless ($quickLinkMode)
+                        <p style="margin:1.5rem 0 0">
+                            <a class="btn btn-primary" href="{{ route('course.module.hub', $lr) }}">К шагам модуля</a>
+                        </p>
+                        @endunless
+                    </div>
                 </div>
             @elseif ($submitted)
                 <div class="survey-thanks">
@@ -93,62 +135,12 @@
 
                             <div class="survey-flow__steps">
                                 @foreach ($questions as $i => $q)
-                                    <div class="survey-step" data-step="{{ $i }}" @if ($i !== 0) hidden @endif role="group" aria-label="Вопрос {{ $i + 1 }}">
-                                        <div class="survey-step__head">
-                                            <span class="survey-step__badge">{{ $i + 1 }}</span>
-                                            <div class="survey-step__text">{!! \App\Support\CourseContentMarkdown::toHtml($q['q']) !!}</div>
-                                        </div>
-
-                                        <div class="survey-step__body">
-                                            @if (!empty($q['open_text']))
-                                                <label class="survey-input-line-wrap" for="survey-q{{ $i }}-input">
-                                                    <textarea
-                                                        id="survey-q{{ $i }}-input"
-                                                        class="survey-input-line js-survey-input"
-                                                        name="q{{ $i }}"
-                                                        rows="1"
-                                                        data-q="{{ $i }}"
-                                                        @if(!empty($q['max_length'])) maxlength="{{ (int) $q['max_length'] }}" @endif
-                                                        required
-                                                    >{{ old('q'.$i) }}</textarea>
-                                                    <span class="survey-input-line-placeholder">{{ $q['placeholder'] ?? 'Напишите ответ здесь…' }}</span>
-                                                </label>
-                                                <p class="survey-step__hint">Чтобы добавить абзац, нажмите <kbd>Shift</kbd> + <kbd>Enter</kbd></p>
-                                            @elseif (!empty($q['match_drag']))
-                                                @php $left = $q['left'] ?? []; $right = $q['right'] ?? []; @endphp
-                                                <input type="hidden" name="q{{ $i }}_order" id="survey-order-{{ $i }}" value="">
-                                                @foreach ($left as $li => $ltxt)
-                                                    <div class="survey-match-row">
-                                                        <span class="survey-match-row__label">{!! \App\Support\CourseContentMarkdown::inlineHtml($ltxt) !!}</span>
-                                                        <select class="survey-match-select js-survey-input" data-q="{{ $i }}" required>
-                                                            <option value="">— выберите —</option>
-                                                            @foreach ($right as $ri => $rtxt)
-                                                                <option value="{{ $ri }}">{{ preg_replace('/!\[[^\]]*\]\(\/media\/[^)]+\)/', '[картинка] ', $rtxt) }}</option>
-                                                            @endforeach
-                                                        </select>
-                                                    </div>
-                                                @endforeach
-                                            @else
-                                                @php $multi = isset($q['c']) && is_array($q['c']); @endphp
-                                                @if ($multi)
-                                                    <p class="survey-step__hint">Можно выбрать несколько вариантов</p>
-                                                @endif
-                                                <div class="survey-options" role="{{ $multi ? 'group' : 'radiogroup' }}">
-                                                    @foreach ($q['a'] ?? [] as $j => $opt)
-                                                        <label class="survey-option">
-                                                            @if ($multi)
-                                                                <input type="checkbox" class="js-survey-input" name="q{{ $i }}[]" value="{{ $j }}" data-q="{{ $i }}">
-                                                            @else
-                                                                <input type="radio" class="js-survey-input" name="q{{ $i }}" value="{{ $j }}" data-q="{{ $i }}" @if($loop->first) required @endif>
-                                                            @endif
-                                                            <span class="survey-option__letter">{{ chr(65 + $j) }}</span>
-                                                            <span class="survey-option__text">{!! \App\Support\CourseContentMarkdown::inlineHtml($opt) !!}</span>
-                                                        </label>
-                                                    @endforeach
-                                                </div>
-                                            @endif
-                                        </div>
-                                    </div>
+                                    @include('modules.partials.survey-question', [
+                                        'i' => $i,
+                                        'q' => $q,
+                                        'preview' => false,
+                                        'stepHidden' => $i !== 0,
+                                    ])
                                 @endforeach
                             </div>
 

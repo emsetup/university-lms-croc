@@ -104,6 +104,20 @@
         }
         modalBody.innerHTML = html;
 
+        var imageUrl = trigger.getAttribute('data-ap-changelog-image-url') || '';
+        var imageAlt = trigger.getAttribute('data-ap-changelog-image-alt') || title;
+        if (imageUrl) {
+            modalBody.innerHTML =
+                html +
+                '<figure class="ap-changelog-modal__figure">' +
+                '<img class="ap-changelog-modal__img" src="' +
+                escHtml(imageUrl) +
+                '" alt="' +
+                escHtml(imageAlt) +
+                '" loading="lazy" decoding="async">' +
+                '</figure>';
+        }
+
         var docUrl = trigger.getAttribute('data-ap-changelog-doc-url') || '';
         var docLabel = trigger.getAttribute('data-ap-changelog-doc-label') || 'Документация';
         if (modalDoc) {

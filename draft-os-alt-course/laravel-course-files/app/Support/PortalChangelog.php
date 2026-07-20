@@ -16,7 +16,7 @@ final class PortalChangelog
         'docs' => 'Документация',
     ];
 
-    /** @return list<array{date: string, date_label: string, date_short: string, tag: string, tag_label: string, title: string, summary: string, items: list<string>, doc_url: ?string, doc_label: ?string}> */
+    /** @return list<array{date: string, date_label: string, date_short: string, tag: string, tag_label: string, title: string, summary: string, items: list<string>, doc_url: ?string, doc_label: ?string, image_url: ?string, image_alt: ?string}> */
     public static function entries(): array
     {
         $raw = config('portal_changelog.entries', []);
@@ -42,7 +42,7 @@ final class PortalChangelog
         return $out;
     }
 
-    /** @return list<array{date: string, date_label: string, date_short: string, tag: string, tag_label: string, title: string, summary: string, items: list<string>, doc_url: ?string, doc_label: ?string}> */
+    /** @return list<array{date: string, date_label: string, date_short: string, tag: string, tag_label: string, title: string, summary: string, items: list<string>, doc_url: ?string, doc_label: ?string, image_url: ?string, image_alt: ?string}> */
     public static function forDashboard(): array
     {
         $limit = max(1, (int) config('portal_changelog.max_on_dashboard', 12));
@@ -78,7 +78,7 @@ final class PortalChangelog
 
     /**
      * @param  array<string, mixed>  $row
-     * @return array{date: string, date_label: string, date_short: string, tag: string, tag_label: string, title: string, summary: string, summary_html: string, items: list<string>, items_html: list<string>, doc_url: ?string, doc_label: ?string}|null
+     * @return array{date: string, date_label: string, date_short: string, tag: string, tag_label: string, title: string, summary: string, summary_html: string, items: list<string>, items_html: list<string>, doc_url: ?string, doc_label: ?string, image_url: ?string, image_alt: ?string}|null
      */
     private static function normalizeRow(array $row): ?array
     {
@@ -127,6 +127,17 @@ final class PortalChangelog
             }
         }
 
+        $imageUrl = null;
+        $imageAlt = null;
+        $imagePath = trim((string) ($row['image'] ?? ''));
+        if ($imagePath !== '') {
+            $imageUrl = asset(ltrim($imagePath, '/'));
+            $imageAlt = trim((string) ($row['image_alt'] ?? $title));
+            if ($imageAlt === '') {
+                $imageAlt = $title;
+            }
+        }
+
         return [
             'date' => $dateStr,
             'date_label' => $dateLabel,
@@ -143,6 +154,8 @@ final class PortalChangelog
             ),
             'doc_url' => $docUrl,
             'doc_label' => $docLabel,
+            'image_url' => $imageUrl,
+            'image_alt' => $imageAlt,
         ];
     }
 }

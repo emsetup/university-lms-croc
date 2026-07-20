@@ -9,6 +9,7 @@ use App\Support\CourseModuleMeta;
 use App\Support\CourseStaffPreview;
 use App\Support\LearnerPreviewContext;
 use App\Support\LearnerRoute;
+use App\Support\ShareLinkEntryContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Schema;
 
@@ -52,6 +53,9 @@ final class ModuleAccessGate
         }
         if (! $this->visibility->isModuleVisibleToLearner($courseModuleId, (int) $learner->id, $courseId)) {
             return false;
+        }
+        if (ShareLinkEntryContext::allowsModule($courseModuleId, $courseId)) {
+            return true;
         }
         if ($this->courseUnlocksAllModules($courseId)) {
             $ordered = $this->visibleOrderedModuleIdsForLearner($learner, $courseId);
@@ -171,6 +175,10 @@ final class ModuleAccessGate
         }
 
         $courseId = $this->courseId($learner);
+        if (ShareLinkEntryContext::bypassesStepGates($courseModuleId, $courseId > 0 ? $courseId : null)) {
+            return null;
+        }
+
         $cm = $this->modules->findForCourse($courseId, $courseModuleId);
         $contentIdx = $cm?->effectiveContentIndex() ?? 1;
 
