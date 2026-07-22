@@ -821,6 +821,7 @@ final class CourseSectionService
         return \App\Models\CourseSurveySubmission::query()
             ->where('course_section_id', $sectionId)
             ->where('learner_id', $learnerId)
+            ->whereHas('answers')
             ->exists();
     }
 

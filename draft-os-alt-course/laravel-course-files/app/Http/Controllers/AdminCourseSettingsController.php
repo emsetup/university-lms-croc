@@ -878,7 +878,8 @@ final class AdminCourseSettingsController extends Controller
                 ? app(SurveyQuickLinkService::class)->metaForSection(
                     $section,
                     route('admin.course.section.quick-link.generate', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])),
-                    route('admin.course.section.quick-link.revoke', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
+                    route('admin.course.section.quick-link.revoke', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])),
+                    route('admin.course.section.survey-invite', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
                 )
                 : null,
             'share_link' => app(ShareLinkService::class)->metaForSection(
@@ -888,7 +889,10 @@ final class AdminCourseSettingsController extends Controller
                     : route('admin.course.section.share-link.generate', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])),
                 $section->type === CourseSection::TYPE_SURVEY
                     ? route('admin.course.section.quick-link.revoke', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
-                    : route('admin.course.section.share-link.revoke', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
+                    : route('admin.course.section.share-link.revoke', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])),
+                $section->type === CourseSection::TYPE_SURVEY
+                    ? route('admin.course.section.survey-invite', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
+                    : null
             ),
             'visibility' => app(LearnerContentVisibilityService::class)->audiencePayloadForResource(
                 ContentViewAudienceRule::RESOURCE_SECTION,
@@ -915,6 +919,59 @@ final class AdminCourseSettingsController extends Controller
         return response()->json([
             'ok' => true,
             'url' => app(SurveyQuickLinkService::class)->learnerUrl($link),
+        ]);
+    }
+
+    public function sectionSurveyInvite(Request $request, Course $adminCourse, CourseModule $courseModule, CourseSection $section): JsonResponse
+    {
+        $this->assertSectionInModule($courseModule, $section);
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) $adminCourse->id);
+
+        if ($section->type !== CourseSection::TYPE_SURVEY) {
+            return response()->json(['ok' => false, 'message' => 'Приглашения доступны только для опросов.'], 422);
+        }
+
+        $data = $request->validate([
+            'emails' => ['required', 'array', 'min:1', 'max:100'],
+            'emails.*' => ['required', 'string', 'max:255'],
+            'ensure_link' => ['nullable', 'boolean'],
+        ]);
+
+        $svc = app(SurveyQuickLinkService::class);
+        $link = $svc->activeLinkForSection((int) $section->id);
+        if ($link === null || ! empty($data['ensure_link'])) {
+            $link = $svc->generate($section);
+        }
+        $url = $svc->learnerUrl($link);
+
+        $notifier = app(\App\Services\Mail\PortalMailNotifier::class);
+        $sent = 0;
+        $failed = 0;
+        $invalid = [];
+
+        foreach ($data['emails'] as $raw) {
+            $email = mb_strtolower(trim((string) $raw));
+            if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $invalid[] = trim((string) $raw);
+
+                continue;
+            }
+            $learner = \App\Models\Learner::query()->whereRaw('LOWER(email) = ?', [$email])->first();
+            $log = $notifier->notifySurveyInvite($email, $url, $adminCourse, $section, $learner);
+            if ($log !== null && $log->status === \App\Models\PortalMailLog::STATUS_SENT) {
+                $sent++;
+            } else {
+                $failed++;
+            }
+        }
+
+        return response()->json([
+            'ok' => true,
+            'url' => $url,
+            'sent' => $sent,
+            'failed' => $failed,
+            'invalid' => $invalid,
+            'message' => 'Отправлено: '.$sent.($failed > 0 ? ', ошибок: '.$failed : '').($invalid !== [] ? ', некорректных: '.count($invalid) : ''),
         ]);
     }
 
@@ -1040,8 +1097,11 @@ final class AdminCourseSettingsController extends Controller
             $rev = $section->type === CourseSection::TYPE_SURVEY
                 ? route('admin.course.section.quick-link.revoke', $secRp)
                 : route('admin.course.section.share-link.revoke', $secRp);
+            $invite = $section->type === CourseSection::TYPE_SURVEY
+                ? route('admin.course.section.survey-invite', $secRp)
+                : null;
 
-            return response()->json(['ok' => true, 'meta' => $svc->metaForSection($section, $gen, $rev)]);
+            return response()->json(['ok' => true, 'meta' => $svc->metaForSection($section, $gen, $rev, $invite)]);
         }
 
         return response()->json(['ok' => false, 'message' => 'Неизвестный тип.'], 422);

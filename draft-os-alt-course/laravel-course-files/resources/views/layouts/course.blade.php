@@ -17,20 +17,35 @@
     <link rel="stylesheet" href="{{ asset('css/portal-typography.css') }}">
     @stack('head')
     <style id="quiz-theory-console">
-        /* Тесты: переносы и фрагменты конфигурации в тексте вопроса */
-        .quiz-q-text,
-        .quiz-q > div:first-child { white-space: pre-wrap; line-height: 1.45; }
+        /* Тесты без markdown: сохраняем переносы в plain-text (фрагменты конфигов) */
+        .quiz-q-text:not(.quiz-q-text--md),
+        .quiz-q > div:first-child:not(.quiz-q-text--md) { white-space: pre-wrap; line-height: 1.45; }
         .quiz-q-text code,
         .quiz-q > div:first-child code,
         .quiz-q-text .mono,
         .quiz-q > div:first-child .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.92em; background: #f1f5f4; padding: 0.12em 0.35em; border-radius: 4px; }
         /* Markdown в тексте вопросов (итоговый тест, тест по теории) */
         .module-exam-q--md,
-        .quiz-q-text--md { line-height: 1.5; font-weight: 600; }
+        .quiz-q-text--md {
+            display: flow-root;
+            line-height: 1.5;
+            font-weight: 600;
+            white-space: normal;
+        }
         .module-exam-q--md > :first-child,
         .quiz-q-text--md > :first-child { margin-top: 0; }
+        .module-exam-q--md > :last-child,
+        .quiz-q-text--md > :last-child { margin-bottom: 0; }
         .module-exam-q--md p,
-        .quiz-q-text--md p { margin: 0.4rem 0; font-weight: 600; }
+        .quiz-q-text--md p { margin: 0.35rem 0; font-weight: 600; }
+        /* Номер вопроса в одной строке с первым абзацем */
+        .quiz-q-text--md > .quiz-q-num {
+            float: left;
+            margin-right: 0.35rem;
+        }
+        .quiz-q-text--md > p:first-of-type {
+            margin-top: 0;
+        }
         .module-exam-q--md pre,
         .quiz-q-text--md pre {
             font-weight: 400;
@@ -44,6 +59,7 @@
             color: #e2e8f0;
             border-radius: 6px;
             white-space: pre;
+            clear: both;
         }
         .module-exam-q--md pre code,
         .quiz-q-text--md pre code {

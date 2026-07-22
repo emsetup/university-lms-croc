@@ -6,11 +6,14 @@
     $opts = is_array($q['a'] ?? null) ? $q['a'] : [];
     $inputPrefix = $inputPrefix ?? 'q';
     $preview = ! empty($preview);
+    $qHtml = \App\Support\CourseContentMarkdown::toHtml(trim((string) ($q['q'] ?? '')));
+    // Убираем пустые абзацы от лишних переносов в textarea редактора
+    $qHtml = (string) preg_replace('/<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/iu', '', $qHtml);
 @endphp
 <div class="quiz-q">
     <div class="quiz-q-text quiz-q-text--md">
         <span class="quiz-q-num">{{ $i + 1 }}.</span>
-        {!! \App\Support\CourseContentMarkdown::toHtml((string) ($q['q'] ?? '')) !!}
+        {!! $qHtml !!}
     </div>
     @if ($openText)
         <p class="muted small" style="margin:0.35rem 0 0.5rem">Введите развёрнутый ответ.</p>

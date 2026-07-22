@@ -443,6 +443,7 @@ final class CourseContentService
             $qid = (int) $q->id;
             $type = (string) ($q->type ?? 'single');
             $row = [
+                'id' => $qid,
                 'q' => (string) $q->question_text,
             ];
             if (is_numeric($q->points) && (int) $q->points > 0) {

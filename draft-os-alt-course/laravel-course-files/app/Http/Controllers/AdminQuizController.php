@@ -416,23 +416,26 @@ final class AdminQuizController extends Controller
     }
 
     /**
-     * Полная перезапись вопросов банка (в транзакции).
+     * Сохранение вопросов банка: обновление по id (без wipe), чтобы не сносить ответы опросов
+     * (FK course_survey_answers.question_id ON DELETE CASCADE).
      *
      * @param  list<array<string, mixed>>  $items  результат validateQuizBankFormat()['data']
      */
     public function persistQuizBankItems(CourseQuizBank $bank, array $items): void
     {
         DB::transaction(function () use ($bank, $items): void {
-            $qIds = \App\Models\CourseQuizQuestion::query()
-                ->where('quiz_bank_id', (int) $bank->id)
-                ->pluck('id')->map(fn ($v) => (int) $v)->all();
-            if ($qIds !== []) {
-                \App\Models\CourseQuizOption::query()->whereIn('question_id', $qIds)->delete();
-                \App\Models\CourseQuizCorrectAnswer::query()->whereIn('question_id', $qIds)->delete();
-                \App\Models\CourseQuizMatchPair::query()->whereIn('question_id', $qIds)->delete();
-                \App\Models\CourseQuizQuestion::query()->whereIn('id', $qIds)->delete();
-            }
+            $bankId = (int) $bank->id;
+            $existing = \App\Models\CourseQuizQuestion::query()
+                ->where('quiz_bank_id', $bankId)
+                ->get()
+                ->keyBy(fn ($q) => (int) $q->id);
+            $existingOrdered = $existing->sortBy([
+                fn ($q) => (int) $q->sort,
+                fn ($q) => (int) $q->id,
+            ])->values();
+            $positionalFallback = $existingOrdered->count() === count($items);
 
+            $keepIds = [];
             foreach (array_values($items) as $i => $q) {
                 $type = ! empty($q['open_text'])
                     ? 'open_text'
@@ -442,9 +445,8 @@ final class AdminQuizController extends Controller
                             ? 'match_drag'
                             : (is_array($q['c'] ?? null) ? 'multi' : 'single')));
 
-                /** @var \App\Models\CourseQuizQuestion $qq */
-                $create = [
-                    'quiz_bank_id' => (int) $bank->id,
+                $payload = [
+                    'quiz_bank_id' => $bankId,
                     'sort' => ($i + 1) * 10,
                     'question_text' => (string) ($q['q'] ?? ''),
                     'type' => $type,
@@ -458,63 +460,128 @@ final class AdminQuizController extends Controller
                     if (! empty($q['max_length']) && is_numeric($q['max_length'])) {
                         $settings['max_length'] = (int) $q['max_length'];
                     }
-                    if ($settings !== []) {
-                        $create['settings_json'] = $settings;
+                    $payload['settings_json'] = $settings !== [] ? $settings : null;
+                } else {
+                    $payload['settings_json'] = null;
+                }
+
+                $incomingId = isset($q['id']) ? (int) $q['id'] : 0;
+                /** @var \App\Models\CourseQuizQuestion|null $qq */
+                $qq = ($incomingId > 0 && $existing->has($incomingId))
+                    ? $existing->get($incomingId)
+                    : null;
+                // Старый клиент без id: при том же числе вопросов обновляем по порядку — иначе wipe сносит ответы.
+                if ($qq === null && $positionalFallback) {
+                    $cand = $existingOrdered->get($i);
+                    if ($cand instanceof \App\Models\CourseQuizQuestion
+                        && ! in_array((int) $cand->id, $keepIds, true)) {
+                        $qq = $cand;
                     }
                 }
-                /** @var \App\Models\CourseQuizQuestion $qq */
-                $qq = \App\Models\CourseQuizQuestion::query()->create($create);
 
-                if ($type === 'open_text') {
-                    continue;
+                if ($qq !== null) {
+                    $qq->fill($payload);
+                    $qq->save();
+                    \App\Models\CourseQuizOption::query()->where('question_id', (int) $qq->id)->delete();
+                    \App\Models\CourseQuizCorrectAnswer::query()->where('question_id', (int) $qq->id)->delete();
+                    \App\Models\CourseQuizMatchPair::query()->where('question_id', (int) $qq->id)->delete();
+                } else {
+                    $qq = \App\Models\CourseQuizQuestion::query()->create($payload);
                 }
 
-                if ($type === 'match_drag') {
-                    $left = is_array($q['left'] ?? null) ? $q['left'] : [];
-                    $right = is_array($q['right'] ?? null) ? $q['right'] : [];
-                    foreach (array_values($left) as $pi => $lv) {
-                        $rv = (string) ($right[$pi] ?? '');
-                        \App\Models\CourseQuizMatchPair::query()->create([
-                            'question_id' => (int) $qq->id,
-                            'sort' => ($pi + 1) * 10,
-                            'left_text' => (string) $lv,
-                            'right_text' => $rv,
-                        ]);
-                    }
-                    continue;
-                }
+                $keepIds[] = (int) $qq->id;
+                $this->persistQuestionChildren($qq, $type, $q);
+            }
 
-                $opts = is_array($q['a'] ?? null) ? $q['a'] : [];
-                $optIds = [];
-                foreach (array_values($opts) as $oi => $text) {
-                    $o = \App\Models\CourseQuizOption::query()->create([
-                        'question_id' => (int) $qq->id,
-                        'sort' => ($oi + 1) * 10,
-                        'option_text' => (string) $text,
-                    ]);
-                    $optIds[$oi] = (int) $o->id;
-                }
-
-                if ($type === 'multi_other') {
-                    continue;
-                }
-
-                $corr = $q['c'] ?? null;
-                if ($corr !== null && $corr !== []) {
-                    $idxs = is_array($corr) ? $corr : [(int) $corr];
-                    foreach ($idxs as $idx) {
-                        $idx = (int) $idx;
-                        if (! isset($optIds[$idx])) {
-                            continue;
-                        }
-                        \App\Models\CourseQuizCorrectAnswer::query()->create([
-                            'question_id' => (int) $qq->id,
-                            'option_id' => (int) $optIds[$idx],
-                        ]);
-                    }
+            $toDelete = [];
+            foreach ($existing->keys() as $oldId) {
+                $oldId = (int) $oldId;
+                if (! in_array($oldId, $keepIds, true)) {
+                    $toDelete[] = $oldId;
                 }
             }
+            if ($toDelete === []) {
+                return;
+            }
+
+            $blocked = [];
+            if (Schema::hasTable('course_survey_answers')) {
+                $blocked = \App\Models\CourseSurveyAnswer::query()
+                    ->whereIn('question_id', $toDelete)
+                    ->distinct()
+                    ->pluck('question_id')
+                    ->map(fn ($v) => (int) $v)
+                    ->all();
+            }
+            if ($blocked !== []) {
+                throw new \InvalidArgumentException(
+                    'Нельзя удалить вопросы, на которые уже есть ответы опроса (id: '
+                    .implode(', ', $blocked)
+                    .'). Экспортируйте ответы или оставьте эти вопросы в банке.'
+                );
+            }
+
+            \App\Models\CourseQuizOption::query()->whereIn('question_id', $toDelete)->delete();
+            \App\Models\CourseQuizCorrectAnswer::query()->whereIn('question_id', $toDelete)->delete();
+            \App\Models\CourseQuizMatchPair::query()->whereIn('question_id', $toDelete)->delete();
+            \App\Models\CourseQuizQuestion::query()->whereIn('id', $toDelete)->delete();
         });
+    }
+
+    /**
+     * @param  array<string, mixed>  $q
+     */
+    private function persistQuestionChildren(\App\Models\CourseQuizQuestion $qq, string $type, array $q): void
+    {
+        if ($type === 'open_text') {
+            return;
+        }
+
+        if ($type === 'match_drag') {
+            $left = is_array($q['left'] ?? null) ? $q['left'] : [];
+            $right = is_array($q['right'] ?? null) ? $q['right'] : [];
+            foreach (array_values($left) as $pi => $lv) {
+                $rv = (string) ($right[$pi] ?? '');
+                \App\Models\CourseQuizMatchPair::query()->create([
+                    'question_id' => (int) $qq->id,
+                    'sort' => ($pi + 1) * 10,
+                    'left_text' => (string) $lv,
+                    'right_text' => $rv,
+                ]);
+            }
+
+            return;
+        }
+
+        $opts = is_array($q['a'] ?? null) ? $q['a'] : [];
+        $optIds = [];
+        foreach (array_values($opts) as $oi => $text) {
+            $o = \App\Models\CourseQuizOption::query()->create([
+                'question_id' => (int) $qq->id,
+                'sort' => ($oi + 1) * 10,
+                'option_text' => (string) $text,
+            ]);
+            $optIds[$oi] = (int) $o->id;
+        }
+
+        if ($type === 'multi_other') {
+            return;
+        }
+
+        $corr = $q['c'] ?? null;
+        if ($corr !== null && $corr !== []) {
+            $idxs = is_array($corr) ? $corr : [(int) $corr];
+            foreach ($idxs as $idx) {
+                $idx = (int) $idx;
+                if (! isset($optIds[$idx])) {
+                    continue;
+                }
+                \App\Models\CourseQuizCorrectAnswer::query()->create([
+                    'question_id' => (int) $qq->id,
+                    'option_id' => (int) $optIds[$idx],
+                ]);
+            }
+        }
     }
 
     /**
@@ -532,6 +599,9 @@ final class AdminQuizController extends Controller
                 return ['ok' => false, 'message' => "Вопрос #".($i + 1).": неверный формат.", 'data' => []];
             }
             $qq = [];
+            if (isset($q['id']) && is_numeric($q['id']) && (int) $q['id'] > 0) {
+                $qq['id'] = (int) $q['id'];
+            }
             $qq['q'] = trim((string) ($q['q'] ?? ''));
             if ($qq['q'] === '') {
                 return ['ok' => false, 'message' => "Вопрос #".($i + 1).": пустой текст.", 'data' => []];

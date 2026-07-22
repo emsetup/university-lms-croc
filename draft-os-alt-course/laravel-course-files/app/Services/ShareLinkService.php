@@ -71,10 +71,10 @@ final class ShareLinkService
      *   title:string
      * }|null
      */
-    public function metaForSection(CourseSection $section, string $generateUrl, string $revokeUrl): ?array
+    public function metaForSection(CourseSection $section, string $generateUrl, string $revokeUrl, ?string $inviteUrl = null): ?array
     {
         if ($section->type === CourseSection::TYPE_SURVEY) {
-            $survey = $this->surveyLinks->metaForSection($section, $generateUrl, $revokeUrl);
+            $survey = $this->surveyLinks->metaForSection($section, $generateUrl, $revokeUrl, $inviteUrl);
             if ($survey === null) {
                 return null;
             }

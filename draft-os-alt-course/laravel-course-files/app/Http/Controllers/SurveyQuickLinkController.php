@@ -45,7 +45,8 @@ final class SurveyQuickLinkController extends Controller
         }
 
         $settings = $this->sections->mergedSettings($sec);
-        $existing = $this->surveys->submissionForLearner((int) $sec->id, (int) $learner->id);
+        $this->surveys->purgeEmptySubmission((int) $sec->id, (int) $learner->id);
+        $existing = $this->surveys->completeSubmissionForLearner((int) $sec->id, (int) $learner->id);
 
         return view('modules.survey', [
             'courseId' => (int) $course->id,
@@ -79,6 +80,7 @@ final class SurveyQuickLinkController extends Controller
         $learner = $this->learner();
         $this->quickLinks->ensureEnrollment($learner, $course);
 
+        $this->surveys->purgeEmptySubmission((int) $sec->id, (int) $learner->id);
         if ($this->surveys->hasSubmission((int) $sec->id, (int) $learner->id)) {
             return redirect()->route('survey.quick', ['token' => $token])
                 ->with('err', 'Вы уже отправили ответы на этот опрос.');

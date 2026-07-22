@@ -21,8 +21,8 @@
     <title>@yield('title', 'Панель администратора — Трек знаний')</title>
     <link rel="icon" type="image/png" href="{{ asset('croc-app-icon.png') }}">
     <link rel="stylesheet" href="{{ asset('css/local-fonts.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/course.css') }}">
-    <link rel="stylesheet" href="{{ asset('css/admin-panel.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/course.css') }}?v={{ @filemtime(public_path('css/course.css')) ?: 1 }}">
+    <link rel="stylesheet" href="{{ asset('css/admin-panel.css') }}?v={{ @filemtime(public_path('css/admin-panel.css')) ?: 1 }}">
     <link rel="stylesheet" href="{{ asset('static/admin/admin.css') }}">
     <link rel="stylesheet" href="{{ asset('css/portal-typography.css') }}">
     @if ($psa && $psa->canUseCourseAdminTools())

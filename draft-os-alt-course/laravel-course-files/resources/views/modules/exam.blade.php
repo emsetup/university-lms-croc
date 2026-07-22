@@ -205,7 +205,11 @@
                     @endphp
                     <div class="module-exam-step" data-step="{{ $i }}" @if ($i !== 0) hidden @endif role="tabpanel" aria-labelledby="exam-step-tab-{{ $i }}">
                         <div class="module-exam-step__meta muted">Вопрос {{ $i + 1 }} из {{ $total }}@if (!empty($questions[$i]['points'])) · {{ (int) $questions[$i]['points'] }} б.@endif</div>
-                        <div class="module-exam-q module-exam-q--md">{!! \App\Support\CourseContentMarkdown::toHtml($q['q']) !!}</div>
+                        @php
+                            $examQHtml = \App\Support\CourseContentMarkdown::toHtml(trim((string) ($q['q'] ?? '')));
+                            $examQHtml = (string) preg_replace('/<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/iu', '', $examQHtml);
+                        @endphp
+                        <div class="module-exam-q module-exam-q--md">{!! $examQHtml !!}</div>
                         @if ($matchDrag)
                             @php
                                 $mLeft = $q['left'] ?? [];

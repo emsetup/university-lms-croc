@@ -59,9 +59,13 @@ final class SurveyController extends Controller
 
         $settings = $this->sections->mergedSettings($sec);
         $previewWalkthrough = $this->staffPreviewWalkthrough();
+        if (! $previewWalkthrough) {
+            // Снять блок повторного прохождения, если ответы были стёрты, а оболочка осталась.
+            $this->surveys->purgeEmptySubmission((int) $sec->id, (int) $learner->id);
+        }
         $existing = $previewWalkthrough
             ? null
-            : $this->surveys->submissionForLearner((int) $sec->id, (int) $learner->id);
+            : $this->surveys->completeSubmissionForLearner((int) $sec->id, (int) $learner->id);
 
         return view('modules.survey', [
             'courseId' => $ctx['courseId'],
@@ -102,6 +106,7 @@ final class SurveyController extends Controller
             return $r;
         }
 
+        $this->surveys->purgeEmptySubmission((int) $sec->id, (int) $learner->id);
         if ($this->surveys->hasSubmission((int) $sec->id, (int) $learner->id)) {
             return redirect()->route('course.module.section.survey', $surveyParams)
                 ->with('err', 'Вы уже отправили ответы на этот опрос.');

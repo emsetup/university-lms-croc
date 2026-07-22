@@ -43,7 +43,7 @@
                     @csrf
 
                     <section class="js-cmce-panel" data-panel="theory">
-                        <p class="cmde-editor-hint">Плашки: кнопки <strong>Важно</strong> / <strong>Подсказка</strong> / <strong>Примечание</strong> / <strong>Зачем</strong> — или <code>&gt; **Важно:** …</code>. Preview / Side-by-side — как у студента.</p>
+                        <p class="cmde-editor-hint">Заголовки: <strong>Заголовок</strong> / <strong>Подзаголовок</strong>, <strong>≡ Центр</strong> / <strong>≡ | Центр</strong>. Плашки: <strong>Важно</strong> / <strong>Подсказка</strong> / <strong>Примечание</strong> / <strong>Зачем</strong>. Preview — как у студента.</p>
                         <textarea class="input js-cmce-textarea" id="cmce-theory-md" name="theory_markdown" rows="18" spellcheck="false">{{ old('theory_markdown', $theory ?? '') }}</textarea>
                     </section>
 

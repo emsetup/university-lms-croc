@@ -54,6 +54,14 @@
                         <button type="button" class="ap-share-modal__btn-ghost" id="ap-share-link-regen">Новая ссылка</button>
                         <button type="button" class="ap-share-modal__btn-ghost ap-share-modal__btn-ghost--danger" id="ap-share-link-disable">Выключить</button>
                     </div>
+
+                    <div id="ap-share-link-invite" class="ap-share-modal__invite" hidden style="margin-top:16px;padding-top:14px;border-top:1px solid #e6ebf0;">
+                        <label class="ap-share-modal__label" for="ap-share-link-emails">Пригласить по email</label>
+                        <textarea id="ap-share-link-emails" class="ap-share-modal__url" rows="3" placeholder="one@croc.ru&#10;two@croc.ru" style="min-height:72px;resize:vertical;font-family:inherit;"></textarea>
+                        <button type="button" class="ap-share-modal__btn-primary" id="ap-share-link-send-invite" style="margin-top:10px;width:100%;">
+                            <span class="ap-share-modal__btn-label">Отправить приглашения</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 

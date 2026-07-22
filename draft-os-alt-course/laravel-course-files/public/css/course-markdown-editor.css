@@ -80,14 +80,120 @@
   content: "Mermaid";
 }
 
+.EasyMDEContainer .editor-toolbar button.cmde-heading {
+  background: #f0fdf4;
+  color: #065f46;
+  border: 1px solid #86efac;
+  border-left-width: 4px !important;
+  border-left-color: #00b956 !important;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 800;
+}
+.EasyMDEContainer .editor-toolbar button.cmde-heading--h2::before {
+  content: "Заголовок";
+}
+.EasyMDEContainer .editor-toolbar button.cmde-heading--h3 {
+  border-left-color: #86efac !important;
+  color: #047857;
+  font-weight: 700;
+}
+.EasyMDEContainer .editor-toolbar button.cmde-heading--h3::before {
+  content: "Подзаголовок";
+}
+.EasyMDEContainer .editor-toolbar button.cmde-heading--center {
+  border-left-width: 1px !important;
+  border-left-color: #86efac !important;
+  min-width: 2rem;
+  text-align: center;
+}
+.EasyMDEContainer .editor-toolbar button.cmde-heading--center::before {
+  content: "≡ Центр";
+  letter-spacing: 0;
+}
+.EasyMDEContainer .editor-toolbar button.cmde-heading--center-bar {
+  border-left-width: 4px !important;
+  border-left-color: #00b956 !important;
+  min-width: 2rem;
+  text-align: center;
+}
+.EasyMDEContainer .editor-toolbar button.cmde-heading--center-bar::before {
+  content: "≡ | Центр";
+  letter-spacing: 0;
+}
+
 .EasyMDEContainer .editor-preview,
 .EasyMDEContainer .editor-preview-side {
   background: #fff;
   padding: 1rem 1.15rem;
 }
 
+/* Side-by-side без fullscreen — остаётся в контейнере, не перекрывает «Сохранить» */
+.EasyMDEContainer.sided--no-fullscreen {
+  align-items: stretch;
+}
+
+.EasyMDEContainer.sided--no-fullscreen .CodeMirror-sided,
+.EasyMDEContainer.sided--no-fullscreen .editor-preview-active-side {
+  min-height: 220px;
+  max-height: min(60vh, 520px);
+  overflow: auto;
+}
+
+.ap-sec-edit-panel .EasyMDEContainer.sided--no-fullscreen .CodeMirror-sided,
+.ap-sec-edit-panel .EasyMDEContainer.sided--no-fullscreen .editor-preview-active-side {
+  max-height: calc(100vh - 280px);
+}
+
 .cmde-preview-body {
   max-width: none;
+}
+
+/* Центрированные заголовки в Preview редактора (на случай кэша course.css) */
+.EasyMDEContainer .editor-preview h2.theory-heading--center,
+.EasyMDEContainer .editor-preview-side h2.theory-heading--center,
+.cmde-preview-body h2.theory-heading--center {
+  text-align: center !important;
+  border-left: none !important;
+  border-top: none !important;
+  border-bottom: 3px solid #00b956;
+  background: linear-gradient(180deg, #ecfdf5 0%, transparent 90%);
+  padding: 0.7rem 1.25rem 0.85rem;
+  border-radius: 8px 8px 0 0;
+}
+
+.EasyMDEContainer .editor-preview h3.theory-heading--center,
+.EasyMDEContainer .editor-preview-side h3.theory-heading--center,
+.cmde-preview-body h3.theory-heading--center {
+  text-align: center !important;
+  border-left: none !important;
+  border-bottom: 2px solid #86efac;
+  background: linear-gradient(180deg, #ecfdf5 0%, transparent 90%);
+  padding: 0.5rem 1rem 0.65rem;
+  border-radius: 6px 6px 0 0;
+}
+
+/* Центр + вертикальная полоска слева */
+.EasyMDEContainer .editor-preview h2.theory-heading--center-bar,
+.EasyMDEContainer .editor-preview-side h2.theory-heading--center-bar,
+.cmde-preview-body h2.theory-heading--center-bar {
+  text-align: center !important;
+  border-left: 4px solid #00b956 !important;
+  border-bottom: none;
+  background: linear-gradient(90deg, #ecfdf5 0%, transparent 72%);
+  padding: 0.55rem 0.9rem 0.55rem 0.9rem;
+  border-radius: 0 6px 6px 0;
+}
+
+.EasyMDEContainer .editor-preview h3.theory-heading--center-bar,
+.EasyMDEContainer .editor-preview-side h3.theory-heading--center-bar,
+.cmde-preview-body h3.theory-heading--center-bar {
+  text-align: center !important;
+  border-left: 3px solid #86efac !important;
+  border-bottom: none;
+  background: transparent;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0;
 }
 
 .cmde-preview-loading,

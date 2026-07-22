@@ -65,6 +65,7 @@ final class CourseSurveyCatalogService
         $counts = Schema::hasTable('course_survey_submissions')
             ? CourseSurveySubmission::query()
                 ->whereIn('course_section_id', $sectionIds)
+                ->whereHas('answers')
                 ->selectRaw('course_section_id, COUNT(*) as c')
                 ->groupBy('course_section_id')
                 ->pluck('c', 'course_section_id')

@@ -24,10 +24,12 @@ final class SurveyQuickLinkService
      *   url:?string,
      *   expires_at:?string,
      *   generate_url:string,
-     *   revoke_url:string
+     *   revoke_url:string,
+     *   invite_url:?string,
+     *   kind:string
      * }|null
      */
-    public function metaForSection(CourseSection $section, string $generateUrl, string $revokeUrl): ?array
+    public function metaForSection(CourseSection $section, string $generateUrl, string $revokeUrl, ?string $inviteUrl = null): ?array
     {
         if ($section->type !== CourseSection::TYPE_SURVEY || ! $this->tableReady()) {
             return null;
@@ -41,6 +43,8 @@ final class SurveyQuickLinkService
             'expires_at' => $link?->expires_at?->toIso8601String(),
             'generate_url' => $generateUrl,
             'revoke_url' => $revokeUrl,
+            'invite_url' => $inviteUrl,
+            'kind' => 'survey',
         ];
     }
 
@@ -132,7 +136,7 @@ final class SurveyQuickLinkService
         LearnerPreviewContext::selectCourse((int) $course->id, (string) $course->title);
     }
 
-    private function activeLinkForSection(int $sectionId): ?CourseSurveyLink
+    public function activeLinkForSection(int $sectionId): ?CourseSurveyLink
     {
         if (! $this->tableReady() || $sectionId < 1) {
             return null;

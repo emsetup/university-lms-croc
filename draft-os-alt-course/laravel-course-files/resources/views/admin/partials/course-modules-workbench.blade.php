@@ -612,7 +612,7 @@
             <div id="ap-sec-edit-panel-pane-content" class="ap-sec-edit-panel__pane" role="tabpanel">
                 <div id="ap-sec-edit-legacy" class="ap-sec-edit-panel__legacy ap-muted" hidden>Курс в legacy-режиме: откройте классические редакторы через «Содержимое».</div>
                 <div id="ap-sec-edit-content-theory" hidden>
-                    <p class="cmde-editor-hint">Плашки: <strong>Важно</strong>, <strong>Подсказка</strong>, <strong>Примечание</strong>, <strong>Зачем</strong> — или <code>&gt; **Важно:** …</code>. Preview — как у обучающегося.</p>
+                    <p class="cmde-editor-hint">Заголовки: <strong>Заголовок</strong> / <strong>Подзаголовок</strong>, выравнивание — <strong>≡ Центр</strong> / <strong>≡ | Центр</strong>. Плашки: <strong>Важно</strong>, <strong>Подсказка</strong>, <strong>Примечание</strong>, <strong>Зачем</strong>. Preview — как у обучающегося.</p>
                     <textarea id="ap-sec-theory-md" class="ap-modal__input ap-settings-textarea ap-sec-edit-panel__editor" rows="14"></textarea>
                     <div class="ap-sec-edit-panel__theory-foot">
                         <span id="ap-sec-theory-chars" class="ap-muted small">0 символов</span>
@@ -621,7 +621,7 @@
                 </div>
                 <div id="ap-sec-edit-content-practice" hidden>
                     <h3 class="ap-sec-edit-panel__h3">Задание</h3>
-                    <p class="cmde-editor-hint">Плашки, таблицы и картинки — кнопки панели редактора.</p>
+                    <p class="cmde-editor-hint">Заголовки с полоской, плашки, таблицы и картинки — кнопки панели редактора.</p>
                     <textarea id="ap-sec-practice-md" class="ap-modal__input ap-settings-textarea" rows="8"></textarea>
                     <h3 class="ap-sec-edit-panel__h3">Docker-образ</h3>
                     <div id="ap-sec-docker-bound" class="ap-sec-docker-card" hidden>
@@ -665,9 +665,9 @@
     'cmdeCourseId' => $courseIdWorkbench,
     'ap' => $rp,
 ])
-<script src="{{ asset('js/content-audience-picker.js') }}"></script>
-<script src="{{ asset('js/admin-content-visibility.js') }}"></script>
-<script src="{{ asset('js/section-edit-panel.js') }}"></script>
+<script src="{{ asset('js/content-audience-picker.js') }}?v={{ @filemtime(public_path('js/content-audience-picker.js')) ?: 1 }}"></script>
+<script src="{{ asset('js/admin-content-visibility.js') }}?v={{ @filemtime(public_path('js/admin-content-visibility.js')) ?: 1 }}"></script>
+<script src="{{ asset('js/section-edit-panel.js') }}?v={{ @filemtime(public_path('js/section-edit-panel.js')) ?: 1 }}"></script>
 
 <script>
 (function () {

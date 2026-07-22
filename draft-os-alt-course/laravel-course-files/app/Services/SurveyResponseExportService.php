@@ -72,7 +72,7 @@ final class SurveyResponseExportService
     {
         $settings = $this->sections->mergedSettings($section);
         $anonymous = (bool) ($settings['anonymous'] ?? false);
-        $sub = $this->surveys->submissionForLearner((int) $section->id, $learnerId);
+        $sub = $this->surveys->completeSubmissionForLearner((int) $section->id, $learnerId);
         if ($sub === null) {
             return ['anonymous' => $anonymous, 'submitted' => false, 'submitted_at' => null, 'items' => []];
         }

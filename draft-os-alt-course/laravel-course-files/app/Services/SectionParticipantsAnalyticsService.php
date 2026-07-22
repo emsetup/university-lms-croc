@@ -234,6 +234,7 @@ final class SectionParticipantsAnalyticsService
 
         $rows = CourseSurveySubmission::query()
             ->where('course_section_id', (int) $section->id)
+            ->whereHas('answers')
             ->orderBy('submitted_at')
             ->get(['learner_id', 'submitted_at']);
 

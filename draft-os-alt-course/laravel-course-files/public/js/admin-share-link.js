@@ -15,6 +15,9 @@
     var copyBtn = document.getElementById('ap-share-link-copy');
     var regenBtn = document.getElementById('ap-share-link-regen');
     var disableBtn = document.getElementById('ap-share-link-disable');
+    var inviteWrap = document.getElementById('ap-share-link-invite');
+    var emailsEl = document.getElementById('ap-share-link-emails');
+    var sendInviteBtn = document.getElementById('ap-share-link-send-invite');
     var closeTimer = null;
     var toastTimer = null;
     var busy = false;
@@ -44,7 +47,7 @@
     function setBusy(on) {
         busy = !!on;
         modal.classList.toggle('is-busy', busy);
-        [enableBtn, copyBtn, regenBtn, disableBtn].forEach(function (b) {
+        [enableBtn, copyBtn, regenBtn, disableBtn, sendInviteBtn].forEach(function (b) {
             if (b) b.disabled = busy;
         });
     }
@@ -106,6 +109,10 @@
         if (urlEl) urlEl.value = active ? meta.url : '';
         if (copyBtn) copyBtn.classList.remove('is-copied');
         if (urlBox) urlBox.classList.remove('is-flash');
+        if (inviteWrap) {
+            var canInvite = active && meta.kind === 'survey' && !!meta.invite_url;
+            inviteWrap.hidden = !canInvite;
+        }
     }
 
     function openModal() {
@@ -282,10 +289,54 @@
         console.warn('ApShareLink.open: нужен meta или metaUrl');
     }
 
+    function sendInvites() {
+        if (busy || !state.meta || !state.meta.invite_url) return;
+        var raw = emailsEl ? String(emailsEl.value || '') : '';
+        var emails = raw.split(/[\s,;]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+        if (!emails.length) {
+            setMsg('Укажите хотя бы один email', true);
+            return;
+        }
+        setBusy(true);
+        setMsg('Отправляем…');
+        fetch(state.meta.invite_url, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ emails: emails, ensure_link: true })
+        }).then(function (r) {
+            return r.json().then(function (data) {
+                if (!r.ok || !data || data.ok === false) {
+                    throw new Error((data && data.message) || 'Не удалось отправить.');
+                }
+                return data;
+            });
+        }).then(function (data) {
+            if (data.url) {
+                state.meta.active = true;
+                state.meta.url = data.url;
+                render();
+            }
+            setMsg(data.message || 'Приглашения отправлены');
+            if (emailsEl) emailsEl.value = '';
+            notifyChange();
+        }).catch(function (err) {
+            setMsg(err.message || 'Ошибка', true);
+        }).finally(function () {
+            setBusy(false);
+        });
+    }
+
     if (enableBtn) enableBtn.addEventListener('click', function () { enableOrRegen(false); });
     if (regenBtn) regenBtn.addEventListener('click', function () { enableOrRegen(true); });
     if (disableBtn) disableBtn.addEventListener('click', disable);
     if (copyBtn) copyBtn.addEventListener('click', copyUrl);
+    if (sendInviteBtn) sendInviteBtn.addEventListener('click', sendInvites);
 
     modal.querySelectorAll('[data-ap-modal-close]').forEach(function (el) {
         el.addEventListener('click', closeModal);

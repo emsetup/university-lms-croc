@@ -109,6 +109,12 @@ final class AdminStaffController extends Controller
         ]);
         $this->syncCourses($staff, $data['role'], $data['course_ids']);
 
+        $staff->setRelation('learner', $learner);
+        app(\App\Services\Mail\PortalMailNotifier::class)->notifyStaffAdded(
+            $staff,
+            \App\Services\Mail\PortalMailNotifier::roleLabel((string) $staff->role),
+        );
+
         return redirect()
             ->route('admin.staff.index')
             ->with('ok', 'Сотрудник добавлен.');
@@ -122,6 +128,7 @@ final class AdminStaffController extends Controller
     public function update(Request $request, PortalStaff $staff): RedirectResponse
     {
         $data = $this->validatePayload($request, $staff);
+        $roleChanged = (string) $staff->role !== (string) $data['role'];
         $staff->role = $data['role'];
         $staff->access_comment = $data['access_comment'];
         $staff->save();
@@ -133,6 +140,14 @@ final class AdminStaffController extends Controller
         }
 
         $this->syncCourses($staff, $data['role'], $data['course_ids']);
+
+        if ($roleChanged) {
+            $staff->loadMissing('learner');
+            app(\App\Services\Mail\PortalMailNotifier::class)->notifyStaffAdded(
+                $staff,
+                \App\Services\Mail\PortalMailNotifier::roleLabel((string) $staff->role),
+            );
+        }
 
         return redirect()
             ->route('admin.staff.index')

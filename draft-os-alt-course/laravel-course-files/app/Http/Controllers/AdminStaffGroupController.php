@@ -85,7 +85,7 @@ final class AdminStaffGroupController extends Controller
 
         $role = (string) $data['role'];
         $permissions = array_values(array_unique(array_map('strval', $data['permissions'] ?? [])));
-        [$memberIds, $staffCreated] = $this->resolveMemberIds(
+        [$memberIds, $staffCreated, $createdStaff] = $this->resolveMemberIds(
             array_values(array_unique(array_map('intval', $data['member_ids'] ?? []))),
             trim((string) ($data['invite_emails'] ?? '')),
             $role,
@@ -112,6 +112,7 @@ final class AdminStaffGroupController extends Controller
             'invite_emails' => trim((string) ($data['invite_emails'] ?? '')),
             'course_ids' => $courseIds,
             'staff_created' => $staffCreated,
+            'created_staff' => $createdStaff,
         ];
     }
 
@@ -139,6 +140,7 @@ final class AdminStaffGroupController extends Controller
     {
         $ids = $memberIds;
         $created = 0;
+        $createdStaff = [];
         $domain = (string) config('course.email_domain', '');
         $bad = [];
         foreach (PortalStaffFromEmail::parseLines($inviteEmailsRaw) as $email) {
@@ -149,6 +151,7 @@ final class AdminStaffGroupController extends Controller
             $pack = PortalStaffFromEmail::findOrCreateStaff($email, $groupRole);
             if ($pack['created']) {
                 $created++;
+                $createdStaff[] = $pack['staff'];
             }
             $ids[] = (int) $pack['staff']->id;
         }
@@ -161,6 +164,7 @@ final class AdminStaffGroupController extends Controller
         return [
             array_values(array_unique(array_filter($ids, fn (int $id) => $id > 0))),
             $created,
+            $createdStaff,
         ];
     }
 
@@ -170,7 +174,9 @@ final class AdminStaffGroupController extends Controller
      *     member_ids: list<int>,
      *     invite_emails: string,
      *     course_ids: list<int>,
-     *     staff_created: int
+     *     staff_created: int,
+     *     created_staff: list<\App\Models\PortalStaff>,
+     *     role: string
      * }  $data
      */
     private function syncRelations(PortalStaffGroup $group, array $data): int
@@ -181,6 +187,15 @@ final class AdminStaffGroupController extends Controller
         }
         $group->members()->sync($data['member_ids']);
         $group->courses()->sync($data['course_ids']);
+
+        $notifier = app(\App\Services\Mail\PortalMailNotifier::class);
+        $roleLabel = \App\Services\Mail\PortalMailNotifier::roleLabel((string) ($data['role'] ?? $group->role));
+        foreach ($data['created_staff'] ?? [] as $staff) {
+            if ($staff instanceof PortalStaff) {
+                $staff->loadMissing('learner');
+                $notifier->notifyStaffAdded($staff, $roleLabel);
+            }
+        }
 
         return (int) ($data['staff_created'] ?? 0);
     }

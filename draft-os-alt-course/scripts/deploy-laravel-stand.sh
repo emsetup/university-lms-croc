@@ -20,7 +20,7 @@ if ! command -v rsync &>/dev/null; then
   exit 1
 fi
 
-ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/app/Http/Controllers/Concerns' '${REMOTE}/app/Providers'"
+ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/app/Http/Controllers/Concerns' '${REMOTE}/app/Providers' '${REMOTE}/app/Services/Mail' '${REMOTE}/resources/views/emails'"
 
 echo "[deploy-laravel] ${LCF}/config/snippets/ -> ${STAND_SSH}:${REMOTE}/config/snippets/"
 rsync -az \
@@ -62,6 +62,11 @@ if [[ -f "${LCF}/config/portal.php" ]]; then
   rsync -az "${LCF}/config/portal.php" "${STAND_SSH}:${REMOTE}/config/portal.php"
 fi
 
+if [[ -f "${LCF}/config/portal_mail.php" ]]; then
+  echo "[deploy-laravel] portal_mail.php (EWS / уведомления)"
+  rsync -az "${LCF}/config/portal_mail.php" "${STAND_SSH}:${REMOTE}/config/portal_mail.php"
+fi
+
 if [[ -f "${LCF}/config/media.php" ]]; then
   echo "[deploy-laravel] media.php (библиотека картинок)"
   rsync -az "${LCF}/config/media.php" "${STAND_SSH}:${REMOTE}/config/media.php"
@@ -78,6 +83,7 @@ for f in \
   app/Http/Controllers/OidcLoginController.php \
   app/Http/Controllers/AdminPanelController.php \
   app/Http/Controllers/AdminIncidentLogsController.php \
+  app/Http/Controllers/AdminMailLogsController.php \
   app/Http/Controllers/AdminSettingsController.php \
   app/Http/Controllers/AdminCoursesController.php \
   app/Http/Controllers/AdminCourseSettingsController.php \
@@ -158,6 +164,12 @@ for f in \
   app/Services/PortalActivityFeedService.php \
   app/Services/PortalIncidentLogger.php \
   app/Services/PortalIncidentFeedService.php \
+  app/Services/Mail/EwsMailClient.php \
+  app/Services/Mail/PortalMailService.php \
+  app/Services/Mail/PortalMailNotifier.php \
+  app/Services/Mail/PortalMailFeedService.php \
+  app/Services/Mail/PortalMailAssets.php \
+  app/Services/Mail/PortalMailTemplateCatalog.php \
   app/Services/PortalServerStatsService.php \
   app/Support/PortalIncidentBootstrap.php \
   app/Services/LearnerLastActivityService.php \
@@ -234,6 +246,7 @@ for f in \
   app/Models/PortalStaffGroupPermission.php \
   app/Models/PortalActivityEvent.php \
   app/Models/PortalIncidentLog.php \
+  app/Models/PortalMailLog.php \
   app/Models/PracticeSession.php \
   app/Models/FinalLabResult.php \
   app/Models/PracticeImage.php \
@@ -423,6 +436,7 @@ for mf in \
   database/migrations/2026_06_03_140000_create_portal_staff_groups_tables.php \
   database/migrations/2026_06_03_150000_add_role_to_portal_staff_groups_table.php \
   database/migrations/2026_06_03_160000_create_portal_incident_logs_table.php \
+  database/migrations/2026_07_22_190000_create_portal_mail_logs_table.php \
   database/migrations/2026_06_03_161000_add_access_comment_to_portal_staff_table.php \
   database/migrations/2026_05_14_100000_seed_legacy_alt_os_course_content_to_database.php \
   database/migrations/2026_05_15_000001_create_portal_activity_events_table.php \
@@ -437,6 +451,12 @@ done
 if [[ -d "${LCF}/resources/views/admin" ]]; then
   echo "[deploy-laravel] resources/views/admin/"
   rsync -az "${LCF}/resources/views/admin/" "${STAND_SSH}:${REMOTE}/resources/views/admin/"
+fi
+
+if [[ -d "${LCF}/resources/views/emails" ]]; then
+  echo "[deploy-laravel] resources/views/emails/"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/resources/views/emails'"
+  rsync -az "${LCF}/resources/views/emails/" "${STAND_SSH}:${REMOTE}/resources/views/emails/"
 fi
 
 if [[ -d "${LCF}/resources/views/partials" ]]; then
@@ -556,6 +576,12 @@ if [[ -d "${LCF}/public/images/docs" ]]; then
   echo "[deploy-laravel] public/images/docs/"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/images/docs'"
   rsync -az "${LCF}/public/images/docs/" "${STAND_SSH}:${REMOTE}/public/images/docs/"
+fi
+
+if [[ -d "${LCF}/public/images/email" ]]; then
+  echo "[deploy-laravel] public/images/email/"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/images/email'"
+  rsync -az "${LCF}/public/images/email/" "${STAND_SSH}:${REMOTE}/public/images/email/"
 fi
 
 if [[ -d "${LCF}/public/vendor" ]]; then
@@ -722,6 +748,12 @@ if [[ -f "${LCF}/public/js/admin-incident-logs.js" ]]; then
   echo "[deploy-laravel] public/js/admin-incident-logs.js"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
   rsync -az "${LCF}/public/js/admin-incident-logs.js" "${STAND_SSH}:${REMOTE}/public/js/admin-incident-logs.js"
+fi
+
+if [[ -f "${LCF}/public/js/admin-mail-logs.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-mail-logs.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-mail-logs.js" "${STAND_SSH}:${REMOTE}/public/js/admin-mail-logs.js"
 fi
 
 if [[ -f "${LCF}/public/js/portal-incident-reporter.js" ]]; then

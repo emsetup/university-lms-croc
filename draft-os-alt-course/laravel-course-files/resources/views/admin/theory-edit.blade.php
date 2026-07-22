@@ -16,7 +16,7 @@
         <form method="post" action="{{ route('admin.theory.update', array_merge($ap ?? [], ['module' => $module])) }}" id="theory-admin-form">
             @csrf
             <label for="theory-md" class="muted small" style="display: block; margin-bottom: 0.35rem">Содержимое (Markdown)</label>
-            <p class="cmde-editor-hint">Плашки: <strong>Важно</strong>, <strong>Подсказка</strong>, <strong>Примечание</strong>, <strong>Зачем</strong> — или цитата <code>&gt; **Важно:** …</code></p>
+            <p class="cmde-editor-hint">Заголовки: <strong>Заголовок</strong> / <strong>Подзаголовок</strong>, выравнивание — <strong>≡ Центр</strong> / <strong>≡ | Центр</strong>. Плашки: <strong>Важно</strong>, <strong>Подсказка</strong>, <strong>Примечание</strong>, <strong>Зачем</strong>.</p>
             <textarea id="theory-md" name="markdown" rows="24" spellcheck="false">{{ old('markdown', $markdown) }}</textarea>
             <div style="margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center">
                 <button type="submit" class="btn btn-primary">Сохранить</button>

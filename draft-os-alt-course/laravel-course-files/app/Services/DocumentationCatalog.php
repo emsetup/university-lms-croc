@@ -110,6 +110,7 @@ final class DocumentationCatalog
         $html = (string) Str::markdown($markdown);
         $html = $this->expandImagePathsInHtml($html);
         $html = CourseContentMarkdown::enrichCallouts($html);
+        $html = CourseContentMarkdown::enrichCenteredHeadings($html);
         $html = $this->wrapScreenshots($html);
         $html = $this->wrapTables($html);
 

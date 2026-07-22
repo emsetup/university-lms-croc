@@ -338,6 +338,16 @@ Route::middleware([
         Route::get('/adm/logi/{incident}', [AdminIncidentLogsController::class, 'show'])
             ->whereNumber('incident')
             ->name('admin.incidents.show');
+
+        Route::get('/adm/pochta', [\App\Http\Controllers\AdminMailLogsController::class, 'index'])->name('admin.mail.index');
+        Route::get('/adm/pochta/shablony', [\App\Http\Controllers\AdminMailLogsController::class, 'templates'])->name('admin.mail.templates');
+        Route::get('/adm/pochta/lenta', [\App\Http\Controllers\AdminMailLogsController::class, 'feed'])->name('admin.mail.feed');
+        Route::get('/adm/pochta/{mailLog}', [\App\Http\Controllers\AdminMailLogsController::class, 'show'])
+            ->whereNumber('mailLog')
+            ->name('admin.mail.show');
+        Route::post('/adm/pochta/{mailLog}/resend', [\App\Http\Controllers\AdminMailLogsController::class, 'resend'])
+            ->whereNumber('mailLog')
+            ->name('admin.mail.resend');
     });
 
     Route::get('/adm/sobytiya', [AdminPanelController::class, 'activity'])->name('admin.activity');
@@ -799,6 +809,10 @@ Route::middleware([
                     ->whereNumber('courseModule')
                     ->whereNumber('section')
                     ->name('admin.course.section.quick-link.revoke');
+                Route::post('/nastroyki/modul/{courseModule}/razdel/{section}/opros-priglashenie', [AdminCourseSettingsController::class, 'sectionSurveyInvite'])
+                    ->whereNumber('courseModule')
+                    ->whereNumber('section')
+                    ->name('admin.course.section.survey-invite');
                 Route::post('/nastroyki/bystraya-ssylka', [AdminCourseSettingsController::class, 'courseShareLinkGenerate'])
                     ->name('admin.course.share-link.generate');
                 Route::post('/nastroyki/bystraya-ssylka/off', [AdminCourseSettingsController::class, 'courseShareLinkRevoke'])

@@ -6598,11 +6598,29 @@ body.ap-modal-open {
     line-height: 1.45;
 }
 
-.ap-sec-edit-panel__theory-foot {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 0.35rem;
+.ap-sec-edit-panel .EasyMDEContainer {
+    display: block;
+    width: 100%;
+}
+
+.ap-sec-edit-panel .EasyMDEContainer .CodeMirror {
+    min-height: 240px;
+    border-radius: 0 0 8px 8px;
+}
+
+.ap-sec-edit-panel .EasyMDEContainer .editor-toolbar {
+    opacity: 1 !important;
+    display: flex !important;
+    flex-wrap: wrap;
+    visibility: visible !important;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8fafc;
+}
+
+.ap-sec-edit-panel .EasyMDEContainer .editor-statusbar {
+    display: block;
 }
 
 .ap-sec-edit-panel__saved {

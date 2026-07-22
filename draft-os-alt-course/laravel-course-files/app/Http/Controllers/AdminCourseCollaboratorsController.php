@@ -76,6 +76,9 @@ final class AdminCourseCollaboratorsController extends Controller
             (int) $gate->staff()->id,
         );
 
+        $staff->loadMissing('learner');
+        app(\App\Services\Mail\PortalMailNotifier::class)->notifyCollaborator($staff, $course, $grants);
+
         return redirect()
             ->route('admin.course.settings', ['adminCourse' => $course->slug, 'tab' => 'soavtory'])
             ->with('ok', 'Права соавтора сохранены.');

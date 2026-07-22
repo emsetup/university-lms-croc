@@ -149,6 +149,7 @@ final class AdminCourseContentInspector
 
         return (int) \App\Models\CourseSurveySubmission::query()
             ->where('course_section_id', $sectionId)
+            ->whereHas('answers')
             ->count();
     }
 

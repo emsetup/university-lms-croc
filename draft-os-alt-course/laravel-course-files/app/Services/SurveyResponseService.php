@@ -34,9 +34,76 @@ final class SurveyResponseService
             ->first();
     }
 
+    /**
+     * Завершённая отправка: есть хотя бы один ответ.
+     * Пустая оболочка (ответы стёрты каскадом при пересохранении вопросов) не считается прохождением.
+     */
+    public function completeSubmissionForLearner(int $sectionId, int $learnerId): ?CourseSurveySubmission
+    {
+        $sub = $this->submissionForLearner($sectionId, $learnerId);
+        if ($sub === null) {
+            return null;
+        }
+        if (! $this->submissionHasAnswers($sub)) {
+            return null;
+        }
+
+        return $sub;
+    }
+
     public function hasSubmission(int $sectionId, int $learnerId): bool
     {
-        return $this->submissionForLearner($sectionId, $learnerId) !== null;
+        return $this->completeSubmissionForLearner($sectionId, $learnerId) !== null;
+    }
+
+    public function submissionHasAnswers(CourseSurveySubmission $submission): bool
+    {
+        if ($submission->relationLoaded('answers')) {
+            return $submission->answers->isNotEmpty();
+        }
+
+        return CourseSurveyAnswer::query()
+            ->where('submission_id', (int) $submission->id)
+            ->exists();
+    }
+
+    /**
+     * Удаляет пустые оболочки submission (без ответов), чтобы можно было пройти опрос снова.
+     */
+    public function purgeEmptySubmission(int $sectionId, int $learnerId): bool
+    {
+        $sub = $this->submissionForLearner($sectionId, $learnerId);
+        if ($sub === null || $this->submissionHasAnswers($sub)) {
+            return false;
+        }
+        $sub->delete();
+
+        return true;
+    }
+
+    /**
+     * @return int число удалённых пустых оболочек
+     */
+    public function purgeEmptySubmissionsForSection(int $sectionId): int
+    {
+        if (! Schema::hasTable('course_survey_submissions') || $sectionId < 1) {
+            return 0;
+        }
+
+        $subs = CourseSurveySubmission::query()
+            ->where('course_section_id', $sectionId)
+            ->with('answers')
+            ->get();
+        $n = 0;
+        foreach ($subs as $sub) {
+            if ($this->submissionHasAnswers($sub)) {
+                continue;
+            }
+            $sub->delete();
+            $n++;
+        }
+
+        return $n;
     }
 
     /**
@@ -149,6 +216,14 @@ final class SurveyResponseService
         Request $request,
     ): CourseSurveySubmission {
         return DB::transaction(function () use ($learner, $course, $module, $section, $bank, $questions, $request): CourseSurveySubmission {
+            // Пустая оболочка после каскадного удаления ответов — убрать, иначе unique мешает повторной сдаче.
+            $this->purgeEmptySubmission((int) $section->id, (int) $learner->id);
+
+            $existing = $this->completeSubmissionForLearner((int) $section->id, (int) $learner->id);
+            if ($existing !== null) {
+                throw new \RuntimeException('Ответы на этот опрос уже отправлены.');
+            }
+
             $submission = CourseSurveySubmission::query()->create([
                 'course_id' => (int) $course->id,
                 'course_module_id' => (int) $module->id,
@@ -231,6 +306,7 @@ final class SurveyResponseService
 
         return CourseSurveySubmission::query()
             ->where('course_section_id', $sectionId)
+            ->whereHas('answers')
             ->with(['learner', 'answers.question.options', 'answers.question.matchPairs'])
             ->orderBy('submitted_at')
             ->orderBy('id')

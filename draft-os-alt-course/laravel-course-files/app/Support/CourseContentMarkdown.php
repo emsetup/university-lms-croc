@@ -22,8 +22,40 @@ final class CourseContentMarkdown
         $html = (string) Str::markdown($markdown);
         $html = self::enrichMediaFigures($html);
         $html = self::enrichCallouts($html);
+        $html = self::enrichCenteredHeadings($html);
 
         return $html;
+    }
+
+    /**
+     * Маркеры в Markdown:
+     * ## {center} Текст → class theory-heading--center (полоска снизу)
+     * ## {center-bar} Текст → class theory-heading--center-bar (текст по центру, полоска слева)
+     */
+    public static function enrichCenteredHeadings(string $html): string
+    {
+        return (string) preg_replace_callback(
+            '/<(h[1-6])(\s[^>]*)?>\s*(?:\{(center-bar|center)\}|&#123;(center-bar|center)&#125;)\s*/iu',
+            static function (array $m): string {
+                $tag = $m[1];
+                $attrs = (string) ($m[2] ?? '');
+                $kind = strtolower((string) (($m[3] ?? '') !== '' ? $m[3] : ($m[4] ?? 'center')));
+                $class = $kind === 'center-bar' ? 'theory-heading--center-bar' : 'theory-heading--center';
+                if (preg_match('/\bclass="/i', $attrs)) {
+                    $attrs = preg_replace(
+                        '/\bclass="/i',
+                        'class="'.$class.' ',
+                        $attrs,
+                        1
+                    );
+                } else {
+                    $attrs .= ' class="'.$class.'"';
+                }
+
+                return '<'.$tag.$attrs.'>';
+            },
+            $html
+        );
     }
 
     /** Короткий inline Markdown (варианты ответов, пары сопоставления). */

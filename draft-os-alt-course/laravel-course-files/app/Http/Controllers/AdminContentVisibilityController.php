@@ -206,6 +206,14 @@ final class AdminContentVisibilityController extends Controller
             }
 
             $learners[(int) $learner->id] = $learner;
+
+            if ($result['created'] || $enrollment->wasRecentlyCreated) {
+                app(\App\Services\Mail\PortalMailNotifier::class)->notifyAccessGranted(
+                    $learner,
+                    $course,
+                    'Курс «'.$course->title.'»',
+                );
+            }
         }
 
         $learnerCollection = collect(array_values($learners));
@@ -328,7 +336,23 @@ final class AdminContentVisibilityController extends Controller
             ]);
         }
 
+        $beforeIds = $this->visibility->expandRuleLearnerIds($courseId, $resourceType, $resourceId);
         $this->visibility->syncAudienceForResource($resourceType, $resourceId, $courseId, $viewAudience, $rules);
+        $afterIds = $viewAudience === Course::VIEW_AUDIENCE_RESTRICTED
+            ? $this->visibility->expandRuleLearnerIds($courseId, $resourceType, $resourceId)
+            : [];
+        $addedIds = array_values(array_diff($afterIds, $beforeIds));
+        if ($addedIds !== []) {
+            $course = Course::query()->find($courseId);
+            if ($course !== null) {
+                $label = \App\Services\Mail\PortalMailNotifier::resourceLabel($resourceType, $resourceId, $course);
+                $notifier = app(\App\Services\Mail\PortalMailNotifier::class);
+                $learners = Learner::query()->whereIn('id', $addedIds)->get();
+                foreach ($learners as $learner) {
+                    $notifier->notifyAccessGranted($learner, $course, $label);
+                }
+            }
+        }
 
         return $this->jsonPayload($resourceType, $resourceId, $courseId, $this->groupsCatalog($courseId));
     }

@@ -85,38 +85,96 @@
         };
     }
 
-    function ensureMarkdownEditors() {
-        if (!window.CourseMarkdownEditor) return;
+    function isEditorHostVisible(el) {
+        if (!el) return false;
+        var node = el;
+        while (node && node !== document.body) {
+            if (node.hidden) return false;
+            node = node.parentElement;
+        }
+        return true;
+    }
+
+    function ensureMarkdownEditors(force) {
+        if (typeof window.EasyMDE === 'undefined' || !window.CourseMarkdownEditor) {
+            return false;
+        }
         var cfg = cmdeConfig();
         var th = $('ap-sec-theory-md');
         var pr = $('ap-sec-practice-md');
-        if (th && !window.CourseMarkdownEditor.get(th)) {
-            window.CourseMarkdownEditor.create(th, Object.assign({}, cfg, {
-                minHeight: '280px',
-                status: ['lines', 'words'],
-                onChange: function () {
-                    updateTheoryChars();
-                },
-            }));
+        var ok = true;
+
+        function mount(el, extra) {
+            if (!el) return;
+            var existing = window.CourseMarkdownEditor.get(el);
+            if (existing && !force) {
+                return;
+            }
+            // Не монтируем в полностью скрытый контейнер — CodeMirror часто ломается.
+            if (!isEditorHostVisible(el) && !force) {
+                return;
+            }
+            try {
+                if (existing) {
+                    existing.destroy();
+                }
+                var handle = window.CourseMarkdownEditor.create(el, Object.assign({}, cfg, extra || {}));
+                if (!handle) {
+                    ok = false;
+                    if (typeof console !== 'undefined' && console.warn) {
+                        console.warn('CourseMarkdownEditor.create returned null', el.id);
+                    }
+                }
+            } catch (err) {
+                ok = false;
+                if (typeof console !== 'undefined' && console.warn) {
+                    console.warn('CourseMarkdownEditor.create failed', err);
+                }
+            }
         }
-        if (pr && !window.CourseMarkdownEditor.get(pr)) {
-            window.CourseMarkdownEditor.create(pr, Object.assign({}, cfg, {
-                minHeight: '220px',
-                status: ['lines', 'words'],
-            }));
-        }
+
+        mount(th, {
+            minHeight: '280px',
+            status: ['lines', 'words'],
+            onChange: function () {
+                updateTheoryChars();
+            },
+        });
+        mount(pr, {
+            minHeight: '220px',
+            status: ['lines', 'words'],
+        });
+        return ok;
     }
 
-    function refreshMarkdownEditors() {
-        ensureMarkdownEditors();
+    function refreshMarkdownEditors(force) {
+        ensureMarkdownEditors(!!force);
         var th = window.CourseMarkdownEditor && window.CourseMarkdownEditor.get('ap-sec-theory-md');
         var pr = window.CourseMarkdownEditor && window.CourseMarkdownEditor.get('ap-sec-practice-md');
-        if (th) {
-            setTimeout(function () { th.refresh(); }, 40);
+        window.setTimeout(function () {
+            if (th) th.refresh();
+            if (pr) pr.refresh();
+        }, 40);
+        window.setTimeout(function () {
+            if (th) th.refresh();
+            if (pr) pr.refresh();
+        }, 200);
+    }
+
+    function scheduleMarkdownEditors() {
+        // После открытия панели / снятия hidden — несколько попыток, пока EasyMDE не готов.
+        var tries = 0;
+        function tick() {
+            tries += 1;
+            var ready = typeof window.EasyMDE !== 'undefined' && !!window.CourseMarkdownEditor;
+            if (!ready) {
+                if (tries < 40) window.setTimeout(tick, 50);
+                return;
+            }
+            refreshMarkdownEditors(tries === 1);
+            if (tries < 6) window.setTimeout(tick, 120);
         }
-        if (pr) {
-            setTimeout(function () { pr.refresh(); }, 40);
-        }
+        tick();
     }
 
     function theoryMarkdownValue() {
@@ -189,6 +247,7 @@
         if (q.open_text) {
             item = { type: 'open_text', q: q.q || '', placeholder: q.placeholder || '', max_length: q.max_length || null };
             if (q.points != null && Number(q.points) > 0) item.points = Number(q.points);
+            if (q.id) item.id = Number(q.id);
             return item;
         }
         if (q.multi_other) {
@@ -201,6 +260,7 @@
                 max_length: q.max_length || null,
             };
             if (q.points != null && Number(q.points) > 0) item.points = Number(q.points);
+            if (q.id) item.id = Number(q.id);
             return item;
         }
         if (q.match_drag || (Array.isArray(q.left) && Array.isArray(q.right))) {
@@ -225,6 +285,7 @@
         if (q.points != null && Number(q.points) > 0) {
             item.points = Number(q.points);
         }
+        if (q.id) item.id = Number(q.id);
         return item;
     }
 
@@ -234,12 +295,14 @@
             out = { q: item.q, open_text: true };
             if (item.placeholder) out.placeholder = item.placeholder;
             if (item.max_length) out.max_length = item.max_length;
+            if (item.id) out.id = item.id;
             return out;
         }
         if (item.type === 'multi_other') {
             out = { q: item.q, a: item.options, c: [], multi_other: true };
             if (item.placeholder) out.placeholder = item.placeholder;
             if (item.max_length) out.max_length = item.max_length;
+            if (item.id) out.id = item.id;
             return out;
         }
         if (item.type === 'match') {
@@ -260,6 +323,7 @@
         if (item.points != null && Number(item.points) > 0) {
             out.points = Number(item.points);
         }
+        if (item.id) out.id = item.id;
         return out;
     }
 
@@ -1120,7 +1184,7 @@
 
         $('ap-sec-edit-legacy').hidden = !d.is_legacy;
 
-        refreshMarkdownEditors();
+        scheduleMarkdownEditors();
 
         state.visibilitySaveUrl = d.visibility_save_url || '';
         state.learnerSearchUrl = d.learner_search_url || '';
@@ -1216,14 +1280,19 @@
                     window.alert((d && d.message) || 'Не удалось загрузить раздел.');
                     return;
                 }
-                applyLoadedData(d);
+                // Сначала показать панель — иначе EasyMDE/CodeMirror не монтируется в [hidden].
                 panel.hidden = false;
                 panel.setAttribute('aria-hidden', 'false');
                 state.open = true;
+                applyLoadedData(d);
                 requestAnimationFrame(function () {
                     panel.classList.add('is-open');
+                    scheduleMarkdownEditors();
                 });
                 switchMainTab(defaultTabForType(d.section.type || 'text'));
+                window.setTimeout(function () {
+                    scheduleMarkdownEditors();
+                }, 250);
             })
             .catch(function (err) {
                 if (typeof console !== 'undefined' && console.error) {
@@ -1299,7 +1368,7 @@
             if (panQ) panQ.hidden = true;
             if (panA) panA.hidden = true;
             if (panP) panP.hidden = true;
-            refreshMarkdownEditors();
+            scheduleMarkdownEditors();
         }
         if (!isQuizExamType(typ)) hideQuizEditorChrome();
     }
@@ -1691,7 +1760,9 @@
             });
         });
 
-        ensureMarkdownEditors();
+        document.addEventListener('cmde:ready', function () {
+            if (state.open) scheduleMarkdownEditors();
+        });
 
         ['ap-sec-inherit-att', 'ap-sec-inherit-time', 'ap-sec-inherit-pass'].forEach(function (name) {
             document.querySelectorAll('input[name="' + name + '"]').forEach(function (r) {

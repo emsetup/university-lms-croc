@@ -1722,11 +1722,12 @@ body.course-ui:has(.page-container--dashboard) .portal-site-column {
   font-size: 1.22rem;
   font-weight: 800;
   margin: 2.25rem 0 0.85rem;
-  padding: 0.65rem 0 0.65rem 0.85rem;
+  padding: 0.55rem 0 0.55rem 0.9rem;
   color: #0f172a;
   border-top: 1px solid #e2e8f0;
   border-left: 4px solid var(--brand);
   background: linear-gradient(90deg, var(--brand-light) 0%, transparent 72%);
+  border-radius: 0 6px 6px 0;
   scroll-margin-top: 5rem;
 }
 
@@ -1746,6 +1747,58 @@ body.course-ui:has(.page-container--dashboard) .portal-site-column {
   border-left: 3px solid #86efac;
   color: #1e293b;
   scroll-margin-top: 5rem;
+}
+
+.theory-content h2.theory-heading--center,
+.theory-article.theory-content h2.theory-heading--center {
+  text-align: center;
+  border-left: none;
+  border-top: none;
+  border-bottom: 3px solid var(--brand);
+  background: linear-gradient(180deg, var(--brand-light) 0%, transparent 90%);
+  padding: 0.7rem 1.25rem 0.85rem;
+  border-radius: 8px 8px 0 0;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.theory-content h3.theory-heading--center,
+.theory-article.theory-content h3.theory-heading--center {
+  text-align: center;
+  border-left: none;
+  border-bottom: 2px solid #86efac;
+  background: linear-gradient(180deg, #ecfdf5 0%, transparent 90%);
+  padding: 0.5rem 1rem 0.65rem;
+  border-radius: 6px 6px 0 0;
+}
+
+.theory-content h1.theory-heading--center,
+.theory-article.theory-content h1.theory-heading--center,
+.theory-content h4.theory-heading--center,
+.theory-article.theory-content h4.theory-heading--center {
+  text-align: center;
+}
+
+/* Текст по центру, вертикальная полоска слева (как у обычного заголовка) */
+.theory-content h2.theory-heading--center-bar,
+.theory-article.theory-content h2.theory-heading--center-bar {
+  text-align: center;
+  padding-left: 0.9rem;
+  padding-right: 0.9rem;
+}
+
+.theory-content h3.theory-heading--center-bar,
+.theory-article.theory-content h3.theory-heading--center-bar {
+  text-align: center;
+  padding-left: 0.55rem;
+  padding-right: 0.55rem;
+}
+
+.theory-content h1.theory-heading--center-bar,
+.theory-article.theory-content h1.theory-heading--center-bar,
+.theory-content h4.theory-heading--center-bar,
+.theory-article.theory-content h4.theory-heading--center-bar {
+  text-align: center;
 }
 
 .theory-content h4,
@@ -2074,11 +2127,15 @@ body.course-ui:has(.page-container--dashboard) .portal-site-column {
 }
 
 .quiz-q {
-  margin: 1.25rem 0;
-  padding: 1rem;
+  margin: 1rem 0;
+  padding: 0.85rem 1rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: #fafafa;
+}
+
+.quiz-q > .quiz-q-text {
+  margin: 0 0 0.5rem;
 }
 
 .choice {

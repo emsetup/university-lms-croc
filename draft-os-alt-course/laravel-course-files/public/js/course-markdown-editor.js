@@ -51,6 +51,103 @@
         }
     }
 
+    /**
+     * Стильный заголовок с зелёной полоской (## / ### → оформляется в theory.css).
+     * @param {number} level 2 или 3
+     */
+    function insertStyledHeading(editor, level) {
+        var cm = editor.codemirror;
+        var doc = cm.getDoc();
+        var selected = cm.getSelection();
+        var hashes = level === 3 ? '###' : '##';
+        var placeholder = level === 3 ? 'Подзаголовок' : 'Заголовок раздела';
+
+        if (selected && selected.trim() !== '') {
+            var text = selected.trim().replace(/^#{1,6}\s+/, '');
+            cm.replaceSelection(hashes + ' ' + text);
+            cm.focus();
+            return;
+        }
+
+        var cursor = doc.getCursor();
+        var line = doc.getLine(cursor.line) || '';
+        var trimmed = line.trim();
+        if (trimmed !== '') {
+            var clean = trimmed.replace(/^#{1,6}\s+/, '');
+            doc.replaceRange(
+                hashes + ' ' + clean,
+                { line: cursor.line, ch: 0 },
+                { line: cursor.line, ch: line.length }
+            );
+            cm.focus();
+            return;
+        }
+
+        var block = hashes + ' ' + placeholder;
+        insertAroundCursor(cm, block, true);
+        // Выделить текст заголовка, чтобы сразу перепечатать.
+        var after = doc.getCursor();
+        var startCh = Math.max(0, after.ch - placeholder.length);
+        doc.setSelection(
+            { line: after.line, ch: startCh },
+            { line: after.line, ch: after.ch }
+        );
+        cm.focus();
+    }
+
+    /**
+     * Выравнивание заголовка: ## {center} / ## {center-bar} Текст
+     * Повторный клик того же варианта снимает маркер. Другой вариант — переключает.
+     * @param {'center'|'center-bar'} kind
+     */
+    function toggleHeadingAlign(editor, kind) {
+        var marker = kind === 'center-bar' ? '{center-bar}' : '{center}';
+        var anyMarkerRe = /^\{center(?:-bar)?\}\s*/i;
+        var thisMarkerRe = kind === 'center-bar'
+            ? /^\{center-bar\}\s*/i
+            : /^\{center\}\s*/i;
+
+        var cm = editor.codemirror;
+        var doc = cm.getDoc();
+        var cursor = doc.getCursor();
+        var line = doc.getLine(cursor.line) || '';
+        var selected = cm.getSelection();
+
+        function toggleBody(body) {
+            var hadThis = thisMarkerRe.test(body);
+            body = body.replace(anyMarkerRe, '');
+            if (!hadThis) {
+                body = marker + ' ' + body;
+            }
+            return body;
+        }
+
+        if (selected && selected.indexOf('\n') === -1 && selected.trim() !== '') {
+            var selText = selected.trim().replace(/^#{1,6}\s+/, '');
+            cm.replaceSelection('## ' + toggleBody(selText));
+            cm.focus();
+            return;
+        }
+
+        var match = line.match(/^(#{1,6})(\s+)(.*)$/);
+        var hashes;
+        var body;
+        if (match) {
+            hashes = match[1];
+            body = match[3];
+        } else {
+            hashes = '##';
+            body = line.trim() !== '' ? line.trim() : 'Заголовок раздела';
+        }
+
+        doc.replaceRange(
+            hashes + ' ' + toggleBody(body),
+            { line: cursor.line, ch: 0 },
+            { line: cursor.line, ch: line.length }
+        );
+        cm.focus();
+    }
+
     function insertMermaid(editor) {
         var tpl = '```mermaid\nflowchart TD\n  A[Шаг 1] --> B[Шаг 2]\n```';
         insertAroundCursor(editor.codemirror, tpl, true);
@@ -173,7 +270,40 @@
         var courseId = opts.courseId;
         var compact = !!opts.compact;
         var base = [
-            'bold', 'italic', 'heading', '|',
+            'bold', 'italic', '|',
+            {
+                name: 'styled-h2',
+                action: function (editor) {
+                    insertStyledHeading(editor, 2);
+                },
+                className: 'cmde-callout cmde-heading cmde-heading--h2',
+                title: 'Заголовок с зелёной полоской (##)',
+            },
+            {
+                name: 'styled-h3',
+                action: function (editor) {
+                    insertStyledHeading(editor, 3);
+                },
+                className: 'cmde-callout cmde-heading cmde-heading--h3',
+                title: 'Подзаголовок с полоской (###)',
+            },
+            {
+                name: 'heading-center',
+                action: function (editor) {
+                    toggleHeadingAlign(editor, 'center');
+                },
+                className: 'cmde-callout cmde-heading cmde-heading--center',
+                title: 'По центру, полоска снизу (## {center}). Повторный клик — снять',
+            },
+            {
+                name: 'heading-center-bar',
+                action: function (editor) {
+                    toggleHeadingAlign(editor, 'center-bar');
+                },
+                className: 'cmde-callout cmde-heading cmde-heading--center-bar',
+                title: 'По центру, полоска слева (## {center-bar}). Повторный клик — снять',
+            },
+            '|',
             'quote', 'unordered-list', 'ordered-list', '|',
             'link',
             {
@@ -209,8 +339,9 @@
         });
 
         if (!compact) {
-            base.push('|', 'preview', 'side-by-side', 'fullscreen', '|', 'guide');
+            base.push('|', 'preview', 'side-by-side', '|', 'guide');
         } else {
+            // В workbench без fullscreen: Side-by-side остаётся внутри панели (sideBySideFullscreen: false).
             base.push('|', 'preview', 'side-by-side');
         }
 
@@ -223,28 +354,73 @@
      * @returns {object|null}
      */
     function create(element, options) {
-        if (!element || typeof global.EasyMDE === 'undefined') {
+        if (!element) {
+            return null;
+        }
+        if (typeof global.EasyMDE === 'undefined') {
+            if (typeof console !== 'undefined' && console.warn) {
+                console.warn('EasyMDE is not loaded; markdown visual editor unavailable.');
+            }
             return null;
         }
         var opts = options || {};
         if (element._cmdeHandle && typeof element._cmdeHandle.destroy === 'function') {
-            element._cmdeHandle.destroy();
+            try {
+                element._cmdeHandle.destroy();
+            } catch (e1) { /* ignore */ }
+            element._cmdeHandle = null;
         }
 
-        var mde = new global.EasyMDE({
-            element: element,
-            spellChecker: false,
-            autosave: { enabled: false },
-            status: opts.status !== undefined ? opts.status : ['lines', 'words', 'cursor'],
-            minHeight: opts.minHeight || '360px',
-            toolbar: opts.toolbar || buildToolbar(opts),
-            previewRender: makePreviewRender(opts),
-            placeholder: opts.placeholder || '',
-            renderingConfig: {
-                singleLineBreaks: false,
-                codeSyntaxHighlighting: false,
-            },
-        });
+        var mde;
+        try {
+            mde = new global.EasyMDE({
+                element: element,
+                spellChecker: false,
+                autosave: { enabled: false },
+                // В боковой панели fullscreen side-by-side перекрывает «Сохранить» и закрытие.
+                sideBySideFullscreen: false,
+                status: opts.status !== undefined ? opts.status : ['lines', 'words', 'cursor'],
+                minHeight: opts.minHeight || '360px',
+                toolbar: opts.toolbar || buildToolbar(opts),
+                previewRender: makePreviewRender(opts),
+                placeholder: opts.placeholder || '',
+                renderingConfig: {
+                    singleLineBreaks: false,
+                    codeSyntaxHighlighting: false,
+                },
+            });
+        } catch (err) {
+            if (typeof console !== 'undefined' && console.warn) {
+                console.warn('EasyMDE init failed', err);
+            }
+            return null;
+        }
+
+        // Esc: выйти из Side-by-side / Preview (и не блокировать закрытие панели, если режимы уже выкл.).
+        if (mde.codemirror) {
+            mde.codemirror.on('keydown', function (cm, ev) {
+                if (ev.key !== 'Escape' && ev.keyCode !== 27) return;
+                var exited = false;
+                try {
+                    if (mde.isSideBySideActive && mde.isSideBySideActive()) {
+                        mde.toggleSideBySide();
+                        exited = true;
+                    }
+                    if (mde.isPreviewActive && mde.isPreviewActive()) {
+                        mde.togglePreview();
+                        exited = true;
+                    }
+                    if (mde.isFullscreenActive && mde.isFullscreenActive()) {
+                        mde.toggleFullScreen();
+                        exited = true;
+                    }
+                } catch (eEsc) { /* ignore */ }
+                if (exited) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                }
+            });
+        }
 
         var changeTimer = null;
         if (typeof opts.onChange === 'function' && mde.codemirror) {
@@ -318,6 +494,7 @@
         setValueOf: setValueOf,
         buildToolbar: buildToolbar,
         insertCallout: insertCallout,
+        insertStyledHeading: insertStyledHeading,
         CALLOUTS: CALLOUTS,
     };
 })(typeof window !== 'undefined' ? window : this);
