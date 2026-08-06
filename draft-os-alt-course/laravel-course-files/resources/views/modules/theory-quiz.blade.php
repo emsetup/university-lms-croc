@@ -11,6 +11,7 @@
         : config('course.step_titles.theory_quiz');
     $quizSt = $quizState ?? [];
     $quizAttempts = (int) ($quizSt['attempts'] ?? ($progress->theory_quiz_attempts ?? 0));
+    $showScorePercents = $showScorePercents ?? true;
 @endphp
 
 @section('title')
@@ -34,7 +35,7 @@
 
         <div class="card content-protect">
             <h1 class="theory-quiz-page-title" style="margin-top:0">Модуль {{ $modNum }}: {{ $sectionTitle }}</h1>
-            <p class="muted">Порог успеха у обучающихся: {{ $passThreshold ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%. Лимит времени: {{ $timeLimitMinutes }} мин.</p>
+            <p class="muted">@if ($showScorePercents)Порог успеха у обучающихся: {{ $passThreshold ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%. @endifЛимит времени: {{ $timeLimitMinutes }} мин.</p>
 
             @foreach ($questions as $i => $q)
                 @include('modules.partials.theory-quiz-question', ['i' => $i, 'q' => $q, 'preview' => true, 'inputPrefix' => 'q'])
@@ -49,10 +50,18 @@
                 <ul class="quiz-modal-list">
                     <li>На прохождение отводится <strong>{{ $timeLimitMinutes }} минут</strong> с момента нажатия «Начать тестирование».</li>
                     <li>Таймер отображается сверху; по истечении времени ответы отправятся автоматически (в том числе незаполненные варианты учитываются как ошибки).</li>
-                    <li>Порог успешной сдачи: <strong>{{ $passThreshold ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%</strong>. Каждая попытка учитывается в итоговой оценке.</li>
+                    @if ($showScorePercents)
+                        <li>Порог успешной сдачи: <strong>{{ $passThreshold ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%</strong>. Каждая попытка учитывается в итоговой оценке.</li>
+                    @else
+                        <li>Каждая попытка учитывается в итоговой оценке.</li>
+                    @endif
                     <li>Закройте посторонние вкладки: возврат к теории в середине попытки укорачивает оставшееся время.</li>
                     @if ($quizAttempts >= 1)
-                        <li class="quiz-modal-warn"><strong>Повторная попытка:</strong> к сырому проценту прибавляется штраф <strong>-{{ $theoryQuizRetakePenalty ?? \App\Services\CourseScoringService::THEORY_QUIZ_RETAKE_PENALTY_POINTS }}</strong> п.п. Зачёт по модулю и отображаемый лучший результат сброшены до завершения этой попытки.</li>
+                        @if ($showScorePercents)
+                            <li class="quiz-modal-warn"><strong>Повторная попытка:</strong> к сырому проценту прибавляется штраф <strong>-{{ $theoryQuizRetakePenalty ?? \App\Services\CourseScoringService::THEORY_QUIZ_RETAKE_PENALTY_POINTS }}</strong> п.п. Зачёт по модулю и отображаемый лучший результат сброшены до завершения этой попытки.</li>
+                        @else
+                            <li class="quiz-modal-warn"><strong>Повторная попытка:</strong> зачёт и отображаемый результат обновятся после завершения этой попытки.</li>
+                        @endif
                     @endif
                 </ul>
                 <div class="quiz-modal-actions">
@@ -77,7 +86,7 @@
 
         <div class="card content-protect" data-integrity-protect>
             <h1 class="theory-quiz-page-title" style="margin-top:0">Модуль {{ $modNum }}: {{ $sectionTitle }}</h1>
-            <p class="muted">Порог успеха: {{ $passThreshold ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%. Ответьте на все вопросы и при необходимости проверьте формулировки в теории модуля.</p>
+            <p class="muted">@if ($showScorePercents)Порог успеха: {{ $passThreshold ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%. @endifОтветьте на все вопросы и при необходимости проверьте формулировки в теории модуля.</p>
             <p class="muted small content-protect-hint">Текст заданий нельзя копировать; при переключении на другую вкладку формулировки скрываются. Скриншот средствами ОС технически не блокируется.</p>
 
             <form method="post" action="{{ route('course.module.section.theory-quiz.submit', $sr) }}" id="theory-quiz-form">

@@ -58,6 +58,7 @@
             <p class="ap-page-lead ap-muted ap-mod-workbench__lead">Порядок модулей и разделов, пакеты контента и цепочка этапов.</p>
         </div>
         <div class="ap-mod-workbench__head-actions">
+            <a class="btn btn-ghost" href="{{ route('admin.quiz.export.all', $tp) }}">Все вопросы (Excel)</a>
             @if ($canEditCourseStructure)
                 <button type="button" class="btn btn-primary" id="ap-open-add-module">+ Добавить модуль</button>
             @else
@@ -88,6 +89,8 @@
                 data-module-letter="{{ e($m->letter ?? '') }}"
                 data-module-pkg="{{ $m->content_source_index ?? '' }}"
                 data-module-summary="{{ e($m->summary ?? '') }}"
+                data-module-show-percents="{{ \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_percents') ? (($m->getAttributes()['show_score_percents'] ?? null) === null ? 'inherit' : ((string) (int) $m->getAttributes()['show_score_percents'])) : 'inherit' }}"
+                data-module-show-points="{{ \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_points') ? (($m->getAttributes()['show_score_points'] ?? null) === null ? 'inherit' : ((string) (int) $m->getAttributes()['show_score_points'])) : 'inherit' }}"
                 data-update-url="{{ route('admin.course.settings.module.update', array_merge($rp, ['courseModule' => $m->id])) }}"
                 data-destroy-url="{{ route('admin.course.settings.module.destroy', array_merge($rp, ['courseModule' => $m->id])) }}"
                 data-section-store-url="{{ route('admin.course.module.sections.store', array_merge($rp, ['courseModule' => $m->id])) }}"
@@ -254,6 +257,7 @@
                 </div>
                 <div class="ap-mod-final-lab__links">
                     <a class="btn btn-ghost" href="{{ route('admin.quiz.edit.final', $tp) }}">Вопросы финальной страницы</a>
+                    <a class="btn btn-ghost" href="{{ route('admin.quiz.export.final', $tp) }}">Excel</a>
                     <a class="btn btn-ghost" href="{{ route('admin.theory.preview-final-lab', $tp) }}">Предпросмотр</a>
                 </div>
             </div>
@@ -395,6 +399,26 @@
             <input id="ap-mod-set-pkg" class="ap-modal__input" type="number" name="content_source_index" min="1" max="99" style="max-width:7rem">
             <label class="ap-settings-label" for="ap-mod-set-sum">Описание для обучающихся</label>
             <textarea id="ap-mod-set-sum" class="ap-modal__input ap-settings-textarea" name="summary" rows="5" maxlength="5000"></textarea>
+            @if (\Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_percents') || \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_points'))
+                <p class="ap-settings-label" style="margin-top:1rem">Метрики для обучающихся</p>
+                <p class="ap-muted small" style="margin:0 0 0.5rem">По умолчанию — как в настройках курса. Можно показать или скрыть отдельно проценты и баллы.</p>
+                @if (\Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_percents'))
+                    <label class="ap-settings-label" for="ap-mod-set-percents">Проценты</label>
+                    <select id="ap-mod-set-percents" class="ap-modal__input" name="show_score_percents">
+                        <option value="inherit">Наследовать от курса</option>
+                        <option value="1">Показывать</option>
+                        <option value="0">Скрыть</option>
+                    </select>
+                @endif
+                @if (\Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_points'))
+                    <label class="ap-settings-label" for="ap-mod-set-points" style="margin-top:0.75rem">Баллы</label>
+                    <select id="ap-mod-set-points" class="ap-modal__input" name="show_score_points">
+                        <option value="inherit">Наследовать от курса</option>
+                        <option value="1">Показывать</option>
+                        <option value="0">Скрыть</option>
+                    </select>
+                @endif
+            @endif
             <div class="ap-drawer__footer">
                 <button type="button" class="btn btn-ghost" data-ap-drawer-close>Отмена</button>
                 <button type="submit" class="btn btn-primary">Сохранить</button>
@@ -512,6 +536,9 @@
                             <span class="questions-sidebar-hint ap-muted">≡ — порядок</span>
                             <span id="ap-sec-quiz-count" class="questions-count-badge">0</span>
                         </div>
+                        <p class="ap-muted small" style="margin:0.35rem 0.65rem 0" id="ap-sec-quiz-export-wrap" hidden>
+                            <a href="#" id="ap-sec-quiz-export" class="btn btn-ghost btn-sm" target="_blank" rel="noopener">Скачать Excel</a>
+                        </p>
                         <div id="ap-sec-quiz-list" class="questions-list-scroll" role="list"></div>
                         <div class="questions-sidebar-footer">
                             <button type="button" class="btn btn-ghost btn-sm" id="ap-sec-quiz-add" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:0.35rem">
@@ -616,6 +643,7 @@
                     <textarea id="ap-sec-theory-md" class="ap-modal__input ap-settings-textarea ap-sec-edit-panel__editor" rows="14"></textarea>
                     <div class="ap-sec-edit-panel__theory-foot">
                         <span id="ap-sec-theory-chars" class="ap-muted small">0 символов</span>
+                        <a href="#" id="ap-sec-theory-export" class="btn btn-ghost btn-sm" hidden target="_blank" rel="noopener">Скачать Word</a>
                         <span id="ap-sec-theory-saved" class="ap-sec-edit-panel__saved small" hidden style="display:inline-flex;align-items:center;gap:0.25rem">Сохранено @include('partials.ap-icon', ['name' => 'check', 'size' => 'sm'])</span>
                     </div>
                 </div>
@@ -961,6 +989,14 @@
                 document.getElementById('ap-mod-set-letter').value = card.getAttribute('data-module-letter') || '';
                 document.getElementById('ap-mod-set-pkg').value = card.getAttribute('data-module-pkg') || '';
                 document.getElementById('ap-mod-set-sum').value = card.getAttribute('data-module-summary') || '';
+                var percSel = document.getElementById('ap-mod-set-percents');
+                if (percSel) {
+                    percSel.value = card.getAttribute('data-module-show-percents') || 'inherit';
+                }
+                var ptsSel = document.getElementById('ap-mod-set-points');
+                if (ptsSel) {
+                    ptsSel.value = card.getAttribute('data-module-show-points') || 'inherit';
+                }
                 openDrawer();
             });
         }

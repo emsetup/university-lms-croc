@@ -31,6 +31,8 @@ final class CourseChangeLogService
         'unlock_all_modules' => 'Открыть все модули',
         'show_module_progress' => 'Показывать прогресс модулей',
         'assessment_enabled' => 'Оценивание',
+        'show_score_percents' => 'Показывать проценты обучающимся',
+        'show_score_points' => 'Показывать баллы обучающимся',
         'audience_plaque_enabled' => 'Плашка аудитории',
         'audience_plaque_kicker' => 'Плашка: подзаголовок',
         'audience_plaque_title' => 'Плашка: заголовок',

@@ -200,6 +200,8 @@ final class AdminCourseSettingsController extends Controller
             'unlock_all_modules' => ['sometimes', 'boolean'],
             'show_module_progress' => ['sometimes', 'boolean'],
             'assessment_enabled' => ['sometimes', 'boolean'],
+            'show_score_percents' => ['sometimes', 'boolean'],
+            'show_score_points' => ['sometimes', 'boolean'],
             'meta_includes_dashboard_extras' => ['sometimes', 'boolean'],
             'audience_plaque_enabled' => ['sometimes', 'boolean'],
             'audience_plaque_kicker' => ['nullable', 'string', 'max:80'],
@@ -243,6 +245,12 @@ final class AdminCourseSettingsController extends Controller
             }
             if (Schema::hasColumn('courses', 'assessment_enabled')) {
                 $course->assessment_enabled = $request->boolean('assessment_enabled');
+            }
+            if (Schema::hasColumn('courses', 'show_score_percents')) {
+                $course->show_score_percents = $request->boolean('show_score_percents');
+            }
+            if (Schema::hasColumn('courses', 'show_score_points')) {
+                $course->show_score_points = $request->boolean('show_score_points');
             }
             if (Schema::hasColumn('courses', 'certificate_enabled') && $request->boolean('meta_includes_dashboard_extras')) {
                 $course->certificate_enabled = $request->boolean('certificate_enabled');
@@ -371,16 +379,26 @@ final class AdminCourseSettingsController extends Controller
             'summary' => 'nullable|string|max:5000',
             'letter' => 'nullable|string|max:8',
             'content_source_index' => 'nullable|integer|min:1|max:99',
+            'show_score_percents' => 'nullable|in:inherit,0,1',
+            'show_score_points' => 'nullable|in:inherit,0,1',
         ]);
         $courseModule->title = $data['title'];
         $courseModule->summary = (string) ($data['summary'] ?? '');
         $courseModule->letter = isset($data['letter']) && $data['letter'] !== '' ? (string) $data['letter'] : null;
         $courseModule->content_source_index = isset($data['content_source_index']) ? (int) $data['content_source_index'] : null;
+        if (Schema::hasColumn('course_modules', 'show_score_percents')) {
+            $courseModule->show_score_percents = self::nullableBoolFromInherit($data['show_score_percents'] ?? 'inherit');
+        }
+        if (Schema::hasColumn('course_modules', 'show_score_points')) {
+            $courseModule->show_score_points = self::nullableBoolFromInherit($data['show_score_points'] ?? 'inherit');
+        }
         $moduleChanges = $this->changeLog->describeModelDirty($courseModule, [
             'title' => 'Название',
             'summary' => 'Описание',
             'letter' => 'Буква',
             'content_source_index' => 'Пакет контента №',
+            'show_score_percents' => 'Показывать проценты',
+            'show_score_points' => 'Показывать баллы',
         ]);
         $courseModule->save();
         app(\App\Services\CourseSectionService::class)->clearCache();
@@ -868,6 +886,12 @@ final class AdminCourseSettingsController extends Controller
             'practice_image' => $practiceImage,
             'docker_images' => $dockerImages,
             'save_url' => route('admin.course.section.panel.save', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id])),
+            'questions_export_url' => in_array($section->type, [CourseSection::TYPE_QUIZ, CourseSection::TYPE_EXAM, CourseSection::TYPE_SURVEY], true)
+                ? route('admin.quiz.export.section', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
+                : null,
+            'theory_export_url' => $section->type === CourseSection::TYPE_TEXT
+                ? route('admin.theory.section.docx', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
+                : null,
             'survey_responses_url' => $section->type === CourseSection::TYPE_SURVEY
                 ? route('admin.course.module.section.survey-responses', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
                 : null,
@@ -1389,6 +1413,25 @@ final class AdminCourseSettingsController extends Controller
             ]);
             $sort += 10;
         }
+    }
+
+    /**
+     * @return bool|null null = наследовать от курса
+     */
+    private static function nullableBoolFromInherit(mixed $value): ?bool
+    {
+        $v = is_string($value) ? $value : (string) $value;
+        if ($v === 'inherit' || $v === '') {
+            return null;
+        }
+        if ($v === '1') {
+            return true;
+        }
+        if ($v === '0') {
+            return false;
+        }
+
+        return null;
     }
 
     /**

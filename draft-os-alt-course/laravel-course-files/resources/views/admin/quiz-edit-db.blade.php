@@ -44,6 +44,11 @@
                 @endif
             </div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+                @if (! empty($courseModule) && in_array($kind ?? '', ['theory_quiz', 'module_exam'], true))
+                    <a class="btn btn-ghost" href="{{ route('admin.quiz.export.module', array_merge($ap ?? [], ['module' => $courseModule->effectiveContentIndex(), 'kind' => $kind])) }}">Скачать Excel</a>
+                @elseif (($kind ?? '') === 'final_lab')
+                    <a class="btn btn-ghost" href="{{ route('admin.quiz.export.final', $ap ?? []) }}">Скачать Excel</a>
+                @endif
                 @if(empty($isReadOnly))
                     <button type="button" class="btn btn-primary js-qb-save">Сохранить</button>
                     <button type="button" class="btn btn-ghost js-qb-add">Добавить вопрос</button>

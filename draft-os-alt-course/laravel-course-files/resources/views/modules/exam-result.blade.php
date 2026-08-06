@@ -10,6 +10,8 @@
         $sectionTitle = isset($section) && (string) $section->title !== ''
             ? (string) $section->title
             : 'итоговый тест';
+        $showScorePercents = $showScorePercents ?? true;
+        $showScorePoints = $showScorePoints ?? true;
     @endphp
     <a class="back-link" href="{{ route('course.module.hub', $lr) }}">
         @include('partials.ap-icon', ['name' => 'arrow-left'])
@@ -17,14 +19,24 @@
     </a>
     <div class="card">
         <h1 style="margin-top:0">Модуль {{ $modNum }}: {{ $sectionTitle }}</h1>
-        <p>Результат попытки: <strong>{{ $r['final_percent'] ?? '—' }}%</strong>
-            (порог {{ $r['threshold'] ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%)
-            @if (!empty($r['passed']))
-                <span class="tag" style="margin-left:0.5rem">модуль зачтён по правилам курса</span>
-            @endif
-        </p>
+        @if ($showScorePercents)
+            <p>Результат попытки: <strong>{{ $r['final_percent'] ?? '—' }}%</strong>
+                (порог {{ $r['threshold'] ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%)
+                @if (!empty($r['passed']))
+                    <span class="tag" style="margin-left:0.5rem">модуль зачтён по правилам курса</span>
+                @endif
+            </p>
+        @else
+            <p>Результат попытки:
+                @if (!empty($r['passed']))
+                    <span class="tag">модуль зачтён по правилам курса</span>
+                @else
+                    <span class="tag">не зачтено</span>
+                @endif
+            </p>
+        @endif
         <p class="muted">Верно: {{ $r['correct_count'] ?? '—' }} из {{ $r['total'] ?? '—' }}.
-            @if (!empty($r['max_points']))
+            @if ($showScorePoints && !empty($r['max_points']))
                 Баллы: {{ $r['earned_points'] ?? '—' }} / {{ $r['max_points'] }}.
             @endif
         </p>

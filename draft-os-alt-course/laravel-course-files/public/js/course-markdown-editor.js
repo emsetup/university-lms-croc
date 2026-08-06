@@ -148,6 +148,22 @@
         cm.focus();
     }
 
+    /**
+     * Вставить [[toc]] в начало документа (или обновить позицию, если уже есть).
+     * Оглавление собирается при рендере из всех ## / ###.
+     */
+    function insertTableOfContents(editor) {
+        var cm = editor.codemirror;
+        var doc = cm.getDoc();
+        var value = doc.getValue();
+        var tocRe = /^[ \t]*(?:\[\[toc\]\]|\[TOC\])[ \t]*$/gim;
+        var cleaned = value.replace(tocRe, '').replace(/^\n+/, '');
+        var block = '[[toc]]\n\n';
+        doc.setValue(block + cleaned);
+        doc.setCursor({ line: 0, ch: 0 });
+        cm.focus();
+    }
+
     function insertMermaid(editor) {
         var tpl = '```mermaid\nflowchart TD\n  A[Шаг 1] --> B[Шаг 2]\n```';
         insertAroundCursor(editor.codemirror, tpl, true);
@@ -302,6 +318,14 @@
                 },
                 className: 'cmde-callout cmde-heading cmde-heading--center-bar',
                 title: 'По центру, полоска слева (## {center-bar}). Повторный клик — снять',
+            },
+            {
+                name: 'insert-toc',
+                action: function (editor) {
+                    insertTableOfContents(editor);
+                },
+                className: 'cmde-callout cmde-heading cmde-heading--toc',
+                title: 'Оглавление в начало: [[toc]] — ссылки на все ## / ### обновляются автоматически',
             },
             '|',
             'quote', 'unordered-list', 'ordered-list', '|',
@@ -495,6 +519,7 @@
         buildToolbar: buildToolbar,
         insertCallout: insertCallout,
         insertStyledHeading: insertStyledHeading,
+        insertTableOfContents: insertTableOfContents,
         CALLOUTS: CALLOUTS,
     };
 })(typeof window !== 'undefined' ? window : this);

@@ -1809,6 +1809,71 @@ body.course-ui:has(.page-container--dashboard) .portal-site-column {
   color: #334155;
 }
 
+/* Оглавление [[toc]] — якорные ссылки на ## / ### */
+.theory-toc,
+.theory-article.theory-content .theory-toc,
+.cmde-preview-body .theory-toc {
+  margin: 0 0 1.75rem;
+  padding: 1rem 1.15rem 1.1rem;
+  border: 1px solid #d1fae5;
+  border-left: 4px solid var(--brand, #00b956);
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 55%);
+}
+
+.theory-toc__title,
+.theory-article.theory-content .theory-toc__title {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #047857;
+}
+
+.theory-toc__hint {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.theory-toc__list,
+.theory-toc__sub,
+.theory-article.theory-content .theory-toc__list,
+.theory-article.theory-content .theory-toc__sub {
+  margin: 0;
+  padding-left: 1.15rem;
+  list-style: decimal;
+}
+
+.theory-toc__sub {
+  margin-top: 0.35rem;
+  margin-bottom: 0.35rem;
+  list-style: lower-alpha;
+}
+
+.theory-toc__item {
+  margin: 0.2rem 0;
+  color: #334155;
+}
+
+.theory-toc a {
+  color: #0f766e;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  font-weight: 600;
+}
+
+.theory-toc a:hover {
+  color: #065f46;
+  border-bottom-color: #86efac;
+}
+
+.theory-toc__item--h3 > a {
+  font-weight: 500;
+  color: #475569;
+}
+
 .theory-content p,
 .theory-article.theory-content p {
   margin: 0 0 16px;
@@ -1831,6 +1896,19 @@ body.course-ui:has(.page-container--dashboard) .portal-site-column {
 .theory-content li,
 .theory-article.theory-content li {
   margin: 0.35rem 0;
+}
+
+.theory-article.theory-content .theory-toc__list,
+.theory-article.theory-content .theory-toc__sub,
+.cmde-preview-body .theory-toc__list,
+.cmde-preview-body .theory-toc__sub {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.theory-article.theory-content .theory-toc__item,
+.cmde-preview-body .theory-toc__item {
+  margin: 0.2rem 0;
 }
 
 .theory-content li::marker,

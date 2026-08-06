@@ -188,6 +188,8 @@ for f in \
   app/Services/CourseSurveyCatalogService.php \
   app/Services/SurveyResponseService.php \
   app/Services/SurveyResponseExportService.php \
+  app/Services/QuizQuestionsExportService.php \
+  app/Services/TheoryWordExportService.php \
   app/Services/SectionParticipantsAnalyticsService.php \
   app/Services/SurveyQuickLinkService.php \
   app/Services/ShareLinkService.php \
@@ -215,6 +217,7 @@ for f in \
   app/Support/LearnerDisplay.php \
   app/Support/TeacherQuizLabels.php \
   app/Support/CourseAudiencePlaque.php \
+  app/Support/LearnerScoreDisplay.php \
   app/Support/LearnerSsoDisplayNamePersistence.php \
   app/Support/LearnerPortalLoginPersistence.php \
   app/Support/PortalStaffPermissionCatalog.php \
@@ -324,6 +327,12 @@ if [[ -f "${LCF}/database/migrations/2026_06_09_130000_add_assessment_enabled_to
   echo "[deploy-laravel] database/migrations/…assessment_enabled…"
   rsync -az "${LCF}/database/migrations/2026_06_09_130000_add_assessment_enabled_to_courses_table.php" \
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_06_09_130000_add_assessment_enabled_to_courses_table.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_08_06_190000_add_show_score_display_flags.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…show_score_display_flags…"
+  rsync -az "${LCF}/database/migrations/2026_08_06_190000_add_show_score_display_flags.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_08_06_190000_add_show_score_display_flags.php"
 fi
 
 if [[ -f "${LCF}/database/migrations/2026_06_09_140000_add_audience_plaque_to_courses_table.php" ]]; then

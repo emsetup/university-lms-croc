@@ -12,6 +12,8 @@
         : config('course.step_titles.module_exam');
     $quizSt = $quizState ?? [];
     $examAttempts = (int) ($quizSt['attempts'] ?? ($progress->module_exam_attempts ?? 0));
+    $showScorePercents = $showScorePercents ?? true;
+    $showScorePoints = $showScorePoints ?? true;
 @endphp
 
 @section('title', 'Модуль '.$modNum.': '.$sectionTitle)
@@ -32,7 +34,7 @@
                     <ul class="quiz-modal-list">
                         <li class="quiz-modal-warn"><strong>Сохранённый результат будет заменён.</strong> После отправки новой попытки на странице «Результат» и в кратком разборе останутся <strong>только данные этой попытки</strong>. То, что вы видели после прошлой отправки (проценты, разбор по вопросам), <strong>больше не отображается</strong> — учтите это, если нужно что-то переписать из разбора заранее.</li>
                         <li>В зачёт модуля и в блок «итог» на странице модуля идёт <strong>результат последней завершённой попытки</strong> (пересдача заменяет предыдущий процент, без сохранения «лучшего из двух»).</li>
-                        <li><strong>Штраф −{{ $retakePenalty }} п.п.</strong> применяется к <strong>сырому</strong> проценту правильных ответов этой попытки (до сравнения с порогом {{ $passThreshold }}%). Например, сырой 80% даёт итоговый для зачёта <strong>70%</strong> с учётом штрафа.</li>
+                        <li><strong>Штраф −{{ $retakePenalty }} п.п.</strong> применяется к <strong>сырому</strong> проценту правильных ответов этой попытки@if ($showScorePercents) (до сравнения с порогом {{ $passThreshold }}%). Например, сырой 80% даёт итоговый для зачёта <strong>70%</strong> с учётом штрафа@endif.</li>
                         <li><strong>Зачёт по модулю</strong>, если вы его уже получили, система <strong>не снимает</strong>. Но если новая попытка хуже порога, на странице вы увидите «ниже порога» для этой отправки — при этом ранее полученный зачёт модуля сохраняется.</li>
                     </ul>
                     <label class="choice exam-retake-ack-label" style="margin:0 0 1rem;display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer">
@@ -54,11 +56,13 @@
                 <ul class="quiz-modal-list">
                     <li>На прохождение отводится <strong>{{ $timeLimitMinutes }} минут</strong> — отсчёт начнётся только после нажатия «Запустить отсчёт».</li>
                     <li>Таймер показывается над вопросами; по истечении времени ответы отправятся автоматически (незаполненные вопросы засчитываются как ошибки).</li>
-                    <li>Порог зачёта: <strong>{{ $passThreshold }}%</strong>. Попытка <strong>{{ $attemptNumber }}</strong> из {{ $maxAttempts }}.</li>
+                    <li>@if ($showScorePercents)Порог зачёта: <strong>{{ $passThreshold }}%</strong>. @endifПопытка <strong>{{ $attemptNumber }}</strong> из {{ $maxAttempts }}.</li>
                     <li>Вопросы идут по шагам; у части из них несколько верных ответов — на кнопке с номером значок <strong>+</strong> (отметьте все подходящие). У вопросов на сопоставление — значок <strong>↕</strong>: перетащите блоки справа мышью в нужный порядок.</li>
                     <li>Время фиксируется на сервере: после старта обновление страницы или краткий обрыв связи <strong>не обнуляют</strong> дедлайн (ответы в форме при полном обновлении страницы сбросятся — лучше не закрывайте вкладку зря).</li>
-                    @if ($attemptNumber >= 2)
+                    @if ($attemptNumber >= 2 && $showScorePercents)
                         <li class="quiz-modal-warn">Напоминание: к <strong>сырому</strong> проценту этой попытки уже применяется штраф <strong>−{{ $retakePenalty }} п.п.</strong> (см. предыдущее окно).</li>
+                    @elseif ($attemptNumber >= 2)
+                        <li class="quiz-modal-warn">Напоминание: к этой попытке применяется штраф за пересдачу (см. предыдущее окно).</li>
                     @endif
                 </ul>
                 <div class="quiz-modal-actions">
@@ -114,9 +118,10 @@
         @endif
         <div class="card module-exam-card content-protect" data-integrity-protect>
             <h1 style="margin-top:0">Модуль {{ $modNum }}: {{ config('course.step_titles.module_exam') }}</h1>
-            @if ($modNum === 3)
+            @if ($modNum === 3 && ($showScorePoints || $showScorePercents))
                 <div class="module-exam-m3-rubric muted" style="margin:0 0 1rem;line-height:1.5">
                     <p style="margin:0 0 0.35rem"><strong>Экзамен: Модуль 3 — ЦУС, Alterator и модули администрирования</strong></p>
+                    @if ($showScorePoints)
                     <p style="margin:0">20 вопросов · 4 типа · максимум <strong>100</strong> баллов (в зачёт идёт процент от суммы баллов).</p>
                     <ul style="margin:0.5rem 0 0;padding-left:1.2rem;font-size:0.95rem">
                         <li>Часть 1 — один верный ответ (8 вопросов по 3 балла = 24)</li>
@@ -124,23 +129,31 @@
                         <li>Часть 3 — сопоставление и порядок шагов в форме вопросов с выбором (4×4 = 16)</li>
                         <li>Часть 4 — практические ситуации (12 + 14 + 14 = 40 баллов)</li>
                     </ul>
-                    <p style="margin:0.5rem 0 0">Порог зачёта: <strong>{{ $passThreshold }}%</strong> от максимума баллов этой попытки.</p>
+                    @endif
+                    @if ($showScorePercents)
+                    <p style="margin:0.5rem 0 0">Порог зачёта: <strong>{{ $passThreshold }}%</strong>@if ($showScorePoints) от максимума баллов этой попытки@endif.</p>
+                    @endif
                 </div>
-            @elseif ($modNum === 4)
+            @elseif ($modNum === 4 && ($showScorePoints || $showScorePercents))
                 <div class="module-exam-m4-rubric muted" style="margin:0 0 1rem;line-height:1.5">
                     <p style="margin:0 0 0.35rem"><strong>Экзамен: Модуль 4 — Установка ОС «Альт», инсталлятор и профили</strong></p>
-                    <p style="margin:0">20 вопросов · 4 типа · <strong>100</strong> баллов · порог сдачи: <strong>{{ $passThreshold }}</strong> баллов (процент от суммы набранных баллов).</p>
+                    @if ($showScorePoints)
+                    <p style="margin:0">20 вопросов · 4 типа · <strong>100</strong> баллов@if ($showScorePercents) · порог сдачи: <strong>{{ $passThreshold }}</strong> баллов (процент от суммы набранных баллов)@endif.</p>
                     <ul style="margin:0.5rem 0 0;padding-left:1.2rem;font-size:0.95rem">
                         <li>Часть 1 — один правильный ответ (7 вопросов по 4 балла = 28)</li>
                         <li>Часть 2 — несколько правильных ответов (6 вопросов по 5 баллов = 30)</li>
                         <li>Часть 3 — сопоставление (3 вопроса по 4 балла = 12)</li>
                         <li>Часть 4 — сценарии (4 вопроса: 8 + 7 + 8 + 7 = 30 баллов)</li>
                     </ul>
+                    @elseif ($showScorePercents)
+                    <p style="margin:0">Порог сдачи: <strong>{{ $passThreshold }}%</strong>.</p>
+                    @endif
                     <p style="margin:0.5rem 0 0">На прохождение отводится <strong>{{ $timeLimitMinutes }} минут</strong> (таймер после «Запустить отсчёт»).</p>
                 </div>
-            @elseif ($modNum === 5)
+            @elseif ($modNum === 5 && ($showScorePoints || $showScorePercents))
                 <div class="module-exam-m5-rubric muted" style="margin:0 0 1rem;line-height:1.5">
                     <p style="margin:0 0 0.35rem"><strong>Экзамен: Модуль 5 — Сеть: три менеджера и контексты</strong></p>
+                    @if ($showScorePoints)
                     <p style="margin:0">20 вопросов · 4 типа · <strong>100</strong> баллов. Сопоставление (вопросы 14–16) оформлено как «отметьте все верные пары».</p>
                     <ul style="margin:0.5rem 0 0;padding-left:1.2rem;font-size:0.95rem">
                         <li>Один верный ответ — 7×4 = 28</li>
@@ -148,21 +161,24 @@
                         <li>Сопоставление — 3×4 = 12</li>
                         <li>Сценарии — 8 + 7 + 8 + 7 = 30</li>
                     </ul>
-                    <p style="margin:0.5rem 0 0">Порог зачёта: <strong>{{ $passThreshold }}%</strong> от суммы баллов. Таймер: <strong>{{ $timeLimitMinutes }} мин.</strong></p>
+                    @endif
+                    <p style="margin:0.5rem 0 0">@if ($showScorePercents)Порог зачёта: <strong>{{ $passThreshold }}%</strong>@if ($showScorePoints) от суммы баллов@endif. @endifТаймер: <strong>{{ $timeLimitMinutes }} мин.</strong></p>
                 </div>
             @endif
             <p class="muted small content-protect-hint">Текст вопросов нельзя копировать; при уходе с вкладки он скрывается. Снимок экрана ОС не блокируется браузером.</p>
             @if (empty($previewWalkthrough))
             <p class="muted">
-                Порог зачёта: <strong>{{ $passThreshold }}%</strong>.
+                @if ($showScorePercents)Порог зачёта: <strong>{{ $passThreshold }}%</strong>. @endif
                 Попытка <strong>{{ $attemptNumber }}</strong> из {{ $maxAttempts }}.
                 Осталось времени на попытку — на полосе ниже; по истечении ответы уйдут автоматически.
-                @if ($attemptNumber >= 2)
+                @if ($attemptNumber >= 2 && $showScorePercents)
                     <span class="module-exam-warn">К результату этой попытки применяется штраф <strong>−{{ $retakePenalty }} п.п.</strong> от сырого процента.</span>
+                @elseif ($attemptNumber >= 2)
+                    <span class="module-exam-warn">К результату этой попытки применяется штраф за пересдачу.</span>
                 @endif
             </p>
             @else
-            <p class="muted">Порог зачёта у обучающихся: <strong>{{ $passThreshold }}%</strong>. Лимит времени: <strong>{{ $timeLimitMinutes }} мин.</strong></p>
+            <p class="muted">@if ($showScorePercents)Порог зачёта у обучающихся: <strong>{{ $passThreshold }}%</strong>. @endifЛимит времени: <strong>{{ $timeLimitMinutes }} мин.</strong></p>
             @endif
 
             @if ($expiresAtMs)
@@ -204,7 +220,7 @@
                         $isMulti = is_array($q['c'] ?? null) && ! $matchDrag;
                     @endphp
                     <div class="module-exam-step" data-step="{{ $i }}" @if ($i !== 0) hidden @endif role="tabpanel" aria-labelledby="exam-step-tab-{{ $i }}">
-                        <div class="module-exam-step__meta muted">Вопрос {{ $i + 1 }} из {{ $total }}@if (!empty($questions[$i]['points'])) · {{ (int) $questions[$i]['points'] }} б.@endif</div>
+                        <div class="module-exam-step__meta muted">Вопрос {{ $i + 1 }} из {{ $total }}@if ($showScorePoints && !empty($questions[$i]['points'])) · {{ (int) $questions[$i]['points'] }} б.@endif</div>
                         @php
                             $examQHtml = \App\Support\CourseContentMarkdown::toHtml(trim((string) ($q['q'] ?? '')));
                             $examQHtml = (string) preg_replace('/<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/iu', '', $examQHtml);

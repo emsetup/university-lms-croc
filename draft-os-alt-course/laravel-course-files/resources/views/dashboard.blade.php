@@ -71,6 +71,7 @@
                     <div class="portal-metric__label stat-label">Модулей закрыто</div>
                 </div>
             </div>
+            @if ($showScorePercents ?? true)
             <div class="stat-card portal-metric">
                 <div class="portal-metric__iconWrap" aria-hidden="true">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
@@ -84,6 +85,8 @@
                     <div class="portal-metric__label stat-label">Средний прогресс по шагам</div>
                 </div>
             </div>
+            @endif
+            @if ($showScorePoints ?? true)
             <div class="stat-card portal-metric">
                 <div class="portal-metric__iconWrap" aria-hidden="true">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
@@ -99,13 +102,16 @@
                     <div class="portal-metric__label stat-label">Баллы по модулям</div>
                 </div>
             </div>
+            @endif
         </div>
+        @if ($showScorePercents ?? true)
         <div class="learner-track-summary__bar-wrap" role="presentation">
             <div class="learner-track-summary__bar-label muted small">Средняя заполненность этапов по всем модулям</div>
             <div class="learner-track-summary__bar">
                 <div class="learner-track-summary__bar-fill" style="width: {{ min(100, max(0, (int) $trackAvgPercent)) }}%"></div>
             </div>
         </div>
+        @endif
         <div class="module-nav" role="list" aria-label="Кратко по модулям A–{{ $modules[count($modules) - 1]['letter'] ?? '' }}">
             @foreach ($modules as $m)
                 @php

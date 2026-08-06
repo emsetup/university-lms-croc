@@ -20,6 +20,7 @@
             <textarea id="theory-md" name="markdown" rows="24" spellcheck="false">{{ old('markdown', $markdown) }}</textarea>
             <div style="margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center">
                 <button type="submit" class="btn btn-primary">Сохранить</button>
+                <a class="btn btn-ghost" href="{{ route('admin.theory.docx', array_merge($ap ?? [], ['module' => $module])) }}">Скачать Word</a>
                 <a class="btn btn-ghost" href="{{ route('admin.theory.index', $ap ?? []) }}">Отмена</a>
             </div>
         </form>

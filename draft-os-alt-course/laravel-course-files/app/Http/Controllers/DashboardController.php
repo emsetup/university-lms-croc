@@ -10,6 +10,7 @@ use App\Services\LearnerContentVisibilityService;
 use App\Services\ModuleAccessGate;
 use App\Support\CourseAudiencePlaque;
 use App\Support\LearnerPreviewContext;
+use App\Support\LearnerScoreDisplay;
 use App\Support\LearnerSsoDisplayNamePersistence;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -41,6 +42,8 @@ class DashboardController extends Controller
         $assessmentEnabled = ! $course
             || ! Schema::hasColumn('courses', 'assessment_enabled')
             || (bool) ($course->assessment_enabled ?? true);
+        $showScorePercents = LearnerScoreDisplay::showPercents($course);
+        $showScorePoints = LearnerScoreDisplay::showPoints($course);
         $modules = [];
         $sumPercent = 0;
         $modulesPassed = 0;
@@ -113,6 +116,8 @@ class DashboardController extends Controller
             'assessmentSnapshot' => $this->scoring->learnerAssessmentSnapshot($learner),
             'showModuleProgress' => $showModuleProgress,
             'assessmentEnabled' => $assessmentEnabled,
+            'showScorePercents' => $showScorePercents,
+            'showScorePoints' => $showScorePoints,
             'showFurtherCourseSection' => $assessmentEnabled || $finalLabEnabled || $certificateEnabled,
             'showInformativeCourseNotice' => $course
                 && Schema::hasColumn('courses', 'assessment_enabled')

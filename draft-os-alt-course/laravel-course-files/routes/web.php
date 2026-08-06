@@ -697,6 +697,10 @@ Route::middleware([
 
             Route::get('/soderzhimoe', [AdminTheoryController::class, 'index'])->name('admin.theory.index');
             Route::get('/soderzhimoe/vse-md.zip', [AdminTheoryController::class, 'downloadZip'])->name('admin.theory.zip');
+            Route::get('/soderzhimoe/vse-word.zip', [AdminTheoryController::class, 'downloadWordZip'])->name('admin.theory.word-zip');
+            Route::get('/soderzhimoe/modul/{module}/teoriya.doc', [AdminTheoryController::class, 'downloadModuleDoc'])
+                ->whereNumber('module')
+                ->name('admin.theory.docx');
             Route::get('/soderzhimoe/modul/{module}/teoriya', [AdminTheoryController::class, 'previewTheory'])
                 ->whereNumber('module')
                 ->name('admin.theory.preview-theory');
@@ -725,7 +729,20 @@ Route::middleware([
             Route::get('/testy/modul/{module}/{kind}', [AdminQuizController::class, 'editModule'])
                 ->whereNumber('module')
                 ->name('admin.quiz.edit.module');
+            Route::get('/testy/modul/{module}/{kind}/export.xls', [AdminQuizController::class, 'exportModule'])
+                ->whereNumber('module')
+                ->name('admin.quiz.export.module');
             Route::get('/testy/final-lab', [AdminQuizController::class, 'editFinal'])->name('admin.quiz.edit.final');
+            Route::get('/testy/final-lab/export.xls', [AdminQuizController::class, 'exportFinal'])->name('admin.quiz.export.final');
+            Route::get('/testy/export-all.xls', [AdminQuizController::class, 'exportAll'])->name('admin.quiz.export.all');
+            Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/voprosy/export.xls', [AdminQuizController::class, 'exportSection'])
+                ->whereNumber('courseModule')
+                ->whereNumber('section')
+                ->name('admin.quiz.export.section');
+            Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/teoriya.doc', [AdminTheoryController::class, 'downloadSectionDoc'])
+                ->whereNumber('courseModule')
+                ->whereNumber('section')
+                ->name('admin.theory.section.docx');
 
             Route::middleware([\App\Http\Middleware\DenyCourseTester::class])->group(function () {
                 Route::get('/nastroyki', [AdminCourseSettingsController::class, 'courseSettings'])->name('admin.course.settings');

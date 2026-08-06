@@ -52,8 +52,11 @@
                         <textarea class="input js-cmce-textarea" id="cmce-practice-md" name="practice_markdown" rows="18" spellcheck="false">{{ old('practice_markdown', $practice ?? '') }}</textarea>
                     </section>
 
-                    <div style="display:flex;gap:0.5rem;align-items:center;justify-content:space-between;margin-top:1rem">
-                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <div style="display:flex;gap:0.5rem;align-items:center;justify-content:space-between;margin-top:1rem;flex-wrap:wrap">
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+                            <button type="submit" class="btn btn-primary">Сохранить</button>
+                            <a class="btn btn-ghost" href="{{ route('admin.theory.docx', array_merge($apNav, ['module' => $courseModule->effectiveContentIndex()])) }}">Скачать Word (теория)</a>
+                        </div>
                         <a class="btn btn-ghost" href="{{ route('admin.theory.index', $apNav) }}">Назад к содержимому</a>
                     </div>
                 </form>

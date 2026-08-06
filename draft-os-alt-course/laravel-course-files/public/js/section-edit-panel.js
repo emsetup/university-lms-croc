@@ -841,9 +841,23 @@
                     if (newType === 'multi' || newType === 'multi_other') item.correct = [];
                     else delete item.correct;
                 } else if (newType === 'multi') {
-                    item.correct = Array.isArray(item.correct) ? item.correct : [];
+                    if (Array.isArray(item.correct)) {
+                        /* keep */
+                    } else if (typeof item.correct === 'number') {
+                        item.correct = [item.correct];
+                    } else {
+                        item.correct = [];
+                    }
+                } else if (newType === 'multi_other') {
+                    item.correct = [];
                 } else {
-                    item.correct = typeof item.correct === 'number' ? item.correct : 0;
+                    if (typeof item.correct === 'number') {
+                        /* keep */
+                    } else if (Array.isArray(item.correct) && item.correct.length) {
+                        item.correct = item.correct[0];
+                    } else {
+                        item.correct = 0;
+                    }
                 }
                 delete item.left;
                 delete item.right;
@@ -1118,6 +1132,25 @@
             svLink.href = d.survey_responses_url;
             svLinkWrap.hidden = d.section.type !== 'survey';
         } else if (svLinkWrap) svLinkWrap.hidden = true;
+
+        var quizExportWrap = $('ap-sec-quiz-export-wrap');
+        var quizExport = $('ap-sec-quiz-export');
+        if (quizExportWrap && quizExport && d.questions_export_url) {
+            quizExport.href = d.questions_export_url;
+            quizExportWrap.hidden = false;
+        } else if (quizExportWrap) {
+            quizExportWrap.hidden = true;
+        }
+
+        var theoryExport = $('ap-sec-theory-export');
+        if (theoryExport) {
+            if (d.theory_export_url) {
+                theoryExport.href = d.theory_export_url;
+                theoryExport.hidden = false;
+            } else {
+                theoryExport.hidden = true;
+            }
+        }
 
         state.participantsUrl = d.participants_url || '';
         state.participantsJsonUrl = d.participants_json_url || '';
@@ -1814,45 +1847,9 @@
         var qType = $('ap-sec-q-type');
         if (qType) {
             qType.addEventListener('change', function () {
+                // syncActiveQuestionFromEditor already remaps type and keeps
+                // filled options / correct marks when switching single ↔ multi.
                 syncActiveQuestionFromEditor();
-                var item = state.questions[state.quizActive];
-                if (!item) return;
-                var t = qType.value;
-                if (t === 'match') {
-                    item.type = 'match';
-                    item.left = [''];
-                    item.right = [''];
-                    delete item.options;
-                    delete item.correct;
-                    delete item.placeholder;
-                    delete item.max_length;
-                } else if (t === 'open_text') {
-                    item.type = 'open_text';
-                    delete item.options;
-                    delete item.correct;
-                    delete item.left;
-                    delete item.right;
-                    item.placeholder = '';
-                    item.max_length = null;
-                } else {
-                    item.type = t;
-                    item.options = ['', ''];
-                    if (isSurveySection()) {
-                        if (t === 'multi' || t === 'multi_other') item.correct = [];
-                        else delete item.correct;
-                    } else {
-                        item.correct = t === 'multi' ? [] : 0;
-                    }
-                    delete item.left;
-                    delete item.right;
-                    if (t === 'multi_other') {
-                        item.placeholder = '';
-                        item.max_length = null;
-                    } else {
-                        delete item.placeholder;
-                        delete item.max_length;
-                    }
-                }
                 renderQuizEditor();
                 scheduleQuizDraftSave();
             });

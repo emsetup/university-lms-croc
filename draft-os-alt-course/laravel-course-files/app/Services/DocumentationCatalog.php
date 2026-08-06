@@ -143,33 +143,12 @@ final class DocumentationCatalog
     /** @return list<array{id: string, text: string, level: int}> */
     public function extractHeadings(string $html): array
     {
-        $headings = [];
-        if (! preg_match_all('/<h([23]) id="([^"]+)"[^>]*>(.*?)<\/h\1>/s', $html, $m, PREG_SET_ORDER)) {
-            return [];
-        }
-        foreach ($m as $match) {
-            $headings[] = [
-                'level' => (int) $match[1],
-                'id' => (string) $match[2],
-                'text' => trim(strip_tags((string) $match[3])),
-            ];
-        }
-
-        return $headings;
+        return CourseContentMarkdown::extractHeadings($html);
     }
 
     public function addHeadingIds(string $html): string
     {
-        return (string) preg_replace_callback(
-            '/<h([23])>(.*?)<\/h\1>/s',
-            function (array $m): string {
-                $text = trim(strip_tags((string) $m[2]));
-                $id = Str::slug($text);
-
-                return '<h'.$m[1].' id="'.e($id).'">'.$m[2].'</h'.$m[1].'>';
-            },
-            $html
-        );
+        return CourseContentMarkdown::addHeadingIds($html);
     }
 
     public function canViewAudience(string $audience, ?PortalStaffAccess $psa): bool

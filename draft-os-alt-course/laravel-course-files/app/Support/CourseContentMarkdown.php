@@ -8,9 +8,15 @@ use Illuminate\Support\Str;
 
 /**
  * Markdown для learner-контента (теория, практика): GFM + callout-блоки из blockquote.
+ *
+ * Оглавление: маркер [[toc]] / [TOC] в Markdown → nav со ссылками на ## / ###
+ * (якоря id проставляются автоматически).
  */
 final class CourseContentMarkdown
 {
+    /** Plain token so CommonMark does not strip an HTML comment. */
+    private const TOC_PLACEHOLDER = '§§COURSE_CONTENT_TOC§§';
+
     public static function toHtml(string $markdown): string
     {
         $markdown = str_replace("\0", '', $markdown);
@@ -19,10 +25,171 @@ final class CourseContentMarkdown
         }
 
         $markdown = self::expandMediaPaths($markdown);
+        $markdown = self::replaceTocMarkers($markdown);
         $html = (string) Str::markdown($markdown);
         $html = self::enrichMediaFigures($html);
         $html = self::enrichCallouts($html);
         $html = self::enrichCenteredHeadings($html);
+        $html = self::addHeadingIds($html);
+        $html = self::expandTocPlaceholders($html);
+
+        return $html;
+    }
+
+    /**
+     * Проставляет уникальные id у h2/h3 (для якорей и оглавления).
+     * Уже существующие id не трогает.
+     */
+    public static function addHeadingIds(string $html): string
+    {
+        $used = [];
+
+        return (string) preg_replace_callback(
+            '/<h([23])(\s[^>]*)?>(.*?)<\/h\1>/is',
+            static function (array $m) use (&$used): string {
+                $level = $m[1];
+                $attrs = (string) ($m[2] ?? '');
+                $inner = (string) $m[3];
+
+                if (preg_match('/\bid\s*=/i', $attrs)) {
+                    if (preg_match('/\bid=["\']([^"\']+)["\']/i', $attrs, $im)) {
+                        $used[strtolower((string) $im[1])] = true;
+                    }
+
+                    return $m[0];
+                }
+
+                $text = trim(html_entity_decode(strip_tags($inner), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                $base = Str::slug($text);
+                if ($base === '') {
+                    $base = 'section';
+                }
+                $id = $base;
+                $n = 2;
+                while (isset($used[strtolower($id)])) {
+                    $id = $base.'-'.$n;
+                    $n++;
+                }
+                $used[strtolower($id)] = true;
+
+                return '<h'.$level.$attrs.' id="'.e($id).'">'.$inner.'</h'.$level.'>';
+            },
+            $html
+        );
+    }
+
+    /**
+     * @return list<array{id: string, text: string, level: int}>
+     */
+    public static function extractHeadings(string $html): array
+    {
+        $headings = [];
+        if (! preg_match_all('/<h([23])\b([^>]*)>(.*?)<\/h\1>/is', $html, $m, PREG_SET_ORDER)) {
+            return [];
+        }
+        foreach ($m as $match) {
+            $attrs = (string) $match[2];
+            if (! preg_match('/\bid=["\']([^"\']+)["\']/i', $attrs, $im)) {
+                continue;
+            }
+            $text = trim(html_entity_decode(strip_tags((string) $match[3]), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if ($text === '') {
+                continue;
+            }
+            $headings[] = [
+                'level' => (int) $match[1],
+                'id' => (string) $im[1],
+                'text' => $text,
+            ];
+        }
+
+        return $headings;
+    }
+
+    /**
+     * @param  list<array{id: string, text: string, level: int}>  $headings
+     */
+    public static function renderTocHtml(array $headings): string
+    {
+        if ($headings === []) {
+            return '<nav class="theory-toc theory-toc--empty" aria-label="Оглавление">'
+                .'<p class="theory-toc__title">Оглавление</p>'
+                .'<p class="theory-toc__hint">Добавьте заголовки <code>##</code> / <code>###</code> — они появятся здесь автоматически.</p>'
+                .'</nav>';
+        }
+
+        $html = '<nav class="theory-toc" aria-label="Оглавление">'
+            .'<p class="theory-toc__title">Оглавление</p>'
+            .'<ol class="theory-toc__list">';
+
+        $i = 0;
+        $n = count($headings);
+        while ($i < $n) {
+            $h = $headings[$i];
+            $level = (int) $h['level'];
+            $id = e((string) $h['id']);
+            $text = e((string) $h['text']);
+
+            if ($level === 2) {
+                $html .= '<li class="theory-toc__item theory-toc__item--h2">'
+                    .'<a href="#'.$id.'">'.$text.'</a>';
+                $i++;
+                $subs = [];
+                while ($i < $n && (int) $headings[$i]['level'] === 3) {
+                    $subs[] = $headings[$i];
+                    $i++;
+                }
+                if ($subs !== []) {
+                    $html .= '<ol class="theory-toc__sub">';
+                    foreach ($subs as $sub) {
+                        $html .= '<li class="theory-toc__item theory-toc__item--h3">'
+                            .'<a href="#'.e((string) $sub['id']).'">'.e((string) $sub['text']).'</a></li>';
+                    }
+                    $html .= '</ol>';
+                }
+                $html .= '</li>';
+                continue;
+            }
+
+            $html .= '<li class="theory-toc__item theory-toc__item--h3">'
+                .'<a href="#'.$id.'">'.$text.'</a></li>';
+            $i++;
+        }
+
+        $html .= '</ol></nav>';
+
+        return $html;
+    }
+
+    /** [[toc]] / [TOC] → placeholder that survives Str::markdown. */
+    private static function replaceTocMarkers(string $markdown): string
+    {
+        return (string) preg_replace(
+            '/^[ \t]*(?:\[\[toc\]\]|\[TOC\])[ \t]*$/im',
+            self::TOC_PLACEHOLDER,
+            $markdown
+        );
+    }
+
+    private static function expandTocPlaceholders(string $html): string
+    {
+        $token = self::TOC_PLACEHOLDER;
+        $escaped = e($token);
+        if (! str_contains($html, $token) && ! str_contains($html, $escaped)) {
+            return $html;
+        }
+
+        $headings = self::extractHeadings($html);
+        $toc = self::renderTocHtml($headings);
+
+        foreach ([$token, $escaped] as $needle) {
+            $html = (string) preg_replace(
+                '/<p>\s*'.preg_quote($needle, '/').'\s*<\/p>/u',
+                $toc,
+                $html
+            );
+            $html = str_replace($needle, $toc, $html);
+        }
 
         return $html;
     }

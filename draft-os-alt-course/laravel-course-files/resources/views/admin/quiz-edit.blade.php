@@ -17,6 +17,11 @@
                 @endif
             </div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+                @if ($scope === 'module' && in_array($kind ?? '', ['theory_quiz', 'module_exam'], true))
+                    <a class="btn btn-ghost" href="{{ route('admin.quiz.export.module', array_merge($ap ?? [], ['module' => $module, 'kind' => $kind])) }}">Скачать Excel</a>
+                @elseif ($scope === 'final')
+                    <a class="btn btn-ghost" href="{{ route('admin.quiz.export.final', $ap ?? []) }}">Скачать Excel</a>
+                @endif
                 @if(empty($isReadOnly))
                     <button type="button" class="btn btn-primary js-qb-save">Сохранить</button>
                     <button type="button" class="btn btn-ghost js-qb-add">Добавить вопрос</button>

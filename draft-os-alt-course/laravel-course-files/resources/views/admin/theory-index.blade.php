@@ -243,6 +243,11 @@
             </div>
         @else
             <div class="admin-card admin-card--flush">
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;justify-content:flex-end;padding:0.75rem 1rem;border-bottom:1px solid var(--border, #e5e7eb)">
+                    <a class="btn btn-ghost btn-sm" href="{{ route('admin.theory.word-zip', $rp) }}">Все теории (Word ZIP)</a>
+                    <a class="btn btn-ghost btn-sm" href="{{ route('admin.theory.zip', $rp) }}">Markdown ZIP</a>
+                    <a class="btn btn-ghost btn-sm" href="{{ route('admin.quiz.export.all', $rp) }}">Все вопросы (Excel)</a>
+                </div>
                 <div class="admin-table-wrap">
                     <table class="admin-table content-table admin-theory-content-table">
                         <thead>

@@ -14,6 +14,8 @@
         ? $sectionService->isSectionQuizPassed($p, $section, $sole)
         : (bool) ($p->theory_quiz_passed ?? false);
     $quizSt = SectionProgress::quizState($p, $section, $sole);
+    $showScorePercents = $showScorePercents ?? true;
+    $showScorePoints = $showScorePoints ?? true;
 @endphp
 <li>
 @if ($openTag === 'a')
@@ -32,7 +34,9 @@
                     <div class="hub-track" title="Этап: просмотр теории">
                         <div class="hub-track__fill{{ $textDone ? '' : ' hub-track__fill--muted' }}" style="width: {{ $textDone ? 100 : 0 }}%"></div>
                     </div>
-                    <span class="hub-pct hub-pct--muted">{{ $textDone ? '100' : '0' }}%</span>
+                    @if ($showScorePercents)
+                        <span class="hub-pct hub-pct--muted">{{ $textDone ? '100' : '0' }}%</span>
+                    @endif
                     @if ($textDone)
                         <span class="hub-badge hub-badge--ok badge-done">Готово</span>
                     @else
@@ -53,21 +57,29 @@
                     if ($tqAtt > 0) {
                         $tqParts[] = 'попыток: '.$tqAtt;
                     }
-                    if (! empty($tqLast['penalty_points'])) {
+                    if ($showScorePercents && ! empty($tqLast['penalty_points'])) {
                         $tqParts[] = 'штраф −'.(int) $tqLast['penalty_points'].' п.п.';
                     }
-                    $tqLine2 = $tqAtt > 0 ? implode(' · ', $tqParts) : 'Порог зачёта '.$th.'% — после попытки здесь появится результат';
+                    $tqLine2 = $tqAtt > 0
+                        ? implode(' · ', $tqParts)
+                        : ($showScorePercents
+                            ? 'Порог зачёта '.$th.'% — после попытки здесь появится результат'
+                            : 'После попытки здесь появится результат');
                 @endphp
                 <div class="hub-line1">
-                    <div class="hub-track" title="Лучший результат, порог {{ $th }}%">
-                        <span class="hub-track__tick" style="left: {{ $th }}%"></span>
+                    <div class="hub-track" title="{{ $showScorePercents ? 'Лучший результат, порог '.$th.'%' : 'Лучший результат' }}">
+                        @if ($showScorePercents)
+                            <span class="hub-track__tick" style="left: {{ $th }}%"></span>
+                        @endif
                         <div class="hub-track__fill{{ $tqBar >= $th ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) $tqBar }}%"></div>
                     </div>
-                    <span class="hub-pct">{{ $tqAtt > 0 ? $tqBest : '—' }}@if($tqAtt > 0)%@endif</span>
+                    @if ($showScorePercents)
+                        <span class="hub-pct">{{ $tqAtt > 0 ? $tqBest : '—' }}@if($tqAtt > 0)%@endif</span>
+                    @endif
                     @if ($tqPassedEffective)
                         <span class="hub-badge hub-badge--counted badge-counted">Зачтён</span>
                     @elseif ($tqAtt > 0)
-                        <span class="hub-badge hub-badge--no badge-fail">Ниже {{ $th }}%</span>
+                        <span class="hub-badge hub-badge--no badge-fail">{{ $showScorePercents ? 'Ниже '.$th.'%' : 'Не зачтён' }}</span>
                     @else
                         <span class="hub-badge hub-badge--wait">Тест</span>
                     @endif
@@ -79,7 +91,9 @@
                         <div class="hub-track" title="Нет этапа">
                             <div class="hub-track__fill hub-track__fill--muted" style="width: 0%"></div>
                         </div>
-                        <span class="hub-pct hub-pct--muted">—</span>
+                        @if ($showScorePercents)
+                            <span class="hub-pct hub-pct--muted">—</span>
+                        @endif
                         <span class="hub-badge hub-badge--na">Нет</span>
                     </div>
                     <p class="hub-line2 muted" style="margin:0">Практика в этом модуле не входит в курс.</p>
@@ -89,14 +103,18 @@
                         <div class="hub-track" title="Автопроверка стенда">
                             <div class="hub-track__fill{{ $prPct >= 100 ? '' : ($prPct > 0 ? '' : ' hub-track__fill--muted') }}" style="width: {{ (int) min(100, $prPct) }}%"></div>
                         </div>
-                        <span class="hub-pct">{{ $prPct > 0 ? (int) $prPct.'%' : '—' }}</span>
+                        @if ($showScorePercents)
+                            <span class="hub-pct">{{ $prPct > 0 ? (int) $prPct.'%' : '—' }}</span>
+                        @endif
                         @if (SectionProgress::isPracticeDone($p, $section, $sole))
                             <span class="hub-badge hub-badge--ok badge-done">Готово</span>
                         @else
                             <span class="hub-badge hub-badge--wait">Стенд</span>
                         @endif
                     </div>
-                    <p class="hub-line2">{{ SectionProgress::isPracticeDone($p, $section, $sole) ? 'Зачтено' : 'После автопроверки стенда — процент по чек-листу' }}</p>
+                    <p class="hub-line2">{{ SectionProgress::isPracticeDone($p, $section, $sole)
+                        ? 'Зачтено'
+                        : ($showScorePercents ? 'После автопроверки стенда — процент по чек-листу' : 'После автопроверки стенда') }}</p>
                 @endif
             @elseif ($section->type === CourseSection::TYPE_EXAM)
                 @php
@@ -111,26 +129,34 @@
                     if ($exAtt > 0 && isset($exLast['correct_count'], $exLast['total'])) {
                         $exParts[] = (int) $exLast['correct_count'].'/'.(int) $exLast['total'].' верных';
                     }
-                    if ($exAtt > 0 && ! empty($exLast['earned_points']) && ! empty($exLast['max_points'])) {
+                    if ($showScorePoints && $exAtt > 0 && ! empty($exLast['earned_points']) && ! empty($exLast['max_points'])) {
                         $exParts[] = (int) $exLast['earned_points'].'/'.(int) $exLast['max_points'].' баллов';
                     }
-                    if ($exAtt > 0 && ! empty($exLast['penalty_applied'])) {
+                    if ($showScorePercents && $exAtt > 0 && ! empty($exLast['penalty_applied'])) {
                         $exParts[] = 'пересдача −'.(int) ($exLast['penalty_points'] ?? 10).' п.п.';
                     }
-                    if ($exAtt > 0 && isset($exLast['raw_percent']) && (int) $exLast['raw_percent'] !== $exBest) {
+                    if ($showScorePercents && $exAtt > 0 && isset($exLast['raw_percent']) && (int) $exLast['raw_percent'] !== $exBest) {
                         $exParts[] = 'сырой '.(int) $exLast['raw_percent'].'%';
                     }
-                    $exLine2 = $exAtt > 0 ? implode(' · ', $exParts) : 'Порог '.$thEx.'% · до '.$exMax.' попыток';
+                    $exLine2 = $exAtt > 0
+                        ? implode(' · ', $exParts)
+                        : ($showScorePercents
+                            ? 'Порог '.$thEx.'% · до '.$exMax.' попыток'
+                            : 'До '.$exMax.' попыток');
                     $exPassed = isset($sectionService)
                         ? $sectionService->isSectionExamPassed($p, $section, $sole)
                         : (bool) ($p->module_exam_passed ?? false);
                 @endphp
                 <div class="hub-line1">
-                    <div class="hub-track" title="Итог последней попытки, порог {{ $thEx }}%">
-                        <span class="hub-track__tick" style="left: {{ $thEx }}%"></span>
+                    <div class="hub-track" title="{{ $showScorePercents ? 'Итог последней попытки, порог '.$thEx.'%' : 'Итог последней попытки' }}">
+                        @if ($showScorePercents)
+                            <span class="hub-track__tick" style="left: {{ $thEx }}%"></span>
+                        @endif
                         <div class="hub-track__fill{{ $exBar >= $thEx ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) $exBar }}%"></div>
                     </div>
-                    <span class="hub-pct">{{ $exAtt > 0 ? $exBest : '—' }}@if($exAtt > 0)%@endif</span>
+                    @if ($showScorePercents)
+                        <span class="hub-pct">{{ $exAtt > 0 ? $exBest : '—' }}@if($exAtt > 0)%@endif</span>
+                    @endif
                     @if ($exPassed)
                         <span class="hub-badge hub-badge--counted badge-counted">Зачтён</span>
                     @elseif ($exAtt > 0)
@@ -150,7 +176,9 @@
                     <div class="hub-track" title="Опрос">
                         <div class="hub-track__fill{{ $surveyDone ? '' : ' hub-track__fill--muted' }}" style="width: {{ $surveyDone ? 100 : 0 }}%"></div>
                     </div>
-                    <span class="hub-pct hub-pct--muted">{{ $surveyDone ? '100' : '0' }}%</span>
+                    @if ($showScorePercents)
+                        <span class="hub-pct hub-pct--muted">{{ $surveyDone ? '100' : '0' }}%</span>
+                    @endif
                     @if ($surveyDone)
                         <span class="hub-badge hub-badge--ok badge-done">Готово</span>
                     @else

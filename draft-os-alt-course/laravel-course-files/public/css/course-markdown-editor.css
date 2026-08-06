@@ -121,6 +121,16 @@
   content: "≡ | Центр";
   letter-spacing: 0;
 }
+.EasyMDEContainer .editor-toolbar button.cmde-heading--toc {
+  border-left-width: 1px !important;
+  border-left-color: #86efac !important;
+  background: #ecfdf5;
+  color: #047857;
+}
+.EasyMDEContainer .editor-toolbar button.cmde-heading--toc::before {
+  content: "Оглавление";
+  letter-spacing: 0;
+}
 
 .EasyMDEContainer .editor-preview,
 .EasyMDEContainer .editor-preview-side {

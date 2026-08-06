@@ -19,6 +19,7 @@ use App\Support\CourseModuleMeta;
 use App\Support\CourseStaffPreview;
 use App\Support\LearnerPreviewContext;
 use App\Support\LearnerRoute;
+use App\Support\LearnerScoreDisplay;
 use App\Support\SectionProgress;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -720,9 +721,8 @@ class ModuleController extends Controller
             ? $this->sectionService->moduleScoreWeightLegend($mid, $contentIdx, $legacyAlt)
             : null;
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
-        $showModuleScoring = ! $course
-            || ! Schema::hasColumn('courses', 'assessment_enabled')
-            || (bool) ($course->assessment_enabled ?? true);
+        $scoreDisplay = LearnerScoreDisplay::flags($course, $cm);
+        $showModuleScoring = $scoreDisplay['showScorePoints'];
 
         return view('modules.hub', [
             'courseId' => $courseId,
@@ -750,6 +750,8 @@ class ModuleController extends Controller
             'difficultyEnabled' => $difficultyEnabled,
             'difficultyOptions' => $difficultyOptions,
             'showModuleScoring' => $showModuleScoring,
+            'showScorePercents' => $scoreDisplay['showScorePercents'],
+            'showScorePoints' => $scoreDisplay['showScorePoints'],
         ]);
     }
 
@@ -897,6 +899,10 @@ class ModuleController extends Controller
             ? $this->sectionService->passPercentForSection($sec)
             : CourseScoringService::PASS_THRESHOLD;
         $quizSt = SectionProgress::quizState($this->learner()->progressFor($mid), $sec, $sole);
+        $scoreDisplay = LearnerScoreDisplay::flags(
+            $courseId > 0 ? Course::query()->find($courseId) : null,
+            $cm
+        );
 
         return view('modules.theory-quiz', [
             'courseId' => $courseId,
@@ -916,6 +922,8 @@ class ModuleController extends Controller
                 ? $this->sectionService->theoryQuizPenaltyForAttemptForSection($sec, 2)
                 : CourseScoringService::THEORY_QUIZ_RETAKE_PENALTY_POINTS,
             'previewWalkthrough' => $previewWalkthrough,
+            'showScorePercents' => $scoreDisplay['showScorePercents'],
+            'showScorePoints' => $scoreDisplay['showScorePoints'],
         ]);
     }
 
@@ -1019,6 +1027,10 @@ class ModuleController extends Controller
         }
 
         $breakdownView = $this->prepareLearnerQuizBreakdownView($data);
+        $scoreDisplay = LearnerScoreDisplay::flags(
+            $courseId > 0 ? Course::query()->find($courseId) : null,
+            $cm
+        );
 
         return view('modules.theory-quiz-result', [
             'courseId' => $courseId,
@@ -1032,6 +1044,8 @@ class ModuleController extends Controller
             'breakdownExpired' => $breakdownView['breakdownExpired'],
             'wrongItems' => $breakdownView['wrongItems'],
             'breakdownUntilTs' => $breakdownView['breakdownUntilTs'],
+            'showScorePercents' => $scoreDisplay['showScorePercents'],
+            'showScorePoints' => $scoreDisplay['showScorePoints'],
         ]);
     }
 
@@ -1299,6 +1313,10 @@ class ModuleController extends Controller
         $expiresAtMs = $previewWalkthrough || ! $examActive || $deadline === null
             ? null
             : ($deadline->getTimestamp() * 1000);
+        $scoreDisplay = LearnerScoreDisplay::flags(
+            $courseId > 0 ? Course::query()->find($courseId) : null,
+            $cm
+        );
 
         return view('modules.exam', [
             'courseId' => $courseId,
@@ -1320,6 +1338,8 @@ class ModuleController extends Controller
             'needsRetakeAck' => ! $previewWalkthrough && (int) ($quizSt['attempts'] ?? 0) >= 1,
             'examOneByOne' => $courseId > 0 ? $this->sectionService->examOneByOneForSection($sec) : true,
             'previewWalkthrough' => $previewWalkthrough,
+            'showScorePercents' => $scoreDisplay['showScorePercents'],
+            'showScorePoints' => $scoreDisplay['showScorePoints'],
         ]);
     }
 
@@ -1425,6 +1445,10 @@ class ModuleController extends Controller
         }
 
         $breakdownView = $this->prepareLearnerQuizBreakdownView($data);
+        $scoreDisplay = LearnerScoreDisplay::flags(
+            $courseId > 0 ? Course::query()->find($courseId) : null,
+            $cm
+        );
 
         return view('modules.exam-result', [
             'courseId' => $courseId,
@@ -1439,6 +1463,8 @@ class ModuleController extends Controller
             'breakdownUntilTs' => $breakdownView['breakdownUntilTs'],
             'breakdownExpired' => $breakdownView['breakdownExpired'],
             'wrongItems' => $breakdownView['wrongItems'],
+            'showScorePercents' => $scoreDisplay['showScorePercents'],
+            'showScorePoints' => $scoreDisplay['showScorePoints'],
         ]);
     }
 

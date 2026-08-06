@@ -21,6 +21,8 @@ final class CourseModule extends Model
         'letter',
         'content_source_index',
         'view_audience',
+        'show_score_percents',
+        'show_score_points',
     ];
 
     protected function casts(): array

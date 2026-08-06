@@ -154,6 +154,44 @@
                         </div>
                     </div>
                 @endif
+                @php
+                    $showScorePercentsOn = true;
+                    $showScorePointsOn = true;
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_percents')) {
+                        $showScorePercentsOn = (string) old('show_score_percents', ($course->show_score_percents ?? true) ? '1' : '0') === '1';
+                    }
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_points')) {
+                        $showScorePointsOn = (string) old('show_score_points', ($course->show_score_points ?? true) ? '1' : '0') === '1';
+                    }
+                @endphp
+                @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_percents') || \Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_points'))
+                    <div class="ap-settings-field" style="margin-top:1rem">
+                        <span class="ap-settings-label">Метрики в тестах</span>
+                        <p class="ap-settings-hint ap-muted">Что видят обучающиеся в тестах, на хабе модуля и в сводке. Модуль может переопределить эти настройки. Учительские отчёты не меняются.</p>
+                        @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_percents'))
+                            <div class="ap-toggle-row">
+                                <label class="ap-toggle">
+                                    <input type="hidden" name="show_score_percents" value="0">
+                                    <input type="checkbox" name="show_score_percents" value="1" class="ap-toggle__input" id="show-score-percents" @if ($showScorePercentsOn) checked @endif>
+                                    <span class="ap-toggle__track" aria-hidden="true"></span>
+                                    <span class="ap-toggle__label">Показывать проценты</span>
+                                </label>
+                            </div>
+                            <p class="ap-muted small ap-settings-hint">Итог в %, порог, штрафы в п.п., проценты на шагах модуля.</p>
+                        @endif
+                        @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_points'))
+                            <div class="ap-toggle-row" style="margin-top:0.5rem">
+                                <label class="ap-toggle">
+                                    <input type="hidden" name="show_score_points" value="0">
+                                    <input type="checkbox" name="show_score_points" value="1" class="ap-toggle__input" id="show-score-points" @if ($showScorePointsOn) checked @endif>
+                                    <span class="ap-toggle__track" aria-hidden="true"></span>
+                                    <span class="ap-toggle__label">Показывать баллы</span>
+                                </label>
+                            </div>
+                            <p class="ap-muted small ap-settings-hint">Плашка «Баллы», вес вопросов («N б.»), earned/max на результатах и дашборде.</p>
+                        @endif
+                    </div>
+                @endif
             </section>
 
             <section class="ap-settings-card" aria-labelledby="ap-settings-dashboard-extras-h">

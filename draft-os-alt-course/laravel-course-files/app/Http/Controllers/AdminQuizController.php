@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Course;
 use App\Models\CourseModule;
 use App\Models\CourseQuizBank;
+use App\Models\CourseSection;
 use App\Services\CourseContentService;
 use App\Services\PortalStaffAccess;
+use App\Services\QuizQuestionsExportService;
 use App\Support\AdminCourseContentInspector;
 use App\Support\CourseQuizBankLoader;
 use Illuminate\Support\Facades\DB;
@@ -15,11 +17,13 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class AdminQuizController extends Controller
 {
     public function __construct(
-        private CourseContentService $content
+        private CourseContentService $content,
+        private QuizQuestionsExportService $export,
     ) {}
 
     public function editModule(Request $request, Course $adminCourse, int $module, string $kind): View
@@ -745,6 +749,114 @@ final class AdminQuizController extends Controller
         }
 
         return ['ok' => true, 'message' => 'ok', 'data' => $out];
+    }
+
+    public function exportModule(Request $request, Course $adminCourse, int $module, string $kind): StreamedResponse
+    {
+        abort_if($module < 1 || $module > 99, 404);
+        abort_if(! in_array($kind, ['theory_quiz', 'module_exam'], true), 404);
+
+        $courseId = (int) $adminCourse->id;
+        $cm = $this->findCourseModuleByContentPackageIndex($courseId, $module);
+        abort_unless($cm !== null, 404);
+        app(PortalStaffAccess::class)->assertCanEditModuleQuiz((int) $cm->id, $kind);
+
+        $questions = $this->questionsForModuleExport($adminCourse, $cm, $module, $kind);
+        $filename = 'quiz-'.$adminCourse->slug.'-m'.$module.'-'.$kind.'.xls';
+
+        return $this->streamXls($filename, $this->export->csvForQuestions($questions));
+    }
+
+    public function exportFinal(Request $request, Course $adminCourse): StreamedResponse
+    {
+        $this->assertFinalLabEnabledForCurrentCourse();
+
+        $questions = [];
+        if (! $adminCourse->isLegacyAltCourse() && Schema::hasTable('course_quiz_banks')) {
+            $bank = $this->content->quizBankFor($adminCourse, null, 'final_lab');
+            if ($bank !== null) {
+                $questions = $this->content->questionsForBank($bank);
+            }
+        } else {
+            $questions = CourseQuizBankLoader::loadJsonBank($this->finalJsonPath());
+        }
+
+        $filename = 'quiz-'.$adminCourse->slug.'-final-lab.xls';
+
+        return $this->streamXls($filename, $this->export->csvForQuestions(is_array($questions) ? $questions : []));
+    }
+
+    public function exportSection(Course $adminCourse, CourseModule $courseModule, CourseSection $section): StreamedResponse
+    {
+        abort_unless((int) $courseModule->course_id === (int) $adminCourse->id, 404);
+        abort_unless((int) $section->course_module_id === (int) $courseModule->id, 404);
+        app(PortalStaffAccess::class)->assertCanViewSectionInAdmin((int) $section->id);
+
+        $kind = match ($section->type) {
+            CourseSection::TYPE_QUIZ => 'theory_quiz',
+            CourseSection::TYPE_EXAM => 'module_exam',
+            CourseSection::TYPE_SURVEY => 'survey',
+            default => null,
+        };
+        abort_unless($kind !== null, 404);
+
+        $questions = [];
+        if (Schema::hasTable('course_quiz_banks')) {
+            $bank = $this->content->quizBankOwnedBySection($section);
+            if ($bank !== null) {
+                $questions = $this->content->questionsForBank($bank);
+            }
+        }
+        if ($questions === [] && $adminCourse->isLegacyAltCourse()) {
+            $idx = $courseModule->effectiveContentIndex();
+            $raw = $kind === 'theory_quiz'
+                ? AdminCourseContentInspector::theoryQuizQuestions($idx)
+                : ($kind === 'module_exam' ? AdminCourseContentInspector::moduleExamQuestions($idx) : []);
+            $questions = array_values($raw);
+        }
+
+        $filename = 'quiz-'.$adminCourse->slug.'-s'.$section->id.'.xls';
+
+        return $this->streamXls($filename, $this->export->csvForQuestions($questions));
+    }
+
+    public function exportAll(Course $adminCourse): StreamedResponse
+    {
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) $adminCourse->id);
+        $filename = 'quiz-'.$adminCourse->slug.'-all.xls';
+
+        return $this->streamXls($filename, $this->export->csvForCourse($adminCourse));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function questionsForModuleExport(Course $course, CourseModule $cm, int $module, string $kind): array
+    {
+        $isAlt = $course->isLegacyAltCourse();
+        $dbCount = Schema::hasTable('course_quiz_banks')
+            ? AdminCourseContentInspector::dbQuestionCountForModule((int) $course->id, (int) $cm->id, $kind)
+            : 0;
+        $useDb = ! $isAlt || $dbCount > 0;
+
+        if ($useDb) {
+            $bank = $this->content->quizBankFor($course, $cm, $kind);
+
+            return $bank ? $this->content->questionsForBank($bank) : [];
+        }
+
+        [$jsonPath, $phpPath] = $this->bankPaths($module, $kind);
+
+        return CourseQuizBankLoader::loadBankWithFallback($jsonPath, $phpPath);
+    }
+
+    private function streamXls(string $filename, string $content): StreamedResponse
+    {
+        return response()->streamDownload(static function () use ($content): void {
+            echo $content;
+        }, $filename, [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
+        ]);
     }
 
     private function fail(Request $request, string $message): RedirectResponse|JsonResponse

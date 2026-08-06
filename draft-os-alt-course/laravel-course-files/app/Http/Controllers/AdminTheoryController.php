@@ -11,6 +11,7 @@ use App\Services\CourseSectionService;
 use App\Services\PortalStaffAccess;
 use App\Services\PracticeLabDaemonClient;
 use App\Services\PracticeLabService;
+use App\Services\TheoryWordExportService;
 use App\Support\AdminContentMarkdown;
 use App\Support\AdminCourseContentInspector;
 use App\Support\AdminNavigation;
@@ -908,6 +909,60 @@ class AdminTheoryController extends Controller
         $name = 'course-theory-md-'.date('Y-m-d').'.zip';
 
         return response($binary, 200, [
+            'Content-Type' => 'application/zip',
+            'Content-Disposition' => 'attachment; filename="'.$name.'"',
+        ]);
+    }
+
+    public function downloadModuleDoc(Request $request, Course $adminCourse, int $module): Response
+    {
+        abort_if($module < 1 || $module > 99, 404);
+        $cm = $this->courseModuleForContentIndex($adminCourse, $module);
+        abort_unless($cm !== null, 404);
+        app(PortalStaffAccess::class)->assertCanEditModuleContent((int) $cm->id);
+
+        $svc = app(TheoryWordExportService::class);
+        $md = $svc->markdownForModule($adminCourse, $cm);
+        $html = $svc->docHtml((string) $cm->title, $md, (string) $adminCourse->title);
+        $filename = 'theory-'.$adminCourse->slug.'-m'.$module.'.doc';
+
+        return response($html, 200, [
+            'Content-Type' => 'application/msword; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
+    }
+
+    public function downloadSectionDoc(Course $adminCourse, CourseModule $courseModule, CourseSection $section): Response
+    {
+        abort_unless((int) $courseModule->course_id === (int) $adminCourse->id, 404);
+        abort_unless((int) $section->course_module_id === (int) $courseModule->id, 404);
+        abort_unless($section->type === CourseSection::TYPE_TEXT, 404);
+        app(PortalStaffAccess::class)->assertCanViewSectionInAdmin((int) $section->id);
+
+        $svc = app(TheoryWordExportService::class);
+        $md = $svc->markdownForSection($adminCourse, $section);
+        $html = $svc->docHtml((string) $section->title, $md, (string) $adminCourse->title.' · '.$courseModule->title);
+        $filename = 'theory-'.$adminCourse->slug.'-s'.$section->id.'.doc';
+
+        return response($html, 200, [
+            'Content-Type' => 'application/msword; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
+    }
+
+    public function downloadWordZip(Request $request, Course $adminCourse): Response|RedirectResponse
+    {
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta((int) $adminCourse->id);
+        $result = app(TheoryWordExportService::class)->zipForCourse($adminCourse);
+        if (! ($result['ok'] ?? false)) {
+            return redirect()
+                ->route('admin.theory.index', $this->theoryRouteQuery($request))
+                ->with('err', (string) ($result['error'] ?? 'Не удалось сформировать ZIP.'));
+        }
+
+        $name = 'course-theory-word-'.date('Y-m-d').'.zip';
+
+        return response((string) ($result['binary'] ?? ''), 200, [
             'Content-Type' => 'application/zip',
             'Content-Disposition' => 'attachment; filename="'.$name.'"',
         ]);
