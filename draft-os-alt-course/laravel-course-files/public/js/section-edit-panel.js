@@ -1152,6 +1152,25 @@
             }
         }
 
+        // Шапка панели: один «Скачать» — Word для теории, Excel для теста/экзамена/опроса.
+        var headExport = $('ap-sec-export-btn');
+        var headExportLabel = $('ap-sec-export-btn-label');
+        if (headExport) {
+            var exportUrl = d.theory_export_url || d.questions_export_url || '';
+            var exportLabel = d.theory_export_url
+                ? 'Скачать Word'
+                : (d.questions_export_url ? 'Скачать Excel' : 'Скачать');
+            if (exportUrl) {
+                headExport.href = exportUrl;
+                headExport.hidden = false;
+                headExport.title = exportLabel;
+                if (headExportLabel) headExportLabel.textContent = exportLabel;
+            } else {
+                headExport.href = '#';
+                headExport.hidden = true;
+            }
+        }
+
         state.participantsUrl = d.participants_url || '';
         state.participantsJsonUrl = d.participants_json_url || '';
         state.participantsDetailTpl = d.participants_detail_url_tpl || '';

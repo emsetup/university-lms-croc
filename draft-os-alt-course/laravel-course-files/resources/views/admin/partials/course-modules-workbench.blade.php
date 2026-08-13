@@ -435,11 +435,17 @@
             <div class="ap-sec-edit-panel__head-row">
                 <span id="ap-sec-edit-panel-chip" class="ap-sec-edit-panel__chip">Теория</span>
                 <h2 id="ap-sec-edit-panel-heading" class="ap-sec-edit-panel__heading">Раздел</h2>
-                <button type="button" id="ap-sec-share-btn" class="btn btn-ghost btn-sm ap-sec-edit-panel__share" title="Поделиться" hidden>
-                    @include('partials.ap-icon', ['name' => 'share', 'size' => 'sm'])
-                    Поделиться
-                </button>
-                <button type="button" id="ap-sec-edit-panel-close" class="btn btn-ghost ap-sec-edit-panel__close" aria-label="Закрыть">@include('partials.ap-icon', ['name' => 'x', 'size' => 'sm'])</button>
+                <div class="ap-sec-edit-panel__head-actions">
+                    <a href="#" id="ap-sec-export-btn" class="btn btn-ghost btn-sm" target="_blank" rel="noopener" hidden title="Выгрузить раздел">
+                        @include('partials.ap-icon', ['name' => 'download', 'size' => 'sm'])
+                        <span id="ap-sec-export-btn-label">Скачать</span>
+                    </a>
+                    <button type="button" id="ap-sec-share-btn" class="btn btn-ghost btn-sm" title="Поделиться" hidden>
+                        @include('partials.ap-icon', ['name' => 'share', 'size' => 'sm'])
+                        Поделиться
+                    </button>
+                    <button type="button" id="ap-sec-edit-panel-close" class="btn btn-ghost ap-sec-edit-panel__close" aria-label="Закрыть">@include('partials.ap-icon', ['name' => 'x', 'size' => 'sm'])</button>
+                </div>
             </div>
             <p id="ap-sec-edit-panel-sub" class="ap-sec-edit-panel__sub ap-muted"></p>
             <div class="ap-sec-edit-panel__tabs" role="tablist">

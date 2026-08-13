@@ -9690,6 +9690,14 @@ body.ap-cmd-palette-open {
 .ap-share-link-modal__msg--err {
   color: #b42318;
 }
+.ap-sec-edit-panel__head-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
 .ap-sec-edit-panel__share {
   margin-left: auto;
 }
