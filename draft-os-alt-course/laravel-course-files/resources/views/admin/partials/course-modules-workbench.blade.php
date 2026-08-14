@@ -59,6 +59,7 @@
         </div>
         <div class="ap-mod-workbench__head-actions">
             <a class="btn btn-ghost" href="{{ route('admin.quiz.export.all', $tp) }}">Все вопросы (Excel)</a>
+            <a class="btn btn-ghost" href="{{ route('admin.quiz.export.all.word', $tp) }}">Все вопросы (Word)</a>
             @if ($canEditCourseStructure)
                 <button type="button" class="btn btn-primary" id="ap-open-add-module">+ Добавить модуль</button>
             @else
@@ -258,6 +259,7 @@
                 <div class="ap-mod-final-lab__links">
                     <a class="btn btn-ghost" href="{{ route('admin.quiz.edit.final', $tp) }}">Вопросы финальной страницы</a>
                     <a class="btn btn-ghost" href="{{ route('admin.quiz.export.final', $tp) }}">Excel</a>
+                    <a class="btn btn-ghost" href="{{ route('admin.quiz.export.final.word', $tp) }}">Word</a>
                     <a class="btn btn-ghost" href="{{ route('admin.theory.preview-final-lab', $tp) }}">Предпросмотр</a>
                 </div>
             </div>
@@ -436,9 +438,13 @@
                 <span id="ap-sec-edit-panel-chip" class="ap-sec-edit-panel__chip">Теория</span>
                 <h2 id="ap-sec-edit-panel-heading" class="ap-sec-edit-panel__heading">Раздел</h2>
                 <div class="ap-sec-edit-panel__head-actions">
-                    <a href="#" id="ap-sec-export-btn" class="btn btn-ghost btn-sm" target="_blank" rel="noopener" hidden title="Выгрузить раздел">
+                    <a href="#" id="ap-sec-export-excel-btn" class="btn btn-ghost btn-sm" target="_blank" rel="noopener" hidden title="Скачать Excel">
                         @include('partials.ap-icon', ['name' => 'download', 'size' => 'sm'])
-                        <span id="ap-sec-export-btn-label">Скачать</span>
+                        Скачать Excel
+                    </a>
+                    <a href="#" id="ap-sec-export-word-btn" class="btn btn-ghost btn-sm" target="_blank" rel="noopener" hidden title="Скачать Word">
+                        @include('partials.ap-icon', ['name' => 'download', 'size' => 'sm'])
+                        Скачать Word
                     </a>
                     <button type="button" id="ap-sec-share-btn" class="btn btn-ghost btn-sm" title="Поделиться" hidden>
                         @include('partials.ap-icon', ['name' => 'share', 'size' => 'sm'])
@@ -542,8 +548,9 @@
                             <span class="questions-sidebar-hint ap-muted">≡ — порядок</span>
                             <span id="ap-sec-quiz-count" class="questions-count-badge">0</span>
                         </div>
-                        <p class="ap-muted small" style="margin:0.35rem 0.65rem 0" id="ap-sec-quiz-export-wrap" hidden>
+                        <p class="ap-muted small ap-sec-quiz-export-wrap" id="ap-sec-quiz-export-wrap" hidden>
                             <a href="#" id="ap-sec-quiz-export" class="btn btn-ghost btn-sm" target="_blank" rel="noopener">Скачать Excel</a>
+                            <a href="#" id="ap-sec-quiz-export-word" class="btn btn-ghost btn-sm" target="_blank" rel="noopener">Скачать Word</a>
                         </p>
                         <div id="ap-sec-quiz-list" class="questions-list-scroll" role="list"></div>
                         <div class="questions-sidebar-footer">

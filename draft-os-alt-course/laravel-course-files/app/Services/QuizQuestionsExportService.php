@@ -128,6 +128,142 @@ final class QuizQuestionsExportService
     }
 
     /**
+     * @param  list<array<string, mixed>>  $questions
+     */
+    public function docHtmlForQuestions(string $title, array $questions, ?string $subtitle = null): string
+    {
+        $body = '';
+        $n = 0;
+        foreach (array_values($questions) as $q) {
+            if (! is_array($q)) {
+                continue;
+            }
+            $n++;
+            $body .= $this->questionBlockHtml($this->mapQuestion($q, $n), $n);
+        }
+        if ($body === '') {
+            $body = '<p>В этом разделе пока нет вопросов.</p>';
+        }
+
+        return $this->wrapDocHtml($title, $body, $subtitle);
+    }
+
+    public function docHtmlForCourse(Course $course): string
+    {
+        $body = '';
+        if (! Schema::hasTable('course_quiz_banks')) {
+            return $this->wrapDocHtml((string) $course->title, '<p>Банк вопросов недоступен.</p>');
+        }
+
+        $banks = CourseQuizBank::query()
+            ->where('course_id', (int) $course->id)
+            ->orderBy('course_module_id')
+            ->orderBy('course_section_id')
+            ->orderBy('kind')
+            ->orderBy('id')
+            ->get();
+
+        $modules = CourseModule::query()
+            ->where('course_id', (int) $course->id)
+            ->get()
+            ->keyBy('id');
+
+        $sections = Schema::hasTable('course_sections')
+            ? CourseSection::query()
+                ->where('course_id', (int) $course->id)
+                ->get()
+                ->keyBy('id')
+            : collect();
+
+        foreach ($banks as $bank) {
+            $module = $bank->course_module_id ? $modules->get((int) $bank->course_module_id) : null;
+            $section = $bank->course_section_id ? $sections->get((int) $bank->course_section_id) : null;
+            $questions = $this->content->questionsForBank($bank);
+            if ($questions === []) {
+                continue;
+            }
+            $heading = $module instanceof CourseModule
+                ? (string) $module->title
+                : ($bank->kind === 'final_lab' ? 'Финальная лаборатория' : 'Курс');
+            $sub = [];
+            if ($section instanceof CourseSection && (string) $section->title !== '') {
+                $sub[] = (string) $section->title;
+            }
+            $sub[] = $this->kindLabel((string) $bank->kind);
+            $body .= '<h2>'.htmlspecialchars($heading, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</h2>';
+            $body .= '<p style="color:#64748b;margin:0 0 0.75rem">'.htmlspecialchars(implode(' · ', $sub), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</p>';
+            $n = 0;
+            foreach (array_values($questions) as $q) {
+                if (! is_array($q)) {
+                    continue;
+                }
+                $n++;
+                $body .= $this->questionBlockHtml($this->mapQuestion($q, $n), $n);
+            }
+        }
+
+        if ($body === '') {
+            $body = '<p>В курсе нет вопросов для выгрузки.</p>';
+        }
+
+        return $this->wrapDocHtml((string) $course->title, $body, 'Все вопросы курса');
+    }
+
+    /**
+     * @param  array{type:string,text:string,options:string,correct:string,points:string}  $mapped
+     */
+    private function questionBlockHtml(array $mapped, int $n): string
+    {
+        $esc = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $meta = $mapped['type'];
+        if ($mapped['points'] !== '') {
+            $meta .= ' · '.$mapped['points'].' б.';
+        }
+        $optsHtml = '';
+        if ($mapped['options'] !== '') {
+            $sep = str_contains($mapped['options'], ' | ') ? ' | ' : '; ';
+            $parts = array_filter(array_map('trim', explode($sep, $mapped['options'])), static fn ($p) => $p !== '');
+            if ($parts !== []) {
+                $lis = '';
+                foreach ($parts as $p) {
+                    $lis .= '<li>'.$esc($p).'</li>';
+                }
+                $optsHtml = '<ul>'.$lis.'</ul>';
+            }
+        }
+        $correct = $mapped['correct'] !== ''
+            ? '<p><strong>Правильный ответ:</strong> '.$esc($mapped['correct']).'</p>'
+            : '';
+
+        return '<div style="margin:0 0 1.35rem;page-break-inside:avoid">'
+            .'<p style="margin:0 0 0.35rem"><strong>'.$n.'.</strong> '.$esc($mapped['text']).'</p>'
+            .'<p style="color:#64748b;font-size:10pt;margin:0 0 0.4rem">'.$esc($meta).'</p>'
+            .$optsHtml
+            .$correct
+            .'</div>';
+    }
+
+    private function wrapDocHtml(string $title, string $body, ?string $subtitle = null): string
+    {
+        $h1 = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $sub = $subtitle !== null && $subtitle !== ''
+            ? '<p style="color:#64748b;margin:0 0 1.25rem">'.htmlspecialchars($subtitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</p>'
+            : '';
+
+        return '<!DOCTYPE html>'
+            .'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+            .'<head><meta charset="UTF-8"><title>'.$h1.'</title>'
+            .'<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
+            .'<style>'
+            .'body{font-family:Calibri,Arial,sans-serif;font-size:12pt;line-height:1.45;color:#111}'
+            .'h1,h2,h3{color:#0f172a}'
+            .'ul{margin:0.35rem 0 0.5rem}'
+            .'</style></head><body>'
+            .'<h1>'.$h1.'</h1>'.$sub.$body
+            .'</body></html>';
+    }
+
+    /**
      * @param  array<string, mixed>  $q
      * @return array{type:string,text:string,options:string,correct:string,points:string}
      */

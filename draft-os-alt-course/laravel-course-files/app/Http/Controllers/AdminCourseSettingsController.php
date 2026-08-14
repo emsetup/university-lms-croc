@@ -889,6 +889,9 @@ final class AdminCourseSettingsController extends Controller
             'questions_export_url' => in_array($section->type, [CourseSection::TYPE_QUIZ, CourseSection::TYPE_EXAM, CourseSection::TYPE_SURVEY], true)
                 ? route('admin.quiz.export.section', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
                 : null,
+            'questions_word_export_url' => in_array($section->type, [CourseSection::TYPE_QUIZ, CourseSection::TYPE_EXAM, CourseSection::TYPE_SURVEY], true)
+                ? route('admin.quiz.export.section.word', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
+                : null,
             'theory_export_url' => $section->type === CourseSection::TYPE_TEXT
                 ? route('admin.theory.section.docx', array_merge($rp, ['courseModule' => $courseModule->id, 'section' => $section->id]))
                 : null,

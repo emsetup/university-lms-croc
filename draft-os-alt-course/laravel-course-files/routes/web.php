@@ -732,13 +732,22 @@ Route::middleware([
             Route::get('/testy/modul/{module}/{kind}/export.xls', [AdminQuizController::class, 'exportModule'])
                 ->whereNumber('module')
                 ->name('admin.quiz.export.module');
+            Route::get('/testy/modul/{module}/{kind}/export.doc', [AdminQuizController::class, 'exportModuleWord'])
+                ->whereNumber('module')
+                ->name('admin.quiz.export.module.word');
             Route::get('/testy/final-lab', [AdminQuizController::class, 'editFinal'])->name('admin.quiz.edit.final');
             Route::get('/testy/final-lab/export.xls', [AdminQuizController::class, 'exportFinal'])->name('admin.quiz.export.final');
+            Route::get('/testy/final-lab/export.doc', [AdminQuizController::class, 'exportFinalWord'])->name('admin.quiz.export.final.word');
             Route::get('/testy/export-all.xls', [AdminQuizController::class, 'exportAll'])->name('admin.quiz.export.all');
+            Route::get('/testy/export-all.doc', [AdminQuizController::class, 'exportAllWord'])->name('admin.quiz.export.all.word');
             Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/voprosy/export.xls', [AdminQuizController::class, 'exportSection'])
                 ->whereNumber('courseModule')
                 ->whereNumber('section')
                 ->name('admin.quiz.export.section');
+            Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/voprosy/export.doc', [AdminQuizController::class, 'exportSectionWord'])
+                ->whereNumber('courseModule')
+                ->whereNumber('section')
+                ->name('admin.quiz.export.section.word');
             Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/teoriya.doc', [AdminTheoryController::class, 'downloadSectionDoc'])
                 ->whereNumber('courseModule')
                 ->whereNumber('section')

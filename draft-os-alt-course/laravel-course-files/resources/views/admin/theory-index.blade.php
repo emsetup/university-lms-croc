@@ -247,6 +247,7 @@
                     <a class="btn btn-ghost btn-sm" href="{{ route('admin.theory.word-zip', $rp) }}">Все теории (Word ZIP)</a>
                     <a class="btn btn-ghost btn-sm" href="{{ route('admin.theory.zip', $rp) }}">Markdown ZIP</a>
                     <a class="btn btn-ghost btn-sm" href="{{ route('admin.quiz.export.all', $rp) }}">Все вопросы (Excel)</a>
+                    <a class="btn btn-ghost btn-sm" href="{{ route('admin.quiz.export.all.word', $rp) }}">Все вопросы (Word)</a>
                 </div>
                 <div class="admin-table-wrap">
                     <table class="admin-table content-table admin-theory-content-table">

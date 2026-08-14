@@ -1135,11 +1135,23 @@
 
         var quizExportWrap = $('ap-sec-quiz-export-wrap');
         var quizExport = $('ap-sec-quiz-export');
-        if (quizExportWrap && quizExport && d.questions_export_url) {
+        var quizExportWord = $('ap-sec-quiz-export-word');
+        if (quizExport && d.questions_export_url) {
             quizExport.href = d.questions_export_url;
-            quizExportWrap.hidden = false;
-        } else if (quizExportWrap) {
-            quizExportWrap.hidden = true;
+            quizExport.hidden = false;
+        } else if (quizExport) {
+            quizExport.href = '#';
+            quizExport.hidden = true;
+        }
+        if (quizExportWord && d.questions_word_export_url) {
+            quizExportWord.href = d.questions_word_export_url;
+            quizExportWord.hidden = false;
+        } else if (quizExportWord) {
+            quizExportWord.href = '#';
+            quizExportWord.hidden = true;
+        }
+        if (quizExportWrap) {
+            quizExportWrap.hidden = !(d.questions_export_url || d.questions_word_export_url);
         }
 
         var theoryExport = $('ap-sec-theory-export');
@@ -1152,24 +1164,20 @@
             }
         }
 
-        // Шапка панели: один «Скачать» — Word для теории, Excel для теста/экзамена/опроса.
-        var headExport = $('ap-sec-export-btn');
-        var headExportLabel = $('ap-sec-export-btn-label');
-        if (headExport) {
-            var exportUrl = d.theory_export_url || d.questions_export_url || '';
-            var exportLabel = d.theory_export_url
-                ? 'Скачать Word'
-                : (d.questions_export_url ? 'Скачать Excel' : 'Скачать');
-            if (exportUrl) {
-                headExport.href = exportUrl;
-                headExport.hidden = false;
-                headExport.title = exportLabel;
-                if (headExportLabel) headExportLabel.textContent = exportLabel;
+        // Шапка: Word для теории и вопросов; Excel — только для теста/экзамена/опроса.
+        var setHeadExport = function (id, url) {
+            var el = $(id);
+            if (!el) return;
+            if (url) {
+                el.href = url;
+                el.hidden = false;
             } else {
-                headExport.href = '#';
-                headExport.hidden = true;
+                el.href = '#';
+                el.hidden = true;
             }
-        }
+        };
+        setHeadExport('ap-sec-export-excel-btn', d.questions_export_url || '');
+        setHeadExport('ap-sec-export-word-btn', d.theory_export_url || d.questions_word_export_url || '');
 
         state.participantsUrl = d.participants_url || '';
         state.participantsJsonUrl = d.participants_json_url || '';
