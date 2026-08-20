@@ -58,6 +58,15 @@ final class CourseContentMarkdownTocTest extends TestCase
         $this->assertStringNotContainsString('• Расчетные', $html);
     }
 
+    public function test_single_newline_renders_as_br(): void
+    {
+        $md = "Документ-основание — это вид документа.\nДО разделяются на две категории:\n";
+        $html = CourseContentMarkdown::toHtml($md);
+
+        $this->assertStringContainsString('документа.<br', $html);
+        $this->assertStringContainsString('ДО разделяются на две категории:', $html);
+    }
+
     public function test_typographic_bullets_inside_code_fence_are_kept(): void
     {
         $md = "```\n• не список\n```\n";

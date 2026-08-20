@@ -27,7 +27,13 @@ final class CourseContentMarkdown
         $markdown = self::normalizeTypographicLists($markdown);
         $markdown = self::expandMediaPaths($markdown);
         $markdown = self::replaceTocMarkers($markdown);
-        $html = (string) Str::markdown($markdown);
+        // Одиночный Enter в редакторе = soft break; по умолчанию CommonMark
+        // оставляет голый \\n внутри <p>, и браузер схлопывает его в пробел.
+        $html = (string) Str::markdown($markdown, [
+            'renderer' => [
+                'soft_break' => "<br />\n",
+            ],
+        ]);
         $html = self::enrichMediaFigures($html);
         $html = self::enrichCallouts($html);
         $html = self::enrichCenteredHeadings($html);
