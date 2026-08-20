@@ -611,40 +611,6 @@
                                     <div id="ap-sec-q-match" class="ap-sec-q-match-rows"></div>
                                 </div>
                             </div>
-                            <hr class="new-question-divider">
-                            <div id="ap-sec-quiz-new" class="new-question-block">
-                                <div class="new-question-section-title">Добавить новый вопрос</div>
-                                <label class="ap-settings-label" for="ap-new-q-text">Текст</label>
-                                <textarea id="ap-new-q-text" class="question-text-input" rows="3" placeholder="Текст нового вопроса…"></textarea>
-                                <div class="new-question-row">
-                                    <div>
-                                        <label class="ap-settings-label" for="ap-new-q-type">Тип</label>
-                                        <select id="ap-new-q-type" class="ap-modal__input">
-                                            <option value="single">Один ответ</option>
-                                            <option value="multi">Несколько ответов</option>
-                                            <option value="match">Сопоставление</option>
-                                            <option value="open_text" id="ap-new-q-type-open">Открытый ответ</option>
-                                            <option value="multi_other" id="ap-new-q-type-mixed">Смешанный</option>
-                                        </select>
-                                    </div>
-                                    <button type="button" class="btn btn-primary btn-sm" id="ap-new-q-submit">Добавить в список</button>
-                                </div>
-                                <div id="ap-new-q-block-opts">
-                                    <label class="ap-settings-label" for="ap-new-q-opts">Варианты (по одному в строке)</label>
-                                    <textarea id="ap-new-q-opts" class="ap-modal__input ap-settings-textarea" rows="4" placeholder="Вариант 1&#10;Вариант 2"></textarea>
-                                    <p id="ap-new-q-survey-note" class="ap-muted small" hidden>Опрос: правильный ответ не задаётся — достаточно вариантов для респондента.</p>
-                                    <div id="ap-new-q-correct-wrap">
-                                        <label class="ap-settings-label" for="ap-new-q-correct">Правильный ответ: индекс с 0 (или несколько через запятую)</label>
-                                        <input id="ap-new-q-correct" class="ap-modal__input" type="text" placeholder="0 или 0,2">
-                                    </div>
-                                </div>
-                                <div id="ap-new-q-block-match" hidden>
-                                    <label class="ap-settings-label" for="ap-new-q-left">Слева (по строке)</label>
-                                    <textarea id="ap-new-q-left" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
-                                    <label class="ap-settings-label" for="ap-new-q-right">Справа (по строке)</label>
-                                    <textarea id="ap-new-q-right" class="ap-modal__input ap-settings-textarea" rows="3"></textarea>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>

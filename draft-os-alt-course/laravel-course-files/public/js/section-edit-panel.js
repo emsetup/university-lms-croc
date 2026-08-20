@@ -930,117 +930,6 @@
         }
     }
 
-    function toggleNewQBlocks() {
-        var t = $('ap-new-q-type').value;
-        var openOpt = $('ap-new-q-type-open');
-        var mixedOpt = $('ap-new-q-type-mixed');
-        var survey = isSurveySection();
-        if (openOpt) openOpt.hidden = !survey;
-        if (mixedOpt) mixedOpt.hidden = !survey;
-        $('ap-new-q-block-opts').hidden = t === 'match' || t === 'open_text';
-        $('ap-new-q-block-match').hidden = t !== 'match';
-        var correctWrap = $('ap-new-q-correct-wrap');
-        var surveyNote = $('ap-new-q-survey-note');
-        if (correctWrap) correctWrap.hidden = survey;
-        if (surveyNote) surveyNote.hidden = !survey || t === 'match' || t === 'open_text';
-    }
-
-    function readNewQuestionFromForm() {
-        var t = $('ap-new-q-type').value;
-        var q = $('ap-new-q-text').value.trim();
-        if (!q) {
-            window.alert('Введите текст вопроса.');
-            return null;
-        }
-        if (t === 'open_text') {
-            if (!isSurveySection()) {
-                window.alert('Открытый ответ доступен только в опросах.');
-                return null;
-            }
-            return { type: 'open_text', q: q, placeholder: '', max_length: null };
-        }
-        if (t === 'match') {
-            var left = $('ap-new-q-left')
-                .value.split('\n')
-                .map(function (s) {
-                    return s.trim();
-                })
-                .filter(Boolean);
-            var right = $('ap-new-q-right')
-                .value.split('\n')
-                .map(function (s) {
-                    return s.trim();
-                })
-                .filter(Boolean);
-            if (left.length < 1 || left.length !== right.length) {
-                window.alert('Сопоставление: одинаковое ненулевое число непустых строк слева и справа.');
-                return null;
-            }
-            var m = { type: 'match', q: q, left: left, right: right };
-            if (isExamSection()) m.points = 5;
-            return m;
-        }
-        var opts = $('ap-new-q-opts')
-            .value.split('\n')
-            .map(function (s) {
-                return s.trim();
-            })
-            .filter(Boolean);
-        if (opts.length < 2) {
-            window.alert('Нужно минимум два варианта ответа.');
-            return null;
-        }
-        if (t === 'multi_other') {
-            if (!isSurveySection()) {
-                window.alert('Смешанный ответ доступен только в опросах.');
-                return null;
-            }
-            return { type: 'multi_other', q: q, options: opts, correct: [], placeholder: '', max_length: null };
-        }
-        if (isSurveySection()) {
-            if (t === 'multi') {
-                return { type: 'multi', q: q, options: opts, correct: [] };
-            }
-            return { type: 'single', q: q, options: opts };
-        }
-        var cRaw = $('ap-new-q-correct').value.trim();
-        if (t === 'multi') {
-            var parts = cRaw.split(/[,;\s]+/).filter(Boolean);
-            var idxs = [];
-            for (var i = 0; i < parts.length; i++) {
-                idxs.push(parseInt(parts[i], 10));
-            }
-            idxs = idxs.filter(function (x) {
-                return !isNaN(x) && x >= 0 && x < opts.length;
-            });
-            if (idxs.length < 1) {
-                window.alert('Укажите индексы правильных ответов (0 … n−1).');
-                return null;
-            }
-            var mq = { type: 'multi', q: q, options: opts, correct: idxs };
-            if (isExamSection()) mq.points = 5;
-            return mq;
-        }
-        var c = parseInt(cRaw, 10);
-        if (isNaN(c) || c < 0 || c >= opts.length) {
-            window.alert('Индекс правильного ответа вне диапазона.');
-            return null;
-        }
-        var sq = { type: 'single', q: q, options: opts, correct: c };
-        if (isExamSection()) sq.points = 5;
-        return sq;
-    }
-
-    function clearNewForm() {
-        $('ap-new-q-text').value = '';
-        $('ap-new-q-type').value = 'single';
-        $('ap-new-q-opts').value = '';
-        $('ap-new-q-correct').value = '0';
-        $('ap-new-q-left').value = '';
-        $('ap-new-q-right').value = '';
-        toggleNewQBlocks();
-    }
-
     function updateQuizSummary() {
         updatePanelMetaInfo();
     }
@@ -1097,7 +986,6 @@
         if (quizMode) {
             renderQuizList();
             updateQuizSummary();
-            toggleNewQBlocks();
         } else {
             hideQuizEditorChrome();
         }
@@ -1934,17 +1822,6 @@
             });
         }
 
-        $('ap-new-q-type').addEventListener('change', toggleNewQBlocks);
-        $('ap-new-q-submit').addEventListener('click', function () {
-            if (state.quizActive >= 0) syncActiveQuestionFromEditor();
-            var q = readNewQuestionFromForm();
-            if (!q) return;
-            if (isExamSection() && !q.points) q.points = 5;
-            state.questions.push(q);
-            clearNewForm();
-            setQuizActive(state.questions.length - 1);
-            updateQuizSummary();
-        });
         $('ap-sec-quiz-add').addEventListener('click', addEmptyQuestion);
 
         $('ap-sec-docker-unbind').addEventListener('click', function () {
