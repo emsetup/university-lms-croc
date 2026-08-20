@@ -24,6 +24,7 @@ final class CourseContentMarkdown
             return '';
         }
 
+        $markdown = self::normalizeTypographicLists($markdown);
         $markdown = self::expandMediaPaths($markdown);
         $markdown = self::replaceTocMarkers($markdown);
         $html = (string) Str::markdown($markdown);
@@ -34,6 +35,51 @@ final class CourseContentMarkdown
         $html = self::expandTocPlaceholders($html);
 
         return $html;
+    }
+
+    /**
+     * Word/редакторы часто вставляют «•» вместо `-`/`*`/`+`.
+     * CommonMark не считает их маркерами списка → soft-break схлопывается в один абзац.
+     */
+    private static function normalizeTypographicLists(string $markdown): string
+    {
+        $lines = preg_split("/\r\n|\n|\r/", $markdown);
+        if ($lines === false) {
+            return $markdown;
+        }
+
+        $inFence = false;
+        $fenceChar = '';
+        $out = [];
+
+        foreach ($lines as $line) {
+            if (preg_match('/^\s*([`~]{3,})/', $line, $fm)) {
+                $char = $fm[1][0];
+                if (! $inFence) {
+                    $inFence = true;
+                    $fenceChar = $char;
+                } elseif ($char === $fenceChar) {
+                    $inFence = false;
+                    $fenceChar = '';
+                }
+                $out[] = $line;
+
+                continue;
+            }
+
+            if (! $inFence) {
+                // optional blockquote prefixes + indent + typographic bullet
+                $line = (string) preg_replace(
+                    '/^((?:\s{0,3}>\s?)*)([ \t]*)[•‣◦▪●○]\h+/u',
+                    '$1$2- ',
+                    $line
+                );
+            }
+
+            $out[] = $line;
+        }
+
+        return implode("\n", $out);
     }
 
     /**
