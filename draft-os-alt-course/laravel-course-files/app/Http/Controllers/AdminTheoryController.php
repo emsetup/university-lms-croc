@@ -18,6 +18,7 @@ use App\Support\AdminNavigation;
 use App\Support\CourseModuleMeta;
 use App\Support\CourseTheoryPaths;
 use App\Support\PracticeHintMarkdown;
+use App\Support\PracticeTerminalUrl;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\JsonResponse;
@@ -131,7 +132,7 @@ class AdminTheoryController extends Controller
 
         $payload = [
             'lab_id' => (string) ($resp['lab_id'] ?? ''),
-            'terminal_url' => (string) ($resp['terminal_url'] ?? ''),
+            'terminal_url' => (string) (PracticeTerminalUrl::toHttpsProxy((string) ($resp['terminal_url'] ?? '')) ?? ''),
             'image' => $image,
             'started_at' => now()->toIso8601String(),
         ];

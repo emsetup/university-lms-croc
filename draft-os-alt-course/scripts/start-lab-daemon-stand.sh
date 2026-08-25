@@ -6,9 +6,12 @@
 #   bash scripts/start-lab-daemon-stand.sh
 #
 # Публичный хост для ссылок ttyd в браузере:
+#   — предпочтительно HTTPS-прокси: LAB_PUBLIC_TTY_BASE=https://practice.croc.ru/ttyd
+#     (nginx location /ttyd/<port>/ → 127.0.0.1:<port>; без mixed content на портале);
 #   — явно: STAND_PUBLIC_HOST=172.26.76.216 или PRACTICE_LAB_PUBLIC_HOST в .env Laravel на стенде;
 #   — иначе берётся хост из STAND_SSH (user@172.26.76.216 → 172.26.76.216).
 # Не используйте 127.0.0.1: браузер студента подключится к его own localhost, а не к стенду.
+# Legacy http://HOST:port/ ломает HTTPS («broken HTTPS» / active mixed content).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,9 +28,10 @@ EXPORT_DIR="${LAB_IMAGE_EXPORT_DIR:-/var/lib/course-practice-images}"
 _ssh_host="${STAND_SSH##*@}"
 _ssh_host="${_ssh_host%%:*}"
 export DEFAULT_LAB_PUBLIC_HOST="${STAND_PUBLIC_HOST:-${_ssh_host}}"
-echo "[start-daemon] LAB_PUBLIC_HOST (ttyd в браузере) будет: ${DEFAULT_LAB_PUBLIC_HOST}"
+echo "[start-daemon] LAB_PUBLIC_HOST (fallback) будет: ${DEFAULT_LAB_PUBLIC_HOST}"
 
 echo "[start-daemon] rsync lab-daemon -> ${STAND_SSH}:${REMOTE_BUILD}/"
+ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '$(dirname "${REMOTE_BUILD}")' && mkdir -p '${REMOTE_BUILD}'"
 rsync -az --delete \
   "${LCF}/lab-daemon/" \
   "${STAND_SSH}:${REMOTE_BUILD}/"
@@ -41,6 +45,7 @@ NAME="${NAME}"
 IMAGE="${IMAGE}"
 LARAVEL="${REMOTE_LARAVEL}"
 EXPORT_DIR="${EXPORT_DIR}"
+DEFAULT_HOST="${DEFAULT_LAB_PUBLIC_HOST}"
 
 if [[ ! -f "\$ENVF" ]]; then
   echo "Нет файла \$ENVF" >&2
@@ -59,6 +64,7 @@ grep '^PRACTICE_LAB_DAEMON_SECRET=' "\$ENVF" | sed 's/^PRACTICE_LAB_DAEMON_SECRE
   echo "LAB_ENABLE_TTY=\${LAB_ENABLE_TTY:-1}"
   echo "LAB_TTY_PORT_MIN=\${LAB_TTY_PORT_MIN:-40000}"
   echo "LAB_TTY_PORT_MAX=\${LAB_TTY_PORT_MAX:-41000}"
+  echo "LAB_TTY_BIND=\${LAB_TTY_BIND:-127.0.0.1}"
   echo "LAB_BUILD_WORKDIR=\${LAB_BUILD_WORKDIR:-\$LARAVEL/storage/app}"
   echo "LAB_IMAGE_EXPORT_DIR=\${LAB_IMAGE_EXPORT_DIR:-\$EXPORT_DIR}"
   echo "LAB_BUILD_LOG_MAX_CHARS=\${LAB_BUILD_LOG_MAX_CHARS:-60000}"
@@ -66,7 +72,15 @@ grep '^PRACTICE_LAB_DAEMON_SECRET=' "\$ENVF" | sed 's/^PRACTICE_LAB_DAEMON_SECRE
 if grep -q '^PRACTICE_LAB_PUBLIC_HOST=' "\$ENVF" 2>/dev/null; then
   grep '^PRACTICE_LAB_PUBLIC_HOST=' "\$ENVF" | sed 's/^PRACTICE_LAB_PUBLIC_HOST=/LAB_PUBLIC_HOST=/' >> "\$EF"
 else
-  echo "LAB_PUBLIC_HOST=${DEFAULT_LAB_PUBLIC_HOST}" >> "\$EF"
+  echo "LAB_PUBLIC_HOST=\${DEFAULT_HOST}" >> "\$EF"
+fi
+# HTTPS reverse-proxy для ttyd (приоритетнее прямого http://HOST:port)
+if grep -q '^PRACTICE_LAB_TTY_BASE=' "\$ENVF" 2>/dev/null; then
+  grep '^PRACTICE_LAB_TTY_BASE=' "\$ENVF" | sed 's/^PRACTICE_LAB_TTY_BASE=/LAB_PUBLIC_TTY_BASE=/' >> "\$EF"
+elif grep -q '^APP_URL=https://' "\$ENVF" 2>/dev/null; then
+  _app_url=\$(grep '^APP_URL=' "\$ENVF" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+  echo "LAB_PUBLIC_TTY_BASE=\${_app_url%/}/ttyd" >> "\$EF"
+  echo "[stand] LAB_PUBLIC_TTY_BASE=\${_app_url%/}/ttyd"
 fi
 
 echo "[stand] docker build -t \$IMAGE \$BUILD"

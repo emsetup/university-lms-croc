@@ -332,6 +332,10 @@ Route::middleware([
 ])->group(function () {
     Route::get('/adm', [AdminPanelController::class, 'show'])->name('admin.panel');
 
+    Route::get('/adm/statistika', [\App\Http\Controllers\AdminPlatformStatsController::class, 'show'])
+        ->middleware([\App\Http\Middleware\EnsurePlatformStatsAccess::class])
+        ->name('admin.platform-stats');
+
     Route::middleware([\App\Http\Middleware\EnsurePortalAdmin::class])->group(function () {
         Route::get('/adm/logi', [AdminIncidentLogsController::class, 'index'])->name('admin.incidents.index');
         Route::get('/adm/logi/lenta', [AdminIncidentLogsController::class, 'feed'])->name('admin.incidents.feed');

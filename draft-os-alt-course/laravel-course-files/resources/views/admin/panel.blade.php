@@ -19,6 +19,9 @@
         <h1 class="ap-page-title">Главная панель</h1>
         <p class="ap-page-lead">
             Сводка по порталу: курсы, обучающиеся и последняя активность.
+            @if (($portalStaffAccess ?? null)?->canViewPlatformStats())
+                <a class="ap-link-inline" href="{{ route('admin.platform-stats') }}">Статистика активности →</a>
+            @endif
         </p>
 
         <div class="ap-grid-metrics ap-dash-metrics">

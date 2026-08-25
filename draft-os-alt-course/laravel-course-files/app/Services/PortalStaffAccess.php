@@ -70,6 +70,11 @@ final class PortalStaffAccess
         return $this->staff->isCourseModerator() || $this->perms()->hasRole(PortalStaff::ROLE_COURSE_MODERATOR);
     }
 
+    public function isPortalAuditor(): bool
+    {
+        return $this->staff->isPortalAuditor() || $this->perms()->hasRole(PortalStaff::ROLE_PORTAL_AUDITOR);
+    }
+
     public function isCourseCreator(): bool
     {
         return $this->staff->isCourseCreator() || $this->perms()->hasRole(PortalStaff::ROLE_COURSE_CREATOR);
@@ -104,6 +109,7 @@ final class PortalStaffAccess
 
         return $this->isPortalAdmin()
             || $this->isCourseModerator()
+            || $this->isPortalAuditor()
             || $this->isCourseCreator()
             || $this->isCourseEditor()
             || $this->perms()->hasAny(
@@ -124,7 +130,7 @@ final class PortalStaffAccess
             && $this->assignedCourseIds()->containsStrict($courseId)) {
             return true;
         }
-        if ($this->isCourseCreator()) {
+        if ($this->isCourseCreator() || $this->isPortalAuditor()) {
             return $this->ownedCourseIds()->containsStrict($courseId);
         }
         if ($this->isCourseEditor()) {
@@ -155,7 +161,7 @@ final class PortalStaffAccess
             return true;
         }
 
-        if ($this->isCourseCreator()) {
+        if ($this->isCourseCreator() || $this->isPortalAuditor()) {
             return $this->ownedCourseIds()->containsStrict($courseId);
         }
 
@@ -176,6 +182,15 @@ final class PortalStaffAccess
             return false;
         }
 
+        if ($this->isPortalAuditor()) {
+            $courseId = (int) session('admin_course_id', 0);
+            if ($courseId > 0 && ! $this->ownedCourseIds()->containsStrict($courseId)) {
+                return true;
+            }
+
+            return false;
+        }
+
         return $this->isCourseTester() || $this->isInstructor();
     }
 
@@ -189,7 +204,7 @@ final class PortalStaffAccess
             && $this->assignedCourseIds()->containsStrict($courseId)) {
             return true;
         }
-        if ($this->isCourseCreator() && $this->ownedCourseIds()->containsStrict($courseId)) {
+        if (($this->isCourseCreator() || $this->isPortalAuditor()) && $this->ownedCourseIds()->containsStrict($courseId)) {
             return true;
         }
         if ($this->isCourseEditor() && $this->editableCourseIds()->containsStrict($courseId)) {
@@ -543,6 +558,21 @@ final class PortalStaffAccess
         return $this->isPortalAdmin() || $this->perms()->has(Perm::SETTINGS_MANAGE);
     }
 
+    /** Журналы инцидентов и почты (/adm/logi, /adm/pochta). */
+    public function canViewPortalLogs(): bool
+    {
+        return $this->isPortalAdmin() || $this->isPortalAuditor() || $this->perms()->has(Perm::LOGS_VIEW);
+    }
+
+    /** Сводная статистика портала (/adm/statistika). */
+    public function canViewPlatformStats(): bool
+    {
+        return $this->isPortalAdmin()
+            || $this->isPortalAuditor()
+            || $this->perms()->has(Perm::STATS_VIEW)
+            || $this->perms()->has(Perm::LOGS_VIEW);
+    }
+
     /** Просмотр портала от лица обучающегося. */
     public function canImpersonateLearners(): bool
     {
@@ -559,6 +589,7 @@ final class PortalStaffAccess
     {
         return $this->isPortalAdmin()
             || $this->isCourseModerator()
+            || $this->isPortalAuditor()
             || $this->isCourseCreator()
             || $this->isCourseEditor()
             || $this->perms()->has(Perm::COURSES_CREATE);
@@ -590,7 +621,7 @@ final class PortalStaffAccess
         if ($this->ownedCourseIds !== null) {
             return $this->ownedCourseIds;
         }
-        if (! $this->isCourseCreator() && ! $this->isCourseEditor()) {
+        if (! $this->isCourseCreator() && ! $this->isCourseEditor() && ! $this->isPortalAuditor()) {
             return $this->ownedCourseIds = collect();
         }
         if (! Schema::hasColumn('courses', 'created_by_portal_staff_id')) {
@@ -621,6 +652,9 @@ final class PortalStaffAccess
     public function canAccessCourseInAdmin(int $courseId): bool
     {
         if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::COURSES_MANAGE_ALL)) {
+            return true;
+        }
+        if ($this->isPortalAuditor()) {
             return true;
         }
         if ($this->perms()->has(Perm::COURSES_MANAGE_ASSIGNED)
@@ -660,7 +694,7 @@ final class PortalStaffAccess
             && $this->assignedCourseIds()->containsStrict($courseId)) {
             return true;
         }
-        if ($this->isCourseCreator()) {
+        if ($this->isCourseCreator() || $this->isPortalAuditor()) {
             return $this->ownedCourseIds()->containsStrict($courseId);
         }
         if ($this->isCourseEditor()) {
@@ -687,7 +721,7 @@ final class PortalStaffAccess
         if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::DOCKER_MANAGE_ALL)) {
             return true;
         }
-        if (! $this->isCourseCreator() && ! $this->isCourseEditor()) {
+        if (! $this->isCourseCreator() && ! $this->isCourseEditor() && ! $this->isPortalAuditor()) {
             return false;
         }
         if (! Schema::hasColumn('practice_images', 'created_by_portal_staff_id')) {
@@ -729,7 +763,7 @@ final class PortalStaffAccess
         if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::DOCKER_MANAGE_ALL)) {
             return true;
         }
-        if ($this->isCourseCreator()) {
+        if ($this->isCourseCreator() || $this->isPortalAuditor()) {
             if (! $this->ownedCourseIds()->containsStrict($courseId)) {
                 return false;
             }
@@ -764,7 +798,7 @@ final class PortalStaffAccess
         if ($this->isPortalAdmin() || $this->isCourseModerator() || $this->perms()->has(Perm::DOCKER_MANAGE_ALL)) {
             return $query;
         }
-        if (($this->isCourseCreator() || $this->isCourseEditor())
+        if (($this->isCourseCreator() || $this->isCourseEditor() || $this->isPortalAuditor())
             && Schema::hasColumn('practice_images', 'created_by_portal_staff_id')) {
             $staffId = (int) $this->staff->id;
 
@@ -860,6 +894,7 @@ final class PortalStaffAccess
         return match ($this->staff->role) {
             PortalStaff::ROLE_PORTAL_ADMIN => 'Администратор портала',
             PortalStaff::ROLE_COURSE_MODERATOR => 'Модератор курсов',
+            PortalStaff::ROLE_PORTAL_AUDITOR => 'Аудитор портала',
             PortalStaff::ROLE_COURSE_CREATOR => 'Создатель курсов',
             PortalStaff::ROLE_COURSE_EDITOR => 'Редактор курсов',
             PortalStaff::ROLE_INSTRUCTOR => 'Инструктор',

@@ -8,9 +8,9 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Логи инцидентов и почты: администратор портала или аудитор (logs.view).
+ * Сводная статистика портала: администратор или аудитор (stats.view).
  */
-final class EnsurePortalAdmin
+final class EnsurePlatformStatsAccess
 {
     public function handle(Request $request, Closure $next): Response
     {
@@ -18,7 +18,7 @@ final class EnsurePortalAdmin
             ? app(PortalStaffAccess::class)
             : PortalStaffAccess::fromLearnerId((int) session('learner_id', 0));
 
-        abort_unless($access !== null && $access->canViewPortalLogs(), 404);
+        abort_unless($access !== null && $access->canViewPlatformStats(), 404);
 
         return $next($request);
     }

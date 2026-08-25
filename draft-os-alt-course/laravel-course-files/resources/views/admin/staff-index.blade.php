@@ -110,6 +110,7 @@
                             $roleLabel = match ($row->role) {
                                 PortalStaff::ROLE_PORTAL_ADMIN => 'Администратор портала',
                                 PortalStaff::ROLE_COURSE_MODERATOR => 'Модератор',
+                                PortalStaff::ROLE_PORTAL_AUDITOR => 'Аудитор портала',
                                 PortalStaff::ROLE_COURSE_CREATOR => 'Создатель курсов',
                                 PortalStaff::ROLE_COURSE_EDITOR => 'Редактор курсов',
                                 PortalStaff::ROLE_INSTRUCTOR => 'Преподаватель курса',
@@ -121,6 +122,7 @@
                                 PortalStaff::ROLE_PORTAL_ADMIN => 'ap-staff-badge ap-staff-badge--admin',
                                 PortalStaff::ROLE_INSTRUCTOR => 'ap-staff-badge ap-staff-badge--instructor',
                                 PortalStaff::ROLE_COURSE_MODERATOR => 'ap-staff-badge ap-staff-badge--moderator',
+                                PortalStaff::ROLE_PORTAL_AUDITOR => 'ap-staff-badge ap-staff-badge--auditor',
                                 PortalStaff::ROLE_COURSE_CREATOR => 'ap-staff-badge ap-staff-badge--creator',
                                 PortalStaff::ROLE_COURSE_EDITOR => 'ap-staff-badge ap-staff-badge--editor',
                                 PortalStaff::ROLE_COURSE_TESTER => 'ap-staff-badge ap-staff-badge--tester',
@@ -249,6 +251,7 @@
                         @php $r = old('role', PortalStaff::ROLE_PORTAL_ADMIN); @endphp
                         <option value="{{ PortalStaff::ROLE_PORTAL_ADMIN }}" @if ($r === PortalStaff::ROLE_PORTAL_ADMIN) selected @endif>Администратор портала</option>
                         <option value="{{ PortalStaff::ROLE_COURSE_MODERATOR }}" @if ($r === PortalStaff::ROLE_COURSE_MODERATOR) selected @endif>Модератор</option>
+                        <option value="{{ PortalStaff::ROLE_PORTAL_AUDITOR }}" @if ($r === PortalStaff::ROLE_PORTAL_AUDITOR) selected @endif>Аудитор портала</option>
                         <option value="{{ PortalStaff::ROLE_COURSE_CREATOR }}" @if ($r === PortalStaff::ROLE_COURSE_CREATOR) selected @endif>Создатель курсов</option>
                         <option value="{{ PortalStaff::ROLE_COURSE_EDITOR }}" @if ($r === PortalStaff::ROLE_COURSE_EDITOR) selected @endif>Редактор курсов</option>
                         <option value="{{ PortalStaff::ROLE_INSTRUCTOR }}" @if ($r === PortalStaff::ROLE_INSTRUCTOR) selected @endif>Преподаватель курса</option>

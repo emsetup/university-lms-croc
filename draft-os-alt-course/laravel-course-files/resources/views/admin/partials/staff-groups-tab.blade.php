@@ -5,6 +5,7 @@
     $groupRoleLabels = [
         PortalStaff::ROLE_PORTAL_ADMIN => 'Администратор портала',
         PortalStaff::ROLE_COURSE_MODERATOR => 'Модератор',
+        PortalStaff::ROLE_PORTAL_AUDITOR => 'Аудитор портала',
         PortalStaff::ROLE_COURSE_CREATOR => 'Создатель курсов',
         PortalStaff::ROLE_COURSE_EDITOR => 'Редактор курсов',
         PortalStaff::ROLE_INSTRUCTOR => 'Преподаватель курса',

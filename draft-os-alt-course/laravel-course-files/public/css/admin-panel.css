@@ -2660,6 +2660,12 @@ body.ap-modal-open {
   border-color: #fde047;
 }
 
+.ap-staff-badge--auditor {
+  background: #e0e7ff;
+  color: #3730a3;
+  border-color: #c7d2fe;
+}
+
 .ap-staff-badge--creator {
   background: #ffedd5;
   color: #9a3412;

@@ -13,6 +13,8 @@ class PortalStaff extends Model
 
     public const ROLE_COURSE_MODERATOR = 'course_moderator';
 
+    public const ROLE_PORTAL_AUDITOR = 'portal_auditor';
+
     public const ROLE_COURSE_CREATOR = 'course_creator';
 
     public const ROLE_COURSE_EDITOR = 'course_editor';
@@ -27,6 +29,7 @@ class PortalStaff extends Model
     public const ROLES = [
         self::ROLE_PORTAL_ADMIN,
         self::ROLE_COURSE_MODERATOR,
+        self::ROLE_PORTAL_AUDITOR,
         self::ROLE_COURSE_CREATOR,
         self::ROLE_COURSE_EDITOR,
         self::ROLE_COURSE_CONTRIBUTOR,
@@ -63,6 +66,11 @@ class PortalStaff extends Model
     public function isCourseModerator(): bool
     {
         return $this->role === self::ROLE_COURSE_MODERATOR;
+    }
+
+    public function isPortalAuditor(): bool
+    {
+        return $this->role === self::ROLE_PORTAL_AUDITOR;
     }
 
     public function isCourseCreator(): bool

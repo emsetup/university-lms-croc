@@ -15,6 +15,10 @@ final class PortalStaffPermissionCatalog
 
     public const SETTINGS_MANAGE = 'settings.manage';
 
+    public const LOGS_VIEW = 'logs.view';
+
+    public const STATS_VIEW = 'stats.view';
+
     public const PEOPLE_VIEW = 'people.view';
 
     public const COURSES_CREATE = 'courses.create';
@@ -55,6 +59,8 @@ final class PortalStaffPermissionCatalog
                 'items' => [
                     ['key' => self::STAFF_MANAGE, 'title' => 'Сотрудники', 'hint' => 'Раздел «Сотрудники», группы и учётные записи'],
                     ['key' => self::SETTINGS_MANAGE, 'title' => 'Настройки портала', 'hint' => 'Заглушка, просмотр от лица других'],
+                    ['key' => self::LOGS_VIEW, 'title' => 'Логи и почта', 'hint' => 'Журналы инцидентов и почтовых отправок'],
+                    ['key' => self::STATS_VIEW, 'title' => 'Статистика портала', 'hint' => 'Сводный дашборд активности /adm/statistika'],
                     ['key' => self::PEOPLE_VIEW, 'title' => 'Люди (портал)', 'hint' => 'Список обучающихся по всем курсам'],
                 ],
             ],
@@ -117,7 +123,16 @@ final class PortalStaffPermissionCatalog
     {
         return match ($role) {
             PortalStaff::ROLE_PORTAL_ADMIN => self::allKeys(),
-            PortalStaff::ROLE_COURSE_MODERATOR => array_values(array_diff(self::allKeys(), [self::STAFF_MANAGE])),
+            PortalStaff::ROLE_COURSE_MODERATOR => array_values(array_diff(self::allKeys(), [self::STAFF_MANAGE, self::LOGS_VIEW])),
+            PortalStaff::ROLE_PORTAL_AUDITOR => [
+                self::COURSES_CREATE,
+                self::LEARNERS_VIEW_ALL,
+                self::PEOPLE_VIEW,
+                self::SETTINGS_MANAGE,
+                self::LOGS_VIEW,
+                self::STATS_VIEW,
+                self::DOCKER_MANAGE_OWN,
+            ],
             PortalStaff::ROLE_COURSE_CREATOR => [
                 self::COURSES_CREATE,
                 self::COURSES_MANAGE_ASSIGNED,

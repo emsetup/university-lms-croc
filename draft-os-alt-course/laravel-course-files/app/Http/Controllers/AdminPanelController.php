@@ -318,7 +318,7 @@ class AdminPanelController extends Controller
 
         $editableCourseIds = match (true) {
             $gate->isPortalAdmin(), $gate->isCourseModerator() => null,
-            $gate->isCourseCreator() => $gate->ownedCourseIds()->flip()->all(),
+            $gate->isPortalAuditor(), $gate->isCourseCreator() => $gate->ownedCourseIds()->flip()->all(),
             $gate->isCourseEditor() => $gate->editableCourseIds()->flip()->all(),
             default => $gate->assignedCourseIds()->flip()->all(),
         };

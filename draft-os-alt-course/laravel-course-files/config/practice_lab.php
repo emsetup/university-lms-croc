@@ -3,9 +3,9 @@
 /**
  * Практикум в Docker (lab-daemon). Копируйте в config/practice_lab.php на стенде и задайте .env.
  *
- * Веб-терминал (ttyd): на стенде в .env задайте PRACTICE_LAB_PUBLIC_HOST — IP или DNS стенда,
- * который открывается в браузере студента (не 127.0.0.1). Скрипт start-lab-daemon-stand.sh
- * подставляет хост из STAND_SSH, если переменная не задана.
+ * Веб-терминал (ttyd): на HTTPS-портале нужен прокси nginx /ttyd/<port>/ и
+ * PRACTICE_LAB_TTY_BASE=https://practice.croc.ru/ttyd (или авто из APP_URL в start-lab-daemon-stand.sh).
+ * PRACTICE_LAB_PUBLIC_HOST — fallback для legacy http://HOST:port (даёт mixed content на HTTPS).
  *
  * Модуль 1: контейнер os-alt-lab-m1 — изучение дистрибутива изнутри (см. docker/lab-m1/README.md).
  * Модуль 3: os-alt-lab-m3-systemd — ЦУС/Alterator (systemd в контейнере; см. docker/lab-m3/README.md).

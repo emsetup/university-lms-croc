@@ -41,6 +41,7 @@
                 <select id="ap-staff-group-role" name="role" class="ap-modal__input" required>
                     <option value="{{ PortalStaff::ROLE_PORTAL_ADMIN }}" @selected($groupRoleOld === PortalStaff::ROLE_PORTAL_ADMIN)>Администратор портала</option>
                     <option value="{{ PortalStaff::ROLE_COURSE_MODERATOR }}" @selected($groupRoleOld === PortalStaff::ROLE_COURSE_MODERATOR)>Модератор</option>
+                    <option value="{{ PortalStaff::ROLE_PORTAL_AUDITOR }}" @selected($groupRoleOld === PortalStaff::ROLE_PORTAL_AUDITOR)>Аудитор портала</option>
                     <option value="{{ PortalStaff::ROLE_COURSE_CREATOR }}" @selected($groupRoleOld === PortalStaff::ROLE_COURSE_CREATOR)>Создатель курсов</option>
                     <option value="{{ PortalStaff::ROLE_COURSE_EDITOR }}" @selected($groupRoleOld === PortalStaff::ROLE_COURSE_EDITOR)>Редактор курсов</option>
                     <option value="{{ PortalStaff::ROLE_INSTRUCTOR }}" @selected($groupRoleOld === PortalStaff::ROLE_INSTRUCTOR)>Преподаватель курса</option>

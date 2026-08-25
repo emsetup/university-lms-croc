@@ -67,7 +67,7 @@ final class AdminCoursesController extends Controller
 
         $editableCourseIds = match (true) {
             $gate->isPortalAdmin(), $gate->isCourseModerator() => null,
-            $gate->isCourseCreator() => $gate->ownedCourseIds()->merge($gate->grantedCourseIds())->unique()->flip()->all(),
+            $gate->isPortalAuditor(), $gate->isCourseCreator() => $gate->ownedCourseIds()->merge($gate->grantedCourseIds())->unique()->flip()->all(),
             $gate->isCourseEditor() => $gate->editableCourseIds()->merge($gate->grantedCourseIds())->unique()->flip()->all(),
             $gate->isCourseContributor() => $gate->grantedCourseIds()->flip()->all(),
             $gate->isInstructor() => [],
@@ -125,7 +125,7 @@ final class AdminCoursesController extends Controller
     {
         $gate = app(PortalStaffAccess::class);
         $gate->assertCanAccessCourseInAdmin($course);
-        $next = (string) $request->input('next', $gate->isInstructor() ? 'learners' : 'content');
+        $next = (string) $request->input('next', $this->defaultCourseEnterNext($gate, $course));
         $gate->assertTesterSelectNext($next);
 
         $c = Course::query()->findOrFail($course);
@@ -160,7 +160,7 @@ final class AdminCoursesController extends Controller
             'admin_course_slug' => $c->slug,
         ]);
 
-        $next = (string) $request->query('next', $gate->isInstructor() ? 'learners' : 'content');
+        $next = (string) $request->query('next', $this->defaultCourseEnterNext($gate, $course));
         $gate->assertTesterSelectNext($next);
 
         if ($next === 'quiz') {
@@ -174,6 +174,18 @@ final class AdminCoursesController extends Controller
         }
 
         return redirect()->route('admin.theory.index', ['adminCourse' => $c->slug]);
+    }
+
+    private function defaultCourseEnterNext(PortalStaffAccess $gate, int $courseId): string
+    {
+        if ($gate->isInstructor()) {
+            return 'learners';
+        }
+        if ($gate->isPortalAuditor() && ! $gate->canEditCourseMeta($courseId)) {
+            return 'learners';
+        }
+
+        return 'content';
     }
 
     public function create(Request $request): RedirectResponse
@@ -367,7 +379,7 @@ final class AdminCoursesController extends Controller
     /** @param  Collection<int, Course>  $courseModels */
     private function filterCourseModelsForCatalog(Collection $courseModels, PortalStaffAccess $gate): Collection
     {
-        if ($gate->isPortalAdmin() || $gate->isCourseModerator()) {
+        if ($gate->isPortalAdmin() || $gate->isCourseModerator() || $gate->isPortalAuditor()) {
             return $courseModels;
         }
         if ($gate->isCourseContributor()) {

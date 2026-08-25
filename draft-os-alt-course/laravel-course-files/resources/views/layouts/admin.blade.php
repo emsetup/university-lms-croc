@@ -23,7 +23,7 @@
     <link rel="stylesheet" href="{{ asset('css/local-fonts.css') }}">
     <link rel="stylesheet" href="{{ asset('css/course.css') }}?v={{ @filemtime(public_path('css/course.css')) ?: 1 }}">
     <link rel="stylesheet" href="{{ asset('css/admin-panel.css') }}?v={{ @filemtime(public_path('css/admin-panel.css')) ?: 1 }}">
-    <link rel="stylesheet" href="{{ asset('static/admin/admin.css') }}">
+    <link rel="stylesheet" href="{{ asset('static/admin/admin.css') }}?v={{ @filemtime(public_path('static/admin/admin.css')) ?: 1 }}">
     <link rel="stylesheet" href="{{ asset('css/portal-typography.css') }}">
     @if ($psa && $psa->canUseCourseAdminTools())
         <link rel="stylesheet" href="{{ asset('css/media-library.css') }}">
@@ -42,35 +42,54 @@
         data-ap-can-staff="{{ $psa && $psa->canManageStaff() ? '1' : '0' }}"
         data-ap-can-docker="{{ $psa && $psa->canUseCourseAdminTools() ? '1' : '0' }}"
     >
-        <header class="admin-topbar" aria-label="Верхняя панель администратора">
-            <a class="admin-topbar__logo" href="{{ route('admin.panel') }}">КРОК<span>· Панель администратора</span></a>
-            <nav class="admin-topbar__nav" aria-label="Основные разделы">
-                <a class="nav-item @if($navCourses) active @endif" href="{{ route('admin.courses.index') }}">Курсы</a>
-                @if (\App\Support\AdminNavigation::canSeePortalLearners())
-                    <a class="nav-item @if($navPeople) active @endif" href="{{ route('admin.learners.portal') }}">Обучающиеся</a>
-                @endif
-                @if (\App\Support\AdminNavigation::canSeeStaff())
-                    <a class="nav-item @if($navStaff) active @endif" href="{{ route('admin.staff.index') }}">Сотрудники</a>
-                @endif
-                @if ($psa && $psa->canUseCourseAdminTools())
-                    <a class="nav-item @if($navDocker) active @endif" href="{{ $dockerHref }}">Docker</a>
-                    <a class="nav-item @if($navMedia) active @endif" href="{{ route('admin.media.library') }}">Картинки</a>
-                @endif
-            </nav>
-            <div class="admin-topbar__spacer" aria-hidden="true"></div>
-            <div class="admin-topbar__actions">
-                @include('partials.admin-settings-menu')
-                <button type="button" class="nav-cmd-btn ap-cmd-palette-trigger" id="ap-cmd-palette-trigger" title="Палитра команд">
-                    @include('partials.ap-icon', ['name' => 'search', 'size' => 'sm'])
-                    <span class="kbd" data-ap-kbd-palette>⌘K</span>
+        <header class="admin-topbar" aria-label="Верхняя панель администратора" data-admin-topbar>
+            <div class="admin-topbar__brand">
+                <a class="admin-topbar__logo" href="{{ route('admin.panel') }}">КРОК<span>· Панель администратора</span></a>
+                <button
+                    type="button"
+                    class="admin-topbar__menu-toggle nav-cmd-btn"
+                    data-admin-topbar-toggle
+                    aria-controls="admin-topbar-panels"
+                    aria-expanded="false"
+                    aria-label="Открыть меню"
+                >
+                    <span class="admin-topbar__menu-toggle-icon" data-admin-topbar-icon-open>
+                        @include('partials.ap-icon', ['name' => 'menu', 'size' => 'sm'])
+                    </span>
+                    <span class="admin-topbar__menu-toggle-icon" data-admin-topbar-icon-close hidden>
+                        @include('partials.ap-icon', ['name' => 'x', 'size' => 'sm'])
+                    </span>
+                    <span class="admin-topbar__menu-toggle-label">Меню</span>
                 </button>
-                <a class="nav-cmd-btn" href="{{ route('documentation.index') }}">Документация</a>
-                @include('partials.admin-logs-nav-link')
-                <a class="nav-cmd-btn" href="{{ route('portal') }}">→ Портал</a>
-                <form method="post" action="{{ route('logout', [], false) }}" style="margin:0;display:inline">
-                    @csrf
-                    <button type="submit" class="nav-cmd-btn">Выйти</button>
-                </form>
+            </div>
+            <div class="admin-topbar__panels" id="admin-topbar-panels" data-admin-topbar-panels>
+                <nav class="admin-topbar__nav" aria-label="Основные разделы">
+                    <a class="nav-item @if($navCourses) active @endif" href="{{ route('admin.courses.index') }}">Курсы</a>
+                    @if (\App\Support\AdminNavigation::canSeePortalLearners())
+                        <a class="nav-item @if($navPeople) active @endif" href="{{ route('admin.learners.portal') }}">Обучающиеся</a>
+                    @endif
+                    @if (\App\Support\AdminNavigation::canSeeStaff())
+                        <a class="nav-item @if($navStaff) active @endif" href="{{ route('admin.staff.index') }}">Сотрудники</a>
+                    @endif
+                    @if ($psa && $psa->canUseCourseAdminTools())
+                        <a class="nav-item @if($navDocker) active @endif" href="{{ $dockerHref }}">Docker</a>
+                        <a class="nav-item @if($navMedia) active @endif" href="{{ route('admin.media.library') }}">Картинки</a>
+                    @endif
+                </nav>
+                <div class="admin-topbar__actions">
+                    @include('partials.admin-settings-menu')
+                    <button type="button" class="nav-cmd-btn ap-cmd-palette-trigger" id="ap-cmd-palette-trigger" title="Палитра команд">
+                        @include('partials.ap-icon', ['name' => 'search', 'size' => 'sm'])
+                        <span class="kbd" data-ap-kbd-palette>⌘K</span>
+                    </button>
+                    <a class="nav-cmd-btn" href="{{ route('documentation.index') }}">Документация</a>
+                    @include('partials.admin-logs-nav-link')
+                    <a class="nav-cmd-btn" href="{{ route('portal') }}">→ Портал</a>
+                    <form method="post" action="{{ route('logout', [], false) }}" class="admin-topbar__logout">
+                        @csrf
+                        <button type="submit" class="nav-cmd-btn">Выйти</button>
+                    </form>
+                </div>
             </div>
         </header>
 

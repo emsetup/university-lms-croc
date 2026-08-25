@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\PracticeImage;
 use App\Support\PracticeCheckOutputParser;
+use App\Support\PracticeTerminalUrl;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -32,8 +33,14 @@ final class PracticeImageSandboxService
     public function getState(int $imageId): ?array
     {
         $state = Cache::get($this->stateCacheKey($imageId));
+        if (! is_array($state)) {
+            return null;
+        }
+        if (isset($state['terminal_url'])) {
+            $state['terminal_url'] = (string) (PracticeTerminalUrl::toHttpsProxy((string) $state['terminal_url']) ?? '');
+        }
 
-        return is_array($state) ? $state : null;
+        return $state;
     }
 
     /**
@@ -72,7 +79,7 @@ final class PracticeImageSandboxService
         $state = [
             'practice_image_id' => $imageId,
             'lab_id' => (string) ($resp['lab_id'] ?? ''),
-            'terminal_url' => (string) ($resp['terminal_url'] ?? ''),
+            'terminal_url' => (string) (PracticeTerminalUrl::toHttpsProxy((string) ($resp['terminal_url'] ?? '')) ?? ''),
             'image' => $tag,
             'module_key' => $moduleKey,
             'started_at' => now()->toIso8601String(),

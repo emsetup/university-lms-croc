@@ -153,6 +153,8 @@ OIDC_REDIRECT_URI=https://practice.croc.ru/oidc/callback
 
 После правок: **`php artisan config:clear`**. Для **`practice.croc.ru`** в nginx задан редирект **HTTP→HTTPS**; в **`.env`** на стенде **`APP_URL=https://practice.croc.ru`**, чтобы Laravel не отдавал ссылки на `http://172…` (из‑за этого адресная строка могла оставаться «не защищённой»).
 
+**Chrome: «broken HTTPS» / active mixed content при валидном сертификате:** веб-терминал (ttyd) раньше открывался как **`http://172.26.76.216:40xxx/`** в iframe на HTTPS-странице. Нужен прокси **`/ttyd/<port>/`** в nginx (см. фикстур выше) и **`LAB_PUBLIC_TTY_BASE=https://practice.croc.ru/ttyd`** у lab-daemon (скрипт **`start-lab-daemon-stand.sh`** выставляет из **`APP_URL`**). Laravel переписывает старые URL через **`PracticeTerminalUrl`**. После деплоя nginx + перезапуска daemon: в DevTools → Network не должно быть запросов `http://…:40…`.
+
 Чтобы **не пускать на портал без доменного SSO** (сразу редирект на ADFS с главной `/`), задайте **`OIDC_REQUIRED=true`** вместе с **`OIDC_ENABLED=true`**. Тогда вход по почте отключён; при ошибке SSO показывается страница с повтором входа.
 
 ### Редактор теории (Markdown) в браузере

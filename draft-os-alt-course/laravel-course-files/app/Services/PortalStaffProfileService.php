@@ -183,6 +183,7 @@ final class PortalStaffProfileService
         return match ($role) {
             PortalStaff::ROLE_PORTAL_ADMIN => ['Администратор портала', 'ap-staff-badge ap-staff-badge--admin'],
             PortalStaff::ROLE_COURSE_MODERATOR => ['Модератор', 'ap-staff-badge ap-staff-badge--moderator'],
+            PortalStaff::ROLE_PORTAL_AUDITOR => ['Аудитор портала', 'ap-staff-badge ap-staff-badge--auditor'],
             PortalStaff::ROLE_COURSE_CREATOR => ['Создатель курсов', 'ap-staff-badge ap-staff-badge--creator'],
             PortalStaff::ROLE_COURSE_EDITOR => ['Редактор курсов', 'ap-staff-badge ap-staff-badge--editor'],
             PortalStaff::ROLE_INSTRUCTOR => ['Преподаватель курса', 'ap-staff-badge ap-staff-badge--instructor'],

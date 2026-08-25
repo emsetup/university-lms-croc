@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\PracticeTerminalUrl;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -53,5 +54,15 @@ class PracticeSession extends Model
     {
         return in_array($this->status, ['provisioning', 'ready', 'check_pass', 'check_partial', 'check_fail'], true)
             && ($this->expires_at === null || $this->expires_at->isFuture());
+    }
+
+    public function getTerminalUrlAttribute(?string $value): ?string
+    {
+        return PracticeTerminalUrl::toHttpsProxy($value);
+    }
+
+    public function setTerminalUrlAttribute(?string $value): void
+    {
+        $this->attributes['terminal_url'] = PracticeTerminalUrl::toHttpsProxy($value);
     }
 }

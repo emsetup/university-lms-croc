@@ -84,6 +84,7 @@ for f in \
   app/Http/Controllers/AdminPanelController.php \
   app/Http/Controllers/AdminIncidentLogsController.php \
   app/Http/Controllers/AdminMailLogsController.php \
+  app/Http/Controllers/AdminPlatformStatsController.php \
   app/Http/Controllers/AdminSettingsController.php \
   app/Http/Controllers/AdminCoursesController.php \
   app/Http/Controllers/AdminCourseSettingsController.php \
@@ -140,6 +141,7 @@ for f in \
   app/Http/Middleware/LogAdminActivity.php \
   app/Http/Middleware/LogPortalIncidents.php \
   app/Http/Middleware/EnsurePortalAdmin.php \
+  app/Http/Middleware/EnsurePlatformStatsAccess.php \
   app/Services/CourseScoringService.php \
   app/Services/CourseSectionService.php \
   app/Services/CourseModuleService.php \
@@ -171,6 +173,7 @@ for f in \
   app/Services/Mail/PortalMailAssets.php \
   app/Services/Mail/PortalMailTemplateCatalog.php \
   app/Services/PortalServerStatsService.php \
+  app/Services/PortalPlatformStatsService.php \
   app/Support/PortalIncidentBootstrap.php \
   app/Services/LearnerLastActivityService.php \
   app/Services/PracticeLabDaemonClient.php \
@@ -606,6 +609,12 @@ fi
 if [[ -f "${LCF}/public/css/admin-panel.css" ]]; then
   echo "[deploy-laravel] public/css/admin-panel.css"
   rsync -az "${LCF}/public/css/admin-panel.css" "${STAND_SSH}:${REMOTE}/public/css/admin-panel.css"
+fi
+
+if [[ -f "${LCF}/public/css/platform-stats.css" ]]; then
+  echo "[deploy-laravel] public/css/platform-stats.css"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/css'"
+  rsync -az "${LCF}/public/css/platform-stats.css" "${STAND_SSH}:${REMOTE}/public/css/platform-stats.css"
 fi
 
 if [[ -f "${LCF}/public/css/docker-sandbox.css" ]]; then

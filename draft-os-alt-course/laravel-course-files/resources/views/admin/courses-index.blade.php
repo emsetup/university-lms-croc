@@ -49,6 +49,7 @@
                     $canTools = $portalStaffAccess && $portalStaffAccess->canUseCourseAdminTools();
                     $canViewStats = $portalStaffAccess && $portalStaffAccess->canViewCourseLearnerStats($cid);
                     $isInstructor = $portalStaffAccess && $portalStaffAccess->isInstructor();
+                    $statsOnlyEnter = $isInstructor || ($portalStaffAccess && $portalStaffAccess->isPortalAuditor() && ! $editable);
                     $canPublish = $editable && $portalStaffAccess && ! $portalStaffAccess->isCourseTester()
                         && empty($c['is_published']) && empty($c['is_archived']);
                     $canPreviewCourse = $portalStaffAccess && $portalStaffAccess->canPreviewCourse($cid);
@@ -118,9 +119,9 @@
                     <div class="ap-catalog-card__actions">
                         <a
                             class="btn btn-primary ap-catalog-card__btn-primary"
-                            href="{{ route('admin.courses.enter', ['course' => $cid, 'next' => $isInstructor ? 'learners' : 'content']) }}"
+                            href="{{ route('admin.courses.enter', ['course' => $cid, 'next' => $statsOnlyEnter ? 'learners' : 'content']) }}"
                         >
-                            {{ $isInstructor ? 'Обучающиеся' : 'Управлять курсом' }}
+                            {{ $statsOnlyEnter ? 'Обучающиеся' : 'Управлять курсом' }}
                             @include('partials.ap-icon', ['name' => 'chevron-right', 'size' => 'sm'])
                         </a>
                         @if ($canPreviewCourse)

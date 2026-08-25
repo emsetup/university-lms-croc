@@ -24,9 +24,14 @@ SECRET = os.environ["LAB_DAEMON_SECRET"]
 DOCKER = os.environ.get("DOCKER_BIN", "docker")
 CHECK_PATH = os.environ.get("LAB_CHECK_PATH", "/opt/lab-check/check.sh")
 TTL_MIN = int(os.environ.get("LAB_TTL_MINUTES", "480"))
+# Публичный префикс для ttyd через HTTPS reverse-proxy (без mixed content):
+#   LAB_PUBLIC_TTY_BASE=https://practice.croc.ru/ttyd  →  …/ttyd/<port>/
+# Если пусто — legacy URL http://LAB_PUBLIC_HOST:<port>/ (ломает HTTPS-портал).
 TTY_BASE = os.environ.get("LAB_PUBLIC_TTY_BASE", "").rstrip("/")
 LAB_ENABLE_TTY = os.getenv("LAB_ENABLE_TTY", "").lower() in ("1", "true", "yes")
 LAB_PUBLIC_HOST = os.getenv("LAB_PUBLIC_HOST", "").strip()
+# Слушать только localhost: снаружи — через nginx /ttyd/<port>/ (TLS).
+LAB_TTY_BIND = (os.getenv("LAB_TTY_BIND", "127.0.0.1") or "127.0.0.1").strip()
 PORT_MIN = int(os.getenv("LAB_TTY_PORT_MIN", "40000"))
 PORT_MAX = int(os.getenv("LAB_TTY_PORT_MAX", "41000"))
 LAB_SHELL_USER = (os.getenv("LAB_SHELL_USER", "student") or "student").strip()
@@ -258,8 +263,17 @@ class CreateLabBody(BaseModel):
     image: str = Field(..., min_length=1)
 
 
+def _public_tty_url(port: int) -> str:
+    """URL для браузера: предпочтительно HTTPS через nginx /ttyd/<port>/."""
+    if TTY_BASE:
+        return f"{TTY_BASE}/{port}/"
+    if not LAB_PUBLIC_HOST:
+        raise ValueError("LAB_PUBLIC_HOST or LAB_PUBLIC_TTY_BASE required")
+    return f"http://{LAB_PUBLIC_HOST}:{port}/"
+
+
 def _start_tty(lab_id: str, container_name: str) -> str | None:
-    if not LAB_ENABLE_TTY or not LAB_PUBLIC_HOST:
+    if not LAB_ENABLE_TTY or (not TTY_BASE and not LAB_PUBLIC_HOST):
         return None
     if not shutil.which("ttyd"):
         return None
@@ -276,6 +290,8 @@ def _start_tty(lab_id: str, container_name: str) -> str | None:
         cmd = [
             "ttyd",
             "-W",
+            "-i",
+            LAB_TTY_BIND,
             "-p",
             str(port),
             "-b",
@@ -321,7 +337,7 @@ def _start_tty(lab_id: str, container_name: str) -> str | None:
             if proc.poll() is not None:
                 continue
             TTY_PROCS[lab_id] = proc
-            return f"http://{LAB_PUBLIC_HOST}:{port}/"
+            return _public_tty_url(port)
         except OSError:
             continue
     return None
