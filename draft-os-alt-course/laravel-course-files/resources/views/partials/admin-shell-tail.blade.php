@@ -22,3 +22,4 @@
 <script src="{{ asset('js/admin-create-course-modal.js') }}" defer></script>
 <script src="{{ asset('js/admin-command-palette.js') }}" defer></script>
 <script src="{{ asset('js/admin-settings-menu.js') }}" defer></script>
+<script src="{{ asset('js/admin-topbar.js') }}" defer></script>

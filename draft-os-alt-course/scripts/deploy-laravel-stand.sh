@@ -750,6 +750,11 @@ if [[ -f "${LCF}/public/js/admin-settings-menu.js" ]]; then
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
   rsync -az "${LCF}/public/js/admin-settings-menu.js" "${STAND_SSH}:${REMOTE}/public/js/admin-settings-menu.js"
 fi
+if [[ -f "${LCF}/public/js/admin-topbar.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-topbar.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-topbar.js" "${STAND_SSH}:${REMOTE}/public/js/admin-topbar.js"
+fi
 
 if [[ -f "${LCF}/public/js/admin-settings-impersonate.js" ]]; then
   echo "[deploy-laravel] public/js/admin-settings-impersonate.js"

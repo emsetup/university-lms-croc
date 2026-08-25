@@ -36,13 +36,15 @@
 }
 
 .admin-topbar {
-  height: 52px;
+  min-height: 52px;
+  height: auto;
   background: #fff;
   border-bottom: 1px solid var(--border);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  padding: 0 32px;
-  gap: 8px;
+  padding: 8px 32px;
+  gap: 8px 12px;
   flex-shrink: 0;
   position: relative;
   z-index: 100;
@@ -59,12 +61,19 @@
   background: var(--brand);
 }
 
+.admin-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
 .admin-topbar__logo {
   font-size: 18px;
   font-weight: 800;
   color: var(--brand);
   letter-spacing: -0.5px;
-  margin-right: 16px;
   text-decoration: none;
   white-space: nowrap;
 }
@@ -76,23 +85,47 @@
   margin-left: 6px;
 }
 
+.admin-topbar__menu-toggle {
+  display: none;
+}
+
+.admin-topbar__menu-toggle-label {
+  font-size: 13px;
+}
+
+.admin-topbar__panels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .admin-topbar__nav {
   display: flex;
   align-items: center;
   gap: 2px;
   flex-wrap: wrap;
-}
-
-.admin-topbar__spacer {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .admin-topbar__actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  margin-left: auto;
+  min-width: 0;
   overflow: visible;
+}
+
+.admin-topbar__logout {
+  margin: 0;
+  display: inline-flex;
 }
 
 .nav-item {
@@ -119,27 +152,7 @@
 .nav-item.active {
   color: var(--brand);
   font-weight: 600;
-}
-
-.nav-item.active::after {
-  content: "";
-  position: absolute;
-  bottom: -10px;
-  left: 8px;
-  right: 8px;
-  height: 2px;
-  background: var(--brand);
-  border-radius: 2px 2px 0 0;
-  animation: navUnderline 0.2s ease;
-}
-
-@keyframes navUnderline {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
+  box-shadow: inset 0 -2px 0 var(--brand);
 }
 
 .nav-cmd-btn {
@@ -162,6 +175,100 @@
   border-color: var(--brand);
   color: var(--brand);
   background: var(--brand-light);
+}
+
+/* Средние экраны: второй ряд под действиями, навигация не «рвётся» */
+@media (max-width: 1280px) {
+  .admin-topbar {
+    padding: 8px 20px;
+  }
+
+  .admin-topbar__logo span {
+    display: none;
+  }
+
+  .admin-topbar__actions {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+    padding-top: 6px;
+    border-top: 1px solid #f3f4f6;
+  }
+}
+
+@media (max-width: 960px) {
+  .admin-topbar__actions .nav-cmd-btn .kbd {
+    display: none;
+  }
+}
+
+/* Узкие экраны: компактный бренд + выезжающее меню */
+@media (max-width: 720px) {
+  .admin-topbar {
+    padding: 8px 12px;
+    gap: 0;
+  }
+
+  .admin-topbar__brand {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .admin-topbar__menu-toggle {
+    display: inline-flex;
+  }
+
+  .admin-topbar__panels {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 0 4px;
+    border-top: 1px solid #f3f4f6;
+    margin-top: 8px;
+  }
+
+  .admin-topbar.is-menu-open .admin-topbar__panels {
+    display: flex;
+  }
+
+  .admin-topbar__nav {
+    width: 100%;
+    gap: 4px;
+  }
+
+  .admin-topbar__nav .nav-item {
+    display: inline-flex;
+    flex: 1 1 calc(50% - 4px);
+    text-align: center;
+    justify-content: center;
+  }
+
+  .admin-topbar__actions {
+    width: 100%;
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    padding-top: 0;
+    border-top: none;
+    gap: 6px;
+  }
+
+  .admin-topbar__actions .nav-cmd-btn,
+  .admin-topbar__actions .admin-settings-menu {
+    flex: 1 1 calc(50% - 6px);
+  }
+
+  .admin-topbar__actions .admin-settings-menu .nav-cmd-btn,
+  .admin-topbar__logout .nav-cmd-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .admin-topbar__actions .admin-settings-menu__panel {
+    left: 0;
+    right: auto;
+  }
 }
 
 .admin-settings-menu {
