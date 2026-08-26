@@ -811,11 +811,11 @@
                         <div class="portal-contact-card__contacts">
                             <div class="portal-contact-card__item">
                                 <span class="portal-contact-card__label">Добавление курсов и права доступа</span>
-                                <a href="mailto:ArZhukov@croc.ru">ArZhukov@croc.ru</a>
+                                <a href="mailto:emednikov@croc.ru">emednikov@croc.ru</a>
                             </div>
                             <div class="portal-contact-card__item">
                                 <span class="portal-contact-card__label">Вопросы по доработке портала</span>
-                                <a href="mailto:EMednikov@croc.ru">EMednikov@croc.ru</a>
+                                <a href="mailto:emednikov@croc.ru">emednikov@croc.ru</a>
                             </div>
                         </div>
                     </div>
