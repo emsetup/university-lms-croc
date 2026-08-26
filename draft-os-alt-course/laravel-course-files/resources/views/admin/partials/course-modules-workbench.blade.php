@@ -510,7 +510,7 @@
                     <legend class="ap-settings-label">Время</legend>
                     <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-time" value="inherit"> Наследовать от курса (<span id="ap-sec-hint-time"></span>)</label>
                     <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-time" value="own"> Задать своё</label>
-                    <input id="ap-sec-own-time" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="0" max="10080" placeholder="минуты" hidden>
+                    <input id="ap-sec-own-time" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="0" max="10080" placeholder="пусто = без лимита" hidden>
                 </fieldset>
                 <fieldset class="ap-sec-edit-panel__inherit ap-sec-settings-quiz-only">
                     <legend class="ap-settings-label">Проходной балл</legend>
@@ -518,6 +518,18 @@
                     <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-pass" value="own"> Задать своё</label>
                     <input id="ap-sec-own-pass" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="1" max="100" placeholder="%" hidden>
                 </fieldset>
+                <div class="ap-sec-settings-quiz-only" id="ap-sec-breakdown-fields">
+                    <div class="ap-sec-edit-panel__toggle-row">
+                        <span class="ap-settings-label" style="margin:0">Разбор без ограничения по времени</span>
+                        <label class="ap-sec-edit-panel__switch">
+                            <input type="checkbox" id="ap-sec-breakdown-unlimited">
+                            <span class="ap-sec-edit-panel__switch-ui" aria-hidden="true"></span>
+                        </label>
+                    </div>
+                    <label class="ap-settings-label" for="ap-sec-breakdown-minutes">Минут видимости разбора (0 = скрыть)</label>
+                    <input id="ap-sec-breakdown-minutes" class="ap-modal__input" type="number" min="0" max="10080" placeholder="например 15">
+                    <p class="ap-muted small">Для тренировочных тестов (не за баллы) можно снять лимит — обучающийся разберёт ошибки без таймера.</p>
+                </div>
                 <div class="ap-sec-settings-survey-only" id="ap-sec-survey-fields" hidden>
                     <div class="ap-sec-edit-panel__toggle-row">
                         <span class="ap-settings-label" style="margin:0">Анонимный опрос</span>

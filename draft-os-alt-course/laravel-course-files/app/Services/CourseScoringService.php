@@ -37,6 +37,44 @@ final class CourseScoringService
 
     public const MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES = 5;
 
+    /** Sentinel in section/bank settings: разбор без ограничения по времени. */
+    public const BREAKDOWN_VISIBLE_UNLIMITED = -1;
+
+    /**
+     * Нормализация минут видимости разбора.
+     * null = без ограничения; 0 = не показывать; >0 = минуты.
+     */
+    public static function normalizeBreakdownVisibleMinutes(mixed $value, int $fallback): ?int
+    {
+        if ($value === null || $value === '') {
+            return $fallback;
+        }
+        if (! is_numeric($value)) {
+            return $fallback;
+        }
+        $n = (int) $value;
+        if ($n < 0) {
+            return null;
+        }
+
+        return $n;
+    }
+
+    /**
+     * Метка окончания окна разбора (unix ts) или null при безлимите; 0 — разбор скрыт.
+     */
+    public static function breakdownVisibleUntilTimestamp(?int $minutes): ?int
+    {
+        if ($minutes === null) {
+            return null;
+        }
+        if ($minutes <= 0) {
+            return 0;
+        }
+
+        return now()->addMinutes($minutes)->getTimestamp();
+    }
+
     public const MODULE_SCORE_WEIGHT_THEORY_QUIZ = 0.25;
 
     public const MODULE_SCORE_WEIGHT_PRACTICE = 0.25;

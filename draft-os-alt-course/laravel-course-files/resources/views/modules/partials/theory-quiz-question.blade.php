@@ -82,7 +82,7 @@
             </div>
         @endif
     @elseif ($multi)
-        <p class="muted small" style="margin:0.35rem 0 0.5rem">Отметьте все верные варианты.</p>
+        @include('modules.partials.quiz-multi-hint')
         @foreach ($opts as $j => $opt)
             <label class="choice">
                 <input type="checkbox" name="{{ $preview ? 'preview_'.$inputPrefix : $inputPrefix }}{{ $i }}[]" value="{{ $j }}">

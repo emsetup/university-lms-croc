@@ -338,6 +338,12 @@ if [[ -f "${LCF}/database/migrations/2026_08_06_190000_add_show_score_display_fl
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_08_06_190000_add_show_score_display_flags.php"
 fi
 
+if [[ -f "${LCF}/database/migrations/2026_08_26_180000_signed_breakdown_visible_minutes.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…signed_breakdown_visible_minutes…"
+  rsync -az "${LCF}/database/migrations/2026_08_26_180000_signed_breakdown_visible_minutes.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_08_26_180000_signed_breakdown_visible_minutes.php"
+fi
+
 if [[ -f "${LCF}/database/migrations/2026_06_09_140000_add_audience_plaque_to_courses_table.php" ]]; then
   echo "[deploy-laravel] database/migrations/…audience_plaque…"
   rsync -az "${LCF}/database/migrations/2026_06_09_140000_add_audience_plaque_to_courses_table.php" \

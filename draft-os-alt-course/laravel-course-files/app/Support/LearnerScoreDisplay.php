@@ -24,6 +24,25 @@ final class LearnerScoreDisplay
     }
 
     /**
+     * Сводка и шкалы прохождения модулей/этапов для обучающихся.
+     * Скрывается при свободном доступе ко всем модулям и при явном отключении в настройках курса.
+     */
+    public static function showModuleProgress(?Course $course): bool
+    {
+        if ($course === null) {
+            return true;
+        }
+        if (Schema::hasColumn('courses', 'unlock_all_modules') && (bool) ($course->unlock_all_modules ?? false)) {
+            return false;
+        }
+        if (! Schema::hasColumn('courses', 'show_module_progress')) {
+            return true;
+        }
+
+        return (bool) ($course->show_module_progress ?? true);
+    }
+
+    /**
      * @return array{showScorePercents: bool, showScorePoints: bool}
      */
     public static function flags(?Course $course, ?CourseModule $module = null): array

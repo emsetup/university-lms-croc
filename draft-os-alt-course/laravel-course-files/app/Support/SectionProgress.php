@@ -193,37 +193,49 @@ final class SectionProgress
     }
 
     /**
-     * @return array{deadline: ?\Carbon\CarbonInterface, for_attempt: int}
+     * @return array{deadline: ?\Carbon\CarbonInterface, for_attempt: int, unlimited: bool}
      */
     public static function examDeadline(ModuleProgress $p, CourseSection $section, bool $soleExamInModule): array
     {
         $st = self::stateFor($p, (int) $section->id);
-        if (! empty($st['exam_deadline_at'])) {
-            try {
-                $deadline = \Carbon\Carbon::parse((string) $st['exam_deadline_at']);
-
-                return [
-                    'deadline' => $deadline,
-                    'for_attempt' => (int) ($st['exam_deadline_for_attempt'] ?? 0),
-                ];
-            } catch (\Throwable) {
-                // fall through
+        $forAttempt = (int) ($st['exam_deadline_for_attempt'] ?? 0);
+        if ($forAttempt > 0) {
+            if (! empty($st['exam_deadline_at'])) {
+                try {
+                    return [
+                        'deadline' => \Carbon\Carbon::parse((string) $st['exam_deadline_at']),
+                        'for_attempt' => $forAttempt,
+                        'unlimited' => false,
+                    ];
+                } catch (\Throwable) {
+                    // fall through
+                }
             }
-        }
-        if ($soleExamInModule && $section->type === CourseSection::TYPE_EXAM) {
+
             return [
-                'deadline' => $p->module_exam_deadline_at,
-                'for_attempt' => (int) ($p->module_exam_deadline_for_attempt ?? 0),
+                'deadline' => null,
+                'for_attempt' => $forAttempt,
+                'unlimited' => true,
             ];
         }
+        if ($soleExamInModule && $section->type === CourseSection::TYPE_EXAM) {
+            $for = (int) ($p->module_exam_deadline_for_attempt ?? 0);
+            if ($for > 0) {
+                return [
+                    'deadline' => $p->module_exam_deadline_at,
+                    'for_attempt' => $for,
+                    'unlimited' => $p->module_exam_deadline_at === null,
+                ];
+            }
+        }
 
-        return ['deadline' => null, 'for_attempt' => 0];
+        return ['deadline' => null, 'for_attempt' => 0, 'unlimited' => false];
     }
 
-    public static function setExamDeadline(ModuleProgress $p, CourseSection $section, bool $soleExamInModule, \Carbon\CarbonInterface $deadline, int $forAttempt): void
+    public static function setExamDeadline(ModuleProgress $p, CourseSection $section, bool $soleExamInModule, ?\Carbon\CarbonInterface $deadline, int $forAttempt): void
     {
         self::mergeState($p, (int) $section->id, [
-            'exam_deadline_at' => $deadline->toIso8601String(),
+            'exam_deadline_at' => $deadline?->toIso8601String(),
             'exam_deadline_for_attempt' => $forAttempt,
         ]);
         if ($soleExamInModule && $section->type === CourseSection::TYPE_EXAM) {

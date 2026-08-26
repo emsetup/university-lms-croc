@@ -329,7 +329,7 @@ class AdminTheoryController extends Controller
         ]);
     }
 
-    private function moduleExamTimeLimitMinutes(Course $course, int $module): int
+    private function moduleExamTimeLimitMinutes(Course $course, int $module): ?int
     {
         if ($course->isLegacyAltCourse()) {
             $v = config('course.modules.'.$module.'.module_exam_time_limit_minutes');
@@ -381,7 +381,7 @@ class AdminTheoryController extends Controller
                 $ex = $db['exam'];
                 $practiceMd = (string) $db['practice_markdown'];
                 $theoryChars = (int) $db['theory_chars'];
-                $examTimeMin = (int) $db['exam_time_min'];
+                $examTimeMin = $db['exam_time_min'];
                 $hasPracticeSection = (bool) $db['has_practice_section'];
                 $survey = AdminCourseContentInspector::questionsForModuleSections($cm, CourseSection::TYPE_SURVEY);
             }

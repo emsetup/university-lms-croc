@@ -16,6 +16,7 @@
     $quizSt = SectionProgress::quizState($p, $section, $sole);
     $showScorePercents = $showScorePercents ?? true;
     $showScorePoints = $showScorePoints ?? true;
+    $showModuleProgress = $showModuleProgress ?? true;
 @endphp
 <li>
 @if ($openTag === 'a')
@@ -31,10 +32,12 @@
             @if ($section->type === CourseSection::TYPE_TEXT)
                 @php $textDone = SectionProgress::isTextRead($p, $section, $sole); @endphp
                 <div class="hub-line1">
+                    @if ($showModuleProgress)
                     <div class="hub-track" title="Этап: просмотр теории">
                         <div class="hub-track__fill{{ $textDone ? '' : ' hub-track__fill--muted' }}" style="width: {{ $textDone ? 100 : 0 }}%"></div>
                     </div>
-                    @if ($showScorePercents)
+                    @endif
+                    @if ($showModuleProgress && $showScorePercents)
                         <span class="hub-pct hub-pct--muted">{{ $textDone ? '100' : '0' }}%</span>
                     @endif
                     @if ($textDone)
@@ -67,12 +70,14 @@
                             : 'После попытки здесь появится результат');
                 @endphp
                 <div class="hub-line1">
+                    @if ($showModuleProgress)
                     <div class="hub-track" title="{{ $showScorePercents ? 'Лучший результат, порог '.$th.'%' : 'Лучший результат' }}">
                         @if ($showScorePercents)
                             <span class="hub-track__tick" style="left: {{ $th }}%"></span>
                         @endif
                         <div class="hub-track__fill{{ $tqBar >= $th ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) $tqBar }}%"></div>
                     </div>
+                    @endif
                     @if ($showScorePercents)
                         <span class="hub-pct">{{ $tqAtt > 0 ? $tqBest : '—' }}@if($tqAtt > 0)%@endif</span>
                     @endif
@@ -88,10 +93,12 @@
             @elseif ($section->type === CourseSection::TYPE_PRACTICE)
                 @if ($waived)
                     <div class="hub-line1">
+                        @if ($showModuleProgress)
                         <div class="hub-track" title="Нет этапа">
                             <div class="hub-track__fill hub-track__fill--muted" style="width: 0%"></div>
                         </div>
-                        @if ($showScorePercents)
+                        @endif
+                        @if ($showModuleProgress && $showScorePercents)
                             <span class="hub-pct hub-pct--muted">—</span>
                         @endif
                         <span class="hub-badge hub-badge--na">Нет</span>
@@ -100,9 +107,11 @@
                 @else
                     @php $prPct = SectionProgress::practicePercent($p, $section, $sole); @endphp
                     <div class="hub-line1">
+                        @if ($showModuleProgress)
                         <div class="hub-track" title="Автопроверка стенда">
                             <div class="hub-track__fill{{ $prPct >= 100 ? '' : ($prPct > 0 ? '' : ' hub-track__fill--muted') }}" style="width: {{ (int) min(100, $prPct) }}%"></div>
                         </div>
+                        @endif
                         @if ($showScorePercents)
                             <span class="hub-pct">{{ $prPct > 0 ? (int) $prPct.'%' : '—' }}</span>
                         @endif
@@ -148,12 +157,14 @@
                         : (bool) ($p->module_exam_passed ?? false);
                 @endphp
                 <div class="hub-line1">
+                    @if ($showModuleProgress)
                     <div class="hub-track" title="{{ $showScorePercents ? 'Итог последней попытки, порог '.$thEx.'%' : 'Итог последней попытки' }}">
                         @if ($showScorePercents)
                             <span class="hub-track__tick" style="left: {{ $thEx }}%"></span>
                         @endif
                         <div class="hub-track__fill{{ $exBar >= $thEx ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) $exBar }}%"></div>
                     </div>
+                    @endif
                     @if ($showScorePercents)
                         <span class="hub-pct">{{ $exAtt > 0 ? $exBest : '—' }}@if($exAtt > 0)%@endif</span>
                     @endif
@@ -173,10 +184,12 @@
                         : false;
                 @endphp
                 <div class="hub-line1">
+                    @if ($showModuleProgress)
                     <div class="hub-track" title="Опрос">
                         <div class="hub-track__fill{{ $surveyDone ? '' : ' hub-track__fill--muted' }}" style="width: {{ $surveyDone ? 100 : 0 }}%"></div>
                     </div>
-                    @if ($showScorePercents)
+                    @endif
+                    @if ($showModuleProgress && $showScorePercents)
                         <span class="hub-pct hub-pct--muted">{{ $surveyDone ? '100' : '0' }}%</span>
                     @endif
                     @if ($surveyDone)

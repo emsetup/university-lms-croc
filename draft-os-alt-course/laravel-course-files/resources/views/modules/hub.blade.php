@@ -30,6 +30,7 @@
     $thEx = (int) ($passThresholdExam ?? $passThreshold ?? $th);
     $showScorePercents = $showScorePercents ?? true;
     $showScorePoints = $showScorePoints ?? ($showModuleScoring ?? true);
+    $showModuleProgress = $showModuleProgress ?? true;
 
     $theoryBar = $p->theory_read_at ? 100 : 0;
     $tqBar = $tqAtt > 0 ? min(100, $tqBest) : 0;
@@ -104,11 +105,12 @@
             </header>
 
             @php
-                $hubHasScoreRow = $showScorePercents || $showScorePoints;
+                $hubShowStagesProgress = $showModuleProgress && $showScorePercents;
+                $hubHasScoreRow = $hubShowStagesProgress || $showScorePoints;
             @endphp
             @if ($hubHasScoreRow)
-            <div class="module-progress-row @if (! ($showScorePercents && $showScorePoints)) module-progress-row--single @endif" aria-label="Сводка по модулю">
-                @if ($showScorePercents)
+            <div class="module-progress-row @if (! ($hubShowStagesProgress && $showScorePoints)) module-progress-row--single @endif" aria-label="Сводка по модулю">
+                @if ($hubShowStagesProgress)
                 <div class="module-progress-item">
                     <div class="module-progress-label">Этапы</div>
                     <div class="module-progress-value">{{ (int) $percent }}%</div>
@@ -122,7 +124,7 @@
                 @endif
             </div>
             @endif
-            @if ($showScorePercents)
+            @if ($hubShowStagesProgress)
             <div class="progress-track module-hub__overall-bar" title="Доля завершённых этапов модуля" aria-hidden="true">
                 <div class="progress-fill" style="width: {{ min(100, max(0, (int) $percent)) }}%"></div>
             </div>
@@ -191,6 +193,7 @@
                             'sectionService' => $sectionService,
                             'showScorePercents' => $showScorePercents,
                             'showScorePoints' => $showScorePoints,
+                            'showModuleProgress' => $showModuleProgress,
                         ])
                     @endforeach
                 @else
@@ -202,10 +205,12 @@
                         </div>
                         <div class="hub-meta">
                             <div class="hub-line1">
+                                @if ($showModuleProgress)
                                 <div class="hub-track" title="Этап: просмотр теории">
                                     <div class="hub-track__fill{{ $theoryBar >= 100 ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) $theoryBar }}%"></div>
                                 </div>
-                                @if ($showScorePercents)
+                                @endif
+                                @if ($showModuleProgress && $showScorePercents)
                                     <span class="hub-pct hub-pct--muted">{{ $p->theory_read_at ? '100' : '0' }}%</span>
                                 @endif
                                 @if ($p->theory_read_at)
@@ -228,12 +233,14 @@
                         </div>
                         <div class="hub-meta">
                             <div class="hub-line1">
+                                @if ($showModuleProgress)
                                 <div class="hub-track" title="{{ $showScorePercents ? 'Лучший результат, порог '.$th.'%' : 'Лучший результат' }}">
                                     @if ($showScorePercents)
                                         <span class="hub-track__tick" style="left: {{ $th }}%"></span>
                                     @endif
                                     <div class="hub-track__fill{{ $tqBar >= $th ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) $tqBar }}%"></div>
                                 </div>
+                                @endif
                                 @if ($showScorePercents)
                                     <span class="hub-pct">{{ $tqAtt > 0 ? $tqBest : '—' }}@if($tqAtt > 0)%@endif</span>
                                 @endif
@@ -260,10 +267,12 @@
                             </div>
                             <div class="hub-meta">
                                 <div class="hub-line1">
+                                    @if ($showModuleProgress)
                                     <div class="hub-track" title="Нет этапа">
                                         <div class="hub-track__fill hub-track__fill--muted" style="width: 0%"></div>
                                     </div>
-                                    @if ($showScorePercents)
+                                    @endif
+                                    @if ($showModuleProgress && $showScorePercents)
                                         <span class="hub-pct hub-pct--muted">—</span>
                                     @endif
                                     <span class="hub-badge hub-badge--na">Нет</span>
@@ -282,9 +291,11 @@
                             </div>
                             <div class="hub-meta">
                                 <div class="hub-line1">
+                                    @if ($showModuleProgress)
                                     <div class="hub-track" title="Автопроверка стенда">
                                         <div class="hub-track__fill{{ $prPct >= 100 ? '' : ($prPct > 0 ? '' : ' hub-track__fill--muted') }}" style="width: {{ (int) min(100, $prPct) }}%"></div>
                                     </div>
+                                    @endif
                                     @if ($showScorePercents)
                                         <span class="hub-pct">{{ $p->practice_lab_percent !== null ? (int) $p->practice_lab_percent.'%' : ($p->practice_done_at ? '100%' : '—') }}</span>
                                     @endif
@@ -309,12 +320,14 @@
                         </div>
                         <div class="hub-meta">
                             <div class="hub-line1">
+                                @if ($showModuleProgress)
                                 <div class="hub-track" title="{{ $showScorePercents ? 'Итог последней попытки, порог '.$thEx.'%' : 'Итог последней попытки' }}">
                                     @if ($showScorePercents)
                                         <span class="hub-track__tick" style="left: {{ $thEx }}%"></span>
                                     @endif
                                     <div class="hub-track__fill{{ $exBar >= $thEx ? '' : ' hub-track__fill--muted' }}" style="width: {{ (int) $exBar }}%"></div>
                                 </div>
+                                @endif
                                 @if ($showScorePercents)
                                     <span class="hub-pct">{{ $exAtt > 0 ? $exBest : '—' }}@if($exAtt > 0)%@endif</span>
                                 @endif

@@ -178,6 +178,10 @@ final class ModuleAccessGate
         if (ShareLinkEntryContext::bypassesStepGates($courseModuleId, $courseId > 0 ? $courseId : null)) {
             return null;
         }
+        // Свободный доступ к модулям курса → этапы внутри модуля тоже без цепочки.
+        if ($courseId > 0 && $this->courseUnlocksAllModules($courseId)) {
+            return null;
+        }
 
         $cm = $this->modules->findForCourse($courseId, $courseModuleId);
         $contentIdx = $cm?->effectiveContentIndex() ?? 1;

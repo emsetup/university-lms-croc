@@ -216,7 +216,7 @@ class ModuleController extends Controller
         return $this->courseContent->questionsForBank($bank);
     }
 
-    protected function moduleExamTimeLimitMinutesForSection(CourseSection $section, CourseModule $cm): int
+    protected function moduleExamTimeLimitMinutesForSection(CourseSection $section, CourseModule $cm): ?int
     {
         $courseModuleId = (int) $cm->id;
         $idx = $cm->effectiveContentIndex();
@@ -317,8 +317,9 @@ class ModuleController extends Controller
 
     /**
      * Лимит времени на итоговый тест модуля (мин.): из course.modules[N].module_exam_time_limit_minutes или константа.
+     * null = без ограничения.
      */
-    protected function moduleExamTimeLimitMinutes(CourseModule $cm): int
+    protected function moduleExamTimeLimitMinutes(CourseModule $cm): ?int
     {
         $courseId = LearnerPreviewContext::courseId();
         $courseModuleId = (int) $cm->id;
@@ -341,7 +342,7 @@ class ModuleController extends Controller
     }
 
     /**
-     * Разбор для обучающегося: только ошибки/пропуски, ограниченное время после попытки.
+     * Разбор для обучающегося: только ошибки/пропуски; окно по времени или без ограничения.
      *
      * @param  array<string, mixed>  $data
      * @return array{
@@ -354,13 +355,17 @@ class ModuleController extends Controller
      */
     protected function prepareLearnerQuizBreakdownView(array $data): array
     {
-        $until = isset($data['breakdown_visible_until']) ? (int) $data['breakdown_visible_until'] : 0;
-        $withinWindow = $until > 0 && $until > now()->getTimestamp();
-        $breakdownExpired = $until > 0 && ! $withinWindow;
+        $unlimited = ! empty($data['breakdown_unlimited']);
+        $until = array_key_exists('breakdown_visible_until', $data) && $data['breakdown_visible_until'] !== null
+            ? (int) $data['breakdown_visible_until']
+            : 0;
+        // Старые попытки без флага: null until не встречался; until=0 — разбор скрыт.
+        $withinWindow = $unlimited || ($until > 0 && $until > now()->getTimestamp());
+        $breakdownExpired = ! $unlimited && $until > 0 && ! $withinWindow;
 
         $result = $data;
         if (! $withinWindow) {
-            unset($result['items'], $result['breakdown_visible_until']);
+            unset($result['items'], $result['breakdown_visible_until'], $result['breakdown_unlimited']);
         }
 
         $wrongItems = [];
@@ -380,7 +385,7 @@ class ModuleController extends Controller
             'showBreakdown' => $withinWindow && $wrongItems !== [],
             'breakdownExpired' => $breakdownExpired,
             'wrongItems' => $wrongItems,
-            'breakdownUntilTs' => $withinWindow ? $until : null,
+            'breakdownUntilTs' => ($withinWindow && ! $unlimited && $until > 0) ? $until : null,
         ];
     }
 
@@ -668,11 +673,14 @@ class ModuleController extends Controller
         if ($courseId > 0 && Schema::hasTable('course_sections')
             && $this->sectionService->useDbSectionsForModule($mid)) {
             $legacyAlt = $this->courseModules->selectedCourseIsLegacyAlt();
+            $freeSectionOrder = ! $sequentialCourse;
             $hubPresent = [];
             foreach ($this->visibility->visibleSectionsForLearner($mid, (int) $learner->id) as $sec) {
                 $bk = $sec->backendStepKey();
                 $waived = $sec->legacyTypeKey() === 'practice' && $this->sectionService->isPracticeWaived($mid, $contentIdx, $legacyAlt);
-                $blocked = $waived ? null : $this->sectionService->firstBlockedPrerequisite($p, $mid, $contentIdx, $bk, $legacyAlt);
+                $blocked = ($waived || $freeSectionOrder)
+                    ? null
+                    : $this->sectionService->firstBlockedPrerequisite($p, $mid, $contentIdx, $bk, $legacyAlt);
                 $previewOpen = \App\Support\CourseStaffPreview::isActive($request);
                 $hubPresent[] = [
                     'section' => $sec,
@@ -723,6 +731,7 @@ class ModuleController extends Controller
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
         $scoreDisplay = LearnerScoreDisplay::flags($course, $cm);
         $showModuleScoring = $scoreDisplay['showScorePoints'];
+        $showModuleProgress = LearnerScoreDisplay::showModuleProgress($course);
 
         return view('modules.hub', [
             'courseId' => $courseId,
@@ -750,6 +759,7 @@ class ModuleController extends Controller
             'difficultyEnabled' => $difficultyEnabled,
             'difficultyOptions' => $difficultyOptions,
             'showModuleScoring' => $showModuleScoring,
+            'showModuleProgress' => $showModuleProgress,
             'showScorePercents' => $scoreDisplay['showScorePercents'],
             'showScorePoints' => $scoreDisplay['showScorePoints'],
         ]);
@@ -881,20 +891,28 @@ class ModuleController extends Controller
         }
 
         $deadlineKey = $this->theoryQuizDeadlineKey((int) $learner->id, $mid, $sectionId);
+        $wallKey = $this->theoryQuizWallStartKey((int) $learner->id, $mid, $sectionId);
         $ts = session($deadlineKey);
+        $wallStart = session($wallKey);
         if ($ts !== null && is_numeric($ts) && (int) $ts <= now()->getTimestamp()) {
-            session()->forget($deadlineKey);
+            session()->forget([$deadlineKey, $wallKey]);
             $ts = null;
+            $wallStart = null;
         }
-
-        $previewWalkthrough = $this->staffPreviewWalkthrough();
-        $quizActive = $previewWalkthrough
-            || ($ts !== null && is_numeric($ts) && (int) $ts > now()->getTimestamp());
-        $expiresAtMs = $previewWalkthrough || ! $quizActive ? null : ((int) $ts) * 1000;
 
         $tl = $courseId > 0
             ? $this->sectionService->theoryQuizTimeLimitMinutesForSection($sec)
             : CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
+        $hasTimeLimit = $tl !== null && (int) $tl > 0;
+
+        $previewWalkthrough = $this->staffPreviewWalkthrough();
+        $deadlineActive = $ts !== null && is_numeric($ts) && (int) $ts > now()->getTimestamp();
+        $unlimitedActive = ! $hasTimeLimit && $wallStart !== null && is_numeric($wallStart);
+        $quizActive = $previewWalkthrough || $deadlineActive || $unlimitedActive;
+        $expiresAtMs = $previewWalkthrough || ! $quizActive || ! $hasTimeLimit || ! $deadlineActive
+            ? null
+            : ((int) $ts) * 1000;
+
         $passTh = $courseId > 0
             ? $this->sectionService->passPercentForSection($sec)
             : CourseScoringService::PASS_THRESHOLD;
@@ -971,13 +989,19 @@ class ModuleController extends Controller
         }
 
         $deadlineKey = $this->theoryQuizDeadlineKey((int) $learner->id, $mid, $sectionId);
+        $wallKey = $this->theoryQuizWallStartKey((int) $learner->id, $mid, $sectionId);
         $tlMin = $courseId > 0
             ? $this->sectionService->theoryQuizTimeLimitMinutesForSection($sec)
             : CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
-        session([
-            $deadlineKey => now()->addMinutes($tlMin)->getTimestamp(),
-            $this->theoryQuizWallStartKey((int) $learner->id, $mid, $sectionId) => now()->getTimestamp(),
-        ]);
+        $sessionPayload = [
+            $wallKey => now()->getTimestamp(),
+        ];
+        if ($tlMin !== null && (int) $tlMin > 0) {
+            $sessionPayload[$deadlineKey] = now()->addMinutes((int) $tlMin)->getTimestamp();
+        } else {
+            session()->forget($deadlineKey);
+        }
+        session($sessionPayload);
 
         if (($quizSt['attempts'] ?? 0) >= 1 || ($quizSt['best_score'] ?? 0) > 0 || ($quizSt['passed'] ?? false)) {
             SectionProgress::saveQuizState($p, $sec, $sole, ['passed' => false]);
@@ -1079,12 +1103,25 @@ class ModuleController extends Controller
             return $r;
         }
         $deadlineKey = $this->theoryQuizDeadlineKey((int) $learner->id, $mid, $sectionId);
+        $wallKey = $this->theoryQuizWallStartKey((int) $learner->id, $mid, $sectionId);
+        $tlMin = $courseId > 0
+            ? $this->sectionService->theoryQuizTimeLimitMinutesForSection($sec)
+            : CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
+        $hasTimeLimit = $tlMin !== null && (int) $tlMin > 0;
         $ts = session($deadlineKey);
-        if ($ts === null || ! is_numeric($ts) || now()->getTimestamp() > (int) $ts) {
-            session()->forget($deadlineKey);
+        $wallStartSess = session($wallKey);
+        if ($hasTimeLimit) {
+            if ($ts === null || ! is_numeric($ts) || now()->getTimestamp() > (int) $ts) {
+                session()->forget([$deadlineKey, $wallKey]);
+
+                return redirect()->route('course.module.section.theory-quiz', $this->sectionRouteParams($ctx))
+                    ->with('err', 'Время на прохождение теста истекло. Начните попытку снова.');
+            }
+        } elseif ($wallStartSess === null || ! is_numeric($wallStartSess)) {
+            session()->forget([$deadlineKey, $wallKey]);
 
             return redirect()->route('course.module.section.theory-quiz', $this->sectionRouteParams($ctx))
-                ->with('err', 'Время на прохождение теста истекло. Начните попытку снова.');
+                ->with('err', 'Активная попытка не найдена. Начните тестирование снова.');
         }
 
         $qs = $this->questionsForSection($sec, $contentIdx);
@@ -1103,12 +1140,12 @@ class ModuleController extends Controller
         $rawPercent = $breakdown['raw_percent'];
         $finalPercent = max(0, $rawPercent - $penalty);
 
-        $wallStart = session()->pull($this->theoryQuizWallStartKey((int) $learner->id, $mid, $sectionId));
+        $wallStart = session()->pull($wallKey);
         if ($wallStart !== null && is_numeric($wallStart)) {
-            $cap = ($courseId > 0
-                ? $this->sectionService->theoryQuizTimeLimitMinutesForSection($sec)
-                : CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES) * 60;
-            $elapsed = min($cap, max(0, now()->getTimestamp() - (int) $wallStart));
+            $elapsedRaw = max(0, now()->getTimestamp() - (int) $wallStart);
+            $elapsed = $hasTimeLimit
+                ? min((int) $tlMin * 60, $elapsedRaw)
+                : $elapsedRaw;
             if ($elapsed > 0) {
                 $p->seconds_theory_quiz = (int) ($p->seconds_theory_quiz ?? 0) + $elapsed;
             }
@@ -1117,6 +1154,8 @@ class ModuleController extends Controller
         $breakdownMinutes = $courseId > 0
             ? $this->sectionService->theoryQuizBreakdownVisibleMinutesForSection($sec)
             : CourseScoringService::THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES;
+        $breakdownUntil = CourseScoringService::breakdownVisibleUntilTimestamp($breakdownMinutes);
+        $breakdownUnlimited = $breakdownUntil === null;
 
         $payload = [
             'module' => $mid,
@@ -1130,7 +1169,8 @@ class ModuleController extends Controller
             'wrong_count' => $breakdown['wrong_count'],
             'total' => $breakdown['total'],
             'items' => $breakdown['items'],
-            'breakdown_visible_until' => now()->addMinutes($breakdownMinutes)->getTimestamp(),
+            'breakdown_visible_until' => $breakdownUnlimited ? null : (int) $breakdownUntil,
+            'breakdown_unlimited' => $breakdownUnlimited,
             'recorded_at' => now()->toIso8601String(),
             'attempt_no' => $attemptNo,
         ];
@@ -1292,25 +1332,30 @@ class ModuleController extends Controller
         $deadlineInfo = SectionProgress::examDeadline($p, $sec, $sole);
         $deadline = $deadlineInfo['deadline'];
         $deadlineFor = $deadlineInfo['for_attempt'];
+        $unlimitedAttempt = (bool) ($deadlineInfo['unlimited'] ?? false);
+        $timeLimitMin = $this->moduleExamTimeLimitMinutesForSection($sec, $cm);
+        $hasTimeLimit = $timeLimitMin !== null && (int) $timeLimitMin > 0;
 
         $deadlineValidForAttempt = ! $previewWalkthrough
-            && $deadline !== null
             && $deadlineFor > 0
             && $deadlineFor === $attemptNo
-            && $deadline->isFuture();
+            && (
+                ($hasTimeLimit && $deadline !== null && $deadline->isFuture())
+                || (! $hasTimeLimit && ($unlimitedAttempt || ($deadline !== null && $deadline->isFuture())))
+            );
 
-        if (! $previewWalkthrough && $deadline !== null && $deadlineFor === $attemptNo && $deadline->isPast()) {
+        if (! $previewWalkthrough && $hasTimeLimit && $deadline !== null && $deadlineFor === $attemptNo && $deadline->isPast()) {
             SectionProgress::clearExamDeadline($p, $sec, $sole);
             $p->save();
 
             return redirect()->to($this->hubUrl($ctx))->with(
                 'err',
-                'Отведённое на итоговый тест время ('.$this->moduleExamTimeLimitMinutesForSection($sec, $cm).' мин.) истекло. Начните попытку снова.'
+                'Отведённое на итоговый тест время ('.$timeLimitMin.' мин.) истекло. Начните попытку снова.'
             );
         }
 
         $examActive = $previewWalkthrough || $deadlineValidForAttempt;
-        $expiresAtMs = $previewWalkthrough || ! $examActive || $deadline === null
+        $expiresAtMs = $previewWalkthrough || ! $examActive || ! $hasTimeLimit || $deadline === null
             ? null
             : ($deadline->getTimestamp() * 1000);
         $scoreDisplay = LearnerScoreDisplay::flags(
@@ -1332,7 +1377,7 @@ class ModuleController extends Controller
             'maxAttempts' => $maxAttempts,
             'retakePenalty' => $retakePen,
             'passThreshold' => $passTh,
-            'timeLimitMinutes' => $this->moduleExamTimeLimitMinutesForSection($sec, $cm),
+            'timeLimitMinutes' => $timeLimitMin,
             'examActive' => $examActive,
             'expiresAtMs' => $expiresAtMs,
             'needsRetakeAck' => ! $previewWalkthrough && (int) ($quizSt['attempts'] ?? 0) >= 1,
@@ -1391,9 +1436,13 @@ class ModuleController extends Controller
         $deadlineInfo = SectionProgress::examDeadline($p, $sec, $sole);
         $deadline = $deadlineInfo['deadline'];
         $deadlineFor = $deadlineInfo['for_attempt'];
-        $alreadyActive = $deadline !== null
-            && $deadlineFor === $attemptNo
-            && $deadline->isFuture();
+        $unlimitedAttempt = (bool) ($deadlineInfo['unlimited'] ?? false);
+        $timeLimitMin = $this->moduleExamTimeLimitMinutesForSection($sec, $cm);
+        $hasTimeLimit = $timeLimitMin !== null && (int) $timeLimitMin > 0;
+        $alreadyActive = $deadlineFor === $attemptNo && (
+            ($hasTimeLimit && $deadline !== null && $deadline->isFuture())
+            || (! $hasTimeLimit && ($unlimitedAttempt || ($deadline !== null && $deadline->isFuture())))
+        );
 
         if ($alreadyActive) {
             return redirect()->route('course.module.section.exam', $this->sectionRouteParams($ctx));
@@ -1403,7 +1452,7 @@ class ModuleController extends Controller
             $p,
             $sec,
             $sole,
-            now()->addMinutes($this->moduleExamTimeLimitMinutesForSection($sec, $cm)),
+            $hasTimeLimit ? now()->addMinutes((int) $timeLimitMin) : null,
             $attemptNo,
         );
         $p->save();
@@ -1516,15 +1565,22 @@ class ModuleController extends Controller
         $deadlineInfo = SectionProgress::examDeadline($p, $sec, $sole);
         $deadline = $deadlineInfo['deadline'];
         $deadlineFor = $deadlineInfo['for_attempt'];
-        if ($deadline === null
-            || $deadlineFor !== $attemptNo
-            || $deadline->isPast()) {
+        $unlimitedAttempt = (bool) ($deadlineInfo['unlimited'] ?? false);
+        $timeLimitMin = $this->moduleExamTimeLimitMinutesForSection($sec, $cm);
+        $hasTimeLimit = $timeLimitMin !== null && (int) $timeLimitMin > 0;
+        $attemptActive = $deadlineFor === $attemptNo && (
+            ($hasTimeLimit && $deadline !== null && $deadline->isFuture())
+            || (! $hasTimeLimit && ($unlimitedAttempt || ($deadline !== null && $deadline->isFuture())))
+        );
+        if (! $attemptActive) {
             SectionProgress::clearExamDeadline($p, $sec, $sole);
             $p->save();
 
             return redirect()->to($this->hubUrl($ctx))->with(
                 'err',
-                'Время на прохождение итогового теста истекло. Начните попытку снова.'
+                $hasTimeLimit
+                    ? 'Время на прохождение итогового теста истекло. Начните попытку снова.'
+                    : 'Активная попытка не найдена. Начните итоговый тест снова.'
             );
         }
 
@@ -1543,6 +1599,12 @@ class ModuleController extends Controller
         $passedThisAttempt = $final >= $passTh;
         $modulePassed = $wasPassed || $passedThisAttempt;
 
+        $examBreakdownMinutes = $courseId > 0
+            ? $this->sectionService->examBreakdownVisibleMinutesForSection($sec)
+            : CourseScoringService::MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES;
+        $examBreakdownUntil = CourseScoringService::breakdownVisibleUntilTimestamp($examBreakdownMinutes);
+        $examBreakdownUnlimited = $examBreakdownUntil === null;
+
         $payload = [
             'module' => $mid,
             'section_id' => (int) $sec->id,
@@ -1560,11 +1622,8 @@ class ModuleController extends Controller
             'total' => $breakdown['total'],
             'max_points' => $breakdown['max_points'] ?? null,
             'earned_points' => $breakdown['earned_points'] ?? null,
-            'breakdown_visible_until' => now()->addMinutes(
-                $courseId > 0
-                    ? $this->sectionService->examBreakdownVisibleMinutesForSection($sec)
-                    : CourseScoringService::MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES
-            )->getTimestamp(),
+            'breakdown_visible_until' => $examBreakdownUnlimited ? null : (int) $examBreakdownUntil,
+            'breakdown_unlimited' => $examBreakdownUnlimited,
             'recorded_at' => now()->toIso8601String(),
         ];
 
@@ -1577,8 +1636,8 @@ class ModuleController extends Controller
             'last_result' => $payload,
             'history' => $examHist,
         ]);
-        if ($examDeadline !== null) {
-            $lim = $this->moduleExamTimeLimitMinutesForSection($sec, $cm);
+        if ($examDeadline !== null && $hasTimeLimit) {
+            $lim = (int) $timeLimitMin;
             $start = $examDeadline->copy()->subMinutes($lim);
             $cap = $lim * 60;
             $elapsed = min($cap, max(0, now()->diffInSeconds($start)));

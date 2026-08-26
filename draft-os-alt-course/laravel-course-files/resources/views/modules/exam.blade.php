@@ -54,11 +54,17 @@
                 <p class="quiz-modal-badge">Модуль {{ $meta['letter'] }}</p>
                 <h2 id="module-exam-intro-title" class="quiz-modal-heading">{{ $sectionTitle }}</h2>
                 <ul class="quiz-modal-list">
-                    <li>На прохождение отводится <strong>{{ $timeLimitMinutes }} минут</strong> — отсчёт начнётся только после нажатия «Запустить отсчёт».</li>
-                    <li>Таймер показывается над вопросами; по истечении времени ответы отправятся автоматически (незаполненные вопросы засчитываются как ошибки).</li>
+                    @if ($timeLimitMinutes)
+                        <li>На прохождение отводится <strong>{{ $timeLimitMinutes }} минут</strong> — отсчёт начнётся только после нажатия «Запустить отсчёт».</li>
+                        <li>Таймер показывается над вопросами; по истечении времени ответы отправятся автоматически (незаполненные вопросы засчитываются как ошибки).</li>
+                    @else
+                        <li>Ограничения по времени <strong>нет</strong> — после старта можете проходить тест в своём темпе.</li>
+                    @endif
                     <li>@if ($showScorePercents)Порог зачёта: <strong>{{ $passThreshold }}%</strong>. @endifПопытка <strong>{{ $attemptNumber }}</strong> из {{ $maxAttempts }}.</li>
                     <li>Вопросы идут по шагам; у части из них несколько верных ответов — на кнопке с номером значок <strong>+</strong> (отметьте все подходящие). У вопросов на сопоставление — значок <strong>↕</strong>: перетащите блоки справа мышью в нужный порядок.</li>
-                    <li>Время фиксируется на сервере: после старта обновление страницы или краткий обрыв связи <strong>не обнуляют</strong> дедлайн (ответы в форме при полном обновлении страницы сбросятся — лучше не закрывайте вкладку зря).</li>
+                    @if ($timeLimitMinutes)
+                        <li>Время фиксируется на сервере: после старта обновление страницы или краткий обрыв связи <strong>не обнуляют</strong> дедлайн (ответы в форме при полном обновлении страницы сбросятся — лучше не закрывайте вкладку зря).</li>
+                    @endif
                     @if ($attemptNumber >= 2 && $showScorePercents)
                         <li class="quiz-modal-warn">Напоминание: к <strong>сырому</strong> проценту этой попытки уже применяется штраф <strong>−{{ $retakePenalty }} п.п.</strong> (см. предыдущее окно).</li>
                     @elseif ($attemptNumber >= 2)
@@ -68,7 +74,7 @@
                 <div class="quiz-modal-actions">
                     <form method="post" action="{{ route('course.module.section.exam.start', $sr) }}" class="quiz-modal-form">
                         @csrf
-                        <button type="submit" class="btn btn-primary">Запустить отсчёт</button>
+                        <button type="submit" class="btn btn-primary">{{ $timeLimitMinutes ? 'Запустить отсчёт' : 'Начать тестирование' }}</button>
                     </form>
                     <a class="quiz-modal-cancel" href="{{ route('course.module.hub', $lr) }}">Вернуться к модулю без старта</a>
                 </div>
@@ -148,7 +154,7 @@
                     @elseif ($showScorePercents)
                     <p style="margin:0">Порог сдачи: <strong>{{ $passThreshold }}%</strong>.</p>
                     @endif
-                    <p style="margin:0.5rem 0 0">На прохождение отводится <strong>{{ $timeLimitMinutes }} минут</strong> (таймер после «Запустить отсчёт»).</p>
+                    <p style="margin:0.5rem 0 0">@if ($timeLimitMinutes)На прохождение отводится <strong>{{ $timeLimitMinutes }} минут</strong> (таймер после «Запустить отсчёт»).@else Без ограничения по времени.@endif</p>
                 </div>
             @elseif ($modNum === 5 && ($showScorePoints || $showScorePercents))
                 <div class="module-exam-m5-rubric muted" style="margin:0 0 1rem;line-height:1.5">
@@ -162,7 +168,7 @@
                         <li>Сценарии — 8 + 7 + 8 + 7 = 30</li>
                     </ul>
                     @endif
-                    <p style="margin:0.5rem 0 0">@if ($showScorePercents)Порог зачёта: <strong>{{ $passThreshold }}%</strong>@if ($showScorePoints) от суммы баллов@endif. @endifТаймер: <strong>{{ $timeLimitMinutes }} мин.</strong></p>
+                    <p style="margin:0.5rem 0 0">@if ($showScorePercents)Порог зачёта: <strong>{{ $passThreshold }}%</strong>@if ($showScorePoints) от суммы баллов@endif. @endif@if ($timeLimitMinutes)Таймер: <strong>{{ $timeLimitMinutes }} мин.</strong>@else Без ограничения по времени.@endif</p>
                 </div>
             @endif
             <p class="muted small content-protect-hint">Текст вопросов нельзя копировать; при уходе с вкладки он скрывается. Снимок экрана ОС не блокируется браузером.</p>
@@ -170,7 +176,11 @@
             <p class="muted">
                 @if ($showScorePercents)Порог зачёта: <strong>{{ $passThreshold }}%</strong>. @endif
                 Попытка <strong>{{ $attemptNumber }}</strong> из {{ $maxAttempts }}.
-                Осталось времени на попытку — на полосе ниже; по истечении ответы уйдут автоматически.
+                @if ($timeLimitMinutes)
+                    Осталось времени на попытку — на полосе ниже; по истечении ответы уйдут автоматически.
+                @else
+                    Ограничения по времени нет — отправьте ответы, когда будете готовы.
+                @endif
                 @if ($attemptNumber >= 2 && $showScorePercents)
                     <span class="module-exam-warn">К результату этой попытки применяется штраф <strong>−{{ $retakePenalty }} п.п.</strong> от сырого процента.</span>
                 @elseif ($attemptNumber >= 2)
@@ -178,7 +188,7 @@
                 @endif
             </p>
             @else
-            <p class="muted">@if ($showScorePercents)Порог зачёта у обучающихся: <strong>{{ $passThreshold }}%</strong>. @endifЛимит времени: <strong>{{ $timeLimitMinutes }} мин.</strong></p>
+            <p class="muted">@if ($showScorePercents)Порог зачёта у обучающихся: <strong>{{ $passThreshold }}%</strong>. @endif@if ($timeLimitMinutes)Лимит времени: <strong>{{ $timeLimitMinutes }} мин.</strong>@else Без ограничения по времени.@endif</p>
             @endif
 
             @if ($expiresAtMs)
@@ -255,7 +265,7 @@
                                 </div>
                             </div>
                         @elseif ($isMulti)
-                            <p class="muted module-exam-hint">Отметьте <strong>все</strong> подходящие варианты.</p>
+                            @include('modules.partials.quiz-multi-hint')
                             @foreach ($q['a'] as $j => $opt)
                                 <label class="choice module-exam-choice">
                                     <input type="checkbox" name="e{{ $i }}[]" value="{{ $j }}" class="js-exam-input" data-q="{{ $i }}">

@@ -19,6 +19,7 @@ use App\Models\CourseQuizBank;
 use App\Services\CourseContentService;
 use App\Services\CourseChangeLogService;
 use App\Services\CourseSectionService;
+use App\Services\CourseScoringService;
 use App\Services\LearnerContentVisibilityService;
 use App\Services\ShareLinkService;
 use App\Services\SurveyQuickLinkService;
@@ -674,6 +675,8 @@ final class AdminCourseSettingsController extends Controller
                 'attempt_limit' => 'nullable|integer|min:1|max:50',
                 'pass_percent' => 'required|integer|min:1|max:100',
                 'shuffle' => 'sometimes|boolean',
+                'breakdown_visible_minutes' => 'nullable|integer|min:-1|max:10080',
+                'breakdown_unlimited' => 'sometimes|boolean',
                 'penalty_attempt_2' => 'nullable|integer|min:0|max:100',
                 'penalty_attempt_3' => 'nullable|integer|min:0|max:100',
                 'penalty_attempt_4' => 'nullable|integer|min:0|max:100',
@@ -687,7 +690,8 @@ final class AdminCourseSettingsController extends Controller
                 'attempt_limit' => 'required|integer|min:1|max:20',
                 'pass_percent' => 'required|integer|min:1|max:100',
                 'one_by_one' => 'sometimes|boolean',
-                'breakdown_visible_minutes' => 'nullable|integer|min:0|max:10080',
+                'breakdown_visible_minutes' => 'nullable|integer|min:-1|max:10080',
+                'breakdown_unlimited' => 'sometimes|boolean',
                 'penalty_attempt_2' => 'nullable|integer|min:0|max:100',
                 'penalty_attempt_3' => 'nullable|integer|min:0|max:100',
                 'penalty_attempt_4' => 'nullable|integer|min:0|max:100',
@@ -712,9 +716,31 @@ final class AdminCourseSettingsController extends Controller
             if (empty($merged['attempt_limit'])) {
                 $merged['attempt_limit'] = null;
             }
+            if (empty($merged['time_limit_minutes'])) {
+                $merged['time_limit_minutes'] = null;
+            }
+            unset($merged['breakdown_unlimited']);
+            if ($request->boolean('breakdown_unlimited')) {
+                $merged['breakdown_visible_minutes'] = CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED;
+            } else {
+                $merged['breakdown_visible_minutes'] = isset($merged['breakdown_visible_minutes']) && $merged['breakdown_visible_minutes'] !== null
+                    ? max(0, (int) $merged['breakdown_visible_minutes'])
+                    : 15;
+            }
         }
         if ($section->type === CourseSection::TYPE_EXAM) {
             $merged['one_by_one'] = $request->boolean('one_by_one');
+            if (empty($merged['time_limit_minutes'])) {
+                $merged['time_limit_minutes'] = null;
+            }
+            unset($merged['breakdown_unlimited']);
+            if ($request->boolean('breakdown_unlimited')) {
+                $merged['breakdown_visible_minutes'] = CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED;
+            } else {
+                $merged['breakdown_visible_minutes'] = isset($merged['breakdown_visible_minutes']) && $merged['breakdown_visible_minutes'] !== null
+                    ? max(0, (int) $merged['breakdown_visible_minutes'])
+                    : 30;
+            }
         }
         if ($section->type === CourseSection::TYPE_TEXT) {
             if (empty($merged['time_limit_minutes'])) {
@@ -1164,7 +1190,7 @@ final class AdminCourseSettingsController extends Controller
             'questions' => 'nullable|array',
             'shuffle' => 'sometimes|boolean',
             'one_by_one' => 'sometimes|boolean',
-            'breakdown_visible_minutes' => 'nullable|integer|min:0|max:10080',
+            'breakdown_visible_minutes' => 'nullable|integer|min:-1|max:10080',
             'min_read_seconds' => 'nullable|integer|min:0|max:86400',
             'anonymous' => 'sometimes|boolean',
             'blocks_progress' => 'sometimes|boolean',
@@ -1209,9 +1235,12 @@ final class AdminCourseSettingsController extends Controller
                         'time_from_course' => $tf,
                         'pass_from_course' => $pf,
                         'attempt_limit' => $af ? null : (isset($p['attempt_limit']) && $p['attempt_limit'] !== null ? (int) $p['attempt_limit'] : null),
-                        'time_limit_minutes' => $tf ? null : (int) ($p['time_limit_minutes'] ?? $prev['time_limit_minutes'] ?? 30),
+                        'time_limit_minutes' => $tf ? null : (isset($p['time_limit_minutes']) && $p['time_limit_minutes'] !== null && $p['time_limit_minutes'] !== '' ? (int) $p['time_limit_minutes'] : null),
                         'pass_percent' => $pf ? null : (int) ($p['pass_percent'] ?? $prev['pass_percent'] ?? 70),
                         'shuffle' => (bool) ($p['shuffle'] ?? ($prev['shuffle'] ?? false)),
+                        'breakdown_visible_minutes' => isset($p['breakdown_visible_minutes']) && $p['breakdown_visible_minutes'] !== null && $p['breakdown_visible_minutes'] !== ''
+                            ? (int) $p['breakdown_visible_minutes']
+                            : (int) ($prev['breakdown_visible_minutes'] ?? 15),
                         'penalties' => is_array($prev['penalties'] ?? null) ? $prev['penalties'] : ['2' => 10],
                     ]),
                     CourseSection::TYPE_PRACTICE => array_merge($prev, [
@@ -1234,10 +1263,12 @@ final class AdminCourseSettingsController extends Controller
                         'time_from_course' => $tf,
                         'pass_from_course' => $pf,
                         'attempt_limit' => $af ? null : (int) ($p['attempt_limit'] ?? $prev['attempt_limit'] ?? 2),
-                        'time_limit_minutes' => $tf ? null : (int) ($p['time_limit_minutes'] ?? $prev['time_limit_minutes'] ?? 60),
+                        'time_limit_minutes' => $tf ? null : (isset($p['time_limit_minutes']) && $p['time_limit_minutes'] !== null && $p['time_limit_minutes'] !== '' ? (int) $p['time_limit_minutes'] : null),
                         'pass_percent' => $pf ? null : (int) ($p['pass_percent'] ?? $prev['pass_percent'] ?? 70),
                         'one_by_one' => (bool) ($p['one_by_one'] ?? ($prev['one_by_one'] ?? true)),
-                        'breakdown_visible_minutes' => (int) ($p['breakdown_visible_minutes'] ?? ($prev['breakdown_visible_minutes'] ?? 30)),
+                        'breakdown_visible_minutes' => isset($p['breakdown_visible_minutes']) && $p['breakdown_visible_minutes'] !== null && $p['breakdown_visible_minutes'] !== ''
+                            ? (int) $p['breakdown_visible_minutes']
+                            : (int) ($prev['breakdown_visible_minutes'] ?? 30),
                         'penalties' => is_array($prev['penalties'] ?? null) ? $prev['penalties'] : ['2' => 10],
                     ]),
                     default => $prev,
@@ -1251,6 +1282,17 @@ final class AdminCourseSettingsController extends Controller
                     ['course_section_id' => $section->id],
                     ['settings' => $merged]
                 );
+
+                if (in_array($section->type, [CourseSection::TYPE_QUIZ, CourseSection::TYPE_EXAM], true)
+                    && Schema::hasTable('course_quiz_banks')
+                    && array_key_exists('breakdown_visible_minutes', $merged)) {
+                    $bank = app(CourseContentService::class)->quizBankOwnedBySection($section)
+                        ?? app(CourseContentService::class)->quizBankForSection($section);
+                    if ($bank !== null) {
+                        $bank->breakdown_visible_minutes = (int) $merged['breakdown_visible_minutes'];
+                        $bank->save();
+                    }
+                }
 
                 if (Schema::hasTable('course_section_contents')
                     && ($section->type === CourseSection::TYPE_TEXT || $section->type === CourseSection::TYPE_PRACTICE)) {
@@ -1343,7 +1385,7 @@ final class AdminCourseSettingsController extends Controller
             ? 'без ограничения'
             : (string) (int) $a;
         $time = ($t === null || ! is_numeric($t) || (int) $t < 1)
-            ? 'не задано в курсе'
+            ? 'без ограничения'
             : ((int) $t).' мин';
         $pass = ($p === null || ! is_numeric($p) || (int) $p < 1)
             ? 'порог по умолчанию системы'
@@ -1453,6 +1495,7 @@ final class AdminCourseSettingsController extends Controller
                 'pass_percent' => 70,
                 'penalties' => ['2' => 10],
                 'shuffle' => false,
+                'breakdown_visible_minutes' => 15,
             ],
             CourseSection::TYPE_PRACTICE => [
                 'attempt_limit' => null,

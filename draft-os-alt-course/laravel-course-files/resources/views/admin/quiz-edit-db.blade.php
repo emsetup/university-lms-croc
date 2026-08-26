@@ -495,7 +495,7 @@
                 var c = q.c;
                 if (t === 'multi') {
                     if (!Array.isArray(c)) c = [];
-                    if (cHint) cHint.textContent = 'Отметьте все верные варианты.';
+                    if (cHint) cHint.textContent = 'Отметьте все верные варианты. Обучающемуся автоматически покажется подсказка «Выберите все правильные варианты ответа».';
                 } else {
                     if (Array.isArray(c)) c = (c[0] != null) ? c[0] : null;
                     if (cHint) cHint.textContent = 'Выберите один верный вариант.';

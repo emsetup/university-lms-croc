@@ -13,7 +13,7 @@
         <h1 style="margin-top: 0">Модуль {{ $module }}: {{ config('course.step_titles.module_exam') }}</h1>
         <p class="muted small" style="margin-top:0">
             Просмотр для администратора: {{ count($questions) }} вопр.
-            · лимит времени для обучающихся: <strong>{{ $timeLimitMinutes }}</strong> мин.
+            · лимит времени для обучающихся: <strong>{{ $timeLimitMinutes !== null ? $timeLimitMinutes.' мин.' : 'без ограничения' }}</strong>
             · порог: <strong>{{ \App\Services\CourseScoringService::PASS_THRESHOLD }}%</strong>
         </p>
         <p class="muted small" style="margin:0 0 1rem">{{ $mTitle }} — верные ответы подсвечены.</p>

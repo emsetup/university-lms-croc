@@ -36,8 +36,8 @@
                     </div>
                 @elseif ($section->type === 'quiz')
                     <div class="form-stack">
-                        <label class="form-label" for="time_limit_minutes_quiz">Лимит времени на попытку (мин)</label>
-                        <input id="time_limit_minutes_quiz" type="number" name="time_limit_minutes" value="{{ (int) ($settings['time_limit_minutes'] ?? 30) }}" min="1" max="600" required class="form-input form-input--md">
+                        <label class="form-label" for="time_limit_minutes_quiz">Лимит времени на попытку (мин), пусто = без лимита</label>
+                        <input id="time_limit_minutes_quiz" type="number" name="time_limit_minutes" value="{{ $settings['time_limit_minutes'] ?? '' }}" min="1" max="600" placeholder="—" class="form-input form-input--md">
                         <label class="form-label" for="attempt_limit_quiz">Макс. число попыток (пусто = без лимита)</label>
                         <input id="attempt_limit_quiz" type="number" name="attempt_limit" value="{{ $settings['attempt_limit'] ?? '' }}" min="1" max="50" placeholder="∞" class="form-input form-input--md">
                         <label class="form-label" for="pass_percent_quiz">Порог зачёта (%)</label>
@@ -47,6 +47,19 @@
                             <input type="checkbox" name="shuffle" value="1" @if (! empty($settings['shuffle'])) checked @endif>
                             <span class="ap-muted small">Перемешивать вопросы при каждой попытке</span>
                         </label>
+                        @php
+                            $bvQuiz = (int) ($settings['breakdown_visible_minutes'] ?? 15);
+                            $bvQuizUnlimited = $bvQuiz < 0;
+                        @endphp
+                        <label class="ap-check-row u-mt-1">
+                            <input type="hidden" name="breakdown_unlimited" value="0">
+                            <input type="checkbox" name="breakdown_unlimited" value="1" id="breakdown_unlimited_quiz" @if ($bvQuizUnlimited) checked @endif
+                                   onchange="document.getElementById('breakdown_visible_minutes_quiz').disabled=this.checked">
+                            <span class="ap-muted small">Разбор ошибок без ограничения по времени</span>
+                        </label>
+                        <label class="form-label" for="breakdown_visible_minutes_quiz">Минут видимости разбора после попытки (0 = не показывать)</label>
+                        <input id="breakdown_visible_minutes_quiz" type="number" name="breakdown_visible_minutes" value="{{ $bvQuizUnlimited ? 15 : $bvQuiz }}" min="0" max="10080" class="form-input form-input--md" @if ($bvQuizUnlimited) disabled @endif>
+                        <p class="ap-muted small u-m0">Удобно для тренировочных тестов не за баллы / без пошагового режима — обучающийся может спокойно разобрать ошибки.</p>
                         @php $pen = is_array($settings['penalties'] ?? null) ? $settings['penalties'] : []; @endphp
                         <p class="form-label u-mt-1 u-m0">Штраф к сырому % (п.п.) по номеру попытки</p>
                         <div class="penalty-grid u-mt-1">
@@ -74,14 +87,24 @@
                     </div>
                 @elseif ($section->type === 'exam')
                     <div class="form-stack">
-                        <label class="form-label" for="time_limit_minutes_ex">Лимит времени на попытку (мин)</label>
-                        <input id="time_limit_minutes_ex" type="number" name="time_limit_minutes" value="{{ (int) ($settings['time_limit_minutes'] ?? 60) }}" min="1" max="600" required class="form-input form-input--md">
+                        <label class="form-label" for="time_limit_minutes_ex">Лимит времени на попытку (мин), пусто = без лимита</label>
+                        <input id="time_limit_minutes_ex" type="number" name="time_limit_minutes" value="{{ $settings['time_limit_minutes'] ?? '' }}" min="1" max="600" placeholder="—" class="form-input form-input--md">
                         <label class="form-label" for="attempt_limit_ex">Число попыток</label>
                         <input id="attempt_limit_ex" type="number" name="attempt_limit" value="{{ (int) ($settings['attempt_limit'] ?? 2) }}" min="1" max="20" required class="form-input form-input--md">
                         <label class="form-label" for="pass_percent_ex">Порог зачёта (%)</label>
                         <input id="pass_percent_ex" type="number" name="pass_percent" value="{{ (int) ($settings['pass_percent'] ?? 70) }}" min="1" max="100" required class="form-input form-input--md">
-                        <label class="form-label" for="breakdown_visible_minutes">Минут видимости разбора после попытки</label>
-                        <input id="breakdown_visible_minutes" type="number" name="breakdown_visible_minutes" value="{{ (int) ($settings['breakdown_visible_minutes'] ?? 30) }}" min="0" max="10080" class="form-input form-input--md">
+                        @php
+                            $bvExam = (int) ($settings['breakdown_visible_minutes'] ?? 30);
+                            $bvExamUnlimited = $bvExam < 0;
+                        @endphp
+                        <label class="ap-check-row u-mt-1">
+                            <input type="hidden" name="breakdown_unlimited" value="0">
+                            <input type="checkbox" name="breakdown_unlimited" value="1" id="breakdown_unlimited_ex" @if ($bvExamUnlimited) checked @endif
+                                   onchange="document.getElementById('breakdown_visible_minutes').disabled=this.checked">
+                            <span class="ap-muted small">Разбор ошибок без ограничения по времени</span>
+                        </label>
+                        <label class="form-label" for="breakdown_visible_minutes">Минут видимости разбора после попытки (0 = не показывать)</label>
+                        <input id="breakdown_visible_minutes" type="number" name="breakdown_visible_minutes" value="{{ $bvExamUnlimited ? 30 : $bvExam }}" min="0" max="10080" class="form-input form-input--md" @if ($bvExamUnlimited) disabled @endif>
                         <label class="ap-check-row u-mt-1">
                             <input type="hidden" name="one_by_one" value="0">
                             <input type="checkbox" name="one_by_one" value="1" @if (($settings['one_by_one'] ?? true) !== false) checked @endif>

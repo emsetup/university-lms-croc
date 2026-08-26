@@ -333,7 +333,7 @@ final class AdminCourseContentInspector
         if ($count < 1) {
             $meta = '0 вопр.';
         } else {
-            $meta = $count.' вопр. · '.$timeMin.' мин';
+            $meta = $count.' вопр. · '.($timeMin !== null ? $timeMin.' мин' : 'без лимита времени');
             if ($match > 0) {
                 $meta .= ' · '.$match.' сопост.';
             }
@@ -436,7 +436,7 @@ final class AdminCourseContentInspector
      *     practice_markdown: string,
      *     theory_quiz: list<array<string, mixed>>,
      *     exam: list<array<string, mixed>>,
-     *     exam_time_min: int,
+     *     exam_time_min: ?int,
      *     has_practice_section: bool
      * }
      */

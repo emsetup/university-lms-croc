@@ -685,7 +685,9 @@
             }
         } else if (item.type === 'multi') {
             if (!Array.isArray(item.correct)) item.correct = [];
-            if (hint) hint.textContent = 'Отметьте все верные варианты.';
+            if (hint)
+                hint.textContent =
+                    'Отметьте все верные варианты. Обучающемуся автоматически покажется подсказка «Выберите все правильные варианты ответа».';
         } else {
             if (typeof item.correct !== 'number') item.correct = 0;
             if (hint) hint.textContent = 'Выберите один верный вариант.';
@@ -947,13 +949,13 @@
             ? ($('ap-sec-own-att').value || '—')
             : 'из курса';
         var time = !readInherit('ap-sec-inherit-time')
-            ? ($('ap-sec-own-time').value || '—') + ' мин'
+            ? ($('ap-sec-own-time').value ? ($('ap-sec-own-time').value + ' мин') : 'без ограничения')
             : 'из курса';
         if (isSurveySection()) {
             el.innerHTML =
                 '<span class="panel-meta-item">Вопросов: <strong>' + esc(String(n)) + '</strong></span>' +
                 '<span class="panel-meta-item">Попытки: <strong>' + esc(String(att)) + '</strong></span>' +
-                '<span class="panel-meta-item">Время: <strong>' + (time === '— мин' ? 'не задано' : esc(String(time))) + '</strong></span>' +
+                '<span class="panel-meta-item">Время: <strong>' + esc(String(time)) + '</strong></span>' +
                 '<span class="panel-meta-item">Режим: <strong>без оценки</strong></span>';
         } else {
             var pass = !readInherit('ap-sec-inherit-pass')
@@ -1106,6 +1108,17 @@
         $('ap-sec-own-time').value = st.time_limit_minutes != null ? String(st.time_limit_minutes) : '';
         $('ap-sec-own-pass').value = st.pass_percent != null ? String(st.pass_percent) : '';
         syncOwnInputs();
+
+        var bvRaw = st.breakdown_visible_minutes;
+        var bvNum = bvRaw != null && bvRaw !== '' ? parseInt(bvRaw, 10) : 15;
+        var bvUnlimited = !isNaN(bvNum) && bvNum < 0;
+        var bvUnlEl = $('ap-sec-breakdown-unlimited');
+        var bvMinEl = $('ap-sec-breakdown-minutes');
+        if (bvUnlEl) bvUnlEl.checked = bvUnlimited;
+        if (bvMinEl) {
+            bvMinEl.value = bvUnlimited ? '' : String(isNaN(bvNum) ? 15 : Math.max(0, bvNum));
+            bvMinEl.disabled = bvUnlimited;
+        }
 
         setTheoryMarkdown(d.theory_markdown || '');
         setPracticeMarkdown(d.practice_markdown || '');
@@ -1507,8 +1520,17 @@
             min_read_seconds: state.rawSettings.min_read_seconds != null ? state.rawSettings.min_read_seconds : 0,
             shuffle: !!state.rawSettings.shuffle,
             one_by_one: state.rawSettings.one_by_one !== undefined ? !!state.rawSettings.one_by_one : true,
-            breakdown_visible_minutes:
-                state.rawSettings.breakdown_visible_minutes != null ? state.rawSettings.breakdown_visible_minutes : 30,
+            breakdown_visible_minutes: (function () {
+                var unl = $('ap-sec-breakdown-unlimited');
+                if (unl && unl.checked) return -1;
+                var v = parseOptInt('ap-sec-breakdown-minutes');
+                if (v === null) {
+                    return state.rawSettings.breakdown_visible_minutes != null
+                        ? state.rawSettings.breakdown_visible_minutes
+                        : (typ === 'exam' ? 30 : 15);
+                }
+                return v;
+            })(),
         };
         if (typ === 'text') {
             p.theory_markdown = theoryMarkdownValue();
@@ -1724,6 +1746,13 @@
             var el = $(id);
             if (el) el.addEventListener('input', updateQuizSummary);
         });
+        var bvUnl = $('ap-sec-breakdown-unlimited');
+        if (bvUnl) {
+            bvUnl.addEventListener('change', function () {
+                var minEl = $('ap-sec-breakdown-minutes');
+                if (minEl) minEl.disabled = !!bvUnl.checked;
+            });
+        }
 
         document.querySelectorAll('[data-ap-sec-tab]').forEach(function (t) {
             t.addEventListener('click', function () {

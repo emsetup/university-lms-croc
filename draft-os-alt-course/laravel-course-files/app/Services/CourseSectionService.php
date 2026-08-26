@@ -240,7 +240,8 @@ final class CourseSectionService
         return CourseScoringService::PASS_THRESHOLD;
     }
 
-    public function theoryQuizTimeLimitMinutesForSection(CourseSection $section): int
+    /** null = без ограничения по времени */
+    public function theoryQuizTimeLimitMinutesForSection(CourseSection $section): ?int
     {
         $m = $this->mergedSettings($section);
         if (($m['time_from_course'] ?? false) === true) {
@@ -250,19 +251,14 @@ final class CourseSectionService
                 return (int) $def;
             }
 
-            return CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
+            return null;
         }
         $v = $m['time_limit_minutes'] ?? null;
         if (is_numeric($v) && (int) $v > 0) {
             return (int) $v;
         }
-        $course = Course::query()->find((int) $section->course_id);
-        $def = $course?->default_quiz_time_minutes;
-        if (is_numeric($def) && (int) $def > 0) {
-            return (int) $def;
-        }
 
-        return CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
+        return null;
     }
 
     public function theoryQuizAttemptLimitForSection(CourseSection $section): ?int
@@ -304,14 +300,19 @@ final class CourseSectionService
         return (bool) ($this->mergedSettings($section)['shuffle'] ?? false);
     }
 
-    public function theoryQuizBreakdownVisibleMinutesForSection(CourseSection $section): int
+    /** null = без ограничения по времени; 0 = не показывать разбор; >0 = минуты. */
+    public function theoryQuizBreakdownVisibleMinutesForSection(CourseSection $section): ?int
     {
         $v = $this->mergedSettings($section)['breakdown_visible_minutes'] ?? null;
 
-        return is_numeric($v) && (int) $v >= 0 ? (int) $v : CourseScoringService::THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES;
+        return CourseScoringService::normalizeBreakdownVisibleMinutes(
+            $v,
+            CourseScoringService::THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES
+        );
     }
 
-    public function examTimeLimitMinutesForSection(CourseSection $section, int $contentSourceIndex, bool $legacyAlt = true): int
+    /** null = без ограничения по времени */
+    public function examTimeLimitMinutesForSection(CourseSection $section, int $contentSourceIndex, bool $legacyAlt = true): ?int
     {
         if ($legacyAlt) {
             $fromConfig = config('course.modules.'.$contentSourceIndex.'.module_exam_time_limit_minutes');
@@ -327,19 +328,14 @@ final class CourseSectionService
                 return (int) $def;
             }
 
-            return CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+            return null;
         }
         $v = $m['time_limit_minutes'] ?? null;
         if (is_numeric($v) && (int) $v > 0) {
             return (int) $v;
         }
-        $course = Course::query()->find((int) $section->course_id);
-        $def = $course?->default_quiz_time_minutes;
-        if (is_numeric($def) && (int) $def > 0) {
-            return (int) $def;
-        }
 
-        return CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+        return null;
     }
 
     public function examMaxAttemptsForSection(CourseSection $section): int
@@ -381,11 +377,15 @@ final class CourseSectionService
         return isset($pen[$key]) && is_numeric($pen[$key]) ? max(0, (int) $pen[$key]) : CourseScoringService::MODULE_EXAM_RETAKE_PENALTY_POINTS;
     }
 
-    public function examBreakdownVisibleMinutesForSection(CourseSection $section): int
+    /** null = без ограничения по времени; 0 = не показывать разбор; >0 = минуты. */
+    public function examBreakdownVisibleMinutesForSection(CourseSection $section): ?int
     {
         $v = $this->mergedSettings($section)['breakdown_visible_minutes'] ?? null;
 
-        return is_numeric($v) && (int) $v >= 0 ? (int) $v : CourseScoringService::MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES;
+        return CourseScoringService::normalizeBreakdownVisibleMinutes(
+            $v,
+            CourseScoringService::MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES
+        );
     }
 
     public function examOneByOneForSection(CourseSection $section): bool
@@ -445,30 +445,15 @@ final class CourseSectionService
         return CourseScoringService::PASS_THRESHOLD;
     }
 
-    public function theoryQuizTimeLimitMinutes(int $courseModuleId): int
+    /** null = без ограничения по времени */
+    public function theoryQuizTimeLimitMinutes(int $courseModuleId): ?int
     {
         $sec = $this->findSectionByBackendKey($courseModuleId, 'theory_quiz');
-        $m = $sec ? $this->mergedSettings($sec) : [];
-        if (($m['time_from_course'] ?? false) === true) {
-            $course = $this->courseForModule($courseModuleId);
-            $def = $course?->default_quiz_time_minutes;
-            if (is_numeric($def) && (int) $def > 0) {
-                return (int) $def;
-            }
-
+        if ($sec === null) {
             return CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
         }
-        $v = $sec ? ($m['time_limit_minutes'] ?? null) : null;
-        if (is_numeric($v) && (int) $v > 0) {
-            return (int) $v;
-        }
-        $course = $this->courseForModule($courseModuleId);
-        $def = $course?->default_quiz_time_minutes;
-        if (is_numeric($def) && (int) $def > 0) {
-            return (int) $def;
-        }
 
-        return CourseScoringService::THEORY_QUIZ_TIME_LIMIT_MINUTES;
+        return $this->theoryQuizTimeLimitMinutesForSection($sec);
     }
 
     public function theoryQuizAttemptLimit(int $courseModuleId): ?int
@@ -514,44 +499,34 @@ final class CourseSectionService
         return (bool) ($sec ? ($this->mergedSettings($sec)['shuffle'] ?? false) : false);
     }
 
-    public function theoryQuizBreakdownVisibleMinutes(int $courseModuleId): int
+    /** null = без ограничения по времени; 0 = не показывать разбор; >0 = минуты. */
+    public function theoryQuizBreakdownVisibleMinutes(int $courseModuleId): ?int
     {
         $sec = $this->findSectionByBackendKey($courseModuleId, 'theory_quiz');
         $v = $sec ? ($this->mergedSettings($sec)['breakdown_visible_minutes'] ?? null) : null;
 
-        return is_numeric($v) && (int) $v >= 0 ? (int) $v : CourseScoringService::THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES;
+        return CourseScoringService::normalizeBreakdownVisibleMinutes(
+            $v,
+            CourseScoringService::THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES
+        );
     }
 
-    public function examTimeLimitMinutes(int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): int
+    /** null = без ограничения по времени */
+    public function examTimeLimitMinutes(int $courseModuleId, int $contentSourceIndex, bool $legacyAlt = true): ?int
     {
-        if ($legacyAlt) {
-            $fromConfig = config('course.modules.'.$contentSourceIndex.'.module_exam_time_limit_minutes');
-            if (is_numeric($fromConfig) && (int) $fromConfig > 0) {
-                return (int) $fromConfig;
-            }
-        }
         $sec = $this->findSectionByBackendKey($courseModuleId, 'module_exam');
-        $m = $sec ? $this->mergedSettings($sec) : [];
-        if (($m['time_from_course'] ?? false) === true) {
-            $course = $this->courseForModule($courseModuleId);
-            $def = $course?->default_quiz_time_minutes;
-            if (is_numeric($def) && (int) $def > 0) {
-                return (int) $def;
+        if ($sec === null) {
+            if ($legacyAlt) {
+                $fromConfig = config('course.modules.'.$contentSourceIndex.'.module_exam_time_limit_minutes');
+                if (is_numeric($fromConfig) && (int) $fromConfig > 0) {
+                    return (int) $fromConfig;
+                }
             }
 
             return CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
         }
-        $v = $sec ? ($m['time_limit_minutes'] ?? null) : null;
-        if (is_numeric($v) && (int) $v > 0) {
-            return (int) $v;
-        }
-        $course = $this->courseForModule($courseModuleId);
-        $def = $course?->default_quiz_time_minutes;
-        if (is_numeric($def) && (int) $def > 0) {
-            return (int) $def;
-        }
 
-        return CourseScoringService::MODULE_EXAM_TIME_LIMIT_MINUTES;
+        return $this->examTimeLimitMinutesForSection($sec, $contentSourceIndex, $legacyAlt);
     }
 
     public function examMaxAttempts(int $courseModuleId): int
@@ -595,12 +570,16 @@ final class CourseSectionService
         return isset($pen[$key]) && is_numeric($pen[$key]) ? max(0, (int) $pen[$key]) : CourseScoringService::MODULE_EXAM_RETAKE_PENALTY_POINTS;
     }
 
-    public function examBreakdownVisibleMinutes(int $courseModuleId): int
+    /** null = без ограничения по времени; 0 = не показывать разбор; >0 = минуты. */
+    public function examBreakdownVisibleMinutes(int $courseModuleId): ?int
     {
         $sec = $this->findSectionByBackendKey($courseModuleId, 'module_exam');
         $v = $sec ? ($this->mergedSettings($sec)['breakdown_visible_minutes'] ?? null) : null;
 
-        return is_numeric($v) && (int) $v >= 0 ? (int) $v : CourseScoringService::MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES;
+        return CourseScoringService::normalizeBreakdownVisibleMinutes(
+            $v,
+            CourseScoringService::MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES
+        );
     }
 
     public function examOneByOne(int $courseModuleId): bool

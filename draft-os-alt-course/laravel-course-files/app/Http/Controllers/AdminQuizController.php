@@ -236,7 +236,7 @@ final class AdminQuizController extends Controller
             'attempt_limit' => 'nullable|integer|min:1|max:50',
             'shuffle' => 'sometimes|boolean',
             'one_by_one' => 'sometimes|boolean',
-            'breakdown_visible_minutes' => 'nullable|integer|min:0|max:10080',
+            'breakdown_visible_minutes' => 'nullable|integer|min:-1|max:10080',
             'penalty_attempt_2' => 'nullable|integer|min:0|max:100',
             'penalty_attempt_3' => 'nullable|integer|min:0|max:100',
             'penalty_attempt_4' => 'nullable|integer|min:0|max:100',
@@ -259,6 +259,8 @@ final class AdminQuizController extends Controller
         $bank->breakdown_visible_minutes = isset($data['breakdown_visible_minutes']) ? (int) $data['breakdown_visible_minutes'] : $bank->breakdown_visible_minutes;
         $bank->penalties_json = $penalties !== [] ? $penalties : null;
         $bank->save();
+
+        $this->syncBankBreakdownToSectionSettings($bank);
 
         $rawJson = (string) $data['bank_json'];
         $decoded = json_decode($rawJson, true);
@@ -314,7 +316,7 @@ final class AdminQuizController extends Controller
             'attempt_limit' => 'nullable|integer|min:1|max:50',
             'shuffle' => 'sometimes|boolean',
             'one_by_one' => 'sometimes|boolean',
-            'breakdown_visible_minutes' => 'nullable|integer|min:0|max:10080',
+            'breakdown_visible_minutes' => 'nullable|integer|min:-1|max:10080',
             'penalty_attempt_2' => 'nullable|integer|min:0|max:100',
             'penalty_attempt_3' => 'nullable|integer|min:0|max:100',
             'penalty_attempt_4' => 'nullable|integer|min:0|max:100',
@@ -337,6 +339,8 @@ final class AdminQuizController extends Controller
         $bank->breakdown_visible_minutes = isset($data['breakdown_visible_minutes']) ? (int) $data['breakdown_visible_minutes'] : $bank->breakdown_visible_minutes;
         $bank->penalties_json = $penalties !== [] ? $penalties : null;
         $bank->save();
+
+        $this->syncBankBreakdownToSectionSettings($bank);
 
         $rawJson = (string) $data['bank_json'];
         $decoded = json_decode($rawJson, true);
@@ -417,6 +421,43 @@ final class AdminQuizController extends Controller
     private function finalJsonPath(): string
     {
         return config_path('snippets/final_lab_questions.json');
+    }
+
+    /**
+     * Банк хранит разбор, но рантайм обучающегося читает section settings — синхронизируем.
+     */
+    private function syncBankBreakdownToSectionSettings(CourseQuizBank $bank): void
+    {
+        if (! Schema::hasTable('course_section_settings')) {
+            return;
+        }
+        $sectionId = (int) ($bank->course_section_id ?? 0);
+        if ($sectionId < 1 && (int) ($bank->course_module_id ?? 0) > 0) {
+            $type = match ((string) $bank->kind) {
+                'module_exam' => CourseSection::TYPE_EXAM,
+                'theory_quiz' => CourseSection::TYPE_QUIZ,
+                'survey' => CourseSection::TYPE_SURVEY,
+                default => null,
+            };
+            if ($type !== null) {
+                $sectionId = (int) (CourseSection::query()
+                    ->where('course_module_id', (int) $bank->course_module_id)
+                    ->where('type', $type)
+                    ->orderBy('sort')
+                    ->orderBy('id')
+                    ->value('id') ?? 0);
+            }
+        }
+        if ($sectionId < 1) {
+            return;
+        }
+
+        $row = \App\Models\CourseSectionSetting::query()->firstOrNew(['course_section_id' => $sectionId]);
+        $settings = is_array($row->settings) ? $row->settings : [];
+        $settings['breakdown_visible_minutes'] = (int) $bank->breakdown_visible_minutes;
+        $row->settings = $settings;
+        $row->save();
+        app(\App\Services\CourseSectionService::class)->clearCache();
     }
 
     /**

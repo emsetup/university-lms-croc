@@ -88,6 +88,7 @@
                         <input id="def-time" class="ap-modal__input ap-settings-input ap-settings-input--num" type="number" name="default_quiz_time_minutes" min="1" max="600" value="{{ old('default_quiz_time_minutes', $course->default_quiz_time_minutes) }}" placeholder="—">
                         <span class="ap-settings-suffix">мин</span>
                     </div>
+                    <p class="ap-settings-hint ap-muted">Пусто = без ограничения по времени для разделов, которые наследуют настройки курса.</p>
                 </div>
 
                 <div class="ap-settings-inline">
@@ -130,7 +131,7 @@
                 @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'unlock_all_modules'))
                     <div class="ap-settings-field" style="margin-top:1rem">
                         <span class="ap-settings-label">Доступ к модулям</span>
-                        <p class="ap-settings-hint ap-muted">По умолчанию следующий модуль открывается после попытки итогового теста предыдущего. Включите, если нужен свободный доступ к модулям — в том числе для опросов по быстрой ссылке без последовательного прохождения курса.</p>
+                        <p class="ap-settings-hint ap-muted">По умолчанию следующий модуль открывается после попытки итогового теста предыдущего. Включите, если нужен свободный доступ к модулям и разделам внутри них — без цепочки этапов и без шкал прохождения на дашборде и в хабе модуля.</p>
                         <div class="ap-toggle-row">
                             <label class="ap-toggle">
                                 <input type="checkbox" name="unlock_all_modules" value="1" class="ap-toggle__input" id="unlock-all-modules" @if ($unlockAllOn) checked @endif>
@@ -143,7 +144,7 @@
                 @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_module_progress'))
                     <div class="ap-settings-field" style="margin-top:1rem">
                         <span class="ap-settings-label">Прогресс на дашборде</span>
-                        <p class="ap-settings-hint ap-muted">Сводка «Ваш прогресс по модулям» и полоски прогресса на карточках модулей. Отключите, если модули открыты сразу и обучающиеся проходят курс в произвольном порядке.</p>
+                        <p class="ap-settings-hint ap-muted">Сводка «Ваш прогресс по модулям», полоски на карточках и шкалы этапов в хабе модуля. При включённом «Все модули доступны сразу» шкалы скрываются автоматически, даже если этот переключатель включён.</p>
                         <div class="ap-toggle-row">
                             <label class="ap-toggle">
                                 <input type="hidden" name="show_module_progress" value="0">

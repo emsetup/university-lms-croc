@@ -36,9 +36,7 @@ class DashboardController extends Controller
         $course = $courseId > 0 ? Course::query()->find($courseId) : null;
         $finalLabEnabled = $course ? (bool) ($course->final_lab_enabled ?? false) : true;
         $certificateEnabled = $course ? (bool) ($course->certificate_enabled ?? true) : true;
-        $showModuleProgress = ! $course
-            || ! Schema::hasColumn('courses', 'show_module_progress')
-            || (bool) ($course->show_module_progress ?? true);
+        $showModuleProgress = LearnerScoreDisplay::showModuleProgress($course);
         $assessmentEnabled = ! $course
             || ! Schema::hasColumn('courses', 'assessment_enabled')
             || (bool) ($course->assessment_enabled ?? true);
