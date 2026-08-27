@@ -35,7 +35,10 @@
 
         <div class="card content-protect">
             <h1 class="theory-quiz-page-title" style="margin-top:0">Модуль {{ $modNum }}: {{ $sectionTitle }}</h1>
-            <p class="muted">@if ($showScorePercents)Порог успеха у обучающихся: {{ $passThreshold ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%. @endif@if ($timeLimitMinutes)Лимит времени: {{ $timeLimitMinutes }} мин.@else Без ограничения по времени.@endif</p>
+            <p class="muted">
+                @if ($showScorePercents)Порог успеха у обучающихся: {{ $passThreshold ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%. @endif
+                @if ($timeLimitMinutes)Лимит времени: {{ $timeLimitMinutes }} мин.@else Без ограничения по времени.@endif
+            </p>
 
             @foreach ($questions as $i => $q)
                 @include('modules.partials.theory-quiz-question', ['i' => $i, 'q' => $q, 'preview' => true, 'inputPrefix' => 'q'])

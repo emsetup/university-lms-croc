@@ -168,7 +168,10 @@
                         <li>Сценарии — 8 + 7 + 8 + 7 = 30</li>
                     </ul>
                     @endif
-                    <p style="margin:0.5rem 0 0">@if ($showScorePercents)Порог зачёта: <strong>{{ $passThreshold }}%</strong>@if ($showScorePoints) от суммы баллов@endif. @endif@if ($timeLimitMinutes)Таймер: <strong>{{ $timeLimitMinutes }} мин.</strong>@else Без ограничения по времени.@endif</p>
+                    <p style="margin:0.5rem 0 0">
+                        @if ($showScorePercents)Порог зачёта: <strong>{{ $passThreshold }}%</strong>@if ($showScorePoints) от суммы баллов@endif. @endif
+                        @if ($timeLimitMinutes)Таймер: <strong>{{ $timeLimitMinutes }} мин.</strong>@else Без ограничения по времени.@endif
+                    </p>
                 </div>
             @endif
             <p class="muted small content-protect-hint">Текст вопросов нельзя копировать; при уходе с вкладки он скрывается. Снимок экрана ОС не блокируется браузером.</p>
@@ -188,7 +191,10 @@
                 @endif
             </p>
             @else
-            <p class="muted">@if ($showScorePercents)Порог зачёта у обучающихся: <strong>{{ $passThreshold }}%</strong>. @endif@if ($timeLimitMinutes)Лимит времени: <strong>{{ $timeLimitMinutes }} мин.</strong>@else Без ограничения по времени.@endif</p>
+            <p class="muted">
+                @if ($showScorePercents)Порог зачёта у обучающихся: <strong>{{ $passThreshold }}%</strong>. @endif
+                @if ($timeLimitMinutes)Лимит времени: <strong>{{ $timeLimitMinutes }} мин.</strong>@else Без ограничения по времени.@endif
+            </p>
             @endif
 
             @if ($expiresAtMs)
