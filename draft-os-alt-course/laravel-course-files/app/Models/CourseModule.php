@@ -23,6 +23,7 @@ final class CourseModule extends Model
         'view_audience',
         'show_score_percents',
         'show_score_points',
+        'quiz_breakdown_mode',
     ];
 
     protected function casts(): array

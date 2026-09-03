@@ -105,10 +105,21 @@
             list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem;
         }
         .module-exam-match__card {
-            cursor: grab; user-select: none;
+            display: flex; align-items: flex-start; gap: 0.45rem;
+            cursor: grab; user-select: none; -webkit-user-drag: element;
             padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid #c5d5c8; background: linear-gradient(180deg, #f4fff6 0%, #e8f5eb 100%);
             font-size: 0.88rem; line-height: 1.35; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
         }
+        .module-exam-match__card-text { flex: 1; min-width: 0; }
+        .module-exam-match__card-ops {
+            flex: 0 0 auto; display: inline-flex; flex-direction: column; gap: 0.15rem;
+        }
+        .module-exam-match__move {
+            appearance: none; border: 1px solid #b7c9bc; background: #fff; color: #334155;
+            width: 1.55rem; height: 1.35rem; line-height: 1; border-radius: 4px; cursor: pointer;
+            font-size: 0.78rem; padding: 0;
+        }
+        .module-exam-match__move:hover { background: #f1f5f4; }
         .module-exam-match__card:active { cursor: grabbing; }
         .module-exam-match__card.module-exam-match__card--drag { opacity: 0.55; }
     </style>
@@ -258,5 +269,6 @@
 @endif
 @include('partials.course-lightbox')
 <script src="{{ asset('js/course-lightbox.js') }}" defer></script>
+@stack('scripts')
 </body>
 </html>

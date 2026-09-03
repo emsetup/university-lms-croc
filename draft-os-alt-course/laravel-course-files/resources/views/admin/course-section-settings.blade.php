@@ -59,7 +59,20 @@
                         </label>
                         <label class="form-label" for="breakdown_visible_minutes_quiz">Минут видимости разбора после попытки (0 = не показывать)</label>
                         <input id="breakdown_visible_minutes_quiz" type="number" name="breakdown_visible_minutes" value="{{ $bvQuizUnlimited ? 15 : $bvQuiz }}" min="0" max="10080" class="form-input form-input--md" @if ($bvQuizUnlimited) disabled @endif>
-                        <p class="ap-muted small u-m0">Удобно для тренировочных тестов не за баллы / без пошагового режима — обучающийся может спокойно разобрать ошибки.</p>
+                        <p class="ap-muted small u-m0">Удобно для тренировочных тестов не за баллы / без пошагового режима — обучающийся может спокойно разобрать ответы.</p>
+                        @php
+                            $bdFromParent = ($settings['breakdown_mode_from_parent'] ?? true) !== false;
+                            $bdMode = $bdFromParent ? 'inherit' : (string) ($settings['breakdown_mode'] ?? 'all');
+                            if (! in_array($bdMode, ['inherit', 'all', 'wrongs'], true)) {
+                                $bdMode = 'inherit';
+                            }
+                        @endphp
+                        <label class="form-label" for="breakdown_mode_quiz">Что показывать в разборе</label>
+                        <select id="breakdown_mode_quiz" name="breakdown_mode" class="form-input form-input--md">
+                            <option value="inherit" @if ($bdMode === 'inherit') selected @endif>Наследовать от модуля/курса</option>
+                            <option value="all" @if ($bdMode === 'all') selected @endif>Все вопросы</option>
+                            <option value="wrongs" @if ($bdMode === 'wrongs') selected @endif>Только ошибки</option>
+                        </select>
                         @php $pen = is_array($settings['penalties'] ?? null) ? $settings['penalties'] : []; @endphp
                         <p class="form-label u-mt-1 u-m0">Штраф к сырому % (п.п.) по номеру попытки</p>
                         <div class="penalty-grid u-mt-1">
@@ -105,6 +118,19 @@
                         </label>
                         <label class="form-label" for="breakdown_visible_minutes">Минут видимости разбора после попытки (0 = не показывать)</label>
                         <input id="breakdown_visible_minutes" type="number" name="breakdown_visible_minutes" value="{{ $bvExamUnlimited ? 30 : $bvExam }}" min="0" max="10080" class="form-input form-input--md" @if ($bvExamUnlimited) disabled @endif>
+                        @php
+                            $bdFromParentEx = ($settings['breakdown_mode_from_parent'] ?? true) !== false;
+                            $bdModeEx = $bdFromParentEx ? 'inherit' : (string) ($settings['breakdown_mode'] ?? 'all');
+                            if (! in_array($bdModeEx, ['inherit', 'all', 'wrongs'], true)) {
+                                $bdModeEx = 'inherit';
+                            }
+                        @endphp
+                        <label class="form-label" for="breakdown_mode_ex">Что показывать в разборе</label>
+                        <select id="breakdown_mode_ex" name="breakdown_mode" class="form-input form-input--md">
+                            <option value="inherit" @if ($bdModeEx === 'inherit') selected @endif>Наследовать от модуля/курса</option>
+                            <option value="all" @if ($bdModeEx === 'all') selected @endif>Все вопросы</option>
+                            <option value="wrongs" @if ($bdModeEx === 'wrongs') selected @endif>Только ошибки</option>
+                        </select>
                         <label class="ap-check-row u-mt-1">
                             <input type="hidden" name="one_by_one" value="0">
                             <input type="checkbox" name="one_by_one" value="1" @if (($settings['one_by_one'] ?? true) !== false) checked @endif>

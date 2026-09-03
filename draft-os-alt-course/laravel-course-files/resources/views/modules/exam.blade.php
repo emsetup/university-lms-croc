@@ -250,7 +250,7 @@
                                 $mPerm = range(0, max(0, $mN - 1));
                                 shuffle($mPerm);
                             @endphp
-                            <p class="muted module-exam-hint">Перетаскивайте блоки <strong>справа</strong> (зажать левой кнопкой мыши), чтобы каждое описание встало напротив <strong>своей</strong> строки слева (сверху вниз).</p>
+                            <p class="muted module-exam-hint">Расставьте блоки <strong>справа</strong> напротив строк слева (сверху вниз) — перетаскиванием или кнопками ↑ / ↓.</p>
                             <div class="module-exam-match">
                                 <div class="module-exam-match__left" aria-label="Фиксированные подписи">
                                     @foreach ($mLeft as $li => $label)
@@ -261,10 +261,16 @@
                                     @endforeach
                                 </div>
                                 <div class="module-exam-match__right">
-                                    <div class="muted small" style="margin:0 0 0.35rem">Описания (перетащите в нужный порядок):</div>
+                                    <div class="muted small" style="margin:0 0 0.35rem">Варианты (переставьте в нужный порядок):</div>
                                     <ul class="module-exam-match__list js-match-drag-list" id="match-drag-{{ $i }}" data-q="{{ $i }}">
                                         @foreach ($mPerm as $descIdx)
-                                            <li draggable="true" class="module-exam-match__card" data-desc-idx="{{ (int) $descIdx }}">{!! \App\Support\CourseContentMarkdown::inlineHtml($mRight[$descIdx] ?? '') !!}</li>
+                                            <li draggable="true" class="module-exam-match__card" data-desc-idx="{{ (int) $descIdx }}">
+                                                <span class="module-exam-match__card-text">{!! \App\Support\CourseContentMarkdown::inlineHtml($mRight[$descIdx] ?? '') !!}</span>
+                                                <span class="module-exam-match__card-ops">
+                                                    <button type="button" class="module-exam-match__move" data-match-move="up" title="Выше" aria-label="Переместить выше">↑</button>
+                                                    <button type="button" class="module-exam-match__move" data-match-move="down" title="Ниже" aria-label="Переместить ниже">↓</button>
+                                                </span>
+                                            </li>
                                         @endforeach
                                     </ul>
                                     <input type="hidden" name="e{{ $i }}_order" class="js-match-order js-exam-input" data-q="{{ $i }}" value="{{ implode(',', $mPerm) }}" autocomplete="off">
@@ -375,52 +381,6 @@
                     inp.addEventListener('change', syncTabStates);
                 });
 
-                function syncMatchOrderHidden(ul) {
-                    var hid = ul.parentElement ? ul.parentElement.querySelector('.js-match-order') : null;
-                    if (!hid) return;
-                    var ids = [];
-                    ul.querySelectorAll('li[data-desc-idx]').forEach(function (li) {
-                        ids.push(li.getAttribute('data-desc-idx'));
-                    });
-                    hid.value = ids.join(',');
-                    hid.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-
-                document.querySelectorAll('.js-match-drag-list').forEach(function (ul) {
-                    var dragEl = null;
-                    ul.addEventListener('dragstart', function (e) {
-                        var li = e.target.closest('li');
-                        if (!li || !ul.contains(li)) return;
-                        dragEl = li;
-                        li.classList.add('module-exam-match__card--drag');
-                        try { e.dataTransfer.setData('text/plain', li.getAttribute('data-desc-idx') || ''); } catch (err) {}
-                        e.dataTransfer.effectAllowed = 'move';
-                    });
-                    ul.addEventListener('dragend', function (e) {
-                        var li = e.target.closest('li');
-                        if (li) li.classList.remove('module-exam-match__card--drag');
-                        dragEl = null;
-                    });
-                    ul.addEventListener('dragover', function (e) {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                    });
-                    ul.addEventListener('drop', function (e) {
-                        e.preventDefault();
-                        if (!dragEl) return;
-                        var target = e.target.closest('li');
-                        if (!target || !ul.contains(target) || target === dragEl) return;
-                        var rect = target.getBoundingClientRect();
-                        var before = e.clientY < rect.top + rect.height / 2;
-                        if (before) {
-                            ul.insertBefore(dragEl, target);
-                        } else {
-                            ul.insertBefore(dragEl, target.nextSibling);
-                        }
-                        syncMatchOrderHidden(ul);
-                    });
-                });
-
                 @if (empty($previewWalkthrough))
                 form.addEventListener('submit', function (e) {
                     var miss = [];
@@ -459,6 +419,7 @@
                 @endif
             })();
         </script>
+        @include('partials.match-reorder-script')
     @endif
     </div>
 @endsection

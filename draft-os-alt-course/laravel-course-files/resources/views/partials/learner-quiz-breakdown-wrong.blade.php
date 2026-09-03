@@ -9,7 +9,13 @@
                 Разбор доступен ограниченное время после попытки. Осталось: <strong class="quiz-breakdown-timer__left">—</strong>
             </p>
         @endif
-        <p class="muted small">Показаны только вопросы с ошибкой или без ответа. Отмечены ваш выбор и верный вариант.</p>
+        <p class="muted small">
+            @if (($breakdownMode ?? 'all') === 'wrongs')
+                Показаны только вопросы с ошибкой или без ответа. Отмечены ваш выбор и верный вариант.
+            @else
+                Все вопросы этой попытки. Отмечены ваш выбор и верный вариант.
+            @endif
+        </p>
         <ul class="muted learner-quiz-bd" style="padding-left:1.1rem;list-style:none;margin:0">
             @foreach ($wrongItems as $it)
                 @php
@@ -19,15 +25,23 @@
                     $multi = ! empty($it['multi']);
                     $hasChosenKey = array_key_exists('chosen', $it);
                     $chosen = $hasChosenKey ? $it['chosen'] : null;
+                    $skipped = ! empty($it['skipped']);
+                    $isCorrect = ! $skipped && ! empty($it['correct']);
+                    if ($skipped) {
+                        $statusLabel = 'Без ответа';
+                        $statusClass = 'learner-quiz-bd__status--skip';
+                    } elseif ($isCorrect) {
+                        $statusLabel = 'Верно';
+                        $statusClass = 'learner-quiz-bd__status--ok';
+                    } else {
+                        $statusLabel = 'Ошибка';
+                        $statusClass = 'learner-quiz-bd__status--bad';
+                    }
                 @endphp
                 <li class="learner-quiz-bd__item">
                     <strong>Вопрос {{ $it['n'] ?? '' }}.</strong>
                     <div class="module-exam-q--md" style="font-weight:600;margin-top:0.2rem">{!! \Illuminate\Support\Str::markdown($it['question'] ?? '') !!}</div>
-                    @if (!empty($it['skipped']))
-                        <p class="learner-quiz-bd__status">Без ответа</p>
-                    @else
-                        <p class="learner-quiz-bd__status">Ошибка</p>
-                    @endif
+                    <p class="learner-quiz-bd__status {{ $statusClass }}">{{ $statusLabel }}</p>
 
                     @if ($matchDrag)
                         @php
@@ -74,7 +88,7 @@
                                 </li>
                             @endforeach
                         </ul>
-                    @elseif ($hasChosenKey && ! empty($it['skipped']) === false)
+                    @elseif ($hasChosenKey && ! $skipped)
                         <p class="muted small" style="margin:0.35rem 0 0">
                             Ваш выбор:
                             @if ($multi)
@@ -91,7 +105,10 @@
     <style>
         .learner-quiz-bd__item { margin-bottom: 1.1rem; padding-bottom: 0.85rem; border-bottom: 1px solid #e8edf2; }
         .learner-quiz-bd__item:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
-        .learner-quiz-bd__status { margin: 0.35rem 0 0.45rem; font-size: 0.9rem; color: #9b1c1c; font-weight: 600; }
+        .learner-quiz-bd__status { margin: 0.35rem 0 0.45rem; font-size: 0.9rem; font-weight: 600; }
+        .learner-quiz-bd__status--ok { color: #0d5c2f; }
+        .learner-quiz-bd__status--bad { color: #9b1c1c; }
+        .learner-quiz-bd__status--skip { color: #5c6b76; }
         .learner-quiz-bd__opts { margin: 0.25rem 0 0; padding-left: 0; list-style: none; }
         .learner-quiz-bd__opt { margin-bottom: 0.28rem; padding: 0.28rem 0.45rem; border-radius: 6px; line-height: 1.35; }
         .learner-quiz-bd__opt--wrong { background: #fde8e6; }

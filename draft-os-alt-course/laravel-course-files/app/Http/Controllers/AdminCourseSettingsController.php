@@ -28,6 +28,7 @@ use App\Services\PortalStaffAccess;
 use App\Support\AdminCourseContentInspector;
 use App\Support\CourseModuleMeta;
 use App\Support\CourseQuizBankLoader;
+use App\Support\LearnerQuizBreakdownDisplay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -203,6 +204,7 @@ final class AdminCourseSettingsController extends Controller
             'assessment_enabled' => ['sometimes', 'boolean'],
             'show_score_percents' => ['sometimes', 'boolean'],
             'show_score_points' => ['sometimes', 'boolean'],
+            'quiz_breakdown_mode' => ['nullable', 'in:all,wrongs'],
             'meta_includes_dashboard_extras' => ['sometimes', 'boolean'],
             'audience_plaque_enabled' => ['sometimes', 'boolean'],
             'audience_plaque_kicker' => ['nullable', 'string', 'max:80'],
@@ -252,6 +254,10 @@ final class AdminCourseSettingsController extends Controller
             }
             if (Schema::hasColumn('courses', 'show_score_points')) {
                 $course->show_score_points = $request->boolean('show_score_points');
+            }
+            if (Schema::hasColumn('courses', 'quiz_breakdown_mode')) {
+                $course->quiz_breakdown_mode = LearnerQuizBreakdownDisplay::normalize($data['quiz_breakdown_mode'] ?? null)
+                    ?? LearnerQuizBreakdownDisplay::MODE_ALL;
             }
             if (Schema::hasColumn('courses', 'certificate_enabled') && $request->boolean('meta_includes_dashboard_extras')) {
                 $course->certificate_enabled = $request->boolean('certificate_enabled');
@@ -382,6 +388,7 @@ final class AdminCourseSettingsController extends Controller
             'content_source_index' => 'nullable|integer|min:1|max:99',
             'show_score_percents' => 'nullable|in:inherit,0,1',
             'show_score_points' => 'nullable|in:inherit,0,1',
+            'quiz_breakdown_mode' => 'nullable|in:inherit,all,wrongs',
         ]);
         $courseModule->title = $data['title'];
         $courseModule->summary = (string) ($data['summary'] ?? '');
@@ -393,6 +400,9 @@ final class AdminCourseSettingsController extends Controller
         if (Schema::hasColumn('course_modules', 'show_score_points')) {
             $courseModule->show_score_points = self::nullableBoolFromInherit($data['show_score_points'] ?? 'inherit');
         }
+        if (Schema::hasColumn('course_modules', 'quiz_breakdown_mode')) {
+            $courseModule->quiz_breakdown_mode = self::nullableModeFromInherit($data['quiz_breakdown_mode'] ?? 'inherit');
+        }
         $moduleChanges = $this->changeLog->describeModelDirty($courseModule, [
             'title' => 'Название',
             'summary' => 'Описание',
@@ -400,6 +410,7 @@ final class AdminCourseSettingsController extends Controller
             'content_source_index' => 'Пакет контента №',
             'show_score_percents' => 'Показывать проценты',
             'show_score_points' => 'Показывать баллы',
+            'quiz_breakdown_mode' => 'Разбор теста',
         ]);
         $courseModule->save();
         app(\App\Services\CourseSectionService::class)->clearCache();
@@ -677,6 +688,7 @@ final class AdminCourseSettingsController extends Controller
                 'shuffle' => 'sometimes|boolean',
                 'breakdown_visible_minutes' => 'nullable|integer|min:-1|max:10080',
                 'breakdown_unlimited' => 'sometimes|boolean',
+                'breakdown_mode' => 'nullable|in:inherit,all,wrongs',
                 'penalty_attempt_2' => 'nullable|integer|min:0|max:100',
                 'penalty_attempt_3' => 'nullable|integer|min:0|max:100',
                 'penalty_attempt_4' => 'nullable|integer|min:0|max:100',
@@ -692,6 +704,7 @@ final class AdminCourseSettingsController extends Controller
                 'one_by_one' => 'sometimes|boolean',
                 'breakdown_visible_minutes' => 'nullable|integer|min:-1|max:10080',
                 'breakdown_unlimited' => 'sometimes|boolean',
+                'breakdown_mode' => 'nullable|in:inherit,all,wrongs',
                 'penalty_attempt_2' => 'nullable|integer|min:0|max:100',
                 'penalty_attempt_3' => 'nullable|integer|min:0|max:100',
                 'penalty_attempt_4' => 'nullable|integer|min:0|max:100',
@@ -740,6 +753,18 @@ final class AdminCourseSettingsController extends Controller
                 $merged['breakdown_visible_minutes'] = isset($merged['breakdown_visible_minutes']) && $merged['breakdown_visible_minutes'] !== null
                     ? max(0, (int) $merged['breakdown_visible_minutes'])
                     : 30;
+            }
+        }
+        if ($section->type === CourseSection::TYPE_QUIZ || $section->type === CourseSection::TYPE_EXAM) {
+            $bm = (string) ($merged['breakdown_mode'] ?? 'inherit');
+            unset($merged['breakdown_mode']);
+            if ($bm === 'inherit' || $bm === '') {
+                $merged['breakdown_mode_from_parent'] = true;
+                $merged['breakdown_mode'] = null;
+            } else {
+                $own = LearnerQuizBreakdownDisplay::normalize($bm);
+                $merged['breakdown_mode_from_parent'] = false;
+                $merged['breakdown_mode'] = $own ?? LearnerQuizBreakdownDisplay::MODE_ALL;
             }
         }
         if ($section->type === CourseSection::TYPE_TEXT) {
@@ -880,7 +905,7 @@ final class AdminCourseSettingsController extends Controller
         $adminKey = (string) $request->query('key', '');
         $rp = array_merge($this->adminCourseRouteParams(), $adminKey !== '' ? ['key' => $adminKey] : []);
 
-        $inheritHints = $this->inheritHintsFromCourse($course);
+        $inheritHints = $this->inheritHintsFromCourse($course, $courseModule);
 
         return response()->json([
             'ok' => true,
@@ -891,12 +916,14 @@ final class AdminCourseSettingsController extends Controller
                 'default_attempt_limit' => $course->default_attempt_limit,
                 'default_quiz_time_minutes' => $course->default_quiz_time_minutes,
                 'default_pass_percent' => $course->default_pass_percent,
+                'quiz_breakdown_mode' => LearnerQuizBreakdownDisplay::forCourse($course),
                 'inherit_hints' => $inheritHints,
             ],
             'module' => [
                 'id' => (int) $courseModule->id,
                 'title' => (string) $courseModule->title,
                 'ordinal' => $modOrdinal,
+                'quiz_breakdown_mode' => LearnerQuizBreakdownDisplay::forModule($course, $courseModule),
             ],
             'section' => [
                 'id' => (int) $section->id,
@@ -1181,6 +1208,8 @@ final class AdminCourseSettingsController extends Controller
             'attempts_from_course' => 'sometimes|boolean',
             'time_from_course' => 'sometimes|boolean',
             'pass_from_course' => 'sometimes|boolean',
+            'breakdown_mode_from_parent' => 'sometimes|boolean',
+            'breakdown_mode' => 'nullable|in:all,wrongs',
             'attempt_limit' => 'nullable|integer|min:1|max:99',
             'time_limit_minutes' => 'nullable|integer|min:0|max:10080',
             'pass_percent' => 'nullable|integer|min:1|max:100',
@@ -1219,6 +1248,8 @@ final class AdminCourseSettingsController extends Controller
                 $af = (bool) ($p['attempts_from_course'] ?? false);
                 $tf = (bool) ($p['time_from_course'] ?? false);
                 $pf = (bool) ($p['pass_from_course'] ?? false);
+                $bmFromParent = (bool) ($p['breakdown_mode_from_parent'] ?? true);
+                $bmOwn = LearnerQuizBreakdownDisplay::normalize($p['breakdown_mode'] ?? null);
 
                 $merged = match ($section->type) {
                     CourseSection::TYPE_TEXT => array_merge($prev, [
@@ -1241,6 +1272,8 @@ final class AdminCourseSettingsController extends Controller
                         'breakdown_visible_minutes' => isset($p['breakdown_visible_minutes']) && $p['breakdown_visible_minutes'] !== null && $p['breakdown_visible_minutes'] !== ''
                             ? (int) $p['breakdown_visible_minutes']
                             : (int) ($prev['breakdown_visible_minutes'] ?? 15),
+                        'breakdown_mode_from_parent' => $bmFromParent,
+                        'breakdown_mode' => $bmFromParent ? null : ($bmOwn ?? LearnerQuizBreakdownDisplay::MODE_ALL),
                         'penalties' => is_array($prev['penalties'] ?? null) ? $prev['penalties'] : ['2' => 10],
                     ]),
                     CourseSection::TYPE_PRACTICE => array_merge($prev, [
@@ -1269,6 +1302,8 @@ final class AdminCourseSettingsController extends Controller
                         'breakdown_visible_minutes' => isset($p['breakdown_visible_minutes']) && $p['breakdown_visible_minutes'] !== null && $p['breakdown_visible_minutes'] !== ''
                             ? (int) $p['breakdown_visible_minutes']
                             : (int) ($prev['breakdown_visible_minutes'] ?? 30),
+                        'breakdown_mode_from_parent' => $bmFromParent,
+                        'breakdown_mode' => $bmFromParent ? null : ($bmOwn ?? LearnerQuizBreakdownDisplay::MODE_ALL),
                         'penalties' => is_array($prev['penalties'] ?? null) ? $prev['penalties'] : ['2' => 10],
                     ]),
                     default => $prev,
@@ -1374,9 +1409,9 @@ final class AdminCourseSettingsController extends Controller
     }
 
     /**
-     * @return array{attempts: string, time: string, pass: string}
+     * @return array{attempts: string, time: string, pass: string, breakdown: string}
      */
-    private function inheritHintsFromCourse(Course $course): array
+    private function inheritHintsFromCourse(Course $course, ?CourseModule $module = null): array
     {
         $a = $course->default_attempt_limit;
         $t = $course->default_quiz_time_minutes;
@@ -1390,12 +1425,29 @@ final class AdminCourseSettingsController extends Controller
         $pass = ($p === null || ! is_numeric($p) || (int) $p < 1)
             ? 'порог по умолчанию системы'
             : ((int) $p).'%';
+        $breakdown = LearnerQuizBreakdownDisplay::label(
+            LearnerQuizBreakdownDisplay::forModule($course, $module)
+        );
 
         return [
             'attempts' => $attempts,
             'time' => $time,
             'pass' => $pass,
+            'breakdown' => $breakdown,
         ];
+    }
+
+    /**
+     * @return string|null null = наследовать от курса
+     */
+    private static function nullableModeFromInherit(mixed $value): ?string
+    {
+        $v = is_string($value) ? $value : (string) $value;
+        if ($v === 'inherit' || $v === '') {
+            return null;
+        }
+
+        return LearnerQuizBreakdownDisplay::normalize($v);
     }
 
     private function assertModuleCourse(CourseModule $courseModule): void

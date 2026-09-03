@@ -60,7 +60,7 @@
                 </div>
             </div>
         @else
-            <p class="muted small" style="margin:0.35rem 0 0.5rem">Перетащите блоки справа в нужный порядок напротив строк слева.</p>
+            <p class="muted small" style="margin:0.35rem 0 0.5rem">Расставьте блоки справа в нужном порядке напротив строк слева — перетаскиванием или кнопками ↑ / ↓.</p>
             <div class="module-exam-match">
                 <div class="module-exam-match__left" aria-label="Фиксированные подписи">
                     @foreach ($mLeft as $li => $label)
@@ -71,10 +71,16 @@
                     @endforeach
                 </div>
                 <div class="module-exam-match__right">
-                    <div class="muted small" style="margin:0 0 0.35rem">Описания (перетащите в нужный порядок):</div>
+                    <div class="muted small" style="margin:0 0 0.35rem">Варианты (переставьте в нужный порядок):</div>
                     <ul class="module-exam-match__list js-match-drag-list" id="tq-match-drag-{{ $i }}" data-q="{{ $i }}">
                         @foreach ($mPerm as $descIdx)
-                            <li draggable="true" class="module-exam-match__card" data-desc-idx="{{ (int) $descIdx }}">{!! \App\Support\CourseContentMarkdown::inlineHtml((string) ($mRight[$descIdx] ?? '')) !!}</li>
+                            <li draggable="true" class="module-exam-match__card" data-desc-idx="{{ (int) $descIdx }}">
+                                <span class="module-exam-match__card-text">{!! \App\Support\CourseContentMarkdown::inlineHtml((string) ($mRight[$descIdx] ?? '')) !!}</span>
+                                <span class="module-exam-match__card-ops" aria-hidden="false">
+                                    <button type="button" class="module-exam-match__move" data-match-move="up" title="Выше" aria-label="Переместить выше">↑</button>
+                                    <button type="button" class="module-exam-match__move" data-match-move="down" title="Ниже" aria-label="Переместить ниже">↓</button>
+                                </span>
+                            </li>
                         @endforeach
                     </ul>
                     <input type="hidden" name="{{ $inputPrefix }}{{ $i }}_order" class="js-match-order" value="{{ implode(',', $mPerm) }}" autocomplete="off">

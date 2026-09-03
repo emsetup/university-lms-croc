@@ -7,6 +7,8 @@ use App\Models\CourseModule;
 use App\Models\CourseSection;
 use App\Models\Learner;
 use App\Models\PracticeSession;
+use App\Support\AdminCourseContentInspector;
+use App\Support\SectionProgress;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -119,7 +121,17 @@ final class TeacherLearnerProfileDetailService
 
     /**
      * @param  array<string, string>  $stepTitles
-     * @return list<array{label: string, percent: int, waived: bool, backend_key: string}>
+     * @return list<array{
+     *   label: string,
+     *   percent: int,
+     *   waived: bool,
+     *   backend_key: string,
+     *   section_id?: int,
+     *   section_type?: string,
+     *   quiz_history?: list<array<string, mixed>>,
+     *   quiz_questions?: list<array<string, mixed>>,
+     *   quiz_attempts?: int
+     * }>
      */
     private function sectionRowsForPanel(?\App\Models\ModuleProgress $p, int $mid, int $idx, bool $legacyAlt, array $stepTitles): array
     {
@@ -142,7 +154,7 @@ final class TeacherLearnerProfileDetailService
                 $pct = $p !== null
                     ? $this->courseSections->displayProgressPercentForBackendKey($p, $bk, $mid, $idx, $legacyAlt)
                     : 0;
-                $rows[] = [
+                $row = [
                     'label' => (string) ($sec->title !== '' ? $sec->title : ($defaultLabels[$sec->legacyTypeKey()] ?? $bk)),
                     'percent' => $pct,
                     'waived' => false,
@@ -150,6 +162,10 @@ final class TeacherLearnerProfileDetailService
                     'section_id' => (int) $sec->id,
                     'section_type' => (string) $sec->type,
                 ];
+                if ($p !== null && in_array($sec->type, [CourseSection::TYPE_QUIZ, CourseSection::TYPE_EXAM], true)) {
+                    $row = array_merge($row, $this->quizAttemptPayloadForSection($p, $sec, $idx));
+                }
+                $rows[] = $row;
             }
 
             return $rows;
@@ -171,6 +187,38 @@ final class TeacherLearnerProfileDetailService
         }
 
         return $rows;
+    }
+
+    /**
+     * История попыток и банк вопросов для карточки раздела (мульти-тесты в модуле).
+     *
+     * @return array{
+     *   quiz_history: list<array<string, mixed>>,
+     *   quiz_questions: list<array<string, mixed>>,
+     *   quiz_attempts: int
+     * }
+     */
+    private function quizAttemptPayloadForSection(\App\Models\ModuleProgress $p, CourseSection $sec, int $contentIdx): array
+    {
+        $sole = $this->courseSections->isSoleSectionOfType($sec);
+        $st = SectionProgress::quizState($p, $sec, $sole);
+        $hist = is_array($st['history'] ?? null) ? $st['history'] : [];
+        if ($hist === [] && is_array($st['last_result'] ?? null) && $st['last_result'] !== []) {
+            $hist = [$st['last_result']];
+        }
+
+        $qs = AdminCourseContentInspector::questionsForSection($sec);
+        if ($qs === []) {
+            $kind = $sec->type === CourseSection::TYPE_EXAM ? 'module_exam' : 'theory_quiz';
+            $fromCfg = config('course.module_quizzes.'.$contentIdx.'.'.$kind, []);
+            $qs = is_array($fromCfg) ? $fromCfg : [];
+        }
+
+        return [
+            'quiz_history' => $hist,
+            'quiz_questions' => $qs,
+            'quiz_attempts' => (int) ($st['attempts'] ?? 0),
+        ];
     }
 
     /**

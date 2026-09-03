@@ -48,6 +48,7 @@
         'showBreakdown' => $showBreakdown ?? false,
         'wrongItems' => $wrongItems ?? [],
         'breakdownUntilTs' => $breakdownUntilTs ?? null,
+        'breakdownMode' => $breakdownMode ?? 'all',
         'breakdownTitle' => 'Разбор ответов',
     ])
     </div>

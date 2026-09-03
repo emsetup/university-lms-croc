@@ -92,6 +92,7 @@
                 data-module-summary="{{ e($m->summary ?? '') }}"
                 data-module-show-percents="{{ \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_percents') ? (($m->getAttributes()['show_score_percents'] ?? null) === null ? 'inherit' : ((string) (int) $m->getAttributes()['show_score_percents'])) : 'inherit' }}"
                 data-module-show-points="{{ \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_points') ? (($m->getAttributes()['show_score_points'] ?? null) === null ? 'inherit' : ((string) (int) $m->getAttributes()['show_score_points'])) : 'inherit' }}"
+                data-module-breakdown-mode="{{ \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'quiz_breakdown_mode') ? (($m->getAttributes()['quiz_breakdown_mode'] ?? null) === null || $m->getAttributes()['quiz_breakdown_mode'] === '' ? 'inherit' : e((string) $m->getAttributes()['quiz_breakdown_mode'])) : 'inherit' }}"
                 data-update-url="{{ route('admin.course.settings.module.update', array_merge($rp, ['courseModule' => $m->id])) }}"
                 data-destroy-url="{{ route('admin.course.settings.module.destroy', array_merge($rp, ['courseModule' => $m->id])) }}"
                 data-section-store-url="{{ route('admin.course.module.sections.store', array_merge($rp, ['courseModule' => $m->id])) }}"
@@ -401,9 +402,9 @@
             <input id="ap-mod-set-pkg" class="ap-modal__input" type="number" name="content_source_index" min="1" max="99" style="max-width:7rem">
             <label class="ap-settings-label" for="ap-mod-set-sum">Описание для обучающихся</label>
             <textarea id="ap-mod-set-sum" class="ap-modal__input ap-settings-textarea" name="summary" rows="5" maxlength="5000"></textarea>
-            @if (\Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_percents') || \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_points'))
+            @if (\Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_percents') || \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_points') || \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'quiz_breakdown_mode'))
                 <p class="ap-settings-label" style="margin-top:1rem">Метрики для обучающихся</p>
-                <p class="ap-muted small" style="margin:0 0 0.5rem">По умолчанию — как в настройках курса. Можно показать или скрыть отдельно проценты и баллы.</p>
+                <p class="ap-muted small" style="margin:0 0 0.5rem">По умолчанию — как в настройках курса. Можно показать или скрыть отдельно проценты и баллы, и задать режим разбора.</p>
                 @if (\Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_percents'))
                     <label class="ap-settings-label" for="ap-mod-set-percents">Проценты</label>
                     <select id="ap-mod-set-percents" class="ap-modal__input" name="show_score_percents">
@@ -418,6 +419,14 @@
                         <option value="inherit">Наследовать от курса</option>
                         <option value="1">Показывать</option>
                         <option value="0">Скрыть</option>
+                    </select>
+                @endif
+                @if (\Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'quiz_breakdown_mode'))
+                    <label class="ap-settings-label" for="ap-mod-set-breakdown" style="margin-top:0.75rem">Разбор после теста</label>
+                    <select id="ap-mod-set-breakdown" class="ap-modal__input" name="quiz_breakdown_mode">
+                        <option value="inherit">Наследовать от курса</option>
+                        <option value="all">Все вопросы</option>
+                        <option value="wrongs">Только ошибки</option>
                     </select>
                 @endif
             @endif
@@ -519,6 +528,15 @@
                     <input id="ap-sec-own-pass" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="1" max="100" placeholder="%" hidden>
                 </fieldset>
                 <div class="ap-sec-settings-quiz-only" id="ap-sec-breakdown-fields">
+                    <fieldset class="ap-sec-edit-panel__inherit">
+                        <legend class="ap-settings-label">Разбор после попытки</legend>
+                        <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-breakdown" value="inherit"> Наследовать (<span id="ap-sec-hint-breakdown"></span>)</label>
+                        <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-breakdown" value="own"> Задать своё</label>
+                        <select id="ap-sec-own-breakdown" class="ap-modal__input ap-sec-edit-panel__own-input" hidden>
+                            <option value="all">Все вопросы</option>
+                            <option value="wrongs">Только ошибки</option>
+                        </select>
+                    </fieldset>
                     <div class="ap-sec-edit-panel__toggle-row">
                         <span class="ap-settings-label" style="margin:0">Разбор без ограничения по времени</span>
                         <label class="ap-sec-edit-panel__switch">
@@ -528,7 +546,7 @@
                     </div>
                     <label class="ap-settings-label" for="ap-sec-breakdown-minutes">Минут видимости разбора (0 = скрыть)</label>
                     <input id="ap-sec-breakdown-minutes" class="ap-modal__input" type="number" min="0" max="10080" placeholder="например 15">
-                    <p class="ap-muted small">Для тренировочных тестов (не за баллы) можно снять лимит — обучающийся разберёт ошибки без таймера.</p>
+                    <p class="ap-muted small">Для тренировочных тестов (не за баллы) можно снять лимит — обучающийся разберёт ответы без таймера.</p>
                 </div>
                 <div class="ap-sec-settings-survey-only" id="ap-sec-survey-fields" hidden>
                     <div class="ap-sec-edit-panel__toggle-row">
@@ -987,6 +1005,10 @@
                 var ptsSel = document.getElementById('ap-mod-set-points');
                 if (ptsSel) {
                     ptsSel.value = card.getAttribute('data-module-show-points') || 'inherit';
+                }
+                var bdSel = document.getElementById('ap-mod-set-breakdown');
+                if (bdSel) {
+                    bdSel.value = card.getAttribute('data-module-breakdown-mode') || 'inherit';
                 }
                 openDrawer();
             });

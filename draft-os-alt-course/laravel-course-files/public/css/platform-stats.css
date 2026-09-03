@@ -72,6 +72,15 @@
     gap: 0.5rem;
 }
 
+.ps-hero__actions {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    position: relative;
+    z-index: 1;
+}
+
 .ps-pill {
     display: inline-flex;
     align-items: center;

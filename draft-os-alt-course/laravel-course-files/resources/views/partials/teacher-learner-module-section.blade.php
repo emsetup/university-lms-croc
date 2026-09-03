@@ -64,19 +64,38 @@
         @break
 
     @case ('quiz')
+        @php
+            $thHist = is_array($sr['quiz_history'] ?? null) ? $sr['quiz_history'] : null;
+            if ($thHist === null) {
+                $thHist = $panel['theory_quiz_history'] ?? [];
+                if ($p && (! is_array($thHist) || count($thHist) === 0) && is_array($p->theory_quiz_last_result) && count($p->theory_quiz_last_result) > 0) {
+                    $thHist = [$p->theory_quiz_last_result];
+                }
+            }
+            $thBank = is_array($sr['quiz_questions'] ?? null) && $sr['quiz_questions'] !== []
+                ? $sr['quiz_questions']
+                : ($panel['theory_questions'] ?? []);
+            $tqGroupId = 'tq-'.$mid.($sectionId > 0 ? '-s'.$sectionId : '');
+            $canResetThisTq = $canResetProgress && (
+                (isset($sr['quiz_attempts']) && (int) $sr['quiz_attempts'] >= 1)
+                || (is_array($thHist) && count($thHist) > 0)
+                || $canResetTq
+            );
+            $tqResetAnchor = 'ta-reset-tq'.($sectionId > 0 ? '-'.$sectionId : '');
+        @endphp
         <section class="card ap-report-mod-section section-card" id="{{ $anchor }}" data-section="{{ $anchor }}" data-type="{{ $dataType }}">
             <div class="section-card-header">
-                <h2 class="section-card-title" id="ta-tq-h">{{ $sectionTitle }}</h2>
+                <h2 class="section-card-title" id="ta-tq-h-{{ $sectionId > 0 ? $sectionId : $mid }}">{{ $sectionTitle }}</h2>
                 <div class="section-card-header__actions">
-                    @if ($canResetTq)
-                        <a class="btn-reset" href="#ta-reset-tq">Сброс</a>
+                    @if ($canResetThisTq)
+                        <a class="btn-reset" href="#{{ $tqResetAnchor }}">Сброс</a>
                     @endif
                     <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
                         <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
                         <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
                             <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
-                            @if ($canResetTq)
-                                <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#ta-reset-tq">Сброс попытки…</a>
+                            @if ($canResetThisTq)
+                                <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#{{ $tqResetAnchor }}">Сброс попытки…</a>
                             @endif
                         </div>
                     </div>
@@ -85,28 +104,25 @@
             <p class="section-card-lead">Переключайте вкладки, чтобы просмотреть каждую попытку.</p>
             <div class="section-card-divider" role="presentation"></div>
             <div class="section-card-body">
-                @php
-                    $thHist = $panel['theory_quiz_history'] ?? [];
-                    if ($p && (! is_array($thHist) || count($thHist) === 0) && is_array($p->theory_quiz_last_result) && count($p->theory_quiz_last_result) > 0) {
-                        $thHist = [$p->theory_quiz_last_result];
-                    }
-                @endphp
                 @include('partials.teacher-attempt-tabs', [
                     'attempts' => $thHist,
-                    'groupId' => 'tq-' . $mid,
+                    'groupId' => $tqGroupId,
                     'attemptNoKey' => 'attempt_no',
                     'passedKey' => 'passed',
                     'penaltyFlagKey' => 'penalty_points',
-                    'questionBank' => $panel['theory_questions'],
+                    'questionBank' => $thBank,
                     'svgThOk' => $svgThOk,
                     'svgThFail' => $svgThFail,
                 ])
             </div>
-            @if ($canResetTq)
-                <div class="ap-report-reset-block" id="ta-reset-tq">
+            @if ($canResetThisTq)
+                <div class="ap-report-reset-block" id="{{ $tqResetAnchor }}">
                     <form method="post" action="{{ $resetPostUrl }}" class="js-ta-reset-form">
                         @csrf
                         <input type="hidden" name="step" value="theory_quiz">
+                        @if ($sectionId > 0)
+                            <input type="hidden" name="section_id" value="{{ $sectionId }}">
+                        @endif
                         <label><input type="checkbox" name="confirm" value="1" required> Сбросить последнюю «занятую» попытку: у обучающегося счётчик попыток уменьшится на 1, текущие результаты и история на его стороне очистятся; здесь останется запись в журнале сбросов.</label>
                         <input type="text" name="note" maxlength="500" placeholder="Комментарий к сбросу (необязательно)">
                         <button type="submit" class="btn btn-danger btn-sm" style="margin-top:8px">Сбросить тест по теории</button>
@@ -193,19 +209,38 @@
         @break
 
     @case ('exam')
+        @php
+            $exHist = is_array($sr['quiz_history'] ?? null) ? $sr['quiz_history'] : null;
+            if ($exHist === null) {
+                $exHist = $panel['module_exam_history'] ?? [];
+                if ($p && (! is_array($exHist) || count($exHist) === 0) && is_array($p->module_exam_last_result) && count($p->module_exam_last_result) > 0) {
+                    $exHist = [$p->module_exam_last_result];
+                }
+            }
+            $exBank = is_array($sr['quiz_questions'] ?? null) && $sr['quiz_questions'] !== []
+                ? $sr['quiz_questions']
+                : ($panel['exam_questions'] ?? []);
+            $exGroupId = 'ex-'.$mid.($sectionId > 0 ? '-s'.$sectionId : '');
+            $canResetThisEx = $canResetProgress && (
+                (isset($sr['quiz_attempts']) && (int) $sr['quiz_attempts'] >= 1)
+                || (is_array($exHist) && count($exHist) > 0)
+                || $canResetEx
+            );
+            $exResetAnchor = 'ta-reset-ex'.($sectionId > 0 ? '-'.$sectionId : '');
+        @endphp
         <section class="card ap-report-mod-section section-card" id="{{ $anchor }}" data-section="{{ $anchor }}" data-type="{{ $dataType }}">
             <div class="section-card-header">
-                <h2 class="section-card-title" id="ta-ex-h">{{ $sectionTitle }}</h2>
+                <h2 class="section-card-title" id="ta-ex-h-{{ $sectionId > 0 ? $sectionId : $mid }}">{{ $sectionTitle }}</h2>
                 <div class="section-card-header__actions">
-                    @if ($canResetEx)
-                        <a class="btn-reset" href="#ta-reset-ex">Сброс</a>
+                    @if ($canResetThisEx)
+                        <a class="btn-reset" href="#{{ $exResetAnchor }}">Сброс</a>
                     @endif
                     <div class="section-menu-wrap ap-report-dropdown js-ap-dropdown">
                         <button type="button" class="section-menu-btn js-ap-dropdown-btn" aria-expanded="false" aria-haspopup="true" aria-label="Меню раздела">{!! $svgMore !!}</button>
                         <div class="dropdown-menu ap-report-dropdown__panel js-ap-dropdown-panel" hidden>
                             <a class="dropdown-item ap-report-dropdown__link" href="#tlm-jump">К быстрому переходу</a>
-                            @if ($canResetEx)
-                                <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#ta-reset-ex">Сброс попытки…</a>
+                            @if ($canResetThisEx)
+                                <a class="dropdown-item ap-report-dropdown__link dropdown-item--danger" href="#{{ $exResetAnchor }}">Сброс попытки…</a>
                             @endif
                         </div>
                     </div>
@@ -217,28 +252,25 @@
                 <p class="ap-report-sec-meta-line" style="margin-top:0">
                     Время на экзамене: <strong>{{ DurationFormat::fromSeconds($secEx) }}</strong>
                 </p>
-                @php
-                    $exHist = $panel['module_exam_history'] ?? [];
-                    if ($p && (! is_array($exHist) || count($exHist) === 0) && is_array($p->module_exam_last_result) && count($p->module_exam_last_result) > 0) {
-                        $exHist = [$p->module_exam_last_result];
-                    }
-                @endphp
                 @include('partials.teacher-attempt-tabs', [
                     'attempts' => $exHist,
-                    'groupId' => 'ex-' . $mid,
+                    'groupId' => $exGroupId,
                     'attemptNoKey' => 'attempt',
                     'passedKey' => 'passed_this_attempt',
                     'penaltyFlagKey' => 'penalty_applied',
-                    'questionBank' => $panel['exam_questions'],
+                    'questionBank' => $exBank,
                     'svgThOk' => $svgThOk,
                     'svgThFail' => $svgThFail,
                 ])
             </div>
-            @if ($canResetEx)
-                <div class="ap-report-reset-block" id="ta-reset-ex">
+            @if ($canResetThisEx)
+                <div class="ap-report-reset-block" id="{{ $exResetAnchor }}">
                     <form method="post" action="{{ $resetPostUrl }}" class="js-ta-reset-form">
                         @csrf
                         <input type="hidden" name="step" value="module_exam">
+                        @if ($sectionId > 0)
+                            <input type="hidden" name="section_id" value="{{ $sectionId }}">
+                        @endif
                         <label><input type="checkbox" name="confirm" value="1" required> Сбросить последнюю попытку экзамена: счётчик попыток −1, видимые результаты очищаются, снимок — в журнале.</label>
                         <input type="text" name="note" maxlength="500" placeholder="Комментарий к сбросу (необязательно)">
                         <button type="submit" class="btn btn-danger btn-sm" style="margin-top:8px">Сбросить экзамен</button>

@@ -18,6 +18,7 @@ use App\Services\PracticeLabService;
 use App\Support\CourseModuleMeta;
 use App\Support\CourseStaffPreview;
 use App\Support\LearnerPreviewContext;
+use App\Support\LearnerQuizBreakdownDisplay;
 use App\Support\LearnerRoute;
 use App\Support\LearnerScoreDisplay;
 use App\Support\SectionProgress;
@@ -342,7 +343,8 @@ class ModuleController extends Controller
     }
 
     /**
-     * Разбор для обучающегося: только ошибки/пропуски; окно по времени или без ограничения.
+     * Разбор для обучающегося: все вопросы или только ошибки (по настройке);
+     * окно по времени или без ограничения.
      *
      * @param  array<string, mixed>  $data
      * @return array{
@@ -350,11 +352,13 @@ class ModuleController extends Controller
      *     showBreakdown: bool,
      *     breakdownExpired: bool,
      *     wrongItems: list<array<string, mixed>>,
+     *     breakdownMode: string,
      *     breakdownUntilTs: ?int
      * }
      */
-    protected function prepareLearnerQuizBreakdownView(array $data): array
+    protected function prepareLearnerQuizBreakdownView(array $data, string $mode = LearnerQuizBreakdownDisplay::MODE_ALL): array
     {
+        $mode = LearnerQuizBreakdownDisplay::normalize($mode) ?? LearnerQuizBreakdownDisplay::MODE_ALL;
         $unlimited = ! empty($data['breakdown_unlimited']);
         $until = array_key_exists('breakdown_visible_until', $data) && $data['breakdown_visible_until'] !== null
             ? (int) $data['breakdown_visible_until']
@@ -368,23 +372,18 @@ class ModuleController extends Controller
             unset($result['items'], $result['breakdown_visible_until'], $result['breakdown_unlimited']);
         }
 
-        $wrongItems = [];
+        $rawItems = [];
         if ($withinWindow && ! empty($data['items']) && is_array($data['items'])) {
-            foreach ($data['items'] as $it) {
-                if (! is_array($it)) {
-                    continue;
-                }
-                if (empty($it['correct']) || ! empty($it['skipped'])) {
-                    $wrongItems[] = $it;
-                }
-            }
+            $rawItems = $data['items'];
         }
+        $breakdownItems = LearnerQuizBreakdownDisplay::filterItems($rawItems, $mode);
 
         return [
             'result' => $result,
-            'showBreakdown' => $withinWindow && $wrongItems !== [],
+            'showBreakdown' => $withinWindow && $breakdownItems !== [],
             'breakdownExpired' => $breakdownExpired,
-            'wrongItems' => $wrongItems,
+            'wrongItems' => $breakdownItems,
+            'breakdownMode' => $mode,
             'breakdownUntilTs' => ($withinWindow && ! $unlimited && $until > 0) ? $until : null,
         ];
     }
@@ -560,9 +559,10 @@ class ModuleController extends Controller
 
     /**
      * Детальный разбор теста по теории (для страницы результата).
-     * Одиночный выбор: c — int; несколько верных: c — int[] (чекбоксы в форме).
+     * Одиночный выбор: c — int; несколько верных: c — int[] (чекбоксы в форме);
+     * сопоставление: match_drag + left/right (порядок в {prefix}{i}_order).
      *
-     * @param  array<int, array{q:string,a:array,c:int|array<int>}>  $questions
+     * @param  array<int, array{q:string,a?:array,c?:int|array<int>,match_drag?:bool,left?:array,right?:array,open_text?:bool}>  $questions
      * @return array{correct_count:int, wrong_count:int, total:int, raw_percent:int, items: array<int, array<string, mixed>>}
      */
     protected function scoreTheoryQuizBreakdown(array $questions, Request $request, string $prefix): array
@@ -572,6 +572,57 @@ class ModuleController extends Controller
         foreach (array_keys($questions) as $i) {
             $q = $questions[$i];
             $key = $prefix.$i;
+
+            if (! empty($q['match_drag'])) {
+                $left = is_array($q['left'] ?? null) ? $q['left'] : [];
+                $right = is_array($q['right'] ?? null) ? $q['right'] : [];
+                $n = count($left);
+                $malformed = $n < 1 || count($right) !== $n;
+                $rawOrder = (string) $request->input($key.'_order', '');
+                $parts = array_values(array_map('intval', array_filter(explode(',', $rawOrder), static function ($s) {
+                    return $s !== '';
+                })));
+                $skipped = $malformed || $rawOrder === '' || count($parts) !== $n;
+                $expectedOrder = range(0, max(0, $n - 1));
+                $ok = ! $skipped && ! $malformed && $parts === $expectedOrder;
+                if ($ok) {
+                    $correctCount++;
+                }
+                $items[] = [
+                    'n' => $i + 1,
+                    'question' => $q['q'],
+                    'match_drag' => true,
+                    'left' => $left,
+                    'right' => $right,
+                    'chosen_order' => $skipped ? [] : $parts,
+                    'expected_order' => $expectedOrder,
+                    'multi' => false,
+                    'correct' => $ok,
+                    'skipped' => $skipped,
+                ];
+
+                continue;
+            }
+
+            if (! empty($q['open_text'])) {
+                $chosen = trim((string) $request->input($key, ''));
+                $skipped = $chosen === '';
+                // Открытый ответ в тесте по теории не автопроверяется — засчитывается как ошибка.
+                $items[] = [
+                    'n' => $i + 1,
+                    'question' => $q['q'],
+                    'open_text' => true,
+                    'options' => [],
+                    'chosen' => $chosen,
+                    'expected' => null,
+                    'multi' => false,
+                    'correct' => false,
+                    'skipped' => $skipped,
+                ];
+
+                continue;
+            }
+
             $expectedRaw = $q['c'] ?? null;
 
             if (is_array($expectedRaw)) {
@@ -596,7 +647,7 @@ class ModuleController extends Controller
                 $items[] = [
                     'n' => $i + 1,
                     'question' => $q['q'],
-                    'options' => $q['a'],
+                    'options' => $q['a'] ?? [],
                     'chosen' => $chosenSet,
                     'expected' => $expSet,
                     'multi' => true,
@@ -614,7 +665,7 @@ class ModuleController extends Controller
                 $items[] = [
                     'n' => $i + 1,
                     'question' => $q['q'],
-                    'options' => $q['a'],
+                    'options' => $q['a'] ?? [],
                     'chosen' => $chosen,
                     'expected' => $expected,
                     'multi' => false,
@@ -1050,7 +1101,8 @@ class ModuleController extends Controller
             return redirect()->to($this->hubUrl($ctx))->with('err', 'Нет сохранённого разбора. Сначала завершите тест с отправкой ответов.');
         }
 
-        $breakdownView = $this->prepareLearnerQuizBreakdownView($data);
+        $breakdownMode = LearnerQuizBreakdownDisplay::forSection($sec, $cm, $courseId > 0 ? Course::query()->find($courseId) : null);
+        $breakdownView = $this->prepareLearnerQuizBreakdownView($data, $breakdownMode);
         $scoreDisplay = LearnerScoreDisplay::flags(
             $courseId > 0 ? Course::query()->find($courseId) : null,
             $cm
@@ -1067,6 +1119,7 @@ class ModuleController extends Controller
             'showBreakdown' => $breakdownView['showBreakdown'],
             'breakdownExpired' => $breakdownView['breakdownExpired'],
             'wrongItems' => $breakdownView['wrongItems'],
+            'breakdownMode' => $breakdownView['breakdownMode'],
             'breakdownUntilTs' => $breakdownView['breakdownUntilTs'],
             'showScorePercents' => $scoreDisplay['showScorePercents'],
             'showScorePoints' => $scoreDisplay['showScorePoints'],
@@ -1493,7 +1546,8 @@ class ModuleController extends Controller
             return redirect()->to($this->hubUrl($ctx))->with('err', 'Пока нет результата итогового теста. Пройдите тест с шага модуля.');
         }
 
-        $breakdownView = $this->prepareLearnerQuizBreakdownView($data);
+        $breakdownMode = LearnerQuizBreakdownDisplay::forSection($sec, $cm, $courseId > 0 ? Course::query()->find($courseId) : null);
+        $breakdownView = $this->prepareLearnerQuizBreakdownView($data, $breakdownMode);
         $scoreDisplay = LearnerScoreDisplay::flags(
             $courseId > 0 ? Course::query()->find($courseId) : null,
             $cm
@@ -1512,6 +1566,7 @@ class ModuleController extends Controller
             'breakdownUntilTs' => $breakdownView['breakdownUntilTs'],
             'breakdownExpired' => $breakdownView['breakdownExpired'],
             'wrongItems' => $breakdownView['wrongItems'],
+            'breakdownMode' => $breakdownView['breakdownMode'],
             'showScorePercents' => $scoreDisplay['showScorePercents'],
             'showScorePoints' => $scoreDisplay['showScorePoints'],
         ]);

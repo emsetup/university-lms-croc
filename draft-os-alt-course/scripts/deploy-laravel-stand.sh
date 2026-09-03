@@ -221,6 +221,7 @@ for f in \
   app/Support/TeacherQuizLabels.php \
   app/Support/CourseAudiencePlaque.php \
   app/Support/LearnerScoreDisplay.php \
+  app/Support/LearnerQuizBreakdownDisplay.php \
   app/Support/LearnerSsoDisplayNamePersistence.php \
   app/Support/LearnerPortalLoginPersistence.php \
   app/Support/PortalStaffPermissionCatalog.php \
@@ -336,6 +337,12 @@ if [[ -f "${LCF}/database/migrations/2026_08_06_190000_add_show_score_display_fl
   echo "[deploy-laravel] database/migrations/…show_score_display_flags…"
   rsync -az "${LCF}/database/migrations/2026_08_06_190000_add_show_score_display_flags.php" \
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_08_06_190000_add_show_score_display_flags.php"
+fi
+
+if [[ -f "${LCF}/database/migrations/2026_09_03_120000_add_quiz_breakdown_mode.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…quiz_breakdown_mode…"
+  rsync -az "${LCF}/database/migrations/2026_09_03_120000_add_quiz_breakdown_mode.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_09_03_120000_add_quiz_breakdown_mode.php"
 fi
 
 if [[ -f "${LCF}/database/migrations/2026_08_26_180000_signed_breakdown_visible_minutes.php" ]]; then
@@ -621,6 +628,12 @@ if [[ -f "${LCF}/public/css/platform-stats.css" ]]; then
   echo "[deploy-laravel] public/css/platform-stats.css"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/css'"
   rsync -az "${LCF}/public/css/platform-stats.css" "${STAND_SSH}:${REMOTE}/public/css/platform-stats.css"
+fi
+
+if [[ -f "${LCF}/public/css/platform-stats-export.css" ]]; then
+  echo "[deploy-laravel] public/css/platform-stats-export.css"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/css'"
+  rsync -az "${LCF}/public/css/platform-stats-export.css" "${STAND_SSH}:${REMOTE}/public/css/platform-stats-export.css"
 fi
 
 if [[ -f "${LCF}/public/css/docker-sandbox.css" ]]; then

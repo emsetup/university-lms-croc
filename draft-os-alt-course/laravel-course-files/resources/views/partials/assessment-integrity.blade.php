@@ -20,6 +20,10 @@
                         e.preventDefault();
                     }, true);
                     el.addEventListener('dragstart', function (e) {
+                        // Сопоставление (match_drag): карточки нужно перетаскивать.
+                        if (e.target && e.target.closest && e.target.closest('.js-match-drag-list, .module-exam-match__card')) {
+                            return;
+                        }
                         e.preventDefault();
                     }, true);
                 }

@@ -1,0 +1,324 @@
+/* PDF / print export for portal stats (/adm/statistika/pdf) */
+
+.ps-export-body {
+    margin: 0;
+    background: #eef5f1;
+    color: #0f291c;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", "DejaVu Sans", sans-serif;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+}
+
+.ps-export-root {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 1rem 1rem 2rem;
+}
+
+/* html2canvas плохо дружит с CSS-анимациями (opacity:0) и огромным canvas */
+.ps-export-root,
+.ps-export-root * {
+    animation: none !important;
+    animation-delay: 0s !important;
+    transition: none !important;
+}
+
+.ps-export-root .ps-kpi,
+.ps-export-root .ps-card,
+.ps-export-root .ps-hero,
+.ps-export-root .ps-export-footer {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+}
+
+.ps-export-root .ps-kpi {
+    background: #ffffff !important;
+    border: 1px solid #d7e5dc !important;
+    box-shadow: none !important;
+    color: #0f291c !important;
+}
+
+.ps-export-root .ps-kpi__label,
+.ps-export-root .ps-kpi__hint {
+    color: #5a7266 !important;
+}
+
+.ps-export-root .ps-kpi__value,
+.ps-export-root .ps-kpi__hint strong {
+    color: #0f291c !important;
+}
+
+.ps-export-root .ps-card {
+    background: #ffffff !important;
+    box-shadow: none !important;
+}
+
+.ps-export-root .ps-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.ps-export-root .ps-layout {
+    grid-template-columns: 1.15fr 0.85fr !important;
+}
+
+.ps-export-root .ps-funnel__fill,
+.ps-export-root .ps-bar__fill,
+.ps-export-root .ps-spark__bar {
+    transition: none !important;
+}
+
+.ps-export-chunk {
+    background: #f3faf6;
+    padding: 0;
+    margin: 0 0 0.55rem;
+}
+
+.ps-export-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(255, 255, 255, 0.96);
+    border-bottom: 1px solid #d7e5dc;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 18px rgba(15, 41, 28, 0.06);
+}
+
+.ps-export-toolbar__inner {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 0.65rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.ps-export-toolbar__back {
+    color: #0f7a45;
+    font-weight: 650;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.ps-export-toolbar__back:hover {
+    text-decoration: underline;
+}
+
+.ps-export-toolbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.ps-export-toolbar__btn {
+    appearance: none;
+    border: 0;
+    border-radius: 999px;
+    padding: 0.45rem 0.95rem;
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+    background: linear-gradient(135deg, #00b956, #0d9488);
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(0, 185, 86, 0.22);
+}
+
+.ps-export-toolbar__btn:hover:not(:disabled) {
+    filter: brightness(1.03);
+}
+
+.ps-export-toolbar__btn:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
+
+.ps-export-toolbar__btn--ghost {
+    background: #fff;
+    color: #0f291c;
+    border: 1px solid #d7e5dc;
+    box-shadow: none;
+}
+
+.ps-export-toolbar__status {
+    font-size: 0.82rem;
+    color: #5a7266;
+    min-width: 8rem;
+}
+
+.ps-export-hero {
+    margin-top: 0.25rem;
+}
+
+.ps-export-footer {
+    margin-top: 1.25rem;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    border: 1px dashed #c9ddd2;
+    background: #fff;
+    text-align: center;
+    font-size: 0.78rem;
+    color: #5a7266;
+}
+
+.ps-export-footer p {
+    margin: 0;
+}
+
+.ps-changelog--export {
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+.ps-staff-roster {
+    page-break-before: always;
+}
+
+.ps-staff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.ps-staff-table th {
+    text-align: left;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #5a7266;
+    font-weight: 700;
+    padding: 0 0.45rem 0.55rem;
+    border-bottom: 1px solid #d7e5dc;
+}
+
+.ps-staff-table td {
+    padding: 0.65rem 0.45rem;
+    border-bottom: 1px solid #eef5f0;
+    vertical-align: top;
+    color: #0f291c;
+}
+
+.ps-staff-table tr:last-child td {
+    border-bottom: 0;
+}
+
+.ps-staff-table__email {
+    font-weight: 700;
+    word-break: break-word;
+}
+
+.ps-staff-table__comment {
+    margin-top: 0.25rem;
+    font-size: 0.74rem;
+    color: #5a7266;
+    line-height: 1.35;
+}
+
+.ps-staff-table__muted {
+    color: #5a7266;
+}
+
+.ps-staff-table__groups,
+.ps-staff-table__courses {
+    margin: 0;
+    padding-left: 1rem;
+}
+
+.ps-staff-table__groups li,
+.ps-staff-table__courses li {
+    margin: 0.12rem 0;
+}
+
+.ps-staff-table__login {
+    white-space: nowrap;
+    font-size: 0.78rem;
+    color: #5a7266;
+}
+
+.ps-staff-badge {
+    display: inline-block;
+    padding: 0.14rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 750;
+    line-height: 1.25;
+    background: #eef2f6;
+    color: #475569;
+}
+
+.ps-staff-badge--portal_admin { background: #fde8e8; color: #991b1b; }
+.ps-staff-badge--course_moderator { background: #fef3c7; color: #92400e; }
+.ps-staff-badge--portal_auditor { background: #e8f4fc; color: #0369a1; }
+.ps-staff-badge--course_creator { background: #e7f8ee; color: #0b7a3d; }
+.ps-staff-badge--course_editor,
+.ps-staff-badge--course_contributor { background: #ecfdf5; color: #047857; }
+.ps-staff-badge--instructor { background: #ede9fe; color: #5b21b6; }
+.ps-staff-badge--course_tester { background: #fff7ed; color: #9a3412; }
+
+.ps-hero__actions {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+}
+
+.ps-export-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.95rem;
+    border-radius: 999px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-decoration: none;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.ps-export-btn:hover {
+    background: rgba(255, 255, 255, 0.24);
+    color: #fff;
+}
+
+.ps-export-btn--ghost {
+    background: transparent;
+}
+
+.ps-export-generating .ps-export-toolbar {
+    opacity: 0;
+    pointer-events: none;
+}
+
+@media print {
+    .ps-export-toolbar {
+        display: none !important;
+    }
+
+    .ps-export-body {
+        background: #fff;
+    }
+
+    .ps-export-root {
+        max-width: none;
+        padding: 0;
+    }
+
+    .ps-export-section,
+    .ps-staff-roster,
+    .ps-kpi-grid {
+        break-inside: avoid-page;
+        page-break-inside: avoid;
+    }
+
+    .ps-staff-roster {
+        page-break-before: always;
+    }
+
+    .ps-kpi,
+    .ps-card {
+        box-shadow: none;
+    }
+}

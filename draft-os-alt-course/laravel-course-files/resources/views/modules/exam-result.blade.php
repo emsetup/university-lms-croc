@@ -49,6 +49,7 @@
         'showBreakdown' => $showExamBreakdown ?? false,
         'wrongItems' => $wrongItems ?? [],
         'breakdownUntilTs' => $breakdownUntilTs ?? null,
+        'breakdownMode' => $breakdownMode ?? 'all',
         'breakdownTitle' => 'Где ошиблись — кратко',
     ])
     </div>

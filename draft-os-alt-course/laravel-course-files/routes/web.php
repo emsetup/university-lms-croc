@@ -336,6 +336,10 @@ Route::middleware([
         ->middleware([\App\Http\Middleware\EnsurePlatformStatsAccess::class])
         ->name('admin.platform-stats');
 
+    Route::get('/adm/statistika/pdf', [\App\Http\Controllers\AdminPlatformStatsController::class, 'exportPdf'])
+        ->middleware([\App\Http\Middleware\EnsurePlatformStatsAccess::class])
+        ->name('admin.platform-stats.pdf');
+
     Route::middleware([\App\Http\Middleware\EnsurePortalAdmin::class])->group(function () {
         Route::get('/adm/logi', [AdminIncidentLogsController::class, 'index'])->name('admin.incidents.index');
         Route::get('/adm/logi/lenta', [AdminIncidentLogsController::class, 'feed'])->name('admin.incidents.feed');

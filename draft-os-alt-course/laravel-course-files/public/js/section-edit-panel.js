@@ -450,6 +450,8 @@
         $('ap-sec-own-att').hidden = readInherit('ap-sec-inherit-att');
         $('ap-sec-own-time').hidden = readInherit('ap-sec-inherit-time');
         $('ap-sec-own-pass').hidden = readInherit('ap-sec-inherit-pass');
+        var bdOwn = $('ap-sec-own-breakdown');
+        if (bdOwn) bdOwn.hidden = readInherit('ap-sec-inherit-breakdown');
     }
 
     function updateTheoryChars() {
@@ -1003,10 +1005,12 @@
         state.questions = (d.questions || []).map(fromServerQuestion);
         state.practiceImageId = d.practice_image ? d.practice_image.id : null;
 
-        var hints = (d.course && d.course.inherit_hints) || { attempts: '—', time: '—', pass: '—' };
+        var hints = (d.course && d.course.inherit_hints) || { attempts: '—', time: '—', pass: '—', breakdown: '—' };
         $('ap-sec-hint-att').textContent = hints.attempts;
         $('ap-sec-hint-time').textContent = hints.time;
         $('ap-sec-hint-pass').textContent = hints.pass;
+        var bdHint = $('ap-sec-hint-breakdown');
+        if (bdHint) bdHint.textContent = hints.breakdown || '—';
 
         $('ap-sec-set-title').value = d.section.title || '';
         $('ap-sec-set-type').value = d.section.type || 'text';
@@ -1104,9 +1108,15 @@
         setInheritRadios('ap-sec-inherit-att', !!st.attempts_from_course);
         setInheritRadios('ap-sec-inherit-time', !!st.time_from_course);
         setInheritRadios('ap-sec-inherit-pass', !!st.pass_from_course);
+        var bdFromParent = st.breakdown_mode_from_parent !== false && st.breakdown_mode_from_parent !== 0;
+        setInheritRadios('ap-sec-inherit-breakdown', bdFromParent);
         $('ap-sec-own-att').value = st.attempt_limit != null ? String(st.attempt_limit) : '';
         $('ap-sec-own-time').value = st.time_limit_minutes != null ? String(st.time_limit_minutes) : '';
         $('ap-sec-own-pass').value = st.pass_percent != null ? String(st.pass_percent) : '';
+        var bdOwn = $('ap-sec-own-breakdown');
+        if (bdOwn) {
+            bdOwn.value = (st.breakdown_mode === 'wrongs') ? 'wrongs' : 'all';
+        }
         syncOwnInputs();
 
         var bvRaw = st.breakdown_visible_minutes;
@@ -1499,6 +1509,7 @@
         var af = readInherit('ap-sec-inherit-att');
         var tf = readInherit('ap-sec-inherit-time');
         var pf = readInherit('ap-sec-inherit-pass');
+        var bf = readInherit('ap-sec-inherit-breakdown');
         function parseOptInt(elId) {
             var el = $(elId);
             if (!el) return null;
@@ -1514,6 +1525,8 @@
             attempts_from_course: af,
             time_from_course: tf,
             pass_from_course: pf,
+            breakdown_mode_from_parent: bf,
+            breakdown_mode: bf ? null : (($('ap-sec-own-breakdown') && $('ap-sec-own-breakdown').value) || 'all'),
             attempt_limit: af ? null : parseOptInt('ap-sec-own-att'),
             time_limit_minutes: tf ? null : parseOptInt('ap-sec-own-time'),
             pass_percent: pf ? null : parseOptInt('ap-sec-own-pass'),
@@ -1734,7 +1747,7 @@
             if (state.open) scheduleMarkdownEditors();
         });
 
-        ['ap-sec-inherit-att', 'ap-sec-inherit-time', 'ap-sec-inherit-pass'].forEach(function (name) {
+        ['ap-sec-inherit-att', 'ap-sec-inherit-time', 'ap-sec-inherit-pass', 'ap-sec-inherit-breakdown'].forEach(function (name) {
             document.querySelectorAll('input[name="' + name + '"]').forEach(function (r) {
                 r.addEventListener('change', function () {
                     syncOwnInputs();

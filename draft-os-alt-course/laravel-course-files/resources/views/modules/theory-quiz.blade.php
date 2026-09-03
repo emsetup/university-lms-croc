@@ -98,7 +98,6 @@
         <div class="card content-protect" data-integrity-protect>
             <h1 class="theory-quiz-page-title" style="margin-top:0">Модуль {{ $modNum }}: {{ $sectionTitle }}</h1>
             <p class="muted">@if ($showScorePercents)Порог успеха: {{ $passThreshold ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%. @endifОтветьте на все вопросы и при необходимости проверьте формулировки в теории модуля.</p>
-            <p class="muted small content-protect-hint">Текст заданий нельзя копировать; при переключении на другую вкладку формулировки скрываются. Скриншот средствами ОС технически не блокируется.</p>
 
             <form method="post" action="{{ route('course.module.section.theory-quiz.submit', $sr) }}" id="theory-quiz-form">
                 @csrf
@@ -109,6 +108,7 @@
             </form>
         </div>
         @include('partials.assessment-integrity')
+        @include('partials.match-reorder-script')
 
         @if ($expiresAtMs)
             <script>

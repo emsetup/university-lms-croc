@@ -14,6 +14,8 @@ use App\Models\Learner;
 use App\Models\ModuleProgress;
 use App\Models\PortalStaff;
 use App\Models\PracticeImage;
+use App\Services\Mail\PortalMailNotifier;
+use App\Support\LearnerDisplay;
 use App\Support\PortalChangelog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -568,5 +570,71 @@ final class PortalPlatformStatsService
         });
 
         return array_slice($out, 0, 10);
+    }
+
+    /**
+     * Реестр сотрудников портала для PDF-отчёта.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function staffRoster(): array
+    {
+        if (! Schema::hasTable('portal_staff')) {
+            return [];
+        }
+
+        $rows = PortalStaff::query()
+            ->with([
+                'learner:id,email,sso_display_name,last_login_at',
+                'courses:id,title',
+                'groups:id,name,role',
+            ])
+            ->orderBy('id')
+            ->get();
+
+        $out = [];
+        foreach ($rows as $staff) {
+            $email = (string) ($staff->learner?->email ?? '');
+            $name = $staff->learner instanceof Learner
+                ? LearnerDisplay::portalDisplayName($staff->learner)
+                : '';
+
+            $groups = [];
+            foreach ($staff->groups as $group) {
+                $groups[] = [
+                    'name' => (string) $group->name,
+                    'role_label' => PortalMailNotifier::roleLabel((string) $group->role),
+                ];
+            }
+
+            $courses = $staff->courses
+                ->map(static fn ($course) => (string) $course->title)
+                ->values()
+                ->all();
+
+            $comment = trim((string) ($staff->access_comment ?? ''));
+            if (in_array($comment, ['&quot;&quot;', '""'], true)) {
+                $comment = '';
+            }
+
+            $lastLogin = $staff->learner?->last_login_at;
+
+            $out[] = [
+                'email' => $email,
+                'name' => $name,
+                'role' => (string) $staff->role,
+                'role_label' => PortalMailNotifier::roleLabel((string) $staff->role),
+                'groups' => $groups,
+                'courses' => $courses,
+                'access_comment' => $comment,
+                'last_login' => $lastLogin !== null
+                    ? $lastLogin->timezone(config('app.timezone'))->format('d.m.Y H:i')
+                    : null,
+            ];
+        }
+
+        usort($out, static fn (array $a, array $b): int => strcasecmp((string) $a['email'], (string) $b['email']));
+
+        return $out;
     }
 }

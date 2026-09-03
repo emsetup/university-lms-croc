@@ -165,10 +165,10 @@
                         $showScorePointsOn = (string) old('show_score_points', ($course->show_score_points ?? true) ? '1' : '0') === '1';
                     }
                 @endphp
-                @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_percents') || \Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_points'))
+                @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_percents') || \Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_points') || \Illuminate\Support\Facades\Schema::hasColumn('courses', 'quiz_breakdown_mode'))
                     <div class="ap-settings-field" style="margin-top:1rem">
                         <span class="ap-settings-label">Метрики в тестах</span>
-                        <p class="ap-settings-hint ap-muted">Что видят обучающиеся в тестах, на хабе модуля и в сводке. Модуль может переопределить эти настройки. Учительские отчёты не меняются.</p>
+                        <p class="ap-settings-hint ap-muted">Что видят обучающиеся в тестах, на хабе модуля и в сводке. Модуль и раздел могут переопределить эти настройки. Учительские отчёты не меняются.</p>
                         @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_percents'))
                             <div class="ap-toggle-row">
                                 <label class="ap-toggle">
@@ -190,6 +190,18 @@
                                 </label>
                             </div>
                             <p class="ap-muted small ap-settings-hint">Плашка «Баллы», вес вопросов («N б.»), earned/max на результатах и дашборде.</p>
+                        @endif
+                        @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'quiz_breakdown_mode'))
+                            @php
+                                $bdMode = old('quiz_breakdown_mode', $course->quiz_breakdown_mode ?? 'all');
+                                $bdMode = in_array($bdMode, ['all', 'wrongs'], true) ? $bdMode : 'all';
+                            @endphp
+                            <label class="ap-settings-label" for="quiz-breakdown-mode" style="margin-top:0.85rem">Разбор после теста</label>
+                            <select id="quiz-breakdown-mode" class="ap-modal__input" name="quiz_breakdown_mode" style="max-width:22rem">
+                                <option value="all" @if ($bdMode === 'all') selected @endif>Все вопросы попытки</option>
+                                <option value="wrongs" @if ($bdMode === 'wrongs') selected @endif>Только ошибки и пропуски</option>
+                            </select>
+                            <p class="ap-muted small ap-settings-hint">Дефолт для всех тестов и экзаменов курса. Модуль и раздел могут переопределить.</p>
                         @endif
                     </div>
                 @endif

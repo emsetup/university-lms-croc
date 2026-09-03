@@ -33,6 +33,7 @@ final class CourseChangeLogService
         'assessment_enabled' => 'Оценивание',
         'show_score_percents' => 'Показывать проценты обучающимся',
         'show_score_points' => 'Показывать баллы обучающимся',
+        'quiz_breakdown_mode' => 'Разбор теста (все / только ошибки)',
         'audience_plaque_enabled' => 'Плашка аудитории',
         'audience_plaque_kicker' => 'Плашка: подзаголовок',
         'audience_plaque_title' => 'Плашка: заголовок',

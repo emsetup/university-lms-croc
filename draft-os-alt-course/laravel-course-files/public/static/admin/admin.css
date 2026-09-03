@@ -505,10 +505,28 @@ html.ap-smooth-anchor-scroll {
   scroll-behavior: smooth;
 }
 
+/* Фиксируем высоту оболочки — иначе .admin-content растягивается и плашки «К разделу» не скроллят. */
+body[data-ap-teacher-report="1"] .admin-shell {
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
 body[data-ap-teacher-report="1"] .admin-content {
   scroll-behavior: smooth;
   padding: 0;
-  overflow-x: visible;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+body[data-ap-teacher-report="1"] [data-section].is-jump-target {
+  outline: 2px solid #00b956;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 185, 86, 0.18);
+  transition: outline-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 body[data-ap-teacher-report="1"] .learner-page-content {
