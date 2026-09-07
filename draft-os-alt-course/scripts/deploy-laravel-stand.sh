@@ -345,6 +345,12 @@ if [[ -f "${LCF}/database/migrations/2026_09_03_120000_add_quiz_breakdown_mode.p
     "${STAND_SSH}:${REMOTE}/database/migrations/2026_09_03_120000_add_quiz_breakdown_mode.php"
 fi
 
+if [[ -f "${LCF}/database/migrations/2026_09_07_140000_add_show_quiz_start_intro_to_courses_table.php" ]]; then
+  echo "[deploy-laravel] database/migrations/…show_quiz_start_intro…"
+  rsync -az "${LCF}/database/migrations/2026_09_07_140000_add_show_quiz_start_intro_to_courses_table.php" \
+    "${STAND_SSH}:${REMOTE}/database/migrations/2026_09_07_140000_add_show_quiz_start_intro_to_courses_table.php"
+fi
+
 if [[ -f "${LCF}/database/migrations/2026_08_26_180000_signed_breakdown_visible_minutes.php" ]]; then
   echo "[deploy-laravel] database/migrations/…signed_breakdown_visible_minutes…"
   rsync -az "${LCF}/database/migrations/2026_08_26_180000_signed_breakdown_visible_minutes.php" \

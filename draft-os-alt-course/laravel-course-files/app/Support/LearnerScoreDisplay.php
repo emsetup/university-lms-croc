@@ -43,6 +43,20 @@ final class LearnerScoreDisplay
     }
 
     /**
+     * Модалка «Перед началом проверки» / условия экзамена перед стартом попытки.
+     * По умолчанию выкл.; нужна при последовательном тестировании со штрафами и порогом (курс Альт).
+     */
+    public static function showQuizStartIntro(?Course $course): bool
+    {
+        if ($course === null || ! Schema::hasColumn('courses', 'show_quiz_start_intro')) {
+            // До миграции сохраняем прежнее поведение (окно всегда было).
+            return true;
+        }
+
+        return (bool) ($course->show_quiz_start_intro ?? false);
+    }
+
+    /**
      * @return array{showScorePercents: bool, showScorePoints: bool}
      */
     public static function flags(?Course $course, ?CourseModule $module = null): array

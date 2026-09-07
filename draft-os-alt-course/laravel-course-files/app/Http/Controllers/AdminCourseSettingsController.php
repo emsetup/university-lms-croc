@@ -204,6 +204,7 @@ final class AdminCourseSettingsController extends Controller
             'assessment_enabled' => ['sometimes', 'boolean'],
             'show_score_percents' => ['sometimes', 'boolean'],
             'show_score_points' => ['sometimes', 'boolean'],
+            'show_quiz_start_intro' => ['sometimes', 'boolean'],
             'quiz_breakdown_mode' => ['nullable', 'in:all,wrongs'],
             'meta_includes_dashboard_extras' => ['sometimes', 'boolean'],
             'audience_plaque_enabled' => ['sometimes', 'boolean'],
@@ -254,6 +255,9 @@ final class AdminCourseSettingsController extends Controller
             }
             if (Schema::hasColumn('courses', 'show_score_points')) {
                 $course->show_score_points = $request->boolean('show_score_points');
+            }
+            if (Schema::hasColumn('courses', 'show_quiz_start_intro')) {
+                $course->show_quiz_start_intro = $request->boolean('show_quiz_start_intro');
             }
             if (Schema::hasColumn('courses', 'quiz_breakdown_mode')) {
                 $course->quiz_breakdown_mode = LearnerQuizBreakdownDisplay::normalize($data['quiz_breakdown_mode'] ?? null)

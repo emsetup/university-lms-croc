@@ -960,6 +960,46 @@ class ModuleController extends Controller
         $deadlineActive = $ts !== null && is_numeric($ts) && (int) $ts > now()->getTimestamp();
         $unlimitedActive = ! $hasTimeLimit && $wallStart !== null && is_numeric($wallStart);
         $quizActive = $previewWalkthrough || $deadlineActive || $unlimitedActive;
+
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        $showQuizStartIntro = LearnerScoreDisplay::showQuizStartIntro($course);
+
+        if (! $previewWalkthrough && ! $quizActive && ! $showQuizStartIntro) {
+            $quizStEarly = SectionProgress::quizState($this->learner()->progressFor($mid), $sec, $sole);
+            $attemptLimit = $courseId > 0 ? $this->sectionService->theoryQuizAttemptLimitForSection($sec) : null;
+            if ($attemptLimit !== null && (int) ($quizStEarly['attempts'] ?? 0) >= $attemptLimit) {
+                return redirect()->to($this->hubUrl($ctx))->with(
+                    'err',
+                    'Исчерпан лимит попыток теста по теории ('.$attemptLimit.').'
+                );
+            }
+            if (count($qs) === 0) {
+                return redirect()->to($this->hubUrl($ctx))->with('err', 'Тест по теории для этого модуля не настроен.');
+            }
+
+            $sessionPayload = [
+                $wallKey => now()->getTimestamp(),
+            ];
+            if ($hasTimeLimit) {
+                $sessionPayload[$deadlineKey] = now()->addMinutes((int) $tl)->getTimestamp();
+            } else {
+                session()->forget($deadlineKey);
+            }
+            session($sessionPayload);
+
+            $p = $this->learner()->progressFor($mid);
+            if (($quizStEarly['attempts'] ?? 0) >= 1 || ($quizStEarly['best_score'] ?? 0) > 0 || ($quizStEarly['passed'] ?? false)) {
+                SectionProgress::saveQuizState($p, $sec, $sole, ['passed' => false]);
+                $p->save();
+            }
+
+            $ts = session($deadlineKey);
+            $wallStart = session($wallKey);
+            $deadlineActive = $ts !== null && is_numeric($ts) && (int) $ts > now()->getTimestamp();
+            $unlimitedActive = ! $hasTimeLimit && $wallStart !== null && is_numeric($wallStart);
+            $quizActive = $deadlineActive || $unlimitedActive;
+        }
+
         $expiresAtMs = $previewWalkthrough || ! $quizActive || ! $hasTimeLimit || ! $deadlineActive
             ? null
             : ((int) $ts) * 1000;
@@ -968,10 +1008,7 @@ class ModuleController extends Controller
             ? $this->sectionService->passPercentForSection($sec)
             : CourseScoringService::PASS_THRESHOLD;
         $quizSt = SectionProgress::quizState($this->learner()->progressFor($mid), $sec, $sole);
-        $scoreDisplay = LearnerScoreDisplay::flags(
-            $courseId > 0 ? Course::query()->find($courseId) : null,
-            $cm
-        );
+        $scoreDisplay = LearnerScoreDisplay::flags($course, $cm);
 
         return view('modules.theory-quiz', [
             'courseId' => $courseId,
@@ -993,6 +1030,7 @@ class ModuleController extends Controller
             'previewWalkthrough' => $previewWalkthrough,
             'showScorePercents' => $scoreDisplay['showScorePercents'],
             'showScorePoints' => $scoreDisplay['showScorePoints'],
+            'showQuizStartIntro' => $showQuizStartIntro,
         ]);
     }
 
@@ -1411,10 +1449,35 @@ class ModuleController extends Controller
         $expiresAtMs = $previewWalkthrough || ! $examActive || ! $hasTimeLimit || $deadline === null
             ? null
             : ($deadline->getTimestamp() * 1000);
-        $scoreDisplay = LearnerScoreDisplay::flags(
-            $courseId > 0 ? Course::query()->find($courseId) : null,
-            $cm
-        );
+        $course = $courseId > 0 ? Course::query()->find($courseId) : null;
+        $scoreDisplay = LearnerScoreDisplay::flags($course, $cm);
+        $showQuizStartIntro = LearnerScoreDisplay::showQuizStartIntro($course);
+
+        if (! $previewWalkthrough && ! $examActive && ! $showQuizStartIntro) {
+            SectionProgress::setExamDeadline(
+                $p,
+                $sec,
+                $sole,
+                $hasTimeLimit ? now()->addMinutes((int) $timeLimitMin) : null,
+                $attemptNo,
+            );
+            $p->save();
+
+            $deadlineInfo = SectionProgress::examDeadline($p, $sec, $sole);
+            $deadline = $deadlineInfo['deadline'];
+            $deadlineFor = $deadlineInfo['for_attempt'];
+            $unlimitedAttempt = (bool) ($deadlineInfo['unlimited'] ?? false);
+            $deadlineValidForAttempt = $deadlineFor > 0
+                && $deadlineFor === $attemptNo
+                && (
+                    ($hasTimeLimit && $deadline !== null && $deadline->isFuture())
+                    || (! $hasTimeLimit && ($unlimitedAttempt || ($deadline !== null && $deadline->isFuture())))
+                );
+            $examActive = $deadlineValidForAttempt;
+            $expiresAtMs = ! $examActive || ! $hasTimeLimit || $deadline === null
+                ? null
+                : ($deadline->getTimestamp() * 1000);
+        }
 
         return view('modules.exam', [
             'courseId' => $courseId,
@@ -1433,11 +1496,12 @@ class ModuleController extends Controller
             'timeLimitMinutes' => $timeLimitMin,
             'examActive' => $examActive,
             'expiresAtMs' => $expiresAtMs,
-            'needsRetakeAck' => ! $previewWalkthrough && (int) ($quizSt['attempts'] ?? 0) >= 1,
+            'needsRetakeAck' => $showQuizStartIntro && ! $previewWalkthrough && (int) ($quizSt['attempts'] ?? 0) >= 1,
             'examOneByOne' => $courseId > 0 ? $this->sectionService->examOneByOneForSection($sec) : true,
             'previewWalkthrough' => $previewWalkthrough,
             'showScorePercents' => $scoreDisplay['showScorePercents'],
             'showScorePoints' => $scoreDisplay['showScorePoints'],
+            'showQuizStartIntro' => $showQuizStartIntro,
         ]);
     }
 

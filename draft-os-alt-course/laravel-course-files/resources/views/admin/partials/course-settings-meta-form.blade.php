@@ -158,14 +158,18 @@
                 @php
                     $showScorePercentsOn = true;
                     $showScorePointsOn = true;
+                    $showQuizStartIntroOn = false;
                     if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_percents')) {
                         $showScorePercentsOn = (string) old('show_score_percents', ($course->show_score_percents ?? true) ? '1' : '0') === '1';
                     }
                     if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_points')) {
                         $showScorePointsOn = (string) old('show_score_points', ($course->show_score_points ?? true) ? '1' : '0') === '1';
                     }
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_quiz_start_intro')) {
+                        $showQuizStartIntroOn = (string) old('show_quiz_start_intro', ($course->show_quiz_start_intro ?? false) ? '1' : '0') === '1';
+                    }
                 @endphp
-                @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_percents') || \Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_points') || \Illuminate\Support\Facades\Schema::hasColumn('courses', 'quiz_breakdown_mode'))
+                @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_percents') || \Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_score_points') || \Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_quiz_start_intro') || \Illuminate\Support\Facades\Schema::hasColumn('courses', 'quiz_breakdown_mode'))
                     <div class="ap-settings-field" style="margin-top:1rem">
                         <span class="ap-settings-label">Метрики в тестах</span>
                         <p class="ap-settings-hint ap-muted">Что видят обучающиеся в тестах, на хабе модуля и в сводке. Модуль и раздел могут переопределить эти настройки. Учительские отчёты не меняются.</p>
@@ -190,6 +194,17 @@
                                 </label>
                             </div>
                             <p class="ap-muted small ap-settings-hint">Плашка «Баллы», вес вопросов («N б.»), earned/max на результатах и дашборде.</p>
+                        @endif
+                        @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'show_quiz_start_intro'))
+                            <div class="ap-toggle-row" style="margin-top:0.5rem">
+                                <label class="ap-toggle">
+                                    <input type="hidden" name="show_quiz_start_intro" value="0">
+                                    <input type="checkbox" name="show_quiz_start_intro" value="1" class="ap-toggle__input" id="show-quiz-start-intro" @if ($showQuizStartIntroOn) checked @endif>
+                                    <span class="ap-toggle__track" aria-hidden="true"></span>
+                                    <span class="ap-toggle__label">Окно перед началом теста</span>
+                                </label>
+                            </div>
+                            <p class="ap-muted small ap-settings-hint">Модалка «Перед началом проверки»: время, порог, штраф за пересдачу. Нужна при последовательном тестировании с баллами (как курс по Альт). Для опросов без оценки оставьте выключенным — вопросы откроются сразу.</p>
                         @endif
                         @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'quiz_breakdown_mode'))
                             @php
