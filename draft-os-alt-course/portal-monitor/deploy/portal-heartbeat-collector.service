@@ -1,0 +1,15 @@
+[Unit]
+Description=Portal heartbeat collector (practice.croc.ru)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/portal-heartbeat-collector
+EnvironmentFile=-/etc/portal-monitor.env
+Environment=PORTAL_MONITOR_STATE=/var/lib/portal-monitor/state.json
+ExecStart=/opt/portal-heartbeat-collector/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8099
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

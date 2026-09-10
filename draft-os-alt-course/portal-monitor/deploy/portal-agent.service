@@ -1,0 +1,10 @@
+[Unit]
+Description=Send practice.croc.ru portal heartbeat
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/portal-monitor-agent.env
+ExecStart=/usr/local/bin/portal-send-heartbeat.sh
+Nice=10
