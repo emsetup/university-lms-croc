@@ -70,6 +70,14 @@
         </div>
 
         <div class="ap-settings-col ap-settings-col--stack">
+            <section class="ap-settings-card" aria-labelledby="ap-ad-mail-h">
+                <h2 id="ap-ad-mail-h" class="ap-settings-card__title">Группы рассылок AD</h2>
+                <p class="ap-settings-sub ap-muted">Отдельное оповещение distribution-групп о курсе (без записи на курс).</p>
+                @include('admin.partials.ad-mail-groups-notify', [
+                    'course' => $course,
+                    'canNotifyAdMailGroups' => true,
+                ])
+            </section>
             <section class="ap-settings-card" aria-labelledby="ap-settings-defaults-h">
                 <h2 id="ap-settings-defaults-h" class="ap-settings-card__title">Настройки по умолчанию</h2>
                 <p class="ap-settings-sub ap-muted">Применяются ко всем разделам если не переопределены</p>

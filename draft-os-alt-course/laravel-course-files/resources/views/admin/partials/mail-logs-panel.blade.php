@@ -32,10 +32,10 @@
             </fieldset>
 
             <fieldset class="ap-logs-field">
-                <legend class="ap-logs-field__label">Получатель</legend>
+                <legend class="ap-logs-field__label">Получатель / инициатор</legend>
                 <div class="ap-logs-search">
                     @include('partials.ap-icon', ['name' => 'search', 'size' => 'sm'])
-                    <input type="search" name="user" list="ap-mail-emails" class="ap-logs-input" placeholder="email…">
+                    <input type="search" name="user" list="ap-mail-emails" class="ap-logs-input" placeholder="email получателя или кто отправил…">
                 </div>
             </fieldset>
 

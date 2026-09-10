@@ -15,6 +15,8 @@ use App\Http\Controllers\AdminSettingsController;
 use App\Http\Controllers\AdminStaffController;
 use App\Http\Controllers\AdminStaffGroupController;
 use App\Http\Controllers\AdminIncidentLogsController;
+use App\Http\Controllers\AdminBugReportsController;
+use App\Http\Controllers\BugReportController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AssessmentController;
 use App\Http\Controllers\CertificateController;
@@ -128,6 +130,8 @@ Route::middleware([
     Route::post('/portal/enroll/{course}', [\App\Http\Controllers\PortalEnrollController::class, 'store'])
         ->whereNumber('course')
         ->name('portal.enroll');
+
+    Route::post('/portal/bug-report', [BugReportController::class, 'store'])->name('portal.bug-report.store');
 
     Route::middleware([\App\Http\Middleware\EnsureLearner::class])->group(function () {
         Route::get('/opros/{token}', [\App\Http\Controllers\SurveyQuickLinkController::class, 'show'])
@@ -356,6 +360,21 @@ Route::middleware([
         Route::post('/adm/pochta/{mailLog}/resend', [\App\Http\Controllers\AdminMailLogsController::class, 'resend'])
             ->whereNumber('mailLog')
             ->name('admin.mail.resend');
+    });
+
+    Route::middleware([\App\Http\Middleware\EnsureBugReportsInbox::class])->group(function () {
+        Route::get('/adm/bagi', [AdminBugReportsController::class, 'index'])->name('admin.bugs.index');
+        Route::get('/adm/bagi/lenta', [AdminBugReportsController::class, 'feed'])->name('admin.bugs.feed');
+        Route::get('/adm/bagi/{bug}/screenshot/{index}', [AdminBugReportsController::class, 'screenshot'])
+            ->whereNumber('bug')
+            ->whereNumber('index')
+            ->name('admin.bugs.screenshot');
+        Route::get('/adm/bagi/{bug}', [AdminBugReportsController::class, 'show'])
+            ->whereNumber('bug')
+            ->name('admin.bugs.show');
+        Route::post('/adm/bagi/{bug}/status', [AdminBugReportsController::class, 'updateStatus'])
+            ->whereNumber('bug')
+            ->name('admin.bugs.status');
     });
 
     Route::get('/adm/sobytiya', [AdminPanelController::class, 'activity'])->name('admin.activity');
@@ -941,6 +960,10 @@ Route::middleware([
                     ->whereNumber('learner')
                     ->whereNumber('courseModule')
                     ->name('admin.learners.course.learner.reset');
+                Route::get('/obuchayushiesya/ad-rasylki/search', [\App\Http\Controllers\AdminAdMailGroupsController::class, 'search'])
+                    ->name('admin.learners.ad-mail-groups.search');
+                Route::post('/obuchayushiesya/ad-rasylki/notify', [\App\Http\Controllers\AdminAdMailGroupsController::class, 'notify'])
+                    ->name('admin.learners.ad-mail-groups.notify');
                 Route::get('/sertifikaty', [AdminPanelController::class, 'certificates'])->name('admin.certificates');
                 Route::get('/sertifikaty/{result}', [AdminPanelController::class, 'certificateShow'])->name('admin.certificates.show');
                 Route::post('/testy/modul/{module}/{kind}', [AdminQuizController::class, 'save'])

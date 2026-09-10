@@ -205,6 +205,7 @@
         @include('admin.partials.share-link-modal')
         <script src="{{ asset('js/admin-share-link.js') }}" defer></script>
     @endif
+    @include('partials.portal-bug-report')
     @stack('scripts')
 </body>
 </html>

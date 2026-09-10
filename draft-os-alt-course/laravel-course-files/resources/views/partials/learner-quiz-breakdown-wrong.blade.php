@@ -11,11 +11,16 @@
         @endif
         <p class="muted small">
             @if (($breakdownMode ?? 'all') === 'wrongs')
-                Показаны только вопросы с ошибкой или без ответа. Отмечены ваш выбор и верный вариант.
+                Показаны только вопросы с ошибкой или без ответа.
             @else
-                Все вопросы этой попытки. Отмечены ваш выбор и верный вариант.
+                Все вопросы этой попытки.
             @endif
         </p>
+        <ul class="learner-quiz-bd__legend muted small" aria-label="Обозначения в разборе">
+            <li><span class="learner-quiz-bd__legend-swatch learner-quiz-bd__legend-swatch--hit"></span> вы выбрали верно</li>
+            <li><span class="learner-quiz-bd__legend-swatch learner-quiz-bd__legend-swatch--miss"></span> вы выбрали неверно</li>
+            <li><span class="learner-quiz-bd__legend-swatch learner-quiz-bd__legend-swatch--need"></span> нужно было отметить, но вы не выбрали</li>
+        </ul>
         <ul class="muted learner-quiz-bd" style="padding-left:1.1rem;list-style:none;margin:0">
             @foreach ($wrongItems as $it)
                 @php
@@ -74,16 +79,23 @@
                                             : ((int) $oi === (int) $chosen);
                                     }
                                     $liClass = 'learner-quiz-bd__opt';
-                                    if ($isCh && ! $isExp) {
-                                        $liClass .= ' learner-quiz-bd__opt--wrong';
-                                    } elseif ($isExp) {
-                                        $liClass .= ' learner-quiz-bd__opt--ok';
+                                    if ($isCh && $isExp) {
+                                        $liClass .= ' learner-quiz-bd__opt--hit';
+                                    } elseif ($isCh && ! $isExp) {
+                                        $liClass .= ' learner-quiz-bd__opt--miss';
+                                    } elseif ($isExp && ! $isCh) {
+                                        $liClass .= ' learner-quiz-bd__opt--need';
                                     }
                                 @endphp
                                 <li class="{{ $liClass }}">
                                     <strong>{{ TeacherQuizLabels::letter((int) $oi) }})</strong>
-                                    @if ($isCh)<span class="learner-bd-tag learner-bd-tag--ch">ваш выбор</span>@endif
-                                    @if ($isExp)<span class="learner-bd-tag learner-bd-tag--ok">верно</span>@endif
+                                    @if ($isCh && $isExp)
+                                        <span class="learner-bd-tag learner-bd-tag--hit">✓ верно, ваш выбор</span>
+                                    @elseif ($isCh && ! $isExp)
+                                        <span class="learner-bd-tag learner-bd-tag--miss">✗ неверно, ваш выбор</span>
+                                    @elseif ($isExp && ! $isCh)
+                                        <span class="learner-bd-tag learner-bd-tag--need">→ нужно было отметить</span>
+                                    @endif
                                     <span class="learner-quiz-bd__opt-text">{!! \Illuminate\Support\Str::markdown((string) $label) !!}</span>
                                 </li>
                             @endforeach
@@ -103,6 +115,18 @@
         </ul>
     </div>
     <style>
+        .learner-quiz-bd__legend {
+            display: flex; flex-wrap: wrap; gap: 0.55rem 1.1rem;
+            margin: 0.35rem 0 0.85rem; padding: 0.55rem 0.65rem;
+            list-style: none; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+        }
+        .learner-quiz-bd__legend li { display: inline-flex; align-items: center; gap: 0.35rem; margin: 0; }
+        .learner-quiz-bd__legend-swatch {
+            display: inline-block; width: 0.95rem; height: 0.95rem; border-radius: 4px; flex-shrink: 0;
+        }
+        .learner-quiz-bd__legend-swatch--hit { background: #d9f5e4; border: 2px solid #0d5c2f; }
+        .learner-quiz-bd__legend-swatch--miss { background: #fde8e6; border: 2px solid #9b1c1c; }
+        .learner-quiz-bd__legend-swatch--need { background: #fff4d6; border: 2px dashed #b7791f; }
         .learner-quiz-bd__item { margin-bottom: 1.1rem; padding-bottom: 0.85rem; border-bottom: 1px solid #e8edf2; }
         .learner-quiz-bd__item:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
         .learner-quiz-bd__status { margin: 0.35rem 0 0.45rem; font-size: 0.9rem; font-weight: 600; }
@@ -110,17 +134,28 @@
         .learner-quiz-bd__status--bad { color: #9b1c1c; }
         .learner-quiz-bd__status--skip { color: #5c6b76; }
         .learner-quiz-bd__opts { margin: 0.25rem 0 0; padding-left: 0; list-style: none; }
-        .learner-quiz-bd__opt { margin-bottom: 0.28rem; padding: 0.28rem 0.45rem; border-radius: 6px; line-height: 1.35; }
-        .learner-quiz-bd__opt--wrong { background: #fde8e6; }
-        .learner-quiz-bd__opt--ok { background: #e8fdf6; }
+        .learner-quiz-bd__opt {
+            margin-bottom: 0.35rem; padding: 0.38rem 0.55rem; border-radius: 8px; line-height: 1.35;
+            border: 2px solid transparent;
+        }
+        .learner-quiz-bd__opt--hit {
+            background: #d9f5e4; border-color: #0d5c2f;
+        }
+        .learner-quiz-bd__opt--miss {
+            background: #fde8e6; border-color: #9b1c1c;
+        }
+        .learner-quiz-bd__opt--need {
+            background: #fff4d6; border-color: #b7791f; border-style: dashed;
+        }
         .learner-quiz-bd__opt-text p { margin: 0; display: inline; }
         .learner-bd-tag {
-            font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
-            margin-left: 0.2rem; margin-right: 0.25rem; padding: 0.06rem 0.28rem;
+            font-size: 0.68rem; font-weight: 700;
+            margin-left: 0.2rem; margin-right: 0.25rem; padding: 0.1rem 0.35rem;
             border-radius: 4px; vertical-align: middle; white-space: nowrap;
         }
-        .learner-bd-tag--ch { background: #eef2ff; color: #3b5bdb; }
-        .learner-bd-tag--ok { background: #d9f5e4; color: #0d5c2f; }
+        .learner-bd-tag--hit { background: #0d5c2f; color: #fff; }
+        .learner-bd-tag--miss { background: #9b1c1c; color: #fff; }
+        .learner-bd-tag--need { background: #b7791f; color: #fff; }
     </style>
     @if (!empty($breakdownUntilTs))
         <script>

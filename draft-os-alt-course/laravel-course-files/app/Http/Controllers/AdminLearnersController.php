@@ -142,6 +142,7 @@ final class AdminLearnersController extends Controller
 
         return view('teacher-course-report', [
             'layout' => 'layouts.admin',
+            'course' => $course,
             'courseTitle' => $course->title,
             'courseCounters' => $this->analytics->courseCounters($courseId),
             'learnerRows' => $this->analytics->learnerRowsForCourse($courseId),
@@ -149,6 +150,7 @@ final class AdminLearnersController extends Controller
             'courseModuleCount' => $moduleCount,
             'maxCoursePoints' => (int) $scoringMeta['max_course_points'],
             'scoringMeta' => $scoringMeta,
+            'canNotifyAdMailGroups' => app(PortalStaffAccess::class)->canEditCourseMeta($courseId),
         ]);
     }
 

@@ -20,7 +20,7 @@ if ! command -v rsync &>/dev/null; then
   exit 1
 fi
 
-ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/app/Http/Controllers/Concerns' '${REMOTE}/app/Providers' '${REMOTE}/app/Services/Mail' '${REMOTE}/resources/views/emails'"
+ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/app/Http/Controllers/Concerns' '${REMOTE}/app/Providers' '${REMOTE}/app/Services/Mail' '${REMOTE}/app/Console/Commands' '${REMOTE}/resources/views/emails' '${REMOTE}/resources/views/admin/partials'"
 
 echo "[deploy-laravel] ${LCF}/config/snippets/ -> ${STAND_SSH}:${REMOTE}/config/snippets/"
 rsync -az \
@@ -83,6 +83,8 @@ for f in \
   app/Http/Controllers/OidcLoginController.php \
   app/Http/Controllers/AdminPanelController.php \
   app/Http/Controllers/AdminIncidentLogsController.php \
+  app/Http/Controllers/AdminBugReportsController.php \
+  app/Http/Controllers/BugReportController.php \
   app/Http/Controllers/AdminMailLogsController.php \
   app/Http/Controllers/AdminPlatformStatsController.php \
   app/Http/Controllers/AdminSettingsController.php \
@@ -96,6 +98,7 @@ for f in \
   app/Http/Controllers/AdminMediaLibraryController.php \
   app/Http/Controllers/MediaServeController.php \
   app/Http/Controllers/AdminLearnersController.php \
+  app/Http/Controllers/AdminAdMailGroupsController.php \
   app/Http/Controllers/AdminCourseSurveysController.php \
   app/Http/Controllers/AdminSurveyResponsesController.php \
   app/Http/Controllers/AdminSectionParticipantsController.php \
@@ -141,6 +144,7 @@ for f in \
   app/Http/Middleware/LogAdminActivity.php \
   app/Http/Middleware/LogPortalIncidents.php \
   app/Http/Middleware/EnsurePortalAdmin.php \
+  app/Http/Middleware/EnsureBugReportsInbox.php \
   app/Http/Middleware/EnsurePlatformStatsAccess.php \
   app/Services/CourseScoringService.php \
   app/Services/CourseSectionService.php \
@@ -166,12 +170,15 @@ for f in \
   app/Services/PortalActivityFeedService.php \
   app/Services/PortalIncidentLogger.php \
   app/Services/PortalIncidentFeedService.php \
+  app/Services/PortalBugReportService.php \
+  app/Services/PortalBugReportFeedService.php \
   app/Services/Mail/EwsMailClient.php \
   app/Services/Mail/PortalMailService.php \
   app/Services/Mail/PortalMailNotifier.php \
   app/Services/Mail/PortalMailFeedService.php \
   app/Services/Mail/PortalMailAssets.php \
   app/Services/Mail/PortalMailTemplateCatalog.php \
+  app/Console/Commands/ImportAdMailGroupsCommand.php \
   app/Services/PortalServerStatsService.php \
   app/Services/PortalPlatformStatsService.php \
   app/Support/PortalIncidentBootstrap.php \
@@ -253,7 +260,9 @@ for f in \
   app/Models/PortalStaffGroupPermission.php \
   app/Models/PortalActivityEvent.php \
   app/Models/PortalIncidentLog.php \
+  app/Models/PortalBugReport.php \
   app/Models/PortalMailLog.php \
+  app/Models/AdMailGroup.php \
   app/Models/PracticeSession.php \
   app/Models/FinalLabResult.php \
   app/Models/PracticeImage.php \
@@ -468,6 +477,9 @@ for mf in \
   database/migrations/2026_06_03_150000_add_role_to_portal_staff_groups_table.php \
   database/migrations/2026_06_03_160000_create_portal_incident_logs_table.php \
   database/migrations/2026_07_22_190000_create_portal_mail_logs_table.php \
+  database/migrations/2026_09_10_120000_create_ad_mail_groups_table.php \
+  database/migrations/2026_09_10_140000_create_portal_bug_reports_table.php \
+  database/migrations/2026_09_10_150000_add_scope_course_to_portal_bug_reports_table.php \
   database/migrations/2026_06_03_161000_add_access_comment_to_portal_staff_table.php \
   database/migrations/2026_05_14_100000_seed_legacy_alt_os_course_content_to_database.php \
   database/migrations/2026_05_15_000001_create_portal_activity_events_table.php \
@@ -792,6 +804,24 @@ if [[ -f "${LCF}/public/js/admin-settings-staff-preview.js" ]]; then
   rsync -az "${LCF}/public/js/admin-settings-staff-preview.js" "${STAND_SSH}:${REMOTE}/public/js/admin-settings-staff-preview.js"
 fi
 
+if [[ -f "${LCF}/public/css/portal-bug-report.css" ]]; then
+  echo "[deploy-laravel] public/css/portal-bug-report.css"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/css'"
+  rsync -az "${LCF}/public/css/portal-bug-report.css" "${STAND_SSH}:${REMOTE}/public/css/portal-bug-report.css"
+fi
+
+if [[ -f "${LCF}/public/js/portal-bug-report.js" ]]; then
+  echo "[deploy-laravel] public/js/portal-bug-report.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/portal-bug-report.js" "${STAND_SSH}:${REMOTE}/public/js/portal-bug-report.js"
+fi
+
+if [[ -f "${LCF}/public/js/admin-bug-reports.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-bug-reports.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-bug-reports.js" "${STAND_SSH}:${REMOTE}/public/js/admin-bug-reports.js"
+fi
+
 if [[ -f "${LCF}/public/js/admin-incident-logs.js" ]]; then
   echo "[deploy-laravel] public/js/admin-incident-logs.js"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
@@ -802,6 +832,12 @@ if [[ -f "${LCF}/public/js/admin-mail-logs.js" ]]; then
   echo "[deploy-laravel] public/js/admin-mail-logs.js"
   ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
   rsync -az "${LCF}/public/js/admin-mail-logs.js" "${STAND_SSH}:${REMOTE}/public/js/admin-mail-logs.js"
+fi
+
+if [[ -f "${LCF}/public/js/admin-ad-mail-groups.js" ]]; then
+  echo "[deploy-laravel] public/js/admin-ad-mail-groups.js"
+  ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"
+  rsync -az "${LCF}/public/js/admin-ad-mail-groups.js" "${STAND_SSH}:${REMOTE}/public/js/admin-ad-mail-groups.js"
 fi
 
 if [[ -f "${LCF}/public/js/portal-incident-reporter.js" ]]; then
@@ -820,6 +856,6 @@ echo "[deploy-laravel] remote: php artisan config:clear cache:clear view:clear m
 ssh -o BatchMode=yes "$STAND_SSH" "set -e; cd '${REMOTE}' && php artisan config:clear && php artisan cache:clear && php artisan view:clear && php artisan optimize:clear && php artisan migrate --force --no-interaction"
 
 echo "[deploy-laravel] remote: права storage (practice-images, private/media) для php-fpm"
-ssh -o BatchMode=yes "$STAND_SSH" "set -e; cd '${REMOTE}' && mkdir -p storage/app/practice-images storage/app/private/media && (sudo chgrp -R _webserver storage/app/practice-images storage/app/private/media 2>/dev/null || chgrp -R _webserver storage/app/practice-images storage/app/private/media 2>/dev/null || true) && (sudo chmod -R g+rws storage/app/practice-images storage/app/private/media 2>/dev/null || chmod -R g+rws storage/app/practice-images storage/app/private/media 2>/dev/null || true) && (sudo chown -R _php_fpm:_webserver storage/app/practice-images storage/app/private/media 2>/dev/null || chown -R _php_fpm:_webserver storage/app/practice-images storage/app/private/media 2>/dev/null || chown -R www-data:www-data storage/app/practice-images storage/app/private/media 2>/dev/null || true)"
+ssh -o BatchMode=yes "$STAND_SSH" "set -e; cd '${REMOTE}' && mkdir -p storage/app/practice-images storage/app/private/media storage/app/private/bug-reports && (sudo chgrp -R _webserver storage/app/practice-images storage/app/private/media storage/app/private/bug-reports 2>/dev/null || chgrp -R _webserver storage/app/practice-images storage/app/private/media storage/app/private/bug-reports 2>/dev/null || true) && (sudo chmod -R g+rws storage/app/practice-images storage/app/private/media storage/app/private/bug-reports 2>/dev/null || chmod -R g+rws storage/app/practice-images storage/app/private/media storage/app/private/bug-reports 2>/dev/null || true) && (sudo chown -R _php_fpm:_webserver storage/app/practice-images storage/app/private/media storage/app/private/bug-reports 2>/dev/null || chown -R _php_fpm:_webserver storage/app/practice-images storage/app/private/media storage/app/private/bug-reports 2>/dev/null || chown -R www-data:www-data storage/app/practice-images storage/app/private/media storage/app/private/bug-reports 2>/dev/null || true)"
 
 echo "[deploy-laravel] готово. Обновите страницу практики в браузере (лучше с принудительным сбросом кэша)."

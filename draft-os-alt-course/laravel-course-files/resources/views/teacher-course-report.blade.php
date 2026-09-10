@@ -31,6 +31,14 @@
                 Завершили: <strong>{{ (int) $courseCounters['completed'] }}</strong>
             </p>
         @endif
+        @if (($layout ?? '') === 'layouts.admin')
+            @include('admin.partials.ad-mail-groups-notify', [
+                'course' => $course ?? null,
+                'adminCourseSlug' => $adminCourseSlug ?? null,
+                'courseTitle' => $courseTitle ?? null,
+                'canNotifyAdMailGroups' => $canNotifyAdMailGroups ?? null,
+            ])
+        @endif
         @php
             $scoringMeta = is_array($scoringMeta ?? null) ? $scoringMeta : [];
             $reportModuleCount = (int) ($courseModuleCount ?? ($scoringMeta['module_count'] ?? \App\Services\CourseScoringService::moduleCount()));

@@ -9,8 +9,10 @@ use App\Models\CourseContentGrant;
 use App\Models\CourseModule;
 use App\Models\CourseSection;
 use App\Models\Learner;
+use App\Models\PortalBugReport;
 use App\Models\PortalMailLog;
 use App\Models\PortalStaff;
+use App\Services\PortalBugReportService;
 use App\Support\LearnerDisplay;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -143,6 +145,191 @@ final class PortalMailNotifier
                 'course_id' => (int) $course->id,
                 'portal_staff_id' => (int) $staff->id,
                 'grants' => $grants,
+            ],
+        );
+    }
+
+    /**
+     * Оповещение почтовой группы рассылки (AD DL) о доступности курса.
+     * Письмо уходит на адрес группы; enrollment не создаётся.
+     *
+     * @param  array<string, mixed>  $extraMeta
+     */
+    public function notifyMailingGroupCourse(
+        Course $course,
+        string $groupEmail,
+        string $groupName,
+        ?string $url = null,
+        array $extraMeta = [],
+    ): ?PortalMailLog {
+        $email = mb_strtolower(trim($groupEmail));
+        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return null;
+        }
+
+        $courseTitle = (string) $course->title;
+        $name = trim($groupName) !== '' ? trim($groupName) : $email;
+        $portalUrl = $url ?: $this->portalUrl();
+
+        $subject = 'На учебном портале открыт курс: '.$courseTitle;
+        $lead = 'На учебном портале открыт курс. Пройти можно под корпоративной почтой @croc.ru.';
+        $details = [
+            'Курс' => $courseTitle,
+            'Группа рассылки' => $name,
+            'Адрес' => $email,
+        ];
+
+        $meta = array_merge([
+            'kind' => 'mailing_group_notify',
+            'course_id' => (int) $course->id,
+            'course_title' => $courseTitle,
+            'course_slug' => (string) $course->slug,
+            'group_email' => $email,
+            'group_name' => $name,
+        ], $extraMeta);
+
+        return $this->safeSend(
+            PortalMailLog::TYPE_MAILING_GROUP_NOTIFY,
+            $email,
+            $name,
+            null,
+            $subject,
+            $lead,
+            $details,
+            $portalUrl,
+            'Открыть портал',
+            $meta,
+        );
+    }
+
+    public function notifyBugReportAck(PortalBugReport $report, Learner $reporter): ?PortalMailLog
+    {
+        $email = $this->emailOf($reporter);
+        if ($email === null) {
+            return null;
+        }
+
+        $name = LearnerDisplay::portalDisplayName($reporter) ?: $email;
+        $ticket = '#'.$report->id;
+        $typeLabel = PortalBugReport::typeLabel((string) $report->type);
+        $scopeLabel = PortalBugReport::scopeLabel((string) ($report->scope ?: PortalBugReport::SCOPE_PORTAL));
+        $courseTitle = $report->course?->title;
+        if ($courseTitle === null && $report->course_id) {
+            $courseTitle = Course::query()->whereKey((int) $report->course_id)->value('title');
+        }
+
+        $subject = 'Тикет '.$ticket.' зарегистрирован';
+        $lead = 'Ваше сообщение принято. Ему присвоен номер '.$ticket.'. Мы разберёмся и при необходимости свяжемся с вами.';
+        $details = [
+            'Номер тикета' => $ticket,
+            'Тип' => $typeLabel,
+            'Область' => $scopeLabel,
+        ];
+        if ($courseTitle) {
+            $details['Курс'] = (string) $courseTitle;
+        }
+        if ($report->title) {
+            $details['Тема'] = (string) $report->title;
+        }
+        $details['Страница'] = (string) ($report->page_url ?: '—');
+
+        return $this->safeSend(
+            PortalMailLog::TYPE_BUG_REPORT_ACK,
+            $email,
+            $name,
+            (int) $reporter->id,
+            $subject,
+            $lead,
+            $details,
+            $this->portalUrl(),
+            'Открыть портал',
+            [
+                'bug_report_id' => (int) $report->id,
+                'ticket' => $ticket,
+                'bug_type' => (string) $report->type,
+                'bug_scope' => (string) ($report->scope ?: PortalBugReport::SCOPE_PORTAL),
+                'course_id' => $report->course_id,
+            ],
+        );
+    }
+
+    public function notifyBugReportStaff(
+        PortalBugReport $report,
+        ?Learner $reporter,
+        string $toEmail,
+        ?string $toName,
+        string $recipientRole,
+        ?Course $course = null,
+    ): ?PortalMailLog {
+        $toEmail = mb_strtolower(trim($toEmail));
+        if ($toEmail === '' || ! filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+            return null;
+        }
+
+        $typeLabel = PortalBugReport::typeLabel((string) $report->type);
+        $scopeLabel = PortalBugReport::scopeLabel((string) ($report->scope ?: PortalBugReport::SCOPE_PORTAL));
+        $authorEmail = (string) ($report->user_email ?: '');
+        $authorName = '';
+        if ($reporter !== null) {
+            $authorName = LearnerDisplay::portalDisplayName($reporter) ?: '';
+        }
+        $who = $authorName !== '' ? $authorName.' <'.$authorEmail.'>' : ($authorEmail !== '' ? $authorEmail : 'пользователь');
+        $courseTitle = $course?->title;
+        if ($courseTitle === null && $report->course_id) {
+            $courseTitle = Course::query()->whereKey((int) $report->course_id)->value('title');
+        }
+
+        $ticket = '#'.$report->id;
+        $subject = '['.$typeLabel.'] '.$ticket.' · '.$scopeLabel;
+        if ($courseTitle) {
+            $subject .= ' · '.$courseTitle;
+        }
+
+        $lead = $recipientRole === 'course_author'
+            ? 'По курсу «'.($courseTitle ?: 'без названия').'» пришло сообщение '.$ticket.' от '.$who.'.'
+            : 'На учебном портале зарегистрирован тикет '.$ticket.' от '.$who.'.';
+
+        $details = [
+            'Номер тикета' => $ticket,
+            'Тип' => $typeLabel,
+            'Область' => $scopeLabel,
+            'От кого' => $who,
+            'Страница' => (string) ($report->page_url ?: '—'),
+            'Скриншоты' => (string) ((int) $report->screenshot_count),
+            'Текст' => Str::limit(trim((string) $report->message), 500, '…'),
+        ];
+        if ($courseTitle) {
+            $details = ['Курс' => (string) $courseTitle] + $details;
+        }
+        if ($report->title) {
+            $details = ['Тема' => (string) $report->title] + $details;
+        }
+
+        $ctaUrl = $recipientRole === 'admin'
+            ? $this->bugAdminUrl((int) $report->id)
+            : $this->portalUrl();
+        $ctaLabel = $recipientRole === 'admin' ? 'Открыть в панели' : 'Открыть портал';
+
+        return $this->safeSend(
+            PortalMailLog::TYPE_BUG_REPORT,
+            $toEmail,
+            $toName,
+            null,
+            $subject,
+            $lead,
+            $details,
+            $ctaUrl,
+            $ctaLabel,
+            [
+                'bug_report_id' => (int) $report->id,
+                'ticket' => $ticket,
+                'bug_type' => (string) $report->type,
+                'bug_scope' => (string) ($report->scope ?: PortalBugReport::SCOPE_PORTAL),
+                'course_id' => $report->course_id,
+                'page_url' => $report->page_url,
+                'author_email' => $authorEmail,
+                'screenshot_count' => (int) $report->screenshot_count,
+                'recipient_role' => $recipientRole,
             ],
         );
     }
@@ -283,6 +470,15 @@ final class PortalMailNotifier
         }
     }
 
+    private function bugAdminUrl(int $id): string
+    {
+        try {
+            return route('admin.bugs.index', ['open' => $id]);
+        } catch (Throwable) {
+            return $this->adminUrl();
+        }
+    }
+
     /**
      * @param  list<array{resource_type: string, resource_id: int|null, permission: string}>  $grants
      * @return list<string>
@@ -354,6 +550,9 @@ final class PortalMailNotifier
             PortalMailLog::TYPE_STAFF_ADDED => 'Новые права на портале',
             PortalMailLog::TYPE_COLLABORATOR => 'Ты стал соавтором',
             PortalMailLog::TYPE_SURVEY_INVITE => 'Приглашение на опрос',
+            PortalMailLog::TYPE_MAILING_GROUP_NOTIFY => 'Открыт курс на портале',
+            PortalMailLog::TYPE_BUG_REPORT => 'Новое сообщение с портала',
+            PortalMailLog::TYPE_BUG_REPORT_ACK => 'Тикет зарегистрирован',
             default => Str::limit($subject !== '' ? $subject : 'Уведомление портала', 80, ''),
         };
     }
@@ -384,6 +583,9 @@ final class PortalMailNotifier
             PortalMailLog::TYPE_STAFF_ADDED => 'Сотрудники портала',
             PortalMailLog::TYPE_COLLABORATOR => 'Соавторы курса',
             PortalMailLog::TYPE_SURVEY_INVITE => 'Опросы',
+            PortalMailLog::TYPE_MAILING_GROUP_NOTIFY => 'Группы рассылок',
+            PortalMailLog::TYPE_BUG_REPORT => 'Обратная связь',
+            PortalMailLog::TYPE_BUG_REPORT_ACK => 'Обратная связь',
             default => 'Учебный портал КРОК',
         };
     }

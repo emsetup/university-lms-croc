@@ -95,7 +95,9 @@
                     '</div>' +
                     '<div class="ap-logs-entry__summary">' + escHtml(it.subject || '') + '</div>' +
                     '<div class="ap-logs-entry__sub">' + escHtml(it.to_email || '') +
+                    (it.to_name ? ' (' + escHtml(it.to_name) + ')' : '') +
                     (it.sent_by_email ? ' · от ' + escHtml(it.sent_by_email) : '') +
+                    (it.summary_extra ? ' · ' + escHtml(it.summary_extra) : '') +
                     (it.error ? ' · ' + escHtml(it.error) : '') +
                     '</div>' +
                     '</div>' +
@@ -193,6 +195,15 @@
                     (d.sent_at ? ' · отправлено ' + escHtml(d.sent_at) : '') + '</p>';
                 if (d.sent_by_email) {
                     html += '<p><strong>Инициатор:</strong> ' + escHtml(d.sent_by_email) + '</p>';
+                }
+                if (d.meta_lines && d.meta_lines.length) {
+                    html += '<div class="ap-mail-meta" style="margin:0.75rem 0;padding:0.75rem;border:1px solid #e6ebf0;border-radius:8px;background:#f8fafc">';
+                    html += '<p style="margin:0 0 0.4rem"><strong>Контекст рассылки</strong></p>';
+                    d.meta_lines.forEach(function (line) {
+                        html += '<p style="margin:0.2rem 0"><strong>' + escHtml(line.label) + ':</strong> ' +
+                            escHtml(line.value) + '</p>';
+                    });
+                    html += '</div>';
                 }
                 if (d.resend_of_id) {
                     html += '<p><strong>Повтор</strong> письма #' + escHtml(d.resend_of_id) + '</p>';

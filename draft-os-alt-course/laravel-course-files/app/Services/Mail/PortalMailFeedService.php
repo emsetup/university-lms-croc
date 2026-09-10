@@ -16,6 +16,9 @@ final class PortalMailFeedService
         PortalMailLog::TYPE_STAFF_ADDED => 'Сотрудник',
         PortalMailLog::TYPE_COLLABORATOR => 'Соавтор',
         PortalMailLog::TYPE_SURVEY_INVITE => 'Опрос',
+        PortalMailLog::TYPE_MAILING_GROUP_NOTIFY => 'Рассылка AD',
+        PortalMailLog::TYPE_BUG_REPORT => 'Баг / предложение',
+        PortalMailLog::TYPE_BUG_REPORT_ACK => 'Подтверждение тикета',
         PortalMailLog::TYPE_GENERIC => 'Письмо',
     ];
 
@@ -105,6 +108,7 @@ final class PortalMailFeedService
             'body_text' => $log->body_text,
             'error' => $log->error,
             'meta' => $log->meta,
+            'meta_lines' => $this->metaLines($log),
             'learner_id' => $log->learner_id,
             'sent_by_email' => $log->sent_by_email,
             'resend_of_id' => $log->resend_of_id,
@@ -112,6 +116,50 @@ final class PortalMailFeedService
             'sent_at' => $log->sent_at?->timezone($tz)->format('d.m.Y H:i:s'),
             'can_resend' => true,
         ];
+    }
+
+    /**
+     * Человекочитаемые поля meta для карточки письма.
+     *
+     * @return list<array{label: string, value: string}>
+     */
+    private function metaLines(PortalMailLog $log): array
+    {
+        $meta = is_array($log->meta) ? $log->meta : [];
+        if ($meta === []) {
+            return [];
+        }
+
+        $lines = [];
+        $map = [
+            'course_title' => 'Курс',
+            'course_id' => 'ID курса',
+            'group_name' => 'Группа рассылки',
+            'group_email' => 'Адрес группы',
+            'group_id' => 'ID группы в каталоге',
+            'batch_id' => 'Пакет рассылки',
+            'batch_size' => 'Групп в пакете',
+            'batch_recipients' => 'Адреса в пакете',
+            'batch_group_names' => 'Группы в пакете',
+            'resource_label' => 'Материал',
+            'role_label' => 'Роль',
+        ];
+
+        foreach ($map as $key => $label) {
+            if (! array_key_exists($key, $meta) || $meta[$key] === null || $meta[$key] === '') {
+                continue;
+            }
+            $value = $meta[$key];
+            if (is_array($value)) {
+                $value = implode(', ', array_map(static fn ($v) => (string) $v, $value));
+            }
+            $lines[] = [
+                'label' => $label,
+                'value' => (string) $value,
+            ];
+        }
+
+        return $lines;
     }
 
     public function recentEmailSuggestions(int $limit = 40): Collection
@@ -159,6 +207,27 @@ final class PortalMailFeedService
      */
     private function serializeListItem(PortalMailLog $row, string $tz): array
     {
+        $meta = is_array($row->meta) ? $row->meta : [];
+        $summaryExtra = null;
+        if ((string) $row->type === PortalMailLog::TYPE_MAILING_GROUP_NOTIFY) {
+            $parts = [];
+            $course = trim((string) ($meta['course_title'] ?? ''));
+            $group = trim((string) ($meta['group_name'] ?? ''));
+            $batch = trim((string) ($meta['batch_id'] ?? ''));
+            if ($course !== '') {
+                $parts[] = 'курс: '.$course;
+            }
+            if ($group !== '') {
+                $parts[] = 'группа: '.$group;
+            }
+            if ($batch !== '') {
+                $parts[] = 'пакет #'.mb_substr($batch, 0, 8);
+            }
+            if ($parts !== []) {
+                $summaryExtra = implode(' · ', $parts);
+            }
+        }
+
         return [
             'id' => (int) $row->id,
             'created_at' => $row->created_at?->timezone($tz)->format('d.m.Y H:i:s'),
@@ -168,8 +237,11 @@ final class PortalMailFeedService
             'status' => (string) $row->status,
             'status_label' => PortalMailLog::statusLabel((string) $row->status),
             'to_email' => (string) $row->to_email,
+            'to_name' => $row->to_name,
             'subject' => (string) $row->subject,
             'sent_by_email' => $row->sent_by_email,
+            'summary_extra' => $summaryExtra,
+            'batch_id' => isset($meta['batch_id']) ? (string) $meta['batch_id'] : null,
             'error' => $row->error ? mb_strimwidth((string) $row->error, 0, 120, '…') : null,
         ];
     }

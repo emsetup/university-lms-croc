@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 final class AdminStaffController extends Controller
@@ -96,11 +97,11 @@ final class AdminStaffController extends Controller
         $email = strtolower((string) $data['email']);
         $learner = Learner::query()->firstOrCreate(['email' => $email]);
 
-        abort_if(
-            PortalStaff::query()->where('learner_id', $learner->id)->exists(),
-            422,
-            'Этот пользователь уже в списке сотрудников.'
-        );
+        if (PortalStaff::query()->where('learner_id', $learner->id)->exists()) {
+            throw ValidationException::withMessages([
+                'email' => 'Этот пользователь уже в списке сотрудников. Откройте его через «Изменить» (карандаш) и смените роль.',
+            ]);
+        }
 
         $staff = PortalStaff::query()->create([
             'learner_id' => $learner->id,
@@ -158,11 +159,19 @@ final class AdminStaffController extends Controller
     {
         if ($staff->isPortalAdmin()) {
             $admins = PortalStaff::query()->where('role', PortalStaff::ROLE_PORTAL_ADMIN)->count();
-            abort_if($admins <= 1, 422, 'Нельзя удалить последнего администратора портала.');
+            if ($admins <= 1) {
+                return redirect()
+                    ->route('admin.staff.index')
+                    ->with('err', 'Нельзя удалить последнего администратора портала.');
+            }
         }
 
         $currentId = (int) session('learner_id', 0);
-        abort_if($currentId > 0 && $staff->learner_id === $currentId, 422, 'Нельзя удалить собственную учётную запись сотрудника.');
+        if ($currentId > 0 && $staff->learner_id === $currentId) {
+            return redirect()
+                ->route('admin.staff.index')
+                ->with('err', 'Нельзя удалить собственную учётную запись сотрудника.');
+        }
 
         $staff->delete();
 
@@ -259,7 +268,11 @@ final class AdminStaffController extends Controller
         $courseIds = array_values(array_unique(array_map('intval', $data['course_ids'] ?? [])));
 
         if (in_array($role, [PortalStaff::ROLE_INSTRUCTOR, PortalStaff::ROLE_COURSE_TESTER], true)) {
-            abort_if($courseIds === [], 422, 'Для роли «инструктор» или «тестировщик» выберите хотя бы один курс.');
+            if ($courseIds === []) {
+                throw ValidationException::withMessages([
+                    'course_ids' => 'Для роли «преподаватель» или «тестировщик» выберите хотя бы один курс.',
+                ]);
+            }
         } elseif ($role !== PortalStaff::ROLE_COURSE_EDITOR) {
             $courseIds = [];
         }
@@ -267,12 +280,10 @@ final class AdminStaffController extends Controller
         $email = strtolower((string) $data['email']);
         if ($existing === null) {
             $learner = Learner::query()->where('email', $email)->first();
-            if ($learner !== null) {
-                abort_if(
-                    PortalStaff::query()->where('learner_id', $learner->id)->exists(),
-                    422,
-                    'Этот пользователь уже в списке сотрудников.'
-                );
+            if ($learner !== null && PortalStaff::query()->where('learner_id', $learner->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'email' => 'Этот пользователь уже в списке сотрудников. Откройте его через «Изменить» (карандаш) и смените роль.',
+                ]);
             }
         }
 

@@ -25,6 +25,12 @@ class PortalMailLog extends Model
 
     public const TYPE_SURVEY_INVITE = 'survey_invite';
 
+    public const TYPE_MAILING_GROUP_NOTIFY = 'mailing_group_notify';
+
+    public const TYPE_BUG_REPORT = 'bug_report';
+
+    public const TYPE_BUG_REPORT_ACK = 'bug_report_ack';
+
     public const TYPE_GENERIC = 'generic';
 
     /** @var list<string> */
@@ -33,6 +39,9 @@ class PortalMailLog extends Model
         self::TYPE_STAFF_ADDED,
         self::TYPE_COLLABORATOR,
         self::TYPE_SURVEY_INVITE,
+        self::TYPE_MAILING_GROUP_NOTIFY,
+        self::TYPE_BUG_REPORT,
+        self::TYPE_BUG_REPORT_ACK,
         self::TYPE_GENERIC,
     ];
 
@@ -85,6 +94,9 @@ class PortalMailLog extends Model
             self::TYPE_STAFF_ADDED => 'Права сотрудника',
             self::TYPE_COLLABORATOR => 'Соавтор курса',
             self::TYPE_SURVEY_INVITE => 'Приглашение на опрос',
+            self::TYPE_MAILING_GROUP_NOTIFY => 'Рассылка группе AD',
+            self::TYPE_BUG_REPORT => 'Сообщение об ошибке',
+            self::TYPE_BUG_REPORT_ACK => 'Подтверждение тикета',
             self::TYPE_GENERIC => 'Письмо',
             default => $type,
         };

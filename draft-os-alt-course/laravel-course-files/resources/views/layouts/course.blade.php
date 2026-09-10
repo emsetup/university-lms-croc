@@ -267,6 +267,7 @@
           data-csrf="{{ csrf_token() }}"></span>
     <script src="{{ asset('js/portal-incident-reporter.js') }}" defer></script>
 @endif
+@include('partials.portal-bug-report')
 @include('partials.course-lightbox')
 <script src="{{ asset('js/course-lightbox.js') }}" defer></script>
 @stack('scripts')
