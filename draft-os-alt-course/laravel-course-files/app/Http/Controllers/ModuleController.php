@@ -388,6 +388,25 @@ class ModuleController extends Controller
         ];
     }
 
+    /**
+     * Если в настройках раздела разбор без лимита — показать даже старые попытки с таймером.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function applyCurrentBreakdownPolicy(array $data, ?int $breakdownMinutes): array
+    {
+        if ($breakdownMinutes === null) {
+            $data['breakdown_unlimited'] = true;
+            $data['breakdown_visible_until'] = null;
+        } elseif ($breakdownMinutes <= 0) {
+            $data['breakdown_unlimited'] = false;
+            $data['breakdown_visible_until'] = 0;
+        }
+
+        return $data;
+    }
+
     protected function examQuestionIsMulti(array $q): bool
     {
         return isset($q['c']) && is_array($q['c']);
@@ -1140,6 +1159,10 @@ class ModuleController extends Controller
         }
 
         $breakdownMode = LearnerQuizBreakdownDisplay::forSection($sec, $cm, $courseId > 0 ? Course::query()->find($courseId) : null);
+        $data = $this->applyCurrentBreakdownPolicy(
+            $data,
+            $this->sectionService->theoryQuizBreakdownVisibleMinutesForSection($sec)
+        );
         $breakdownView = $this->prepareLearnerQuizBreakdownView($data, $breakdownMode);
         $scoreDisplay = LearnerScoreDisplay::flags(
             $courseId > 0 ? Course::query()->find($courseId) : null,
@@ -1244,7 +1267,10 @@ class ModuleController extends Controller
 
         $breakdownMinutes = $courseId > 0
             ? $this->sectionService->theoryQuizBreakdownVisibleMinutesForSection($sec)
-            : CourseScoringService::THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES;
+            : CourseScoringService::normalizeBreakdownVisibleMinutes(
+                null,
+                CourseScoringService::THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES
+            );
         $breakdownUntil = CourseScoringService::breakdownVisibleUntilTimestamp($breakdownMinutes);
         $breakdownUnlimited = $breakdownUntil === null;
 
@@ -1611,6 +1637,10 @@ class ModuleController extends Controller
         }
 
         $breakdownMode = LearnerQuizBreakdownDisplay::forSection($sec, $cm, $courseId > 0 ? Course::query()->find($courseId) : null);
+        $data = $this->applyCurrentBreakdownPolicy(
+            $data,
+            $this->sectionService->examBreakdownVisibleMinutesForSection($sec)
+        );
         $breakdownView = $this->prepareLearnerQuizBreakdownView($data, $breakdownMode);
         $scoreDisplay = LearnerScoreDisplay::flags(
             $courseId > 0 ? Course::query()->find($courseId) : null,
@@ -1720,7 +1750,10 @@ class ModuleController extends Controller
 
         $examBreakdownMinutes = $courseId > 0
             ? $this->sectionService->examBreakdownVisibleMinutesForSection($sec)
-            : CourseScoringService::MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES;
+            : CourseScoringService::normalizeBreakdownVisibleMinutes(
+                null,
+                CourseScoringService::MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES
+            );
         $examBreakdownUntil = CourseScoringService::breakdownVisibleUntilTimestamp($examBreakdownMinutes);
         $examBreakdownUnlimited = $examBreakdownUntil === null;
 

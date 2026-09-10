@@ -31,9 +31,25 @@ final class PortalBugReportFeedService
     ];
 
     /**
+     * @param  list<int>|null  $restrictCourseIds  null = все; список = только тикеты этих курсов
+     */
+    private function applyInboxScope($query, ?array $restrictCourseIds)
+    {
+        if ($restrictCourseIds === null) {
+            return $query;
+        }
+        if ($restrictCourseIds === []) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where('scope', PortalBugReport::SCOPE_COURSE)
+            ->whereIn('course_id', $restrictCourseIds);
+    }
+
+    /**
      * @return array{items: list<array<string, mixed>>, has_more: bool}
      */
-    public function feed(Request $request): array
+    public function feed(Request $request, ?array $restrictCourseIds = null): array
     {
         if (! Schema::hasTable('portal_bug_reports')) {
             return ['items' => [], 'has_more' => false];
@@ -43,6 +59,7 @@ final class PortalBugReportFeedService
         $cursor = (int) $request->query('before_id', 0);
 
         $q = PortalBugReport::query()->with('course:id,title')->orderByDesc('id');
+        $this->applyInboxScope($q, $restrictCourseIds);
 
         if ($cursor > 0) {
             $q->where('id', '<', $cursor);
@@ -150,15 +167,17 @@ final class PortalBugReportFeedService
     }
 
     /**
+     * @param  list<int>|null  $restrictCourseIds
      * @return array{total: int, new: int, new_24h: int, open: int}
      */
-    public function stats(): array
+    public function stats(?array $restrictCourseIds = null): array
     {
         if (! Schema::hasTable('portal_bug_reports')) {
             return ['total' => 0, 'new' => 0, 'new_24h' => 0, 'open' => 0];
         }
 
         $base = PortalBugReport::query();
+        $this->applyInboxScope($base, $restrictCourseIds);
 
         return [
             'total' => (int) (clone $base)->count(),

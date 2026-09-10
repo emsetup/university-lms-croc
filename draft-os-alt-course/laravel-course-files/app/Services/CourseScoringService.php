@@ -33,9 +33,10 @@ final class CourseScoringService
 
     public const MODULE_EXAM_RETAKE_PENALTY_POINTS = 10;
 
-    public const THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES = 5;
+    /** Sentinel / default: разбор без ограничения по времени (−1 → null после normalize). */
+    public const THEORY_QUIZ_BREAKDOWN_VISIBLE_MINUTES = -1;
 
-    public const MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES = 5;
+    public const MODULE_EXAM_BREAKDOWN_VISIBLE_MINUTES = -1;
 
     /** Sentinel in section/bank settings: разбор без ограничения по времени. */
     public const BREAKDOWN_VISIBLE_UNLIMITED = -1;
@@ -47,10 +48,10 @@ final class CourseScoringService
     public static function normalizeBreakdownVisibleMinutes(mixed $value, int $fallback): ?int
     {
         if ($value === null || $value === '') {
-            return $fallback;
+            $value = $fallback;
         }
         if (! is_numeric($value)) {
-            return $fallback;
+            $value = $fallback;
         }
         $n = (int) $value;
         if ($n < 0) {

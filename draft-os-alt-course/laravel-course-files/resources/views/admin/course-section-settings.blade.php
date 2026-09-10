@@ -48,7 +48,7 @@
                             <span class="ap-muted small">Перемешивать вопросы при каждой попытке</span>
                         </label>
                         @php
-                            $bvQuiz = (int) ($settings['breakdown_visible_minutes'] ?? 15);
+                            $bvQuiz = (int) ($settings['breakdown_visible_minutes'] ?? -1);
                             $bvQuizUnlimited = $bvQuiz < 0;
                         @endphp
                         <label class="ap-check-row u-mt-1">
@@ -107,7 +107,7 @@
                         <label class="form-label" for="pass_percent_ex">Порог зачёта (%)</label>
                         <input id="pass_percent_ex" type="number" name="pass_percent" value="{{ (int) ($settings['pass_percent'] ?? 70) }}" min="1" max="100" required class="form-input form-input--md">
                         @php
-                            $bvExam = (int) ($settings['breakdown_visible_minutes'] ?? 30);
+                            $bvExam = (int) ($settings['breakdown_visible_minutes'] ?? -1);
                             $bvExamUnlimited = $bvExam < 0;
                         @endphp
                         <label class="ap-check-row u-mt-1">

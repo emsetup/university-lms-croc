@@ -6,9 +6,9 @@
     @php
         $pen = is_array($bank->penalties_json ?? null) ? $bank->penalties_json : [];
         $def = match ($kind ?? '') {
-            'module_exam' => ['pass' => 70, 'tl' => 60, 'al' => 2, 'bv' => 30, 'shuffle' => false, 'one_by_one' => true, 'pen2' => 10],
-            'final_lab' => ['pass' => 70, 'tl' => 30, 'al' => null, 'bv' => 15, 'shuffle' => false, 'one_by_one' => true, 'pen2' => 10],
-            default => ['pass' => 70, 'tl' => 30, 'al' => null, 'bv' => 15, 'shuffle' => false, 'one_by_one' => true, 'pen2' => 10],
+            'module_exam' => ['pass' => 70, 'tl' => 60, 'al' => 2, 'bv' => -1, 'shuffle' => false, 'one_by_one' => true, 'pen2' => 10],
+            'final_lab' => ['pass' => 70, 'tl' => 30, 'al' => null, 'bv' => -1, 'shuffle' => false, 'one_by_one' => true, 'pen2' => 10],
+            default => ['pass' => 70, 'tl' => 30, 'al' => null, 'bv' => -1, 'shuffle' => false, 'one_by_one' => true, 'pen2' => 10],
         };
         $vPass = old('pass_percent', $bank->pass_percent ?? $def['pass']);
         $vTl = old('time_limit_minutes', $bank->time_limit_minutes ?? $def['tl']);
@@ -110,8 +110,8 @@
                                 <input class="input" type="number" id="qb-al" min="1" max="50" value="{{ $vAl }}" placeholder="например 3">
                             </label>
                             <label class="qb-settings__field">
-                                <span class="muted small">Разбор (мин.)</span>
-                                <input class="input" type="number" id="qb-bv" min="0" max="10080" value="{{ (int) $vBv }}">
+                                <span class="muted small">Разбор (мин., −1 = без лимита)</span>
+                                <input class="input" type="number" id="qb-bv" min="-1" max="10080" value="{{ (int) $vBv }}">
                             </label>
                         </div>
                     </div>
@@ -646,7 +646,7 @@
                     pass_percent: parseInt((passInp && passInp.value) ? passInp.value : '70', 10),
                     time_limit_minutes: (tlInp && tlInp.value) ? parseInt(tlInp.value, 10) : null,
                     attempt_limit: (alInp && alInp.value) ? parseInt(alInp.value, 10) : null,
-                    breakdown_visible_minutes: (bvInp && bvInp.value) ? parseInt(bvInp.value, 10) : 15,
+                    breakdown_visible_minutes: (bvInp && bvInp.value !== '') ? parseInt(bvInp.value, 10) : -1,
                     shuffle: !!(shInp && shInp.checked),
                     one_by_one: !!(oboInp && oboInp.checked),
                     penalty_attempt_2: (pen2 && pen2.value) ? parseInt(pen2.value, 10) : null,

@@ -7,6 +7,7 @@ use App\Models\CourseModule;
 use App\Models\CourseQuizBank;
 use App\Models\CourseSection;
 use App\Services\CourseContentService;
+use App\Services\CourseScoringService;
 use App\Services\PortalStaffAccess;
 use App\Services\QuizQuestionsExportService;
 use App\Support\AdminCourseContentInspector;
@@ -48,8 +49,8 @@ final class AdminQuizController extends Controller
             $bank = $this->content->quizBankFor($course, $cm, $kind);
             if (! $bank) {
                 $defaults = $kind === 'theory_quiz'
-                    ? ['pass_percent' => 70, 'time_limit_minutes' => 30, 'attempt_limit' => null, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 15, 'penalties_json' => ['2' => 10]]
-                    : ['pass_percent' => 70, 'time_limit_minutes' => 60, 'attempt_limit' => 2, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 30, 'penalties_json' => ['2' => 10]];
+                    ? ['pass_percent' => 70, 'time_limit_minutes' => 30, 'attempt_limit' => null, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED, 'penalties_json' => ['2' => 10]]
+                    : ['pass_percent' => 70, 'time_limit_minutes' => 60, 'attempt_limit' => 2, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED, 'penalties_json' => ['2' => 10]];
                 $bank = CourseQuizBank::query()->create([
                     'course_id' => $courseId,
                     'course_module_id' => (int) $cm->id,
@@ -111,7 +112,7 @@ final class AdminQuizController extends Controller
                     'attempt_limit' => null,
                     'shuffle' => false,
                     'one_by_one' => true,
-                    'breakdown_visible_minutes' => 15,
+                    'breakdown_visible_minutes' => CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED,
                     'penalties_json' => null,
                 ]);
             }
@@ -220,8 +221,8 @@ final class AdminQuizController extends Controller
         $bank = $this->content->quizBankFor($course, $cm, $kind);
         if (! $bank) {
             $defaults = $kind === 'theory_quiz'
-                ? ['pass_percent' => 70, 'time_limit_minutes' => 30, 'attempt_limit' => null, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 15, 'penalties_json' => ['2' => 10]]
-                : ['pass_percent' => 70, 'time_limit_minutes' => 60, 'attempt_limit' => 2, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 30, 'penalties_json' => ['2' => 10]];
+                ? ['pass_percent' => 70, 'time_limit_minutes' => 30, 'attempt_limit' => null, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED, 'penalties_json' => ['2' => 10]]
+                : ['pass_percent' => 70, 'time_limit_minutes' => 60, 'attempt_limit' => 2, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED, 'penalties_json' => ['2' => 10]];
             $bank = CourseQuizBank::query()->create([
                 'course_id' => $courseId,
                 'course_module_id' => (int) $cm->id,
@@ -305,7 +306,7 @@ final class AdminQuizController extends Controller
                 'attempt_limit' => null,
                 'shuffle' => false,
                 'one_by_one' => true,
-                'breakdown_visible_minutes' => 15,
+                'breakdown_visible_minutes' => CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED,
                 'penalties_json' => null,
             ]);
         }

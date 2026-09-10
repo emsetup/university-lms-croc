@@ -1275,7 +1275,7 @@ final class AdminCourseSettingsController extends Controller
                         'shuffle' => (bool) ($p['shuffle'] ?? ($prev['shuffle'] ?? false)),
                         'breakdown_visible_minutes' => isset($p['breakdown_visible_minutes']) && $p['breakdown_visible_minutes'] !== null && $p['breakdown_visible_minutes'] !== ''
                             ? (int) $p['breakdown_visible_minutes']
-                            : (int) ($prev['breakdown_visible_minutes'] ?? 15),
+                            : (int) ($prev['breakdown_visible_minutes'] ?? CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED),
                         'breakdown_mode_from_parent' => $bmFromParent,
                         'breakdown_mode' => $bmFromParent ? null : ($bmOwn ?? LearnerQuizBreakdownDisplay::MODE_ALL),
                         'penalties' => is_array($prev['penalties'] ?? null) ? $prev['penalties'] : ['2' => 10],
@@ -1305,7 +1305,7 @@ final class AdminCourseSettingsController extends Controller
                         'one_by_one' => (bool) ($p['one_by_one'] ?? ($prev['one_by_one'] ?? true)),
                         'breakdown_visible_minutes' => isset($p['breakdown_visible_minutes']) && $p['breakdown_visible_minutes'] !== null && $p['breakdown_visible_minutes'] !== ''
                             ? (int) $p['breakdown_visible_minutes']
-                            : (int) ($prev['breakdown_visible_minutes'] ?? 30),
+                            : (int) ($prev['breakdown_visible_minutes'] ?? CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED),
                         'breakdown_mode_from_parent' => $bmFromParent,
                         'breakdown_mode' => $bmFromParent ? null : ($bmOwn ?? LearnerQuizBreakdownDisplay::MODE_ALL),
                         'penalties' => is_array($prev['penalties'] ?? null) ? $prev['penalties'] : ['2' => 10],
@@ -1383,9 +1383,9 @@ final class AdminCourseSettingsController extends Controller
                     };
                     $contentSvc = app(CourseContentService::class);
                     $defaults = match ($kind) {
-                        'theory_quiz' => ['pass_percent' => 70, 'time_limit_minutes' => 30, 'attempt_limit' => null, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 15, 'penalties_json' => ['2' => 10]],
+                        'theory_quiz' => ['pass_percent' => 70, 'time_limit_minutes' => 30, 'attempt_limit' => null, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED, 'penalties_json' => ['2' => 10]],
                         'survey' => ['pass_percent' => 0, 'time_limit_minutes' => null, 'attempt_limit' => 1, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 0, 'penalties_json' => null],
-                        default => ['pass_percent' => 70, 'time_limit_minutes' => 60, 'attempt_limit' => 2, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => 30, 'penalties_json' => ['2' => 10]],
+                        default => ['pass_percent' => 70, 'time_limit_minutes' => 60, 'attempt_limit' => 2, 'shuffle' => false, 'one_by_one' => true, 'breakdown_visible_minutes' => CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED, 'penalties_json' => ['2' => 10]],
                     };
                     $bank = $contentSvc->ensureQuizBankForSection($course, $courseModule, $section, $kind, $defaults);
                     $quiz = app(AdminQuizController::class);
@@ -1551,7 +1551,7 @@ final class AdminCourseSettingsController extends Controller
                 'pass_percent' => 70,
                 'penalties' => ['2' => 10],
                 'shuffle' => false,
-                'breakdown_visible_minutes' => 15,
+                'breakdown_visible_minutes' => CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED,
             ],
             CourseSection::TYPE_PRACTICE => [
                 'attempt_limit' => null,
@@ -1572,7 +1572,7 @@ final class AdminCourseSettingsController extends Controller
                 'pass_percent' => 70,
                 'penalties' => ['2' => 10],
                 'one_by_one' => true,
-                'breakdown_visible_minutes' => 30,
+                'breakdown_visible_minutes' => CourseScoringService::BREAKDOWN_VISIBLE_UNLIMITED,
             ],
             default => [],
         };

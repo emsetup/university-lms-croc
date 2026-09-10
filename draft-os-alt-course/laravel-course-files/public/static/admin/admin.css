@@ -620,46 +620,6 @@ body[data-ap-teacher-report="1"] .ap-report-page .quick-nav {
   color: #fff;
 }
 
-.scroll-to-top {
-  position: fixed;
-  bottom: 32px;
-  right: 32px;
-  width: 44px;
-  height: 44px;
-  background: #00b956;
-  color: #fff;
-  border: none;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 185, 86, 0.35);
-  z-index: 200;
-  opacity: 0;
-  transform: translateY(12px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  pointer-events: none;
-}
-
-.scroll-to-top.visible {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-
-.scroll-to-top:hover {
-  background: #009e4a;
-  box-shadow: 0 6px 20px rgba(0, 185, 86, 0.45);
-  transform: translateY(-2px);
-}
-
-.scroll-to-top svg {
-  width: 20px;
-  height: 20px;
-  stroke: #fff;
-}
-
 @media (max-width: 720px) {
   body[data-ap-teacher-report="1"] .learner-page-content {
     padding: 16px 16px;
@@ -680,11 +640,6 @@ body[data-ap-teacher-report="1"] .ap-report-page .quick-nav {
     padding-right: 0;
     padding-top: 10px;
     padding-bottom: 10px;
-  }
-
-  .scroll-to-top {
-    bottom: 20px;
-    right: 16px;
   }
 }
 

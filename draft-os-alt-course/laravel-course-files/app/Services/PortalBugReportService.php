@@ -143,12 +143,12 @@ final class PortalBugReportService
         $seen = [];
         $reporterEmail = mb_strtolower(trim((string) $reporter->email));
 
-        $add = static function (string $email, ?string $name, string $role) use (&$out, &$seen, $reporterEmail): void {
+        $add = static function (string $email, ?string $name, string $role, bool $allowReporter = false) use (&$out, &$seen, $reporterEmail): void {
             $email = mb_strtolower(trim($email));
             if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 return;
             }
-            if ($email === $reporterEmail) {
+            if (! $allowReporter && $email === $reporterEmail) {
                 return;
             }
             if (isset($seen[$email])) {
@@ -165,7 +165,8 @@ final class PortalBugReportService
             if ($author !== null) {
                 $email = mb_strtolower(trim((string) $author->email));
                 $name = LearnerDisplay::portalDisplayName($author) ?: null;
-                $add($email, $name, 'course_author');
+                // Автору курса — всегда (в т.ч. если он сам отправил тикет).
+                $add($email, $name, 'course_author', true);
             }
         }
 
@@ -284,7 +285,7 @@ final class PortalBugReportService
         return array_values(array_unique($out)) ?: ['emednikov@croc.ru'];
     }
 
-    public static function learnerCanAccessInbox(?Learner $learner): bool
+    public static function isGlobalInboxLearner(?Learner $learner): bool
     {
         if ($learner === null) {
             return false;
@@ -292,6 +293,61 @@ final class PortalBugReportService
         $email = mb_strtolower(trim((string) $learner->email));
 
         return $email !== '' && in_array($email, self::inboxEmails(), true);
+    }
+
+    /**
+     * Курсы, где learner — создатель (created_by_portal_staff).
+     *
+     * @return list<int>
+     */
+    public static function courseIdsCreatedByLearner(?Learner $learner): array
+    {
+        if ($learner === null || ! Schema::hasTable('courses') || ! Schema::hasTable('portal_staff')) {
+            return [];
+        }
+
+        $staffIds = \App\Models\PortalStaff::query()
+            ->where('learner_id', (int) $learner->id)
+            ->pluck('id')
+            ->map(static fn ($id) => (int) $id)
+            ->all();
+        if ($staffIds === []) {
+            return [];
+        }
+
+        return Course::query()
+            ->whereIn('created_by_portal_staff_id', $staffIds)
+            ->pluck('id')
+            ->map(static fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    public static function learnerCanAccessInbox(?Learner $learner): bool
+    {
+        if ($learner === null) {
+            return false;
+        }
+        if (self::isGlobalInboxLearner($learner)) {
+            return true;
+        }
+
+        return self::courseIdsCreatedByLearner($learner) !== [];
+    }
+
+    public static function learnerCanViewReport(?Learner $learner, PortalBugReport $report): bool
+    {
+        if ($learner === null) {
+            return false;
+        }
+        if (self::isGlobalInboxLearner($learner)) {
+            return true;
+        }
+        if ((string) ($report->scope ?: '') !== PortalBugReport::SCOPE_COURSE || ! $report->course_id) {
+            return false;
+        }
+
+        return in_array((int) $report->course_id, self::courseIdsCreatedByLearner($learner), true);
     }
 
     public static function notifyEmail(): string

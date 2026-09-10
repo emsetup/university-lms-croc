@@ -297,11 +297,6 @@
         </section>
     </div>
     </div>
-    <button type="button" class="scroll-to-top" aria-label="Наверх">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 19V5M5 12l7-7 7 7"/>
-        </svg>
-    </button>
     <script>
         document.querySelectorAll('.progress-fill-xs').forEach(function (el) {
             el.style.width = (el.dataset.value != null && el.dataset.value !== '' ? el.dataset.value : '0') + '%';
@@ -402,26 +397,6 @@
                 navBtns[0].classList.add('active');
             }
 
-            var scrollBtn = document.querySelector('.scroll-to-top');
-            if (scrollBtn) {
-                var onScroll = function () {
-                    var y = scrollRoot ? scrollRoot.scrollTop : window.scrollY;
-                    if (y > 400) {
-                        scrollBtn.classList.add('visible');
-                    } else {
-                        scrollBtn.classList.remove('visible');
-                    }
-                };
-                (scrollRoot || window).addEventListener('scroll', onScroll, { passive: true });
-                onScroll();
-                scrollBtn.addEventListener('click', function () {
-                    if (scrollRoot) {
-                        scrollRoot.scrollTo({ top: 0, behavior: 'smooth' });
-                    } else {
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
-                });
-            }
         })();
     </script>
 @endsection

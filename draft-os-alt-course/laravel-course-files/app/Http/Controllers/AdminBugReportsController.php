@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\Learner;
 use App\Models\PortalBugReport;
 use App\Services\PortalBugReportFeedService;
 use App\Services\PortalBugReportService;
@@ -17,28 +18,39 @@ final class AdminBugReportsController extends Controller
 {
     public function index(PortalBugReportFeedService $feed): View
     {
+        $learner = $this->currentLearner();
+        $restrict = $this->restrictCourseIds($learner);
+
         return view('admin.bug-reports', [
-            'bugStats' => $feed->stats(),
+            'bugStats' => $feed->stats($restrict),
             'bugFeedUrl' => route('admin.bugs.feed'),
             'typeLabels' => PortalBugReportFeedService::TYPE_LABELS,
             'scopeLabels' => PortalBugReportFeedService::SCOPE_LABELS,
             'statusLabels' => PortalBugReportFeedService::STATUS_LABELS,
             'emailSuggestions' => $feed->recentEmailSuggestions(),
+            'bugInboxScoped' => $restrict !== null,
         ]);
     }
 
     public function feed(Request $request, PortalBugReportFeedService $feed): JsonResponse
     {
-        return response()->json($feed->feed($request));
+        $learner = $this->currentLearner();
+        $restrict = $this->restrictCourseIds($learner);
+
+        return response()->json($feed->feed($request, $restrict));
     }
 
     public function show(PortalBugReport $bug, PortalBugReportFeedService $feed): JsonResponse
     {
+        $this->assertCanView($bug);
+
         return response()->json($feed->detail($bug));
     }
 
     public function updateStatus(Request $request, PortalBugReport $bug): JsonResponse
     {
+        $this->assertCanView($bug);
+
         $data = $request->validate([
             'status' => ['required', 'string', 'in:'.implode(',', PortalBugReport::STATUSES)],
             'admin_note' => ['nullable', 'string', 'max:4000'],
@@ -70,6 +82,8 @@ final class AdminBugReportsController extends Controller
         int $index,
         PortalBugReportService $service,
     ): BinaryFileResponse {
+        $this->assertCanView($bug);
+
         $shots = (array) ($bug->screenshots ?? []);
         abort_unless(isset($shots[$index]) && is_array($shots[$index]), 404);
 
@@ -85,5 +99,34 @@ final class AdminBugReportsController extends Controller
             'Content-Disposition' => 'inline; filename="'.addslashes($name).'"',
             'Cache-Control' => 'private, max-age=3600',
         ]);
+    }
+
+    private function currentLearner(): ?Learner
+    {
+        $id = (int) session('learner_id', 0);
+
+        return $id > 0 ? Learner::query()->find($id) : null;
+    }
+
+    /**
+     * null = глобальный инбокс; list = только свои курсы.
+     *
+     * @return list<int>|null
+     */
+    private function restrictCourseIds(?Learner $learner): ?array
+    {
+        if (PortalBugReportService::isGlobalInboxLearner($learner)) {
+            return null;
+        }
+
+        return PortalBugReportService::courseIdsCreatedByLearner($learner);
+    }
+
+    private function assertCanView(PortalBugReport $bug): void
+    {
+        abort_unless(
+            PortalBugReportService::learnerCanViewReport($this->currentLearner(), $bug),
+            404,
+        );
     }
 }

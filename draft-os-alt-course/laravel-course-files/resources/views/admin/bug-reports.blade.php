@@ -22,6 +22,9 @@
                 <h1 class="ap-logs-hero__title">Баги и предложения</h1>
                 <p class="ap-logs-hero__lead">
                     Сообщения с кнопки «Сообщить» на страницах портала: ошибки, идеи и скриншоты от авторизованных пользователей.
+                    @if (! empty($bugInboxScoped))
+                        Вам доступны тикеты по курсам, где вы указаны как автор.
+                    @endif
                 </p>
             </div>
             <div class="ap-logs-hero__badge @if (($stats['new'] ?? 0) > 0) ap-logs-hero__badge--alert @endif" title="Новые">

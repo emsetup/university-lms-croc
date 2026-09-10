@@ -233,6 +233,13 @@ final class PortalMailNotifier
         }
         $details['Страница'] = (string) ($report->page_url ?: '—');
 
+        $ctaUrl = $this->portalUrl();
+        $ctaLabel = 'Открыть портал';
+        if (PortalBugReportService::learnerCanAccessInbox($reporter)) {
+            $ctaUrl = $this->bugAdminUrl((int) $report->id);
+            $ctaLabel = 'Открыть тикет';
+        }
+
         return $this->safeSend(
             PortalMailLog::TYPE_BUG_REPORT_ACK,
             $email,
@@ -241,8 +248,8 @@ final class PortalMailNotifier
             $subject,
             $lead,
             $details,
-            $this->portalUrl(),
-            'Открыть портал',
+            $ctaUrl,
+            $ctaLabel,
             [
                 'bug_report_id' => (int) $report->id,
                 'ticket' => $ticket,
@@ -305,10 +312,13 @@ final class PortalMailNotifier
             $details = ['Тема' => (string) $report->title] + $details;
         }
 
-        $ctaUrl = $recipientRole === 'admin'
+        // Админ и автор курса — в инбокс /adm/bagi; остальным — портал.
+        $ctaUrl = in_array($recipientRole, ['admin', 'course_author'], true)
             ? $this->bugAdminUrl((int) $report->id)
             : $this->portalUrl();
-        $ctaLabel = $recipientRole === 'admin' ? 'Открыть в панели' : 'Открыть портал';
+        $ctaLabel = in_array($recipientRole, ['admin', 'course_author'], true)
+            ? 'Открыть тикет'
+            : 'Открыть портал';
 
         return $this->safeSend(
             PortalMailLog::TYPE_BUG_REPORT,

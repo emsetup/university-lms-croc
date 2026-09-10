@@ -1120,13 +1120,13 @@
         syncOwnInputs();
 
         var bvRaw = st.breakdown_visible_minutes;
-        var bvNum = bvRaw != null && bvRaw !== '' ? parseInt(bvRaw, 10) : 15;
-        var bvUnlimited = !isNaN(bvNum) && bvNum < 0;
+        var bvNum = bvRaw != null && bvRaw !== '' ? parseInt(bvRaw, 10) : -1;
+        var bvUnlimited = isNaN(bvNum) || bvNum < 0;
         var bvUnlEl = $('ap-sec-breakdown-unlimited');
         var bvMinEl = $('ap-sec-breakdown-minutes');
         if (bvUnlEl) bvUnlEl.checked = bvUnlimited;
         if (bvMinEl) {
-            bvMinEl.value = bvUnlimited ? '' : String(isNaN(bvNum) ? 15 : Math.max(0, bvNum));
+            bvMinEl.value = bvUnlimited ? '' : String(Math.max(0, bvNum));
             bvMinEl.disabled = bvUnlimited;
         }
 
@@ -1540,7 +1540,7 @@
                 if (v === null) {
                     return state.rawSettings.breakdown_visible_minutes != null
                         ? state.rawSettings.breakdown_visible_minutes
-                        : (typ === 'exam' ? 30 : 15);
+                        : -1;
                 }
                 return v;
             })(),

@@ -1,0 +1,68 @@
+/* Fixed «наверх» — над FAB багрепорта, не перекрывает его */
+.portal-scroll-top {
+  position: fixed;
+  right: 1.25rem;
+  bottom: calc(1.25rem + 3.65rem + 0.7rem);
+  z-index: 9390;
+  display: grid;
+  place-items: center;
+  width: 2.65rem;
+  height: 2.65rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 50%;
+  cursor: pointer;
+  color: #059669;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 8px 22px rgba(15, 23, 42, 0.1),
+    0 1px 0 rgba(255, 255, 255, 0.85) inset;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  transform: translateY(10px) scale(0.96);
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
+  pointer-events: none;
+}
+
+.portal-scroll-top.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.portal-scroll-top:hover,
+.portal-scroll-top:focus-visible {
+  color: #047857;
+  background: #fff;
+  box-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.14),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  outline: none;
+  transform: translateY(-2px) scale(1);
+}
+
+.portal-scroll-top:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.portal-scroll-top svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: block;
+}
+
+@media (max-width: 640px) {
+  .portal-scroll-top {
+    right: 0.85rem;
+    bottom: calc(0.85rem + 3.1rem + 0.65rem);
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+}
