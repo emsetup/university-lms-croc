@@ -45,6 +45,15 @@ return [
      */
     'allow_reauth' => filter_var(env('OIDC_ALLOW_REAUTH', false), FILTER_VALIDATE_BOOL),
 
+    /*
+     * Что делает кнопка «Войти через SSO»:
+     *  forms  (по умолчанию) — сразу фирменная веб-форма ADFS (prompt=login);
+     *  silent — сначала тихая попытка prompt=none, форма только при login_required.
+     * Режим silent на ADFS Croc уводит интранет-браузеры на WIA-эндпоинт (системный
+     * попап Sign in без Kerberos-тикета), поэтому включать только после починки WIA.
+     */
+    'button_mode' => env('OIDC_BUTTON_MODE', 'forms'),
+
     'discovery_url' => env(
         'OIDC_DISCOVERY_URL',
         'https://fs.croc.ru/adfs/.well-known/openid-configuration'

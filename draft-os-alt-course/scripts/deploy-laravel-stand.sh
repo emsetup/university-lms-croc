@@ -484,6 +484,7 @@ for mf in \
   database/migrations/2026_07_22_190000_create_portal_mail_logs_table.php \
   database/migrations/2026_09_10_120000_create_ad_mail_groups_table.php \
   database/migrations/2026_09_16_120000_anonymous_survey_participants.php \
+  database/migrations/2026_09_16_130000_fix_survey_submission_learner_nullable.php \
   database/migrations/2026_06_03_161000_add_access_comment_to_portal_staff_table.php \
   database/migrations/2026_05_14_100000_seed_legacy_alt_os_course_content_to_database.php \
   database/migrations/2026_05_15_000001_create_portal_activity_events_table.php \

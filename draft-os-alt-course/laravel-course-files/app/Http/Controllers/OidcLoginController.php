@@ -20,8 +20,24 @@ class OidcLoginController extends Controller
         // Смена учётной записи запрещена, если её явно не включили в .env.
         $reauth = $request->boolean('reauth') && (bool) config('oidc.allow_reauth', false);
 
-        // Тихая попытка (prompt=none) идёт из TrySilentSso и не должна показывать ошибки.
-        $silent = $request->boolean('silent') && ! $reauth;
+        // Режимы входа:
+        //  probe  — фоновая тихая попытка из TrySilentSso: любые ошибки молча возвращают на страницу;
+        //  button — тихая попытка по клику: сначала prompt=none, при login_required уводим на форму ADFS;
+        //  forms  — фирменная веб-форма входа ADFS (prompt=login);
+        //  reauth — принудительный повторный вход (разрешается только флагом OIDC_ALLOW_REAUTH).
+        //
+        // По умолчанию клик по кнопке ведёт сразу на форму (OIDC_BUTTON_MODE=forms): без prompt
+        // ADFS отправляет интранет-браузеры на WIA-эндпоинт, и без Kerberos-тикета пользователь
+        // видит системный попап Sign in вместо страницы входа; prompt=none этого тоже не спасает.
+        $mode = strtolower((string) config('oidc.button_mode', 'forms')) === 'silent' ? 'button' : 'forms';
+        if ($reauth) {
+            $mode = 'reauth';
+        } elseif ($request->boolean('silent')) {
+            $mode = 'probe';
+        } elseif ($request->boolean('forms')) {
+            $mode = 'forms';
+        }
+        $silent = $mode === 'probe';
 
         if (! $this->enabled()) {
             return $silent ? $this->silentReturn($request) : redirect('/login');
@@ -35,6 +51,9 @@ class OidcLoginController extends Controller
             }
             if ($silent) {
                 $bounceQuery['silent'] = '1';
+            }
+            if ($mode === 'forms') {
+                $bounceQuery['forms'] = '1';
             }
             $hint = $this->sanitizedLoginHint($request);
             if ($hint !== '') {
@@ -67,7 +86,7 @@ class OidcLoginController extends Controller
         $nonce = bin2hex(random_bytes(16));
         $request->session()->put('oidc_state', $state);
         $request->session()->put('oidc_nonce', $nonce);
-        $request->session()->put(SilentSsoProbe::SESSION_FLAG, $silent);
+        $request->session()->put(SilentSsoProbe::SESSION_FLAG, $mode);
 
         $scope = $this->scope();
         $params = [
@@ -83,10 +102,11 @@ class OidcLoginController extends Controller
         if ($loginHint !== '') {
             $params['login_hint'] = $loginHint;
         }
-        if ($reauth) {
+        if ($mode === 'reauth' || $mode === 'forms') {
+            // prompt=login: ADFS показывает свою веб-форму входа (а не WIA-попап браузера).
             $params['prompt'] = 'login';
-        } elseif ($silent) {
-            // Ни формы входа, ни экрана согласия: IdP либо сразу отдаёт код, либо login_required.
+        } else {
+            // probe и button: ни формы, ни попапа — IdP либо сразу отдаёт код, либо login_required.
             $params['prompt'] = 'none';
         }
 
@@ -96,7 +116,8 @@ class OidcLoginController extends Controller
     public function callback(Request $request): RedirectResponse
     {
         // Снимаем до возможного invalidate(): иначе адрес возврата потеряется вместе с сессией.
-        $silent = (bool) $request->session()->pull(SilentSsoProbe::SESSION_FLAG, false);
+        $mode = (string) $request->session()->pull(SilentSsoProbe::SESSION_FLAG, '');
+        $silent = $mode === 'probe';
         $silentReturn = SilentSsoProbe::pullReturn();
 
         if (! $this->enabled()) {
@@ -113,6 +134,12 @@ class OidcLoginController extends Controller
         if ($code === '') {
             $desc = (string) $request->query('error_description', '');
             $err = (string) $request->query('error', '');
+
+            // Тихая попытка по кнопке не удалась (сессии у IdP нет) — ведём на форму входа ADFS.
+            if ($mode === 'button' && in_array($err, ['login_required', 'interaction_required', 'consent_required'], true)) {
+                return $this->redirectToForms($request);
+            }
+
             $msg = trim('OIDC: ошибка авторизации: '.$err.' '.$desc);
             return $this->signInFailure($request, $silent, $msg !== '' ? $msg : 'OIDC: ошибка авторизации', $silentReturn);
         }
@@ -186,6 +213,19 @@ class OidcLoginController extends Controller
 
         // Вход состоялся: следующая сессия снова имеет право подняться тихо.
         return $response->withCookie(SilentSsoProbe::forgetCookie());
+    }
+
+    /** Второй шаг входа по кнопке: страница ADFS с логином и паролем. */
+    private function redirectToForms(Request $request): RedirectResponse
+    {
+        $url = OidcSignInRedirect::oidcLoginUrl($request);
+        $url .= (str_contains($url, '?') ? '&' : '?').'forms=1';
+
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return redirect()->away($url);
+        }
+
+        return redirect()->to($url);
     }
 
     /**

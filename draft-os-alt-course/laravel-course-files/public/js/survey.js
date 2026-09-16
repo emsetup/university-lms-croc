@@ -197,7 +197,6 @@
     document.addEventListener('keydown', function (e) {
         if (!form || form.hidden) return;
         var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
-        var isTextarea = tag === 'textarea';
 
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();
@@ -209,9 +208,18 @@
             return;
         }
 
-        if (isTextarea && e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        // Enter в поле ответа: дальше / на последнем вопросе — отправка (Shift+Enter — новая строка в textarea).
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            var isInput = tag === 'textarea' || tag === 'input';
+            if (!isInput) return;
+            if (tag === 'input' && e.target && e.target.type === 'radio') return;
+            if (tag === 'input' && e.target && e.target.type === 'checkbox') return;
             e.preventDefault();
-            goNext();
+            if (cur === total - 1) {
+                if (validateCurrentStep()) form.requestSubmit();
+            } else {
+                goNext();
+            }
         }
     });
 

@@ -19,14 +19,14 @@ final class SilentSsoProbe
 {
     public const COOKIE = 'portal_sso_probe';
 
-    /** Флаг в сессии: текущий запрос к IdP — тихий, ошибки показывать нельзя. */
+    /** Режим текущего запроса к IdP: probe | button | forms | reauth (см. OidcLoginController). */
     public const SESSION_FLAG = 'oidc_silent_probe';
 
     /** Куда вернуть пользователя после тихой попытки. */
     public const SESSION_RETURN = 'oidc_silent_return';
 
     /** Query-параметры входа, которые не нужны на странице возврата. */
-    private const STRIP_QUERY = ['login', 'silent', 'reauth', 'login_hint'];
+    private const STRIP_QUERY = ['login', 'silent', 'forms', 'reauth', 'login_hint'];
 
     public static function enabled(): bool
     {
