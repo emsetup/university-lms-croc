@@ -69,13 +69,17 @@
                         <h2 class="ap-surveys-detail__title">{{ $selectedSection->title }}</h2>
                         <p class="ap-surveys-detail__meta ap-muted">
                             {{ (int) $selectedMeta['question_count'] }} вопросов
-                            · {{ (int) $selectedMeta['response_count'] }} ответов
                             @if ($selectedMeta['anonymous'])
                                 · <span class="ap-badge ap-badge--draft">Анонимный</span>
                             @else
                                 · с привязкой к обучающимся
                             @endif
                         </p>
+                    </div>
+                    @php $votedN = (int) $selectedMeta['response_count']; @endphp
+                    <div class="ap-surveys-detail__voted" aria-label="Количество проголосовавших: {{ $votedN }}">
+                        <span class="ap-surveys-detail__voted-n">{{ $votedN }}</span>
+                        <span class="ap-surveys-detail__voted-label">проголосовавших</span>
                     </div>
                     <div class="ap-surveys-detail__actions">
                         @if (! empty($selectedMeta['quick_link_url']))
