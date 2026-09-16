@@ -116,6 +116,7 @@ Route::get('/oidc/callback', [OidcLoginController::class, 'callback'])->name('oi
 Route::middleware([
     \App\Http\Middleware\ApplyLearnerPreview::class,
     \App\Http\Middleware\ApplyCourseStaffPreview::class,
+    \App\Http\Middleware\TrySilentSso::class,
     \App\Http\Middleware\MaintenanceForUsers::class,
     \App\Http\Middleware\LogPortalIncidents::class,
 ])->group(function () {
@@ -328,6 +329,7 @@ Route::middleware([
 });
 
 Route::middleware([
+    \App\Http\Middleware\TrySilentSso::class,
     \App\Http\Middleware\EnsureLearner::class,
     \App\Http\Middleware\EnsurePortalStaff::class,
     \App\Http\Middleware\ApplyStaffAdminPreview::class,
@@ -783,6 +785,7 @@ Route::middleware([
             Route::middleware([\App\Http\Middleware\DenyCourseTester::class])->group(function () {
                 Route::get('/nastroyki', [AdminCourseSettingsController::class, 'courseSettings'])->name('admin.course.settings');
                 Route::post('/nastroyki/save', [AdminCourseSettingsController::class, 'saveCourseSettings'])->name('admin.course.settings.save');
+                Route::post('/nastroyki/soavtory/bug-notify', [AdminCourseSettingsController::class, 'saveBugNotifyCollaborators'])->name('admin.course.settings.bug-notify');
                 Route::post('/nastroyki/soavtory/invite', [\App\Http\Controllers\AdminCourseCollaboratorsController::class, 'invite'])->name('admin.course.collaborators.invite');
                 Route::post('/nastroyki/soavtory/{portalStaff}/remove', [\App\Http\Controllers\AdminCourseCollaboratorsController::class, 'remove'])->name('admin.course.collaborators.remove');
                 Route::get('/nastroyki/soavtory/search', [\App\Http\Controllers\AdminCourseCollaboratorsController::class, 'searchStaff'])->name('admin.course.collaborators.search');

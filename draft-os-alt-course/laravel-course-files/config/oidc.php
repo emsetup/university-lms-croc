@@ -20,6 +20,31 @@ return [
      */
     'required' => filter_var(env('OIDC_REQUIRED', false), FILTER_VALIDATE_BOOL),
 
+    /*
+     * Тихая проверка сессии IdP (prompt=none) для гостя: при живой корпоративной сессии
+     * портал открывается сразу под учётной записью, без кнопки «Войти через SSO».
+     * Публичный каталог курсов сохраняется: если сессии у IdP нет, страница рисуется как обычно.
+     */
+    'silent_login' => filter_var(env('OIDC_SILENT_LOGIN', false), FILTER_VALIDATE_BOOL),
+
+    /*
+     * На сколько минут запоминается неудачная тихая попытка (cookie-отметка против цикла
+     * редиректов). После удачного входа отметка снимается.
+     */
+    'silent_probe_minutes' => (int) env('OIDC_SILENT_PROBE_MINUTES', 720),
+
+    /*
+     * На сколько минут тихий вход отключается после явного выхода из портала.
+     * Нужно только чтобы редирект не вернул пользователя обратно сразу же.
+     */
+    'silent_logout_minutes' => (int) env('OIDC_SILENT_LOGOUT_MINUTES', 5),
+
+    /*
+     * Вход под другой учётной записью (prompt=login). По умолчанию запрещён: портал
+     * пускает только под текущей доменной УЗ, и ?reauth=1 в адресе ничего не меняет.
+     */
+    'allow_reauth' => filter_var(env('OIDC_ALLOW_REAUTH', false), FILTER_VALIDATE_BOOL),
+
     'discovery_url' => env(
         'OIDC_DISCOVERY_URL',
         'https://fs.croc.ru/adfs/.well-known/openid-configuration'

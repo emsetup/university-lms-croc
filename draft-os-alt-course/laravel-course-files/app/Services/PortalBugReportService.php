@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Models\Course;
 use App\Models\Learner;
 use App\Models\PortalBugReport;
+use App\Services\CourseCollaboratorService;
 use App\Services\Mail\PortalMailNotifier;
 use App\Support\LearnerDisplay;
 use Illuminate\Http\Request;
@@ -168,6 +169,47 @@ final class PortalBugReportService
                 // Автору курса — всегда (в т.ч. если он сам отправил тикет).
                 $add($email, $name, 'course_author', true);
             }
+
+            if ($this->shouldNotifyCollaborators($course)) {
+                foreach ($this->courseCollaboratorLearners($course) as $collab) {
+                    $email = mb_strtolower(trim((string) $collab->email));
+                    $name = LearnerDisplay::portalDisplayName($collab) ?: null;
+                    $add($email, $name, 'course_collaborator');
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    private function shouldNotifyCollaborators(Course $course): bool
+    {
+        if (! Schema::hasColumn('courses', 'bug_notify_collaborators')) {
+            return false;
+        }
+
+        return (bool) $course->bug_notify_collaborators;
+    }
+
+    /**
+     * Соавторы курса (все с грантами), кроме владельца.
+     *
+     * @return list<Learner>
+     */
+    private function courseCollaboratorLearners(Course $course): array
+    {
+        $ownerStaffId = (int) ($course->created_by_portal_staff_id ?? 0);
+        $collabs = app(CourseCollaboratorService::class)->collaboratorsForCourse($course);
+        $out = [];
+        foreach ($collabs as $staff) {
+            if ($ownerStaffId > 0 && (int) $staff->id === $ownerStaffId) {
+                continue;
+            }
+            $learner = $staff->learner;
+            if ($learner === null) {
+                continue;
+            }
+            $out[] = $learner;
         }
 
         return $out;

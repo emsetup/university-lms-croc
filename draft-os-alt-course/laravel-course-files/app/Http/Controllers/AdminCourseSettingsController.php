@@ -317,6 +317,29 @@ final class AdminCourseSettingsController extends Controller
             ->with('ok', 'Настройки курса сохранены.');
     }
 
+    public function saveBugNotifyCollaborators(Request $request): RedirectResponse
+    {
+        $courseId = (int) session('admin_course_id');
+        abort_unless($courseId > 0, 404);
+        app(PortalStaffAccess::class)->assertCanEditCourseMeta($courseId);
+
+        if (! Schema::hasColumn('courses', 'bug_notify_collaborators')) {
+            return back()->with('err', 'Функция пока недоступна: выполните миграции.');
+        }
+
+        /** @var Course $course */
+        $course = Course::query()->findOrFail($courseId);
+        $course->bug_notify_collaborators = $request->boolean('bug_notify_collaborators');
+        $this->changeLog->logCourseDirty($course);
+        $course->save();
+
+        return redirect()
+            ->route('admin.course.settings', array_merge($this->adminCourseRouteParams(), ['tab' => 'soavtory']))
+            ->with('ok', $course->bug_notify_collaborators
+                ? 'Соавторы будут получать письма о тикетах по этому курсу.'
+                : 'Письма о тикетах по курсу — только автору.');
+    }
+
     /**
      * @return array<string, string>
      */
@@ -358,22 +381,23 @@ final class AdminCourseSettingsController extends Controller
             'letter' => isset($data['letter']) && $data['letter'] !== '' ? (string) $data['letter'] : null,
             'content_source_index' => isset($data['content_source_index']) ? (int) $data['content_source_index'] : null,
         ]);
-        $template = CourseModule::query()
+        // Новый модуль всегда пустой: разделы не копируем с первого модуля,
+        // чтобы модули не пересекались и структура не «протекала» между ними.
+        // Исключение — самый первый модуль курса: стандартный набор из четырёх типов.
+        $hasOtherModules = CourseModule::query()
             ->where('course_id', $courseId)
             ->where('id', '!=', $mod->id)
-            ->orderBy('sort')
-            ->orderBy('id')
-            ->first();
-        if ($template !== null) {
-            $this->cloneSectionsFromModule($courseId, $template, $mod);
-        } else {
+            ->exists();
+        if (! $hasOtherModules) {
             $this->seedDefaultSectionsForModule($courseId, $mod);
         }
         app(\App\Services\CourseSectionService::class)->clearCache();
         $this->changeLog->logModuleCreated($courseId, (string) $mod->title, (int) $mod->id);
 
         return $this->redirectToCourseSettings($request, 'ap-mod-'.$mod->id)
-            ->with('ok', 'Модуль добавлен. Настройте разделы при необходимости.');
+            ->with('ok', $hasOtherModules
+                ? 'Модуль добавлен. Добавьте нужные разделы вручную.'
+                : 'Модуль добавлен. Настройте разделы при необходимости.');
     }
 
     public function updateModule(Request $request, Course $adminCourse, CourseModule $courseModule): RedirectResponse
@@ -1322,6 +1346,14 @@ final class AdminCourseSettingsController extends Controller
                     ['settings' => $merged]
                 );
 
+                if ($section->type === CourseSection::TYPE_SURVEY
+                    && ! empty($merged['anonymous'])
+                    && Schema::hasTable('course_survey_submissions')) {
+                    // Уже собранные ответы обезличиваем: learner_id снимается, повторная сдача остаётся закрытой.
+                    app(\App\Services\SurveyResponseService::class)
+                        ->anonymizeStoredSubmissionsForSection($section);
+                }
+
                 if (in_array($section->type, [CourseSection::TYPE_QUIZ, CourseSection::TYPE_EXAM], true)
                     && Schema::hasTable('course_quiz_banks')
                     && array_key_exists('breakdown_visible_minutes', $merged)) {
@@ -1469,26 +1501,6 @@ final class AdminCourseSettingsController extends Controller
             && (int) $section->course_module_id === (int) $courseModule->id,
             403
         );
-    }
-
-    private function cloneSectionsFromModule(int $courseId, CourseModule $from, CourseModule $to): void
-    {
-        $from->load(['sections.sectionSettings']);
-        foreach ($from->sections as $sec) {
-            $n = CourseSection::query()->create([
-                'course_id' => $courseId,
-                'course_module_id' => $to->id,
-                'type' => $sec->type,
-                'title' => $sec->title,
-                'sort' => $sec->sort,
-                'is_enabled' => $sec->is_enabled,
-            ]);
-            $st = $sec->sectionSettings;
-            CourseSectionSetting::query()->create([
-                'course_section_id' => $n->id,
-                'settings' => is_array($st?->settings) ? $st->settings : self::defaultSettingsForType($sec->type),
-            ]);
-        }
     }
 
     private function seedDefaultSectionsForModule(int $courseId, CourseModule $module): void

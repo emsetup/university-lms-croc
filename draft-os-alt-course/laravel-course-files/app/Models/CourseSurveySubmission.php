@@ -24,7 +24,7 @@ final class CourseSurveySubmission extends Model
             'course_id' => 'int',
             'course_module_id' => 'int',
             'course_section_id' => 'int',
-            'learner_id' => 'int',
+            'learner_id' => 'integer',
             'submitted_at' => 'datetime',
         ];
     }

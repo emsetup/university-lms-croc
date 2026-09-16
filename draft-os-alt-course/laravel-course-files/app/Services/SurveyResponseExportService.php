@@ -72,31 +72,38 @@ final class SurveyResponseExportService
     {
         $settings = $this->sections->mergedSettings($section);
         $anonymous = (bool) ($settings['anonymous'] ?? false);
-        $sub = $this->surveys->completeSubmissionForLearner((int) $section->id, $learnerId);
-        if ($sub === null) {
+
+        if (! $this->surveys->hasSubmission((int) $section->id, $learnerId)) {
             return ['anonymous' => $anonymous, 'submitted' => false, 'submitted_at' => null, 'items' => []];
         }
+
+        $submittedAt = $this->surveys->submittedAtForLearner((int) $section->id, $learnerId);
+        $date = $submittedAt?->format('d.m.Y H:i');
+
         if ($anonymous) {
             return [
                 'anonymous' => true,
                 'submitted' => true,
-                'submitted_at' => $sub->submitted_at?->format('d.m.Y H:i'),
+                'submitted_at' => $date,
                 'items' => [],
             ];
         }
 
+        $sub = $this->surveys->completeSubmissionForLearner((int) $section->id, $learnerId);
         $items = [];
-        foreach ($this->surveys->breakdownItems($sub) as $it) {
-            $items[] = [
-                'question' => $it['question_text'],
-                'answer' => $it['display'],
-            ];
+        if ($sub !== null) {
+            foreach ($this->surveys->breakdownItems($sub) as $it) {
+                $items[] = [
+                    'question' => $it['question_text'],
+                    'answer' => $it['display'],
+                ];
+            }
         }
 
         return [
             'anonymous' => false,
             'submitted' => true,
-            'submitted_at' => $sub->submitted_at?->format('d.m.Y H:i'),
+            'submitted_at' => $date,
             'items' => $items,
         ];
     }

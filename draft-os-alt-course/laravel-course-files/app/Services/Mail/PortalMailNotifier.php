@@ -292,9 +292,10 @@ final class PortalMailNotifier
             $subject .= ' · '.$courseTitle;
         }
 
-        $lead = $recipientRole === 'course_author'
-            ? 'По курсу «'.($courseTitle ?: 'без названия').'» пришло сообщение '.$ticket.' от '.$who.'.'
-            : 'На учебном портале зарегистрирован тикет '.$ticket.' от '.$who.'.';
+        $lead = match ($recipientRole) {
+            'course_author', 'course_collaborator' => 'По курсу «'.($courseTitle ?: 'без названия').'» пришло сообщение '.$ticket.' от '.$who.'.',
+            default => 'На учебном портале зарегистрирован тикет '.$ticket.' от '.$who.'.',
+        };
 
         $details = [
             'Номер тикета' => $ticket,

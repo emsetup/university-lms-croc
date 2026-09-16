@@ -85,7 +85,7 @@
 
     <div class="card" style="max-width:960px;margin:0 auto">
         <h2 style="margin-top:0">Добавить модуль</h2>
-        <p class="muted small">Разделы для нового модуля копируются с первого существующего; если модулей ещё не было — создаётся стандартный набор из четырёх типов.</p>
+        <p class="muted small">Первый модуль курса получает стандартный набор из четырёх типов разделов. Каждый следующий — пустой: разделы добавляются вручную и не копируются с других модулей.</p>
         <form method="post" action="{{ route('admin.course.settings.module.store', $rp) }}" style="display:grid;gap:0.65rem;max-width:36rem">
             @csrf
             <div>

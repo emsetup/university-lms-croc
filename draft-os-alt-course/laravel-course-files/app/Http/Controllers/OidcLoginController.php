@@ -8,6 +8,7 @@ use App\Support\LoginReturnUrl;
 use App\Support\LearnerSsoDisplayNamePersistence;
 use App\Support\OidcIdentityClaims;
 use App\Support\OidcSignInRedirect;
+use App\Support\SilentSsoProbe;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -16,15 +17,24 @@ class OidcLoginController extends Controller
 {
     public function redirect(Request $request): RedirectResponse
     {
+        // Смена учётной записи запрещена, если её явно не включили в .env.
+        $reauth = $request->boolean('reauth') && (bool) config('oidc.allow_reauth', false);
+
+        // Тихая попытка (prompt=none) идёт из TrySilentSso и не должна показывать ошибки.
+        $silent = $request->boolean('silent') && ! $reauth;
+
         if (! $this->enabled()) {
-            return redirect('/login');
+            return $silent ? $this->silentReturn($request) : redirect('/login');
         }
 
         $bounce = OidcSignInRedirect::oidcLoginUrl($request);
         if (str_starts_with($bounce, 'http://') || str_starts_with($bounce, 'https://')) {
             $bounceQuery = [];
-            if ($request->boolean('reauth')) {
+            if ($reauth) {
                 $bounceQuery['reauth'] = '1';
+            }
+            if ($silent) {
+                $bounceQuery['silent'] = '1';
             }
             $hint = $this->sanitizedLoginHint($request);
             if ($hint !== '') {
@@ -40,23 +50,24 @@ class OidcLoginController extends Controller
         $cfg = $this->discovery();
         $authorize = (string) ($cfg['authorization_endpoint'] ?? '');
         if ($authorize === '') {
-            return redirect('/login')->withErrors(['oidc' => 'OIDC: не найден authorization_endpoint']);
+            return $this->signInFailure($request, $silent, 'OIDC: не найден authorization_endpoint');
         }
 
         $clientId = $this->clientId();
         if ($clientId === '') {
-            return redirect('/login')->withErrors(['oidc' => 'OIDC: не задан client_id']);
+            return $this->signInFailure($request, $silent, 'OIDC: не задан client_id');
         }
 
         $redirectUri = $this->redirectUriForRequest($request);
         if ($redirectUri === '') {
-            return redirect('/login')->withErrors(['oidc' => 'OIDC: redirect_uri не разрешён для хоста']);
+            return $this->signInFailure($request, $silent, 'OIDC: redirect_uri не разрешён для хоста');
         }
 
         $state = bin2hex(random_bytes(16));
         $nonce = bin2hex(random_bytes(16));
         $request->session()->put('oidc_state', $state);
         $request->session()->put('oidc_nonce', $nonce);
+        $request->session()->put(SilentSsoProbe::SESSION_FLAG, $silent);
 
         $scope = $this->scope();
         $params = [
@@ -72,8 +83,11 @@ class OidcLoginController extends Controller
         if ($loginHint !== '') {
             $params['login_hint'] = $loginHint;
         }
-        if ($request->boolean('reauth')) {
+        if ($reauth) {
             $params['prompt'] = 'login';
+        } elseif ($silent) {
+            // Ни формы входа, ни экрана согласия: IdP либо сразу отдаёт код, либо login_required.
+            $params['prompt'] = 'none';
         }
 
         return redirect()->away($authorize.'?'.http_build_query($params, '', '&', PHP_QUERY_RFC3986));
@@ -81,14 +95,18 @@ class OidcLoginController extends Controller
 
     public function callback(Request $request): RedirectResponse
     {
+        // Снимаем до возможного invalidate(): иначе адрес возврата потеряется вместе с сессией.
+        $silent = (bool) $request->session()->pull(SilentSsoProbe::SESSION_FLAG, false);
+        $silentReturn = SilentSsoProbe::pullReturn();
+
         if (! $this->enabled()) {
-            return redirect('/login');
+            return $silent ? $this->silentReturn($request, $silentReturn) : redirect('/login');
         }
 
         $state = (string) $request->query('state', '');
         $expectedState = (string) $request->session()->pull('oidc_state', '');
         if ($state === '' || $expectedState === '' || ! hash_equals($expectedState, $state)) {
-            return redirect('/login')->withErrors(['oidc' => 'OIDC: неверный state']);
+            return $this->signInFailure($request, $silent, 'OIDC: неверный state', $silentReturn);
         }
 
         $code = (string) $request->query('code', '');
@@ -96,34 +114,34 @@ class OidcLoginController extends Controller
             $desc = (string) $request->query('error_description', '');
             $err = (string) $request->query('error', '');
             $msg = trim('OIDC: ошибка авторизации: '.$err.' '.$desc);
-            return redirect('/login')->withErrors(['oidc' => $msg !== '' ? $msg : 'OIDC: ошибка авторизации']);
+            return $this->signInFailure($request, $silent, $msg !== '' ? $msg : 'OIDC: ошибка авторизации', $silentReturn);
         }
 
         $cfg = $this->discovery();
         $tokenEndpoint = (string) ($cfg['token_endpoint'] ?? '');
         if ($tokenEndpoint === '') {
-            return redirect('/login')->withErrors(['oidc' => 'OIDC: не найден token_endpoint']);
+            return $this->signInFailure($request, $silent, 'OIDC: не найден token_endpoint', $silentReturn);
         }
 
         $redirectUri = $this->redirectUriForRequest($request);
         if ($redirectUri === '') {
-            return redirect('/login')->withErrors(['oidc' => 'OIDC: redirect_uri не разрешён для хоста']);
+            return $this->signInFailure($request, $silent, 'OIDC: redirect_uri не разрешён для хоста', $silentReturn);
         }
 
         $token = $this->exchangeCode($tokenEndpoint, $code, $redirectUri);
         if (($token['ok'] ?? false) !== true) {
-            return redirect('/login')->withErrors(['oidc' => (string) ($token['error'] ?? 'OIDC: ошибка обмена кода')]);
+            return $this->signInFailure($request, $silent, (string) ($token['error'] ?? 'OIDC: ошибка обмена кода'), $silentReturn);
         }
 
         $idToken = (string) ($token['id_token'] ?? '');
         if ($idToken === '') {
-            return redirect('/login')->withErrors(['oidc' => 'OIDC: отсутствует id_token']);
+            return $this->signInFailure($request, $silent, 'OIDC: отсутствует id_token', $silentReturn);
         }
 
         $expectedNonce = (string) $request->session()->pull('oidc_nonce', '');
         $claims = $this->validateIdToken($idToken, $expectedNonce);
         if (($claims['ok'] ?? false) !== true) {
-            return redirect('/login')->withErrors(['oidc' => (string) ($claims['error'] ?? 'OIDC: неверный id_token')]);
+            return $this->signInFailure($request, $silent, (string) ($claims['error'] ?? 'OIDC: неверный id_token'), $silentReturn);
         }
 
         $idClaims = (array) ($claims['claims'] ?? []);
@@ -131,7 +149,7 @@ class OidcLoginController extends Controller
 
         $email = OidcIdentityClaims::email($mergedClaims);
         if ($email === '') {
-            return redirect('/login')->withErrors(['oidc' => 'OIDC: не удалось получить email/логин пользователя']);
+            return $this->signInFailure($request, $silent, 'OIDC: не удалось получить email/логин пользователя', $silentReturn);
         }
 
         $learner = Learner::firstOrCreate(['email' => strtolower($email)]);
@@ -159,10 +177,35 @@ class OidcLoginController extends Controller
         LearnerSsoDisplayNamePersistence::syncIfPossible($learner);
 
         if ($return = LoginReturnUrl::pull()) {
-            return redirect()->to($return);
+            $response = redirect()->to($return);
+        } elseif ($silentReturn !== null) {
+            $response = redirect()->to($silentReturn);
+        } else {
+            $response = redirect('/');
         }
 
-        return redirect('/');
+        // Вход состоялся: следующая сессия снова имеет право подняться тихо.
+        return $response->withCookie(SilentSsoProbe::forgetCookie());
+    }
+
+    /**
+     * Тихая попытка провалилась (у IdP нет сессии либо SSO не настроен):
+     * молча возвращаем пользователя на страницу, с которой он ушёл.
+     */
+    private function silentReturn(Request $request, ?string $return = null): RedirectResponse
+    {
+        $target = $return ?? SilentSsoProbe::pullReturn() ?? OidcSignInRedirect::portalHomeUrl($request);
+
+        return redirect()->to($target)->withCookie(SilentSsoProbe::cookie());
+    }
+
+    private function signInFailure(Request $request, bool $silent, string $message, ?string $return = null): RedirectResponse
+    {
+        if ($silent) {
+            return $this->silentReturn($request, $return);
+        }
+
+        return redirect('/login')->withErrors(['oidc' => $message]);
     }
 
     private function enabled(): bool

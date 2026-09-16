@@ -46,7 +46,7 @@ final class SurveyQuickLinkController extends Controller
 
         $settings = $this->sections->mergedSettings($sec);
         $this->surveys->purgeEmptySubmission((int) $sec->id, (int) $learner->id);
-        $existing = $this->surveys->completeSubmissionForLearner((int) $sec->id, (int) $learner->id);
+        $already = $this->surveys->hasSubmission((int) $sec->id, (int) $learner->id);
 
         return view('modules.survey', [
             'courseId' => (int) $course->id,
@@ -57,8 +57,8 @@ final class SurveyQuickLinkController extends Controller
             'questions' => $questions,
             'settings' => $settings,
             'anonymous' => (bool) ($settings['anonymous'] ?? false),
-            'submitted' => $existing !== null,
-            'submission' => $existing,
+            'submitted' => $already,
+            'submission' => null,
             'quickLinkMode' => true,
             'quickLinkToken' => $token,
         ]);

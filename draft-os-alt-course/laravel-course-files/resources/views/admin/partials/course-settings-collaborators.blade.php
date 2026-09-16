@@ -88,6 +88,34 @@
         </div>
     </header>
 
+
+    @if (\Illuminate\Support\Facades\Schema::hasColumn('courses', 'bug_notify_collaborators'))
+        @php
+            $bugNotifyCollabsOn = (string) old('bug_notify_collaborators', ($course->bug_notify_collaborators ?? false) ? '1' : '0') === '1';
+        @endphp
+        <section class="ap-settings-card" style="margin:0 0 1.25rem" aria-labelledby="ap-bug-notify-h">
+            <h2 id="ap-bug-notify-h" class="ap-settings-card__title">Уведомления о тикетах</h2>
+            <p class="ap-settings-hint ap-muted" style="margin-top:0">
+                Когда обучающийся сообщает об ошибке в этом курсе, письмо всегда уходит автору курса и администратору портала.
+                Включите тумблер, чтобы копию также получали соавторы из списка ниже.
+            </p>
+            <form method="post" action="{{ route('admin.course.settings.bug-notify', $tp) }}" class="ap-toggle-row" style="margin-top:0.85rem;align-items:center;gap:1rem;flex-wrap:wrap">
+                @csrf
+                <label class="ap-toggle">
+                    <input type="hidden" name="bug_notify_collaborators" value="0">
+                    <input type="checkbox" name="bug_notify_collaborators" value="1" class="ap-toggle__input" id="bug-notify-collaborators"
+                           @if ($bugNotifyCollabsOn) checked @endif
+                           onchange="this.form.submit()">
+                    <span class="ap-toggle__track" aria-hidden="true"></span>
+                    <span class="ap-toggle__label">Дублировать письма соавторам</span>
+                </label>
+                <noscript>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </noscript>
+            </form>
+        </section>
+    @endif
+
     <aside class="ap-collab-legend ap-settings-card" aria-label="Справка по уровням доступа">
         <h2 class="ap-settings-card__title">Что означают уровни доступа</h2>
         <ul class="ap-collab-legend__list">

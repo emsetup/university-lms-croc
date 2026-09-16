@@ -228,24 +228,46 @@ final class SectionParticipantsAnalyticsService
      */
     private function surveyCompletions(CourseSection $section): array
     {
-        if (! Schema::hasTable('course_survey_submissions')) {
-            return [];
+        $sectionId = (int) $section->id;
+        $out = [];
+
+        if (Schema::hasTable('course_survey_participants')) {
+            $rows = \App\Models\CourseSurveyParticipant::query()
+                ->where('course_section_id', $sectionId)
+                ->orderBy('submitted_at')
+                ->get(['learner_id', 'submitted_at']);
+            foreach ($rows as $row) {
+                $lid = (int) $row->learner_id;
+                if ($lid < 1) {
+                    continue;
+                }
+                $out[$lid] = [
+                    'status' => self::STATUS_COMPLETED,
+                    'completed_at' => $row->submitted_at?->format('d.m.Y H:i'),
+                    'meta' => null,
+                ];
+            }
         }
 
-        $rows = CourseSurveySubmission::query()
-            ->where('course_section_id', (int) $section->id)
-            ->whereHas('answers')
-            ->orderBy('submitted_at')
-            ->get(['learner_id', 'submitted_at']);
-
-        $out = [];
-        foreach ($rows as $row) {
-            $lid = (int) $row->learner_id;
-            $out[$lid] = [
-                'status' => self::STATUS_COMPLETED,
-                'completed_at' => $row->submitted_at?->format('d.m.Y H:i'),
-                'meta' => null,
-            ];
+        // Legacy: прохождения только в submissions (до появления participants).
+        if (Schema::hasTable('course_survey_submissions')) {
+            $rows = CourseSurveySubmission::query()
+                ->where('course_section_id', $sectionId)
+                ->whereNotNull('learner_id')
+                ->whereHas('answers')
+                ->orderBy('submitted_at')
+                ->get(['learner_id', 'submitted_at']);
+            foreach ($rows as $row) {
+                $lid = (int) $row->learner_id;
+                if ($lid < 1 || isset($out[$lid])) {
+                    continue;
+                }
+                $out[$lid] = [
+                    'status' => self::STATUS_COMPLETED,
+                    'completed_at' => $row->submitted_at?->format('d.m.Y H:i'),
+                    'meta' => null,
+                ];
+            }
         }
 
         return $out;

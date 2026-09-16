@@ -277,7 +277,7 @@
             <h2 class="ap-modal__title">Добавить модуль</h2>
             <button type="button" class="btn btn-ghost" data-ap-modal-close>Закрыть</button>
         </div>
-        <p class="ap-muted small">Разделы копируются с первого модуля; если модулей не было — создаётся стандартный набор из четырёх типов.</p>
+        <p class="ap-muted small">Первый модуль курса получает стандартный набор из четырёх типов разделов. Каждый следующий модуль создаётся пустым — добавьте разделы сами, без копирования с других модулей.</p>
         <form method="post" action="{{ route('admin.course.settings.module.store', $rp) }}" class="ap-modal__form">
             @csrf
             <label class="ap-settings-label" for="ap-new-mod-title">Название</label>
@@ -556,7 +556,7 @@
                             <span class="ap-sec-edit-panel__switch-ui" aria-hidden="true"></span>
                         </label>
                     </div>
-                    <p class="ap-muted small">В отчётах и CSV не показываются email и ФИО; в карточке обучающегося — только факт отправки.</p>
+                    <p class="ap-muted small">Ответы сохраняются без ФИО и email — в отчётах и Excel только «Ответ №…». Повторно пройти тот же человек не сможет. Даже в БД ответ не связан с обучающимся.</p>
                     <div class="ap-sec-edit-panel__toggle-row">
                         <span class="ap-settings-label" style="margin:0">Блокирует переход к следующим разделам</span>
                         <label class="ap-sec-edit-panel__switch">

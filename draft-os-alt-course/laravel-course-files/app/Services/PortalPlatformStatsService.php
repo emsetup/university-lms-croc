@@ -401,10 +401,21 @@ final class PortalPlatformStatsService
             }
         }
 
-        if (Schema::hasTable('course_survey_submissions')) {
-            foreach (DB::table('course_survey_submissions')->distinct()->pluck('learner_id') as $id) {
-                $withProgress[(int) $id] = true;
-                $deepProgress[(int) $id] = true;
+        if (Schema::hasTable('course_survey_participants')) {
+            foreach (DB::table('course_survey_participants')->distinct()->pluck('learner_id') as $id) {
+                $lid = (int) $id;
+                if ($lid > 0) {
+                    $withProgress[$lid] = true;
+                    $deepProgress[$lid] = true;
+                }
+            }
+        } elseif (Schema::hasTable('course_survey_submissions')) {
+            foreach (DB::table('course_survey_submissions')->whereNotNull('learner_id')->distinct()->pluck('learner_id') as $id) {
+                $lid = (int) $id;
+                if ($lid > 0) {
+                    $withProgress[$lid] = true;
+                    $deepProgress[$lid] = true;
+                }
             }
         }
 

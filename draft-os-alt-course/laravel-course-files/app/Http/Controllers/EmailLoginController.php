@@ -6,6 +6,7 @@ use App\Models\Learner;
 use App\Support\LearnerPortalLoginPersistence;
 use App\Support\LoginReturnUrl;
 use App\Support\OidcSignInRedirect;
+use App\Support\SilentSsoProbe;
 use App\Support\StaffAdminPreview;
 use App\Support\StaffImpersonation;
 use Illuminate\Http\RedirectResponse;
@@ -84,8 +85,10 @@ class EmailLoginController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
+        // Без отметки тихий вход тут же вернул бы пользователя обратно, и выйти было бы нельзя.
         return redirect()
             ->route('portal', ['login' => 1])
-            ->with('ok', 'Вы вышли из учётной записи. Для доступа к курсам войдите снова.');
+            ->with('ok', 'Вы вышли из учётной записи. Для доступа к курсам войдите снова.')
+            ->withCookie(SilentSsoProbe::logoutCookie());
     }
 }

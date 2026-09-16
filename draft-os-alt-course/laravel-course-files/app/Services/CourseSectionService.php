@@ -789,19 +789,12 @@ final class CourseSectionService
 
     public function isSurveyCompleteForSection(ModuleProgress $p, int $sectionId): bool
     {
-        if (! Schema::hasTable('course_survey_submissions')) {
-            return false;
-        }
         $learnerId = (int) ($p->learner_id ?? 0);
         if ($learnerId < 1 || $sectionId < 1) {
             return false;
         }
 
-        return \App\Models\CourseSurveySubmission::query()
-            ->where('course_section_id', $sectionId)
-            ->where('learner_id', $learnerId)
-            ->whereHas('answers')
-            ->exists();
+        return app(\App\Services\SurveyResponseService::class)->hasSubmission($sectionId, $learnerId);
     }
 
     public function isSurveyAnonymous(int $courseModuleId, ?int $sectionId = null): bool

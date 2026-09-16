@@ -143,6 +143,8 @@ OIDC_CLIENT_SECRET=__ВСТАВИТЬ_СЕКРЕТ_ИЗ_ADFS__
 OIDC_SCOPE="openid profile email"
 OIDC_REDIRECT_HOSTS=172.26.76.216,practice.croc.ru
 OIDC_REDIRECT_URI=https://practice.croc.ru/oidc/callback
+OIDC_SILENT_LOGIN=true
+OIDC_SILENT_PROBE_MINUTES=720
 ```
 
 Если в ADFS зарегистрирован **только** `https://practice.croc.ru/oidc/callback`, задайте **`OIDC_REDIRECT_URI`** именно так; при заходе по IP браузер будет перенаправлен на **`https://practice.croc.ru/oidc/login`**, чтобы `state`/сессия и callback совпали.
@@ -156,6 +158,33 @@ OIDC_REDIRECT_URI=https://practice.croc.ru/oidc/callback
 **Chrome: «broken HTTPS» / active mixed content при валидном сертификате:** веб-терминал (ttyd) раньше открывался как **`http://172.26.76.216:40xxx/`** в iframe на HTTPS-странице. Нужен прокси **`/ttyd/<port>/`** в nginx (см. фикстур выше) и **`LAB_PUBLIC_TTY_BASE=https://practice.croc.ru/ttyd`** у lab-daemon (скрипт **`start-lab-daemon-stand.sh`** выставляет из **`APP_URL`**). Laravel переписывает старые URL через **`PracticeTerminalUrl`**. После деплоя nginx + перезапуска daemon: в DevTools → Network не должно быть запросов `http://…:40…`.
 
 Чтобы **не пускать на портал без доменного SSO** (сразу редирект на ADFS с главной `/`), задайте **`OIDC_REQUIRED=true`** вместе с **`OIDC_ENABLED=true`**. Тогда вход по почте отключён; при ошибке SSO показывается страница с повтором входа.
+
+### Тихий вход (сквозная аутентификация без кнопки)
+
+**`OIDC_SILENT_LOGIN=true`** — гость один раз молча уходит на ADFS с **`prompt=none`**. Есть живая корпоративная сессия (ADFS пускает доменные машины через Windows-аутентификацию) — портал открывается сразу под учётной записью, кнопку «Войти через SSO» жать не надо, как на `ts.croc.ru` / `lms.croc.ru`. Сессии нет — IdP отдаёт `login_required`, и пользователь возвращается на ту же страницу как обычный гость: **публичный каталог курсов сохраняется**.
+
+Как устроено:
+
+- middleware **`TrySilentSso`** (подключён в обеих группах `routes/web.php`) уводит на **`/oidc/login?silent=1`**, запомнив адрес возврата;
+- **`OidcLoginController`** добавляет к запросу **`prompt=none`**, а при любой ошибке тихой попытки не показывает сообщение, а возвращает на исходную страницу;
+- **`SilentSsoProbe`** ставит cookie **`portal_sso_probe`** (**`OIDC_SILENT_PROBE_MINUTES`**, по умолчанию 720 мин) — это защита от цикла редиректов. После удачного входа cookie снимается, поэтому истёкшая сессия портала поднимется тихо снова. **`/logout`** тоже ставит cookie, иначе выйти из портала было бы нельзя.
+
+Тихая попытка не выполняется: для не-GET запросов, AJAX/JSON, при заходе **не** на канонический хост из **`OIDC_REDIRECT_URI`** (с IP увело бы на `practice.croc.ru` без ведома пользователя), на `/login`, `/logout`, `/oidc/*`, `/up` и после ошибки SSO.
+
+Проверка на стенде (curl изнутри):
+
+```bash
+curl -sk -o /dev/null -w '%{http_code} %{redirect_url}\n' \
+  --resolve practice.croc.ru:443:127.0.0.1 https://practice.croc.ru/ -H 'Accept: text/html'
+# ожидается: 302 https://practice.croc.ru/oidc/login?silent=1
+```
+
+**Только своя учётная запись.** Кнопки «Другая учётная запись» на портале нет, и **`?reauth=1`** (`prompt=login`) игнорируется: ADFS не получает требования переспросить пароль, поэтому подставить чужую УЗ через форму входа нельзя. Аварийно включается флагом **`OIDC_ALLOW_REAUTH=true`**.
+
+Важно: пока кнопка входа вела на **`/oidc/login?reauth=1`**, сквозная аутентификация не работала в принципе — ADFS обязан показывать форму при `prompt=login`.
+
+**Откат:** **`OIDC_SILENT_LOGIN=false`** в `.env` + **`php artisan config:clear`** — портал сразу возвращается к кнопке «Войти через SSO».
+
 
 ### Редактор теории (Markdown) в браузере
 

@@ -61,7 +61,7 @@
                 @if ($anonymous)
                     <div class="survey-anon-banner" role="note">
                         <span class="survey-anon-banner__icon" aria-hidden="true">◇</span>
-                        <span>Анонимный опрос — у обучающихся ответы не привязываются к имени в отчётах.</span>
+                        <span>Анонимный опрос — у обучающихся ответы не привязываются к имени; повторно пройти нельзя.</span>
                     </div>
                 @endif
 
@@ -102,7 +102,7 @@
                 @if ($anonymous)
                     <div class="survey-anon-banner" id="survey-anon-banner" role="note">
                         <span class="survey-anon-banner__icon" aria-hidden="true">◇</span>
-                        <span>Анонимный опрос — ответы не привязываются к имени в отчётах.</span>
+                        <span>Анонимный опрос — ответы не привязываются к имени; повторно пройти нельзя.</span>
                     </div>
                 @endif
 

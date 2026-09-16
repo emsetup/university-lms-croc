@@ -8,6 +8,7 @@ use App\Models\CourseQuizBank;
 use App\Models\CourseQuizQuestion;
 use App\Models\CourseSection;
 use App\Models\CourseSurveyAnswer;
+use App\Models\CourseSurveyParticipant;
 use App\Models\CourseSurveySubmission;
 use App\Models\Learner;
 use Illuminate\Http\Request;
@@ -20,6 +21,25 @@ final class SurveyResponseService
     public function __construct(
         private CourseContentService $content,
     ) {}
+
+    public function isSectionAnonymous(CourseSection $section): bool
+    {
+        $settings = app(CourseSectionService::class)->mergedSettings($section);
+
+        return (bool) ($settings['anonymous'] ?? false);
+    }
+
+    public function participantForLearner(int $sectionId, int $learnerId): ?CourseSurveyParticipant
+    {
+        if (! Schema::hasTable('course_survey_participants') || $sectionId < 1 || $learnerId < 1) {
+            return null;
+        }
+
+        return CourseSurveyParticipant::query()
+            ->where('course_section_id', $sectionId)
+            ->where('learner_id', $learnerId)
+            ->first();
+    }
 
     public function submissionForLearner(int $sectionId, int $learnerId): ?CourseSurveySubmission
     {
@@ -35,8 +55,8 @@ final class SurveyResponseService
     }
 
     /**
-     * Завершённая отправка: есть хотя бы один ответ.
-     * Пустая оболочка (ответы стёрты каскадом при пересохранении вопросов) не считается прохождением.
+     * Завершённая отправка с привязкой к learner_id (неанонимный режим / legacy).
+     * Пустая оболочка (ответы стёрты каскадом) не считается прохождением.
      */
     public function completeSubmissionForLearner(int $sectionId, int $learnerId): ?CourseSurveySubmission
     {
@@ -51,9 +71,33 @@ final class SurveyResponseService
         return $sub;
     }
 
+    /**
+     * Прошёл ли обучающийся опрос (для прогресса и запрета повторной сдачи).
+     * При анонимности ответы в submissions без learner_id — факт прохождения в participants.
+     */
     public function hasSubmission(int $sectionId, int $learnerId): bool
     {
+        if ($sectionId < 1 || $learnerId < 1) {
+            return false;
+        }
+
+        if ($this->participantForLearner($sectionId, $learnerId) !== null) {
+            return true;
+        }
+
+        // Legacy / неанонимный режим: submission с learner_id и ответами.
         return $this->completeSubmissionForLearner($sectionId, $learnerId) !== null;
+    }
+
+    public function submittedAtForLearner(int $sectionId, int $learnerId): ?\Illuminate\Support\Carbon
+    {
+        $p = $this->participantForLearner($sectionId, $learnerId);
+        if ($p !== null) {
+            return $p->submitted_at;
+        }
+        $sub = $this->completeSubmissionForLearner($sectionId, $learnerId);
+
+        return $sub?->submitted_at;
     }
 
     public function submissionHasAnswers(CourseSurveySubmission $submission): bool
@@ -100,6 +144,47 @@ final class SurveyResponseService
                 continue;
             }
             $sub->delete();
+            $n++;
+        }
+
+        return $n;
+    }
+
+    /**
+     * Включить анонимность для уже собранных ответов: отвязать learner_id от submissions,
+     * сохранив факт прохождения в participants (повторная сдача остаётся закрытой).
+     *
+     * @return int число обезличенных submission
+     */
+    public function anonymizeStoredSubmissionsForSection(CourseSection $section): int
+    {
+        if (! Schema::hasTable('course_survey_submissions')) {
+            return 0;
+        }
+
+        $sectionId = (int) $section->id;
+        $subs = CourseSurveySubmission::query()
+            ->where('course_section_id', $sectionId)
+            ->whereNotNull('learner_id')
+            ->whereHas('answers')
+            ->get();
+
+        $n = 0;
+        foreach ($subs as $sub) {
+            $lid = (int) $sub->learner_id;
+            if ($lid > 0 && Schema::hasTable('course_survey_participants')) {
+                CourseSurveyParticipant::query()->firstOrCreate(
+                    [
+                        'course_section_id' => $sectionId,
+                        'learner_id' => $lid,
+                    ],
+                    [
+                        'submitted_at' => $sub->submitted_at ?? now(),
+                    ]
+                );
+            }
+            $sub->learner_id = null;
+            $sub->save();
             $n++;
         }
 
@@ -216,21 +301,35 @@ final class SurveyResponseService
         Request $request,
     ): CourseSurveySubmission {
         return DB::transaction(function () use ($learner, $course, $module, $section, $bank, $questions, $request): CourseSurveySubmission {
-            // Пустая оболочка после каскадного удаления ответов — убрать, иначе unique мешает повторной сдаче.
-            $this->purgeEmptySubmission((int) $section->id, (int) $learner->id);
+            $sectionId = (int) $section->id;
+            $learnerId = (int) $learner->id;
+            $anonymous = $this->isSectionAnonymous($section);
 
-            $existing = $this->completeSubmissionForLearner((int) $section->id, (int) $learner->id);
-            if ($existing !== null) {
+            // Пустая оболочка после каскадного удаления ответов — убрать, иначе unique мешает повторной сдаче.
+            $this->purgeEmptySubmission($sectionId, $learnerId);
+
+            if ($this->hasSubmission($sectionId, $learnerId)) {
                 throw new \RuntimeException('Ответы на этот опрос уже отправлены.');
             }
+
+            $submittedAt = now();
 
             $submission = CourseSurveySubmission::query()->create([
                 'course_id' => (int) $course->id,
                 'course_module_id' => (int) $module->id,
-                'course_section_id' => (int) $section->id,
-                'learner_id' => (int) $learner->id,
-                'submitted_at' => now(),
+                'course_section_id' => $sectionId,
+                // Анонимно: ответы без привязки к человеку. Факт сдачи — в participants.
+                'learner_id' => $anonymous ? null : $learnerId,
+                'submitted_at' => $submittedAt,
             ]);
+
+            if (Schema::hasTable('course_survey_participants')) {
+                CourseSurveyParticipant::query()->create([
+                    'course_section_id' => $sectionId,
+                    'learner_id' => $learnerId,
+                    'submitted_at' => $submittedAt,
+                ]);
+            }
 
             $dbQuestions = CourseQuizQuestion::query()
                 ->where('quiz_bank_id', (int) $bank->id)

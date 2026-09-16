@@ -1,6 +1,8 @@
 @php
     $oidcOnly = (bool) config('oidc.enabled') && (bool) config('oidc.required');
-    $ssoUrl = \App\Support\OidcSignInRedirect::oidcLoginUrlAbsolute().'?reauth=1';
+    // Без reauth: при живой корпоративной сессии ADFS пускает сразу, не переспрашивая пароль.
+    // Входа под другой учётной записью на портале нет — только текущая доменная УЗ.
+    $ssoUrl = \App\Support\OidcSignInRedirect::oidcLoginUrlAbsolute();
 @endphp
 <dialog class="quiz-modal" id="portal-login-dialog" aria-labelledby="portal-login-title">
     <div class="quiz-modal-inner" style="max-width:560px">

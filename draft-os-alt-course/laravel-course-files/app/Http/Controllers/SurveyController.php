@@ -65,7 +65,7 @@ final class SurveyController extends Controller
         }
         $existing = $previewWalkthrough
             ? null
-            : $this->surveys->completeSubmissionForLearner((int) $sec->id, (int) $learner->id);
+            : ($this->surveys->hasSubmission((int) $sec->id, (int) $learner->id) ? true : null);
 
         return view('modules.survey', [
             'courseId' => $ctx['courseId'],
@@ -77,7 +77,7 @@ final class SurveyController extends Controller
             'settings' => $settings,
             'anonymous' => (bool) ($settings['anonymous'] ?? false),
             'submitted' => $existing !== null,
-            'submission' => $existing,
+            'submission' => null,
             'previewWalkthrough' => $previewWalkthrough,
         ]);
     }
