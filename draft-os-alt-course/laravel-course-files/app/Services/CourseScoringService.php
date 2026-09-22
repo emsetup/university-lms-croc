@@ -23,6 +23,25 @@ final class CourseScoringService
 
     public const PASS_THRESHOLD = 70;
 
+    /**
+     * Минимальное число верных ответов, при котором round(100 * n / total) ≥ порога.
+     * Совпадает с логикой зачёта по доле верных (без весов баллов у вопросов).
+     */
+    public static function minCorrectForPassPercent(int $total, int $thresholdPercent): int
+    {
+        if ($total < 1) {
+            return 0;
+        }
+        $t = max(1, min(100, $thresholdPercent));
+        for ($n = 0; $n <= $total; $n++) {
+            if ((int) round(100 * $n / $total) >= $t) {
+                return $n;
+            }
+        }
+
+        return $total;
+    }
+
     public const THEORY_QUIZ_TIME_LIMIT_MINUTES = 30;
 
     public const THEORY_QUIZ_RETAKE_PENALTY_POINTS = 10;
@@ -259,6 +278,38 @@ final class CourseScoringService
         return (int) round(100 * $done / $parts);
     }
 
+    /**
+     * Модуль пройден: все шаги с blocks_progress выполнены (тесты/теория/практика),
+     * а не только legacy-флаг module_exam_passed (иначе курсы только с TYPE_QUIZ никогда не «закрываются»).
+     */
+    public function isModuleContentComplete(ModuleProgress $p): bool
+    {
+        $cmId = (int) $p->course_module_id;
+        if ($cmId > 0 && $this->courseSections->useDbSectionsForModule($cmId)) {
+            $courseId = (int) $p->course_id;
+            $cm = $this->courseModules->findForCourse($courseId, $cmId);
+            $contentIdx = $cm?->effectiveContentIndex() ?? 1;
+            $legacyAlt = $cm
+                ? ($cm->relationLoaded('course')
+                    ? ($cm->course?->isLegacyAltCourse() ?? false)
+                    : ($cm->loadMissing('course:id,slug')->course?->isLegacyAltCourse() ?? false))
+                : false;
+            $keys = array_values(array_filter(
+                $this->courseSections->progressBackendKeys($cmId, $contentIdx, (bool) $legacyAlt),
+                fn (string $bk) => $this->courseSections->stepBlocksProgress($cmId, $bk)
+            ));
+            if ($keys === []) {
+                return true;
+            }
+
+            return $this->moduleProgressPercent($p) >= 100;
+        }
+
+        return (bool) $p->module_exam_passed
+            || ($cmId > 0 && $this->courseSections->isModuleExamEffectivelyPassed($p, $cmId))
+            || ($cmId < 1 && (int) $p->module_exam_best_score >= self::PASS_THRESHOLD);
+    }
+
     public function allModulesComplete(Learner $learner, ?int $courseIdOverride = null): bool
     {
         $courseId = $courseIdOverride ?? (int) session('course_id', 0);
@@ -271,12 +322,40 @@ final class CourseScoringService
         }
         foreach ($ids as $courseModuleId) {
             $p = $learner->progressExisting($courseModuleId, $courseId);
-            if ($p === null || ! $p->module_exam_passed) {
+            if ($p === null || ! $this->isModuleContentComplete($p)) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    /**
+     * Курс пройден: все видимые модули закрыты по контенту;
+     * ИЛР — только если включена. Баллы/сертификат не требуются.
+     */
+    public function isCourseComplete(Learner $learner, ?int $courseIdOverride = null): bool
+    {
+        $courseId = $courseIdOverride ?? (int) session('course_id', 0);
+        if ($courseId < 1 || ! $this->allModulesComplete($learner, $courseId)) {
+            return false;
+        }
+        if (! $this->finalLabEnabledForCourseId($courseId)) {
+            return true;
+        }
+
+        if ($learner->relationLoaded('finalLabResults')) {
+            $final = $learner->finalLabResults->first(
+                fn (FinalLabResult $r) => (int) $r->course_id === $courseId
+            );
+        } else {
+            $final = FinalLabResult::query()
+                ->where('learner_id', (int) $learner->id)
+                ->where('course_id', $courseId)
+                ->first();
+        }
+
+        return (bool) ($final?->passed);
     }
 
     /**

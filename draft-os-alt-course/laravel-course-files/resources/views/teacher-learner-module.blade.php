@@ -14,7 +14,7 @@
     $cid = $courseModel ? (int) $courseModel->id : 0;
     $en = $cid > 0 ? (int) \App\Models\CourseEnrollment::query()->where('course_id', $cid)->count() : 0;
     $completed = $cid > 0
-        ? (int) \App\Models\FinalLabResult::query()->where('course_id', $cid)->whereNotNull('completed_at')->count()
+        ? (int) app(\App\Services\TeacherCourseAnalyticsService::class)->countCompletedLearners($cid)
         : 0;
     $canResetProgress = $cid > 0 && (($portalStaffAccess ?? null)?->canResetLearnerProgressForCourse($cid) ?? false);
     $learnersListUrl = $tp !== [] ? route('admin.learners.course', $tp) : route('teacher.course-report');

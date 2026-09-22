@@ -47,7 +47,7 @@ class DashboardController extends Controller
         $modulesPassed = 0;
 
         if ($courseId > 0 && Schema::hasTable('course_modules')) {
-            $mods = $this->visibility->visibleModulesForLearner($courseId, (int) $learner->id);
+            $mods = $this->visibility->catalogModulesForLearner($courseId, (int) $learner->id);
             foreach ($mods as $idx => $mod) {
                 $id = (int) $mod->id;
                 $meta = $this->courseModules->displayMeta($mod);
@@ -97,6 +97,10 @@ class DashboardController extends Controller
         $allDone = $this->scoring->allModulesComplete($learner, $courseId > 0 ? $courseId : null);
         $finalDone = $finalLabEnabled ? (bool) optional($learner->finalLabResult)->passed : true;
 
+        $hasGlossary = $courseId > 0
+            && Schema::hasTable('course_glossary_terms')
+            && \App\Models\CourseGlossaryTerm::query()->where('course_id', $courseId)->exists();
+
         return view('dashboard', [
             'courseId' => $courseId,
             'modules' => $modules,
@@ -116,7 +120,8 @@ class DashboardController extends Controller
             'assessmentEnabled' => $assessmentEnabled,
             'showScorePercents' => $showScorePercents,
             'showScorePoints' => $showScorePoints,
-            'showFurtherCourseSection' => $assessmentEnabled || $finalLabEnabled || $certificateEnabled,
+            'showFurtherCourseSection' => $assessmentEnabled || $finalLabEnabled || $certificateEnabled || $hasGlossary,
+            'hasGlossary' => $hasGlossary,
             'showInformativeCourseNotice' => $course
                 && Schema::hasColumn('courses', 'assessment_enabled')
                 && Schema::hasColumn('courses', 'certificate_enabled')

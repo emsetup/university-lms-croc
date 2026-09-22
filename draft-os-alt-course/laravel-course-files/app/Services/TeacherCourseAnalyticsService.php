@@ -170,9 +170,57 @@ final class TeacherCourseAnalyticsService
     {
         $enrolled = (int) CourseEnrollment::query()->where('course_id', $courseId)->count();
         $started = (int) CourseEnrollment::query()->where('course_id', $courseId)->whereNotNull('started_at')->count();
-        $completed = (int) FinalLabResult::query()->where('course_id', $courseId)->where('passed', true)->count();
+        $completed = $this->countCompletedLearners($courseId);
 
         return ['enrolled' => $enrolled, 'started' => $started, 'completed' => $completed];
+    }
+
+    /**
+     * Сколько зачисленных прошли все обязательные шаги курса (тесты и пр.),
+     * без требования сертификата / ИЛР (если ИЛР выключена).
+     */
+    public function countCompletedLearners(int $courseId): int
+    {
+        return count($this->completedLearnerIdsForCourse($courseId));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function completedLearnerIdsForCourse(int $courseId): array
+    {
+        if ($courseId < 1 || ! Schema::hasTable('course_enrollments')) {
+            return [];
+        }
+
+        $ids = CourseEnrollment::query()
+            ->where('course_id', $courseId)
+            ->pluck('learner_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+        if ($ids === []) {
+            return [];
+        }
+
+        $learners = Learner::query()
+            ->whereIn('id', $ids)
+            ->with([
+                'moduleProgresses' => fn ($q) => $q->where('course_id', $courseId),
+                'finalLabResults' => fn ($q) => $q->where('course_id', $courseId),
+            ])
+            ->get();
+
+        $out = [];
+        foreach ($learners as $learner) {
+            if ($this->scoring->isCourseComplete($learner, $courseId)) {
+                $out[] = (int) $learner->id;
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -331,24 +379,19 @@ final class TeacherCourseAnalyticsService
     }
 
     /**
+     * Завершили курс = прошли обязательный контент (не выдача сертификата).
+     *
      * @param  list<int>  $courseIds
      * @return array<int, int>
      */
     private function batchCompletedCounts(array $courseIds): array
     {
-        if (! $this->hasTable('final_lab_results')) {
-            return [];
+        $out = [];
+        foreach ($courseIds as $courseId) {
+            $out[$courseId] = $this->countCompletedLearners($courseId);
         }
 
-        return DB::table('final_lab_results')
-            ->whereIn('course_id', $courseIds)
-            ->whereNotNull('certificate_full_name')
-            ->whereNotNull('certificate_serial')
-            ->groupBy('course_id')
-            ->selectRaw('course_id, COUNT(DISTINCT learner_id) as completed')
-            ->pluck('completed', 'course_id')
-            ->map(fn ($v) => (int) $v)
-            ->all();
+        return $out;
     }
 
     /**

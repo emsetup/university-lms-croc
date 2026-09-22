@@ -24,5 +24,6 @@
     </main>
     @include('partials.course-lightbox')
     <script src="{{ asset('js/course-lightbox.js') }}" defer></script>
+    <script src="{{ asset('js/course-glossary.js') }}?v={{ file_exists(public_path('js/course-glossary.js')) ? filemtime(public_path('js/course-glossary.js')) : 1 }}" defer></script>
 </body>
 </html>

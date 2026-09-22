@@ -1,6 +1,8 @@
 {{-- Админ: только просмотр. У тестов/экзаменов — подсветка верных ответов; у опросов — без «верно». --}}
 @php
     $surveyMode = ! empty($surveyMode);
+    $glossaryCourseId = (int) ($glossaryCourseId ?? session('admin_course_id') ?? 0);
+    $glossaryCourseId = $glossaryCourseId > 0 ? $glossaryCourseId : null;
 @endphp
 @foreach ($questions as $i => $q)
     @php
@@ -15,7 +17,7 @@
     <div class="admin-readonly-q" style="margin-bottom:1.5rem;padding-bottom:1.25rem;border-bottom:1px solid rgba(0,0,0,0.08)">
         <div class="module-exam-q--md" style="font-weight:600;margin-bottom:0.5rem">
             <span class="muted">{{ $i + 1 }}.</span>
-            {!! \App\Support\AdminContentMarkdown::toHtml((string) ($q['q'] ?? '')) !!}
+            {!! \App\Support\AdminContentMarkdown::toHtml((string) ($q['q'] ?? ''), $glossaryCourseId) !!}
         </div>
         @if (! empty($q['open_text']))
             <p class="muted small" style="margin:0 0 0.5rem">Тип вопроса: открытый ответ (текстовое поле).</p>

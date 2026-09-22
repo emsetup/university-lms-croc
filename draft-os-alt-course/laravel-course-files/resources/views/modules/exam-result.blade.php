@@ -12,6 +12,11 @@
             : 'итоговый тест';
         $showScorePercents = $showScorePercents ?? true;
         $showScorePoints = $showScorePoints ?? true;
+        $passThreshold = (int) ($r['threshold'] ?? \App\Services\CourseScoringService::PASS_THRESHOLD);
+        $totalQuestions = (int) ($r['total'] ?? 0);
+        $minCorrect = $totalQuestions > 0
+            ? \App\Services\CourseScoringService::minCorrectForPassPercent($totalQuestions, $passThreshold)
+            : null;
     @endphp
     <a class="back-link" href="{{ route('course.module.hub', $lr) }}">
         @include('partials.ap-icon', ['name' => 'arrow-left'])
@@ -21,7 +26,7 @@
         <h1 style="margin-top:0">Модуль {{ $modNum }}: {{ $sectionTitle }}</h1>
         @if ($showScorePercents)
             <p>Результат попытки: <strong>{{ $r['final_percent'] ?? '—' }}%</strong>
-                (порог {{ $r['threshold'] ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%)
+                (порог {{ $passThreshold }}%)
                 @if (!empty($r['passed']))
                     <span class="tag" style="margin-left:0.5rem">модуль зачтён по правилам курса</span>
                 @endif
@@ -36,6 +41,9 @@
             </p>
         @endif
         <p class="muted">Верно: {{ $r['correct_count'] ?? '—' }} из {{ $r['total'] ?? '—' }}.
+            @if ($minCorrect !== null)
+                Для зачёта нужно не меньше {{ $minCorrect }} из {{ $totalQuestions }}.
+            @endif
             @if ($showScorePoints && !empty($r['max_points']))
                 Баллы: {{ $r['earned_points'] ?? '—' }} / {{ $r['max_points'] }}.
             @endif

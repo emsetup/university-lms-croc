@@ -9,10 +9,10 @@ use Throwable;
  */
 final class AdminContentMarkdown
 {
-    public static function toHtml(string $markdown): string
+    public static function toHtml(string $markdown, ?int $courseId = null): string
     {
         try {
-            return CourseContentMarkdown::toHtml($markdown);
+            return CourseContentMarkdown::toHtml($markdown, $courseId);
         } catch (Throwable) {
             $markdown = str_replace("\0", '', $markdown);
 

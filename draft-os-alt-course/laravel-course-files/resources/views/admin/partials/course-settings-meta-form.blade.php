@@ -100,11 +100,12 @@
                 </div>
 
                 <div class="ap-settings-inline">
-                    <label class="ap-settings-label" for="def-pass">Проходной балл</label>
+                    <label class="ap-settings-label" for="def-pass">Порог зачёта</label>
                     <div class="ap-settings-inline__row">
-                        <input id="def-pass" class="ap-modal__input ap-settings-input ap-settings-input--num" type="number" name="default_pass_percent" min="1" max="100" value="{{ old('default_pass_percent', $course->default_pass_percent) }}" placeholder="—">
+                        <input id="def-pass" class="ap-modal__input ap-settings-input ap-settings-input--num" type="number" name="default_pass_percent" min="1" max="100" value="{{ old('default_pass_percent', $course->default_pass_percent) }}" placeholder="70">
                         <span class="ap-settings-suffix">%</span>
                     </div>
+                    <p class="ap-settings-hint ap-muted">Доля верных ответов для статуса «зачтено» (не баллы). Пусто = {{ \App\Services\CourseScoringService::PASS_THRESHOLD }}%. Работает даже если проценты и баллы скрыты у обучающихся.</p>
                 </div>
 
                 @php

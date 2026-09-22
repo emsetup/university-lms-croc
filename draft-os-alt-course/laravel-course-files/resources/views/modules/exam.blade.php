@@ -10,6 +10,8 @@
     $sectionTitle = isset($section) && (string) $section->title !== ''
         ? (string) $section->title
         : config('course.step_titles.module_exam');
+    $glossaryCourseId = (int) ($courseId ?? session('course_id') ?? 0);
+    $glossaryCourseId = $glossaryCourseId > 0 ? $glossaryCourseId : null;
     $quizSt = $quizState ?? [];
     $examAttempts = (int) ($quizSt['attempts'] ?? ($progress->module_exam_attempts ?? 0));
     $showScorePercents = $showScorePercents ?? true;
@@ -238,7 +240,7 @@
                     <div class="module-exam-step" data-step="{{ $i }}" @if ($i !== 0) hidden @endif role="tabpanel" aria-labelledby="exam-step-tab-{{ $i }}">
                         <div class="module-exam-step__meta muted">Вопрос {{ $i + 1 }} из {{ $total }}@if ($showScorePoints && !empty($questions[$i]['points'])) · {{ (int) $questions[$i]['points'] }} б.@endif</div>
                         @php
-                            $examQHtml = \App\Support\CourseContentMarkdown::toHtml(trim((string) ($q['q'] ?? '')));
+                            $examQHtml = \App\Support\CourseContentMarkdown::toHtml(trim((string) ($q['q'] ?? '')), $glossaryCourseId);
                             $examQHtml = (string) preg_replace('/<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/iu', '', $examQHtml);
                         @endphp
                         <div class="module-exam-q module-exam-q--md">{!! $examQHtml !!}</div>
@@ -256,7 +258,7 @@
                                     @foreach ($mLeft as $li => $label)
                                         <div class="module-exam-match__row">
                                             <span class="module-exam-match__ln">{{ $li + 1 }}</span>
-                                            <div class="module-exam-match__cell">{!! \App\Support\CourseContentMarkdown::inlineHtml($label) !!}</div>
+                                            <div class="module-exam-match__cell">{!! \App\Support\CourseContentMarkdown::inlineHtml($label, $glossaryCourseId) !!}</div>
                                         </div>
                                     @endforeach
                                 </div>
@@ -265,7 +267,7 @@
                                     <ul class="module-exam-match__list js-match-drag-list" id="match-drag-{{ $i }}" data-q="{{ $i }}">
                                         @foreach ($mPerm as $descIdx)
                                             <li draggable="true" class="module-exam-match__card" data-desc-idx="{{ (int) $descIdx }}">
-                                                <span class="module-exam-match__card-text">{!! \App\Support\CourseContentMarkdown::inlineHtml($mRight[$descIdx] ?? '') !!}</span>
+                                                <span class="module-exam-match__card-text">{!! \App\Support\CourseContentMarkdown::inlineHtml($mRight[$descIdx] ?? '', $glossaryCourseId) !!}</span>
                                                 <span class="module-exam-match__card-ops">
                                                     <button type="button" class="module-exam-match__move" data-match-move="up" title="Выше" aria-label="Переместить выше">↑</button>
                                                     <button type="button" class="module-exam-match__move" data-match-move="down" title="Ниже" aria-label="Переместить ниже">↓</button>
@@ -281,14 +283,14 @@
                             @foreach ($q['a'] as $j => $opt)
                                 <label class="choice module-exam-choice">
                                     <input type="checkbox" name="e{{ $i }}[]" value="{{ $j }}" class="js-exam-input" data-q="{{ $i }}">
-                                    <span>{!! \App\Support\CourseContentMarkdown::inlineHtml($opt) !!}</span>
+                                    <span>{!! \App\Support\CourseContentMarkdown::inlineHtml($opt, $glossaryCourseId) !!}</span>
                                 </label>
                             @endforeach
                         @else
                             @foreach ($q['a'] as $j => $opt)
                                 <label class="choice module-exam-choice">
                                     <input type="radio" name="e{{ $i }}" value="{{ $j }}" class="js-exam-input" data-q="{{ $i }}">
-                                    <span>{!! \App\Support\CourseContentMarkdown::inlineHtml($opt) !!}</span>
+                                    <span>{!! \App\Support\CourseContentMarkdown::inlineHtml($opt, $glossaryCourseId) !!}</span>
                                 </label>
                             @endforeach
                         @endif

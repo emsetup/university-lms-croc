@@ -14,7 +14,7 @@
         <p class="muted small" style="margin-top:0">{{ $mTitle }}</p>
         <p class="muted small" style="margin:0 0 1rem">Текст из объединённого конфига (в т.ч. из <code>require</code> сниппетов). Подсказки в цитатах показаны полностью.</p>
         <article class="theory-article prose-course">
-            {!! \App\Support\AdminContentMarkdown::toHtml((string) $practiceMarkdown) !!}
+            {!! \App\Support\AdminContentMarkdown::toHtml((string) $practiceMarkdown, (int) (session('admin_course_id') ?: 0) ?: null) !!}
         </article>
         </div>
     </div>

@@ -17,7 +17,7 @@ final class CourseContentMarkdown
     /** Plain token so CommonMark does not strip an HTML comment. */
     private const TOC_PLACEHOLDER = '§§COURSE_CONTENT_TOC§§';
 
-    public static function toHtml(string $markdown): string
+    public static function toHtml(string $markdown, ?int $courseId = null, bool $withGlossary = true): string
     {
         $markdown = str_replace("\0", '', $markdown);
         if ($markdown === '') {
@@ -40,7 +40,7 @@ final class CourseContentMarkdown
         $html = self::addHeadingIds($html);
         $html = self::expandTocPlaceholders($html);
 
-        return $html;
+        return $withGlossary ? self::applyGlossary($html, $courseId) : $html;
     }
 
     /**
@@ -278,7 +278,7 @@ final class CourseContentMarkdown
     }
 
     /** Короткий inline Markdown (варианты ответов, пары сопоставления). */
-    public static function inlineHtml(string $text): string
+    public static function inlineHtml(string $text, ?int $courseId = null, bool $withGlossary = true): string
     {
         $text = str_replace("\0", '', trim($text));
         if ($text === '') {
@@ -286,13 +286,67 @@ final class CourseContentMarkdown
         }
 
         if (! str_contains($text, '![') && ! str_contains($text, '**') && ! str_contains($text, '`')) {
-            return e($text);
+            $plain = e($text);
+
+            return $withGlossary ? self::applyGlossary($plain, $courseId) : $plain;
         }
 
         $text = self::expandMediaPaths($text);
         $html = (string) Str::markdown($text);
+        $html = self::enrichMediaFigures($html, true);
 
-        return self::enrichMediaFigures($html, true);
+        return $withGlossary ? self::applyGlossary($html, $courseId) : $html;
+    }
+
+    private static function applyGlossary(string $html, ?int $courseId = null): string
+    {
+        $id = self::resolveGlossaryCourseId($courseId);
+        if ($id < 1) {
+            return $html;
+        }
+
+        return app(\App\Services\CourseGlossaryService::class)->enrichHtml($html, $id);
+    }
+
+    private static function resolveGlossaryCourseId(?int $courseId): int
+    {
+        if ($courseId !== null && $courseId > 0) {
+            return $courseId;
+        }
+
+        try {
+            $route = request()->route();
+            if ($route !== null) {
+                $adminCourse = $route->parameter('adminCourse');
+                if ($adminCourse instanceof \App\Models\Course) {
+                    return (int) $adminCourse->id;
+                }
+                if (is_numeric($adminCourse) && (int) $adminCourse > 0) {
+                    return (int) $adminCourse;
+                }
+            }
+        } catch (\Throwable) {
+            // CLI / no request
+        }
+
+        $adminId = (int) session('admin_course_id', 0);
+        $learnerId = LearnerPreviewContext::courseId();
+
+        // В админке курса приоритет у admin_course_id — иначе глоссарий
+        // может взяться от другого курса из learner/staff preview в сессии.
+        try {
+            if ($adminId > 0 && request()->is('adm/*')) {
+                return $adminId;
+            }
+        } catch (\Throwable) {
+            // ignore
+        }
+
+        if ($learnerId > 0) {
+            return $learnerId;
+        }
+
+        return $adminId;
     }
 
     public static function enrichCallouts(string $html): string

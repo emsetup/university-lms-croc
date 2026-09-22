@@ -21,6 +21,7 @@ final class CourseModule extends Model
         'letter',
         'content_source_index',
         'view_audience',
+        'hidden_from_catalog',
         'show_score_percents',
         'show_score_points',
         'quiz_breakdown_mode',
@@ -31,6 +32,7 @@ final class CourseModule extends Model
         return [
             'course_id' => 'int',
             'sort' => 'int',
+            'hidden_from_catalog' => 'bool',
         ];
     }
 

@@ -90,6 +90,7 @@
                 data-module-letter="{{ e($m->letter ?? '') }}"
                 data-module-pkg="{{ $m->content_source_index ?? '' }}"
                 data-module-summary="{{ e($m->summary ?? '') }}"
+                data-module-hidden-from-catalog="{{ \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'hidden_from_catalog') && ($m->hidden_from_catalog ?? false) ? '1' : '0' }}"
                 data-module-show-percents="{{ \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_percents') ? (($m->getAttributes()['show_score_percents'] ?? null) === null ? 'inherit' : ((string) (int) $m->getAttributes()['show_score_percents'])) : 'inherit' }}"
                 data-module-show-points="{{ \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_points') ? (($m->getAttributes()['show_score_points'] ?? null) === null ? 'inherit' : ((string) (int) $m->getAttributes()['show_score_points'])) : 'inherit' }}"
                 data-module-breakdown-mode="{{ \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'quiz_breakdown_mode') ? (($m->getAttributes()['quiz_breakdown_mode'] ?? null) === null || $m->getAttributes()['quiz_breakdown_mode'] === '' ? 'inherit' : e((string) $m->getAttributes()['quiz_breakdown_mode'])) : 'inherit' }}"
@@ -113,6 +114,9 @@
                             </button>
                             <div class="ap-mod-card__meta">
                                 Пакет №{{ $m->effectiveContentIndex() }} · {{ $nSec }} {{ $nSec === 1 ? 'раздел' : ($nSec > 1 && $nSec < 5 ? 'раздела' : 'разделов') }}
+                                @if (\Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'hidden_from_catalog') && ($m->hidden_from_catalog ?? false))
+                                    · <span class="ap-badge ap-badge--draft" title="Не показывается в списке модулей у обучающихся; доступ по прямой и быстрой ссылке сохраняется">скрыт с дашборда</span>
+                                @endif
                                 @php $modAudience = $visibilitySvc->audienceSummaryForResource(\App\Models\ContentViewAudienceRule::RESOURCE_MODULE, (int) $m->id, $courseIdWorkbench); @endphp
                                 <span class="ap-mod-card__audience-badge" data-audience-badge-for="mod-{{ $m->id }}" @if (! $modAudience) hidden @endif>{{ $modAudience }}</span>
                             </div>
@@ -402,6 +406,16 @@
             <input id="ap-mod-set-pkg" class="ap-modal__input" type="number" name="content_source_index" min="1" max="99" style="max-width:7rem">
             <label class="ap-settings-label" for="ap-mod-set-sum">Описание для обучающихся</label>
             <textarea id="ap-mod-set-sum" class="ap-modal__input ap-settings-textarea" name="summary" rows="5" maxlength="5000"></textarea>
+            @if (\Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'hidden_from_catalog'))
+                <div class="ap-sec-edit-panel__toggle-row" style="margin-top:1rem">
+                    <span class="ap-settings-label" style="margin:0">Скрыть с дашборда обучающихся</span>
+                    <label class="ap-sec-edit-panel__switch">
+                        <input type="checkbox" id="ap-mod-set-hidden-catalog" name="hidden_from_catalog" value="1">
+                        <span class="ap-sec-edit-panel__switch-ui" aria-hidden="true"></span>
+                    </label>
+                </div>
+                <p class="ap-muted small">Модуль не показывается в общем списке на дашборде курса. Прямая ссылка на модуль и быстрая ссылка на опрос продолжают работать.</p>
+            @endif
             @if (\Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_percents') || \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'show_score_points') || \Illuminate\Support\Facades\Schema::hasColumn('course_modules', 'quiz_breakdown_mode'))
                 <p class="ap-settings-label" style="margin-top:1rem">Метрики для обучающихся</p>
                 <p class="ap-muted small" style="margin:0 0 0.5rem">По умолчанию — как в настройках курса. Можно показать или скрыть отдельно проценты и баллы, и задать режим разбора.</p>
@@ -522,7 +536,7 @@
                     <input id="ap-sec-own-time" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="0" max="10080" placeholder="пусто = без лимита" hidden>
                 </fieldset>
                 <fieldset class="ap-sec-edit-panel__inherit ap-sec-settings-quiz-only">
-                    <legend class="ap-settings-label">Проходной балл</legend>
+                    <legend class="ap-settings-label">Порог зачёта</legend>
                     <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-pass" value="inherit"> Наследовать от курса (<span id="ap-sec-hint-pass"></span>)</label>
                     <label class="ap-sec-edit-panel__radio"><input type="radio" name="ap-sec-inherit-pass" value="own"> Задать своё</label>
                     <input id="ap-sec-own-pass" class="ap-modal__input ap-sec-edit-panel__own-input" type="number" min="1" max="100" placeholder="%" hidden>
@@ -998,6 +1012,10 @@
                 document.getElementById('ap-mod-set-letter').value = card.getAttribute('data-module-letter') || '';
                 document.getElementById('ap-mod-set-pkg').value = card.getAttribute('data-module-pkg') || '';
                 document.getElementById('ap-mod-set-sum').value = card.getAttribute('data-module-summary') || '';
+                var hidCat = document.getElementById('ap-mod-set-hidden-catalog');
+                if (hidCat) {
+                    hidCat.checked = card.getAttribute('data-module-hidden-from-catalog') === '1';
+                }
                 var percSel = document.getElementById('ap-mod-set-percents');
                 if (percSel) {
                     percSel.value = card.getAttribute('data-module-show-percents') || 'inherit';

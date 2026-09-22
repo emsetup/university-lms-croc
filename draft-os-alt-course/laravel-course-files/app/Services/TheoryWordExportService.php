@@ -19,7 +19,7 @@ final class TheoryWordExportService
 
     public function docHtml(string $title, string $markdown, ?string $subtitle = null): string
     {
-        $body = CourseContentMarkdown::toHtml($markdown);
+        $body = CourseContentMarkdown::toHtml($markdown, null, false);
         $body = $this->absolutizeUrls($body);
         $h1 = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $sub = $subtitle !== null && $subtitle !== ''

@@ -11,6 +11,12 @@
             ? (string) $section->title
             : 'тест по теории';
         $showScorePercents = $showScorePercents ?? true;
+        $passThreshold = (int) ($result['threshold'] ?? \App\Services\CourseScoringService::PASS_THRESHOLD);
+        $correctCount = (int) ($result['correct_count'] ?? 0);
+        $totalQuestions = (int) ($result['total'] ?? 0);
+        $minCorrect = $totalQuestions > 0
+            ? \App\Services\CourseScoringService::minCorrectForPassPercent($totalQuestions, $passThreshold)
+            : null;
     @endphp
     <a class="back-link" href="{{ route('course.module.hub', $lr) }}">
         @include('partials.ap-icon', ['name' => 'arrow-left'])
@@ -20,7 +26,7 @@
         <h1 style="margin-top:0">Модуль {{ $modNum }}: {{ $sectionTitle }}</h1>
         @if ($showScorePercents)
             <p>Итог: <strong>{{ $result['final_percent'] ?? '—' }}%</strong>
-                (порог {{ $result['threshold'] ?? \App\Services\CourseScoringService::PASS_THRESHOLD }}%)
+                (порог {{ $passThreshold }}%)
                 @if (!empty($result['passed']))
                     <span class="tag" style="margin-left:0.5rem">зачтено</span>
                 @endif
@@ -35,6 +41,9 @@
             </p>
         @endif
         <p class="muted">Верно: {{ $result['correct_count'] ?? '—' }} из {{ $result['total'] ?? '—' }}.
+            @if ($minCorrect !== null)
+                Для зачёта нужно не меньше {{ $minCorrect }} из {{ $totalQuestions }}.
+            @endif
             @if ($showScorePercents && ($result['penalty_points'] ?? 0) > 0)
                 Штраф за пересдачу: −{{ $result['penalty_points'] }} п.п.
             @endif

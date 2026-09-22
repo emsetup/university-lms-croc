@@ -218,6 +218,15 @@
                     @endif
                 </div>
             @endif
+
+            @if (! empty($hasGlossary))
+                <div class="module-card">
+                    <div class="tag">Словарь</div>
+                    <div style="font-weight:700">Глоссарий курса</div>
+                    <div class="muted" style="font-size:0.9rem">Аббревиатуры и термины с пояснениями. В тексте теории и в вопросах они подсвечены — наведите курсор, чтобы прочитать определение.</div>
+                    <a class="btn btn-primary" href="{{ route('course.glossary', ['course' => $courseId]) }}">Открыть словарь</a>
+                </div>
+            @endif
         </div>
     </div>
     @endif

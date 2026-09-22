@@ -54,12 +54,13 @@ final class AdminCourseSettingsController extends Controller
             'istoriya' => 'istoriya',
             'soavtory' => 'soavtory',
             'gruppy' => 'gruppy',
+            'glossariy' => 'glossariy',
             default => 'moduli',
         };
 
         if ($settingsTab === 'soavtory') {
             $gate->assertCanManageCollaborators($courseId);
-        } elseif ($settingsTab === 'gruppy') {
+        } elseif ($settingsTab === 'gruppy' || $settingsTab === 'glossariy') {
             $gate->assertCanEditCourseMeta($courseId);
         } elseif ($settingsTab === 'moduli') {
             $gate->assertCanAccessCourseModulesTab($courseId);
@@ -162,6 +163,19 @@ final class AdminCourseSettingsController extends Controller
             ];
         }
 
+        $glossaryPayload = [];
+        if ($settingsTab === 'glossariy') {
+            $glossaryPayload = [
+                'glossaryTerms' => Schema::hasTable('course_glossary_terms')
+                    ? \App\Models\CourseGlossaryTerm::query()
+                        ->where('course_id', $courseId)
+                        ->orderBy('sort')
+                        ->orderBy('term')
+                        ->get()
+                    : collect(),
+            ];
+        }
+
         return view('admin.course-settings', array_merge([
             'course' => $course,
             'courseStatus' => $status,
@@ -177,7 +191,7 @@ final class AdminCourseSettingsController extends Controller
             'canManageCollaborators' => $gate->canManageCollaborators($courseId),
             'canEditCourseMeta' => $gate->canEditCourseMeta($courseId),
             'canEditCourseStructure' => $gate->canEditCourseStructure($courseId),
-        ], $collaboratorPayload, $groupsPayload, $shareLinksPayload));
+        ], $collaboratorPayload, $groupsPayload, $shareLinksPayload, $glossaryPayload));
     }
 
     public function saveCourseSettings(Request $request): RedirectResponse
@@ -414,6 +428,7 @@ final class AdminCourseSettingsController extends Controller
             'summary' => 'nullable|string|max:5000',
             'letter' => 'nullable|string|max:8',
             'content_source_index' => 'nullable|integer|min:1|max:99',
+            'hidden_from_catalog' => 'sometimes|boolean',
             'show_score_percents' => 'nullable|in:inherit,0,1',
             'show_score_points' => 'nullable|in:inherit,0,1',
             'quiz_breakdown_mode' => 'nullable|in:inherit,all,wrongs',
@@ -422,6 +437,9 @@ final class AdminCourseSettingsController extends Controller
         $courseModule->summary = (string) ($data['summary'] ?? '');
         $courseModule->letter = isset($data['letter']) && $data['letter'] !== '' ? (string) $data['letter'] : null;
         $courseModule->content_source_index = isset($data['content_source_index']) ? (int) $data['content_source_index'] : null;
+        if (Schema::hasColumn('course_modules', 'hidden_from_catalog')) {
+            $courseModule->hidden_from_catalog = $request->boolean('hidden_from_catalog');
+        }
         if (Schema::hasColumn('course_modules', 'show_score_percents')) {
             $courseModule->show_score_percents = self::nullableBoolFromInherit($data['show_score_percents'] ?? 'inherit');
         }
@@ -436,6 +454,7 @@ final class AdminCourseSettingsController extends Controller
             'summary' => 'Описание',
             'letter' => 'Буква',
             'content_source_index' => 'Пакет контента №',
+            'hidden_from_catalog' => 'Скрыт с дашборда',
             'show_score_percents' => 'Показывать проценты',
             'show_score_points' => 'Показывать баллы',
             'quiz_breakdown_mode' => 'Разбор теста',
@@ -1459,7 +1478,7 @@ final class AdminCourseSettingsController extends Controller
             ? 'без ограничения'
             : ((int) $t).' мин';
         $pass = ($p === null || ! is_numeric($p) || (int) $p < 1)
-            ? 'порог по умолчанию системы'
+            ? CourseScoringService::PASS_THRESHOLD.'% (системный по умолчанию)'
             : ((int) $p).'%';
         $breakdown = LearnerQuizBreakdownDisplay::label(
             LearnerQuizBreakdownDisplay::forModule($course, $module)

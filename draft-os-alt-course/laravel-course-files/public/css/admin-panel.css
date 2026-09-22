@@ -5884,6 +5884,17 @@ body.ap-modal-open {
   gap: 0.65rem;
 }
 
+/* Textarea в flex-колонке иначе схлопывается до одной строки. */
+.ap-drawer-form textarea.ap-modal__input,
+.ap-drawer-form .ap-settings-textarea {
+  flex: 0 0 auto;
+  align-self: stretch;
+  min-height: 7.5rem;
+  height: auto;
+  resize: vertical;
+  line-height: 1.45;
+}
+
 .ap-drawer__footer {
     flex: 0 0 auto;
     display: flex;
@@ -10063,3 +10074,130 @@ body.ap-cmd-palette-open {
 .ap-sec-participants__row-meta{display:flex;flex-direction:column;align-items:flex-end;gap:0.2rem;text-align:right}
 .ap-sec-participants__detail{margin-top:0.85rem}
 .ap-sec-participants__actions{display:flex;flex-wrap:wrap;gap:0.5rem;margin:0.5rem 0}
+
+/* ─── Глоссарий курса (настройки) ─── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ap-glossary-page__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.ap-glossary-empty {
+  display: grid;
+  gap: 0.45rem;
+  justify-items: start;
+  padding: 1.5rem 1.35rem;
+}
+
+.ap-glossary-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 10px;
+  background: var(--ap-brand-light, #e8f9f0);
+  color: var(--ap-brand, #00b956);
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+.ap-glossary-empty__title {
+  margin: 0.35rem 0 0;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.ap-glossary-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--ap-border, #e5e7eb);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.ap-glossary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.ap-glossary-table th,
+.ap-glossary-table td {
+  padding: 0.75rem 0.9rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--ap-border, #e5e7eb);
+}
+
+.ap-glossary-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ap-muted, #6b7280);
+  background: #f8fafc;
+  white-space: nowrap;
+}
+
+.ap-glossary-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ap-glossary-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.ap-glossary-term-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--ap-brand-light, #e8f9f0);
+  color: var(--ap-brand-dark, #009e4a);
+  font-weight: 700;
+}
+
+.ap-glossary-abbr {
+  font-size: 0.85rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+  background: #f1f5f9;
+}
+
+.ap-glossary-def {
+  color: #334155;
+  line-height: 1.45;
+  max-width: 36rem;
+}
+
+.ap-glossary-table__sort {
+  width: 3.5rem;
+  text-align: center !important;
+}
+
+.ap-glossary-table__actions {
+  width: 5.5rem;
+  white-space: nowrap;
+}
+
+.ap-glossary-hint {
+  margin: 0.85rem 0 0;
+  font-size: 0.85rem;
+}
+
+.ap-glossary-modal__panel {
+  max-width: 480px;
+}

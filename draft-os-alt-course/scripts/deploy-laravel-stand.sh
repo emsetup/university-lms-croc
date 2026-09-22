@@ -88,6 +88,7 @@ for f in \
   app/Http/Controllers/AdminSettingsController.php \
   app/Http/Controllers/AdminCoursesController.php \
   app/Http/Controllers/AdminCourseSettingsController.php \
+  app/Http/Controllers/AdminCourseGlossaryController.php \
   app/Http/Controllers/AdminCourseCollaboratorsController.php \
   app/Http/Controllers/AdminCourseContentController.php \
   app/Http/Controllers/AdminPracticeImagesController.php \
@@ -110,6 +111,7 @@ for f in \
   app/Http/Controllers/AssessmentController.php \
   app/Http/Controllers/CertificateController.php \
   app/Http/Controllers/DashboardController.php \
+  app/Http/Controllers/CourseGlossaryController.php \
   app/Http/Controllers/FinalLabController.php \
   app/Http/Controllers/ModuleController.php \
   app/Http/Controllers/PracticeLabController.php \
@@ -145,6 +147,7 @@ for f in \
   app/Http/Middleware/EnsurePortalAdmin.php \
   app/Http/Middleware/EnsurePlatformStatsAccess.php \
   app/Services/CourseScoringService.php \
+  app/Services/CourseGlossaryService.php \
   app/Services/CourseSectionService.php \
   app/Services/CourseModuleService.php \
   app/Services/CourseContentService.php \
@@ -234,6 +237,7 @@ for f in \
   app/Models/ContentViewAudienceRule.php \
   app/Models/PortalLearnerGroup.php \
   app/Models/CourseLearnerGroup.php \
+  app/Models/CourseGlossaryTerm.php \
   app/Models/CourseContentGrant.php \
   app/Models/CourseChangeLog.php \
   app/Models/CourseModule.php \
@@ -485,6 +489,8 @@ for mf in \
   database/migrations/2026_09_10_120000_create_ad_mail_groups_table.php \
   database/migrations/2026_09_16_120000_anonymous_survey_participants.php \
   database/migrations/2026_09_16_130000_fix_survey_submission_learner_nullable.php \
+  database/migrations/2026_09_16_140000_add_hidden_from_catalog_to_course_modules.php \
+  database/migrations/2026_09_22_120000_create_course_glossary_terms_table.php \
   database/migrations/2026_06_03_161000_add_access_comment_to_portal_staff_table.php \
   database/migrations/2026_05_14_100000_seed_legacy_alt_os_course_content_to_database.php \
   database/migrations/2026_05_15_000001_create_portal_activity_events_table.php \
@@ -545,7 +551,7 @@ if [[ -d "${LCF}/resources/views/modules/partials" ]]; then
   rsync -az "${LCF}/resources/views/modules/partials/" "${STAND_SSH}:${REMOTE}/resources/views/modules/partials/"
 fi
 
-for tv in assessment.blade.php certificate.blade.php dashboard.blade.php final-lab.blade.php teacher-course-report.blade.php teacher-learner-profile.blade.php teacher-learner-module.blade.php account.blade.php; do
+for tv in assessment.blade.php certificate.blade.php dashboard.blade.php glossary.blade.php final-lab.blade.php teacher-course-report.blade.php teacher-learner-profile.blade.php teacher-learner-module.blade.php account.blade.php; do
   if [[ -f "${LCF}/resources/views/${tv}" ]]; then
     echo "[deploy-laravel] resources/views/${tv}"
     rsync -az "${LCF}/resources/views/${tv}" "${STAND_SSH}:${REMOTE}/resources/views/${tv}"
@@ -699,7 +705,7 @@ if [[ -f "${LCF}/public/css/course-markdown-editor.css" ]]; then
   rsync -az "${LCF}/public/css/course-markdown-editor.css" "${STAND_SSH}:${REMOTE}/public/css/course-markdown-editor.css"
 fi
 
-for mf in media-library.js course-lightbox.js; do
+for mf in media-library.js course-lightbox.js course-glossary.js; do
   if [[ -f "${LCF}/public/js/${mf}" ]]; then
     echo "[deploy-laravel] public/js/${mf}"
     ssh -o BatchMode=yes "$STAND_SSH" "mkdir -p '${REMOTE}/public/js'"

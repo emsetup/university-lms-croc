@@ -36,7 +36,7 @@
             <p class="muted small" style="margin:0 0 0.75rem">Блоки <strong>подсказок</strong> появятся после первой автопроверки на стенде, в которой <strong>не набран полный балл</strong> (кнопка «Проверить результат» ниже). Если с первого раза всё верно — подсказки не понадобятся.</p>
         @endif
         <article class="theory-article prose-course practice-block theory-content content-protect" data-integrity-protect>
-            {!! \App\Support\CourseContentMarkdown::toHtml($practiceMarkdown) !!}
+            {!! \App\Support\CourseContentMarkdown::toHtml($practiceMarkdown, (int) ($courseId ?? session('course_id') ?? 0) ?: null) !!}
         </article>
         @include('partials.assessment-integrity')
 

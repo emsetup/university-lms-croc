@@ -9,6 +9,7 @@
         'istoriya' => 'История — '.$course->title,
         'soavtory' => 'Соавторы — '.$course->title,
         'gruppy' => 'Группы — '.$course->title,
+        'glossariy' => 'Глоссарий — '.$course->title,
         default => 'Модули курса — '.$course->title,
     };
 @endphp
@@ -26,8 +27,10 @@
         $historyUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'istoriya']));
         $soavtoryUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'soavtory']));
         $gruppyUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'gruppy']));
+        $glossariyUrl = route('admin.course.settings', array_merge($tp, ['tab' => 'glossariy']));
         $showCollaboratorsTab = ! empty($canManageCollaborators);
         $showGroupsTab = ! empty($canEditCourseMeta);
+        $showGlossaryTab = ! empty($canEditCourseMeta);
         $learnerSearchUrl = route('admin.course.learners.search', $tp);
     @endphp
 
@@ -44,6 +47,9 @@
             @endif
             @if ($showGroupsTab)
                 <a href="{{ $gruppyUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'gruppy') is-active @endif">Группы</a>
+            @endif
+            @if ($showGlossaryTab)
+                <a href="{{ $glossariyUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'glossariy') is-active @endif">Глоссарий</a>
             @endif
             <a href="{{ $historyUrl }}" class="ap-course-settings-subtabs__a @if ($tab === 'istoriya') is-active @endif">История</a>
         </nav>
@@ -95,6 +101,12 @@
                 'groups' => $courseLearnerGroups ?? collect(),
                 'learners' => $courseEnrolledLearners ?? collect(),
                 'groupScope' => 'course',
+                'ap' => $tp,
+            ])
+        @elseif ($tab === 'glossariy')
+            @include('admin.partials.course-settings-glossary', [
+                'course' => $course,
+                'terms' => $glossaryTerms ?? collect(),
                 'ap' => $tp,
             ])
         @else

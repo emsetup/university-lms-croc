@@ -17,7 +17,7 @@
     $modCount = \App\Services\CourseScoringService::moduleCount($cid > 0 ? $cid : null);
     $en = $cid > 0 ? (int) \App\Models\CourseEnrollment::query()->where('course_id', $cid)->count() : 0;
     $completed = $cid > 0
-        ? (int) \App\Models\FinalLabResult::query()->where('course_id', $cid)->whereNotNull('completed_at')->count()
+        ? (int) app(\App\Services\TeacherCourseAnalyticsService::class)->countCompletedLearners($cid)
         : 0;
     $learnersListUrl = $tp !== [] ? route('admin.learners.course', $tp) : route('teacher.course-report');
     $modsDone = (int) ($summaryRow['modules_passed_count'] ?? 0);

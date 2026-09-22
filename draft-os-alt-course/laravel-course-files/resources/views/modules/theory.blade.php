@@ -30,7 +30,7 @@
             $theoryRaw = (string) ($meta['theory'] ?? '');
         @endphp
         <article class="theory-article prose-course practice-block theory-content">
-            {!! \App\Support\CourseContentMarkdown::toHtml($theoryRaw) !!}
+            {!! \App\Support\CourseContentMarkdown::toHtml($theoryRaw, (int) ($courseId ?? session('course_id') ?? 0) ?: null) !!}
         </article>
 
         <style>

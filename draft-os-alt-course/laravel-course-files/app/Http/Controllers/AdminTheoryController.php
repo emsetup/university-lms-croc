@@ -193,7 +193,7 @@ class AdminTheoryController extends Controller
         ]);
 
         return response()->json([
-            'html' => AdminContentMarkdown::toHtml((string) ($data['markdown'] ?? '')),
+            'html' => AdminContentMarkdown::toHtml((string) ($data['markdown'] ?? ''), (int) $adminCourse->id),
         ]);
     }
 

@@ -224,11 +224,15 @@ final class AccountController extends Controller
     private function isCourseCompleted(Learner $learner, int $courseId, ?FinalLabResult $final, int $dbModuleCount): bool
     {
         if ($dbModuleCount > 0) {
-            return $this->scoring->allModulesComplete($learner, $courseId)
-                && (bool) ($final?->passed);
+            return $this->scoring->isCourseComplete($learner, $courseId);
         }
 
-        return (bool) ($final?->passed);
+        $course = Course::query()->find($courseId);
+        $finalLabOn = $course
+            && Schema::hasColumn('courses', 'final_lab_enabled')
+            && (bool) $course->final_lab_enabled;
+
+        return $finalLabOn ? (bool) ($final?->passed) : false;
     }
 
     /**

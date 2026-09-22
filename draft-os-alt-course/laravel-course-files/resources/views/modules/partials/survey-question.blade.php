@@ -4,11 +4,13 @@
     $preview = ! empty($preview);
     $stepHidden = ! empty($stepHidden);
     $inputPrefix = $preview ? 'preview_q' : 'q';
+    $glossaryCourseId = (int) ($courseId ?? $glossaryCourseId ?? session('course_id') ?? session('admin_course_id') ?? 0);
+    $glossaryCourseId = $glossaryCourseId > 0 ? $glossaryCourseId : null;
 @endphp
 <div class="survey-step @if($preview) survey-step--preview @endif" data-step="{{ $i }}" @if ($stepHidden) hidden @endif role="group" aria-label="Вопрос {{ $i + 1 }}">
     <div class="survey-step__head">
         <span class="survey-step__badge">{{ $i + 1 }}</span>
-        <div class="survey-step__text">{!! \App\Support\CourseContentMarkdown::toHtml($q['q'] ?? '') !!}</div>
+        <div class="survey-step__text">{!! \App\Support\CourseContentMarkdown::toHtml($q['q'] ?? '', $glossaryCourseId) !!}</div>
     </div>
 
     <div class="survey-step__body">
@@ -35,7 +37,7 @@
             @endunless
             @foreach ($left as $li => $ltxt)
                 <div class="survey-match-row">
-                    <span class="survey-match-row__label">{!! \App\Support\CourseContentMarkdown::inlineHtml($ltxt) !!}</span>
+                    <span class="survey-match-row__label">{!! \App\Support\CourseContentMarkdown::inlineHtml($ltxt, $glossaryCourseId) !!}</span>
                     <select class="survey-match-select js-survey-input" data-q="{{ $i }}" @if($preview) disabled @else required @endif>
                         <option value="">— выберите —</option>
                         @foreach ($right as $ri => $rtxt)
@@ -51,7 +53,7 @@
                     <label class="survey-option">
                         <input type="checkbox" class="js-survey-input" name="{{ $inputPrefix }}{{ $i }}[]" value="{{ $j }}" data-q="{{ $i }}" @if($preview) disabled @endif>
                         <span class="survey-option__letter">{{ chr(65 + $j) }}</span>
-                        <span class="survey-option__text">{!! \App\Support\CourseContentMarkdown::inlineHtml($opt) !!}</span>
+                        <span class="survey-option__text">{!! \App\Support\CourseContentMarkdown::inlineHtml($opt, $glossaryCourseId) !!}</span>
                     </label>
                 @endforeach
             </div>
@@ -84,7 +86,7 @@
                             <input type="radio" class="js-survey-input" name="{{ $inputPrefix }}{{ $i }}" value="{{ $j }}" data-q="{{ $i }}" @if($preview) disabled @elseif($loop->first) required @endif>
                         @endif
                         <span class="survey-option__letter">{{ chr(65 + $j) }}</span>
-                        <span class="survey-option__text">{!! \App\Support\CourseContentMarkdown::inlineHtml($opt) !!}</span>
+                        <span class="survey-option__text">{!! \App\Support\CourseContentMarkdown::inlineHtml($opt, $glossaryCourseId) !!}</span>
                     </label>
                 @endforeach
             </div>

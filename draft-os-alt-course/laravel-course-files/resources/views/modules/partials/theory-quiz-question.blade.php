@@ -6,7 +6,9 @@
     $opts = is_array($q['a'] ?? null) ? $q['a'] : [];
     $inputPrefix = $inputPrefix ?? 'q';
     $preview = ! empty($preview);
-    $qHtml = \App\Support\CourseContentMarkdown::toHtml(trim((string) ($q['q'] ?? '')));
+    $glossaryCourseId = (int) ($courseId ?? $glossaryCourseId ?? session('course_id') ?? session('admin_course_id') ?? 0);
+    $glossaryCourseId = $glossaryCourseId > 0 ? $glossaryCourseId : null;
+    $qHtml = \App\Support\CourseContentMarkdown::toHtml(trim((string) ($q['q'] ?? '')), $glossaryCourseId);
     // Убираем пустые абзацы от лишних переносов в textarea редактора
     $qHtml = (string) preg_replace('/<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/iu', '', $qHtml);
 @endphp
@@ -46,7 +48,7 @@
                     <p class="muted small" style="margin:0 0 0.35rem">Слева</p>
                     <ol style="margin:0;padding-left:1.2rem">
                         @foreach ($mLeft as $cell)
-                            <li>{!! \App\Support\CourseContentMarkdown::inlineHtml((string) $cell) !!}</li>
+                            <li>{!! \App\Support\CourseContentMarkdown::inlineHtml((string) $cell, $glossaryCourseId) !!}</li>
                         @endforeach
                     </ol>
                 </div>
@@ -54,7 +56,7 @@
                     <p class="muted small" style="margin:0 0 0.35rem">Справа (эталон)</p>
                     <ol style="margin:0;padding-left:1.2rem">
                         @foreach ($mRight as $cell)
-                            <li>{!! \App\Support\CourseContentMarkdown::inlineHtml((string) $cell) !!}</li>
+                            <li>{!! \App\Support\CourseContentMarkdown::inlineHtml((string) $cell, $glossaryCourseId) !!}</li>
                         @endforeach
                     </ol>
                 </div>
@@ -66,7 +68,7 @@
                     @foreach ($mLeft as $li => $label)
                         <div class="module-exam-match__row">
                             <span class="module-exam-match__ln">{{ $li + 1 }}</span>
-                            <div class="module-exam-match__cell">{!! \App\Support\CourseContentMarkdown::inlineHtml((string) $label) !!}</div>
+                            <div class="module-exam-match__cell">{!! \App\Support\CourseContentMarkdown::inlineHtml((string) $label, $glossaryCourseId) !!}</div>
                         </div>
                     @endforeach
                 </div>
@@ -75,7 +77,7 @@
                     <ul class="module-exam-match__list js-match-drag-list" id="tq-match-drag-{{ $i }}" data-q="{{ $i }}">
                         @foreach ($mPerm as $descIdx)
                             <li draggable="true" class="module-exam-match__card" data-desc-idx="{{ (int) $descIdx }}">
-                                <span class="module-exam-match__card-text">{!! \App\Support\CourseContentMarkdown::inlineHtml((string) ($mRight[$descIdx] ?? '')) !!}</span>
+                                <span class="module-exam-match__card-text">{!! \App\Support\CourseContentMarkdown::inlineHtml((string) ($mRight[$descIdx] ?? ''), $glossaryCourseId) !!}</span>
                                 <span class="module-exam-match__card-ops" aria-hidden="false">
                                     <button type="button" class="module-exam-match__move" data-match-move="up" title="Выше" aria-label="Переместить выше">↑</button>
                                     <button type="button" class="module-exam-match__move" data-match-move="down" title="Ниже" aria-label="Переместить ниже">↓</button>
@@ -92,14 +94,14 @@
         @foreach ($opts as $j => $opt)
             <label class="choice">
                 <input type="checkbox" name="{{ $preview ? 'preview_'.$inputPrefix : $inputPrefix }}{{ $i }}[]" value="{{ $j }}">
-                <span>{!! \App\Support\CourseContentMarkdown::inlineHtml((string) $opt) !!}</span>
+                <span>{!! \App\Support\CourseContentMarkdown::inlineHtml((string) $opt, $glossaryCourseId) !!}</span>
             </label>
         @endforeach
     @else
         @forelse ($opts as $j => $opt)
             <label class="choice">
                 <input type="radio" name="{{ $preview ? 'preview_'.$inputPrefix : $inputPrefix }}{{ $i }}" value="{{ $j }}" @if (! $preview && $loop->first) required @endif>
-                <span>{!! \App\Support\CourseContentMarkdown::inlineHtml((string) $opt) !!}</span>
+                <span>{!! \App\Support\CourseContentMarkdown::inlineHtml((string) $opt, $glossaryCourseId) !!}</span>
             </label>
         @empty
             <p class="muted small" style="margin:0">Варианты ответа для этого вопроса не настроены.</p>

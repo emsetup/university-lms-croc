@@ -90,9 +90,9 @@
                                 <li class="{{ $liClass }}">
                                     <strong>{{ TeacherQuizLabels::letter((int) $oi) }})</strong>
                                     @if ($isCh && $isExp)
-                                        <span class="learner-bd-tag learner-bd-tag--hit">✓ верно, ваш выбор</span>
+                                        <span class="learner-bd-tag learner-bd-tag--hit">✓ верно</span>
                                     @elseif ($isCh && ! $isExp)
-                                        <span class="learner-bd-tag learner-bd-tag--miss">✗ неверно, ваш выбор</span>
+                                        <span class="learner-bd-tag learner-bd-tag--miss">✗ неверно</span>
                                     @elseif ($isExp && ! $isCh)
                                         <span class="learner-bd-tag learner-bd-tag--need">→ нужно было отметить</span>
                                     @endif

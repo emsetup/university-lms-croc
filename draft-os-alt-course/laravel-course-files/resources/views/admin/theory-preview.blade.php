@@ -16,9 +16,10 @@
             <p class="muted small" style="margin:0 0 1rem">Так же отображается теория у обучающегося (без кнопки «отмечено просмотрено»).</p>
             @php
                 $theoryRaw = (string) ($meta['theory'] ?? '');
+                $glossaryCourseId = (int) ($courseId ?? session('admin_course_id') ?? 0);
             @endphp
             <article class="theory-article prose-course practice-block theory-content">
-                {!! \App\Support\AdminContentMarkdown::toHtml($theoryRaw) !!}
+                {!! \App\Support\AdminContentMarkdown::toHtml($theoryRaw, $glossaryCourseId > 0 ? $glossaryCourseId : null) !!}
             </article>
 
             <style>

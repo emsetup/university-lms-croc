@@ -181,6 +181,10 @@ Route::middleware([
         ->whereNumber('course')
         ->name('course.dashboard');
 
+    Route::get('/courses/{course}/glossary', \App\Http\Controllers\CourseGlossaryController::class)
+        ->whereNumber('course')
+        ->name('course.glossary');
+
     Route::get('/assessment', AssessmentController::class)->name('assessment');
     Route::get('/final-lab', [FinalLabController::class, 'show'])->name('final-lab');
     Route::post('/final-lab/start', [FinalLabController::class, 'startLab'])->name('final-lab.start');
@@ -920,6 +924,14 @@ Route::middleware([
                 Route::post('/nastroyki/gruppy/{group}/udalit', [\App\Http\Controllers\AdminLearnerGroupsController::class, 'courseDestroy'])
                     ->whereNumber('group')
                     ->name('admin.course.learner-groups.destroy');
+                Route::post('/nastroyki/glossariy', [\App\Http\Controllers\AdminCourseGlossaryController::class, 'store'])
+                    ->name('admin.course.glossary.store');
+                Route::post('/nastroyki/glossariy/{term}', [\App\Http\Controllers\AdminCourseGlossaryController::class, 'update'])
+                    ->whereNumber('term')
+                    ->name('admin.course.glossary.update');
+                Route::post('/nastroyki/glossariy/{term}/udalit', [\App\Http\Controllers\AdminCourseGlossaryController::class, 'destroy'])
+                    ->whereNumber('term')
+                    ->name('admin.course.glossary.destroy');
                 Route::get('/nastroyki/modul/{courseModule}/razdel/{section}/otvety', [AdminSurveyResponsesController::class, 'index'])
                     ->whereNumber('courseModule')
                     ->whereNumber('section')

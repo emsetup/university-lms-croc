@@ -119,5 +119,10 @@ final class Course extends Model
     {
         return $this->hasMany(CourseContentGrant::class);
     }
+
+    public function glossaryTerms(): HasMany
+    {
+        return $this->hasMany(CourseGlossaryTerm::class)->orderBy('sort')->orderBy('term');
+    }
 }
 

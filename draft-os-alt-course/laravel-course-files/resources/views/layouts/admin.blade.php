@@ -128,10 +128,8 @@
                     $canViewLearners = $psa && $psa->canViewCourseLearnerStats($cid);
                     $canPreviewCourse = $psa && $psa->canPreviewCourse($cid);
                     $en = (int) \App\Models\CourseEnrollment::query()->where('course_id', $cid)->count();
-                    $completed = (int) \App\Models\FinalLabResult::query()
-                        ->where('course_id', $cid)
-                        ->whereNotNull('completed_at')
-                        ->count();
+                    $completed = (int) app(\App\Services\TeacherCourseAnalyticsService::class)
+                        ->countCompletedLearners($cid);
                 @endphp
                 <div class="ap-course-context">
                     <div class="ap-course-context__row">

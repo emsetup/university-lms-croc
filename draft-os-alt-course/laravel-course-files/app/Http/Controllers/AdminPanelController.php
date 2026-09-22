@@ -71,11 +71,9 @@ class AdminPanelController extends Controller
         $courseId = (int) session('admin_course_id', 0);
 
         $courseCompletedCount = 0;
-        if ($courseId > 0 && Schema::hasTable('final_lab_results')) {
-            $courseCompletedCount = (int) FinalLabResult::query()
-                ->where('course_id', $courseId)
-                ->whereNotNull('completed_at')
-                ->count();
+        if ($courseId > 0) {
+            $courseCompletedCount = app(\App\Services\TeacherCourseAnalyticsService::class)
+                ->countCompletedLearners($courseId);
         }
 
         $items = FinalLabResult::query()
@@ -258,15 +256,8 @@ class AdminPanelController extends Controller
                 ->map(function (Course $c) {
                     $cid = (int) $c->id;
                     $enrolled = $this->courseParticipantCount($cid);
-                    $completed = 0;
-                    if (Schema::hasTable('final_lab_results')) {
-                        $completed = (int) DB::table('final_lab_results')
-                            ->where('course_id', $cid)
-                            ->whereNotNull('certificate_full_name')
-                            ->whereNotNull('certificate_serial')
-                            ->distinct()
-                            ->count('learner_id');
-                    }
+                    $completed = app(\App\Services\TeacherCourseAnalyticsService::class)
+                        ->countCompletedLearners($cid);
                     $pct = $enrolled > 0 ? (int) round(100 * $completed / $enrolled) : 0;
 
                     return [

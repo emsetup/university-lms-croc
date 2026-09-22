@@ -117,6 +117,25 @@ final class LearnerContentVisibilityService
     }
 
     /**
+     * Модули для карточек на дашборде: видимые + не скрытые с общего списка.
+     * Скрытые модули по-прежнему открываются по прямой / быстрой ссылке.
+     *
+     * @return Collection<int, CourseModule>
+     */
+    public function catalogModulesForLearner(int $courseId, int $learnerId, ?Collection $modules = null): Collection
+    {
+        return $this->visibleModulesForLearner($courseId, $learnerId, $modules)
+            ->filter(function (CourseModule $m): bool {
+                if (! Schema::hasColumn('course_modules', 'hidden_from_catalog')) {
+                    return true;
+                }
+
+                return ! (bool) ($m->hidden_from_catalog ?? false);
+            })
+            ->values();
+    }
+
+    /**
      * @return list<int>
      */
     public function visibleModuleIdsForLearner(int $courseId, int $learnerId): array
